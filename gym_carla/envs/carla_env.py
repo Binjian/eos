@@ -156,8 +156,8 @@ class CarlaEnv(gym.Env):
     myFile = ET.parse("Town04.xodr")
     root = myFile.getroot()
     xodrStr = ET.tostring(root, encoding="utf8" ,method="xml")
-    self.world = client.generate_opendrive_world(opendrive = xodrStr)
-    #self.world = client.load_world(params['town'])
+    #self.world = client.generate_opendrive_world(opendrive = xodrStr)
+    self.world = client.load_world(params['town'])
     print('Carla server connected!')
 
     # Set weather
