@@ -73,9 +73,8 @@ class RoutePlanner():
         # random choice between the possible options
         road_options_list = retrieve_options(
           next_waypoints, last_waypoint)
-
         road_option = road_options_list[1]
-        # road_option = random.choice(road_options_list)
+        road_option = random.choice(road_options_list)
         
         next_waypoint = next_waypoints[road_options_list.index(
           road_option)]

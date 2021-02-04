@@ -21,51 +21,11 @@ import random
 import re
 import weakref
 
-try:
-    import pygame
-    from pygame.locals import KMOD_CTRL
-    from pygame.locals import KMOD_SHIFT
-    from pygame.locals import K_0
-    from pygame.locals import K_9
-    from pygame.locals import K_BACKQUOTE
-    from pygame.locals import K_BACKSPACE
-    from pygame.locals import K_COMMA
-    from pygame.locals import K_DOWN
-    from pygame.locals import K_ESCAPE
-    from pygame.locals import K_F1
-    from pygame.locals import K_LEFT
-    from pygame.locals import K_PERIOD
-    from pygame.locals import K_RIGHT
-    from pygame.locals import K_SLASH
-    from pygame.locals import K_SPACE
-    from pygame.locals import K_TAB
-    from pygame.locals import K_UP
-    from pygame.locals import K_a
-    from pygame.locals import K_c
-    from pygame.locals import K_d
-    from pygame.locals import K_h
-    from pygame.locals import K_m
-    from pygame.locals import K_p
-    from pygame.locals import K_q
-    from pygame.locals import K_r
-    from pygame.locals import K_s
-    from pygame.locals import K_w
-    from pygame.locals import K_MINUS
-    from pygame.locals import K_EQUALS
-except ImportError:
-    raise RuntimeError('cannot import pygame, make sure pygame package is installed')
-
-try:
-    import numpy as np
-except ImportError:
-    raise RuntimeError('cannot import numpy, make sure numpy package is installed')
-
-
 
 def main():
   # parameters for the gym_carla environment
   params = {
-    'number_of_vehicles': 100,
+    'number_of_vehicles': 0,
     'number_of_walkers': 0,
     'display_size': 256,  # screen size of bird-eye render
     'max_past_step': 1,  # the number of past steps to draw
@@ -104,7 +64,7 @@ def main():
     obs,r,done,info = env.step(action)
 
 
-    if done:
+    if env.mode == 0 and done:
       obs = env.reset()
   
 

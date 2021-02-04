@@ -220,7 +220,9 @@ def set_carla_transform(pose):
   transform = carla.Transform()
   transform.location.x = pose[0]
   transform.location.y = pose[1]
-  transform.rotation.yaw = pose[2]
+  transform.location.z = pose[2]
+  transform.rotation.yaw = pose[3]
+  transform.rotation.pitch = pose[4]
   return transform
 
 def display_to_rgb(display, obs_size):

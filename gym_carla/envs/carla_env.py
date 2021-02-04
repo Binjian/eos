@@ -10,6 +10,7 @@ from __future__ import division
 import copy
 import numpy as np
 import pygame
+import sys
 import random
 import time
 import pyglet
@@ -96,15 +97,17 @@ class CarlaEnv(gym.Env):
     self.display_route = params['display_route']
 
     # driving mode
+    self.autoflag = False
     # manual control settings
     self.clock = pygame.time.Clock()
     self._cache = 0
     self.throttle = 0
     self.steer_increment = 0.5
     self.brake = 0
-
+    self.reverse = False
     # 0 is reinforcement learning mode, 1 is autopilot, 2 is manual control
-    self.mode = 0
+    self.modename = ["Reinforcement Learning","Autopilot","Manual Control"]
+    self.mode = 2
     self._mode_transforms = 3
 
     if 'pixor' in params.keys():
@@ -112,8 +115,6 @@ class CarlaEnv(gym.Env):
       self.pixor_size = params['pixor_size']
     else:
       self.pixor = False
-
-
 
     # Destination
     if params['task_mode'] == 'roundabout':
@@ -153,12 +154,14 @@ class CarlaEnv(gym.Env):
     print('connecting to Carla server...')
     client = carla.Client(params['carlaserver'], params['port'])
     client.set_timeout(10.0)
-    myFile = ET.parse("Town04.xodr")
-    root = myFile.getroot()
-    xodrStr = ET.tostring(root, encoding="utf8" ,method="xml")
-    #self.world = client.generate_opendrive_world(opendrive = xodrStr)
+    # myFile = ET.parse("/home/hongchen/devel/Test_opend/maps/examples_and_use_cases/Ex_Poly3/Ex_Poly3.xodr")
+    # root = myFile.getroot()
+    # xodrStr = ET.tostring(root, encoding="utf8" ,method="xml")
+    # self.world = client.generate_opendrive_world(opendrive = xodrStr)
     self.world = client.load_world(params['town'])
     print('Carla server connected!')
+
+    self.deleteElement()
 
     # Set weather
     self.world._weather_presets = find_weather_presets()
@@ -218,7 +221,7 @@ class CarlaEnv(gym.Env):
     # Modify the attributes of the blueprint to set image resolution and field of view.
     self.newcam_bp.set_attribute('image_size_x', str(2 * self.obs_size))
     self.newcam_bp.set_attribute('image_size_y', str(2 * self.obs_size))
-    self.newcam_bp.set_attribute('fov', '110')
+    self.newcam_bp.set_attribute('fov', '90')
 
     # Set the time in seconds between sensor captures
     self.newcam_bp.set_attribute('sensor_tick', '0.02')
@@ -235,6 +238,8 @@ class CarlaEnv(gym.Env):
     # Initialize the renderer
     self._init_renderer()
     self._parse_events()
+    print("----------------------------")
+    print (self.modename[self.mode])
 
     # Get pixel grid points
     if self.pixor:
@@ -275,6 +280,10 @@ class CarlaEnv(gym.Env):
   def _parse_events(self):
     for event in pygame.event.get():      
         if event.type == pygame.KEYUP:
+            if self._is_quit_shortcut(event.key):
+              self.deleteElement()
+              pygame.quit()
+              sys.exit
             if event.key == K_c and pygame.key.get_mods() & KMOD_SHIFT:
               self.next_weather(reverse=True)              
             elif event.key == K_c:
@@ -283,23 +292,27 @@ class CarlaEnv(gym.Env):
               self.toggle_camera()
             elif event.key == K_p:
               self.toggle_mode()
-              print (self.mode)
+              print("----------------------------")
+              print (self.modename[self.mode])
 
+  @staticmethod
+  def _is_quit_shortcut(key):
+    return (key == K_ESCAPE) or (key == K_q and pygame.key.get_mods() & KMOD_CTRL)
 
   def _parse_vehicle_keys(self, keys):
     self.throttle = 3.0 if keys[K_UP] or keys[K_w] else 0.0
     if keys[K_LEFT] or keys[K_a]:
         self.steer_cache -= self.steer_increment
-        print ("left")
     elif keys[K_RIGHT] or keys[K_d]:
         self.steer_cache += self.steer_increment
-        print ("right")
     else:
         self.steer_cache = 0.0
     self.steer_cache = min(0.7, max(-0.7, self.steer_cache))
     steer = round(self.steer_cache, 1)
     self.brake = 3.0 if keys[K_DOWN] or keys[K_s] else 0.0 
-    act = carla.VehicleControl(throttle=self.throttle, steer=steer, brake=self.brake)
+    if keys[K_r]:
+      self.reverse = not self.reverse
+    act = carla.VehicleControl(throttle=self.throttle, steer=steer, brake=self.brake, reverse = self.reverse)
     self.ego.apply_control(act)           
               
   def reset(self):
@@ -357,10 +370,14 @@ class CarlaEnv(gym.Env):
 
       if self.task_mode == 'random':
         transform = random.choice(self.vehicle_spawn_points)
+        transform = self.vehicle_spawn_points[1]
+        # self.start= [-25,6.5,2.5,-38,0]
+        # transform = set_carla_transform(self.start)        
       if self.task_mode == 'roundabout':
         self.start=[52.1+np.random.uniform(-5,5),-4.2, 178.66] # random
-        # self.start=[52.1,-4.2, 178.66] # static
+        # self.start= [0,8.823615,1,175.5]
         transform = set_carla_transform(self.start)
+        print ("spawned")
       if self._try_spawn_ego_vehicle_at(transform):
         break
       else:
@@ -420,9 +437,20 @@ class CarlaEnv(gym.Env):
 
     return self._get_obs()
 
+  def deleteElement(self):
+    # Clear sensor objects  
+    self.collision_sensor = None
+    self.lidar_sensor = None
+    self.camera_sensor = None
+    self.newcam_sensor = None
+
+    # Delete sensors, vehicles and walkers
+    self._clear_all_actors(['sensor.other.collision', 'sensor.lidar.ray_cast', 'sensor.camera.rgb', 'vehicle.*', 'controller.ai.walker', 'walker.*'])
 
   def step(self, action):
     if self.mode == 0:
+      self.autoflag = False
+      self.ego.set_autopilot(self.autoflag)
       # Calculate acceleration and steering
       if self.discrete:
         acc = self.discrete_act[0][action//self.n_steer]
@@ -443,9 +471,12 @@ class CarlaEnv(gym.Env):
       self.ego.apply_control(act)
       self.world.tick()
     elif self.mode == 1:
-      self.ego.set_autopilot()
+      self.autoflag = True
+      self.ego.set_autopilot(self.autoflag)
       self.world.tick()
     elif self.mode == 2:
+      self.autoflag = False
+      self.ego.set_autopilot(self.autoflag)
       self._parse_vehicle_keys(pygame.key.get_pressed())
       self.world.tick()
       
@@ -778,7 +809,7 @@ class CarlaEnv(gym.Env):
 
     obs = {
       'camera':camera.astype(np.uint8),
-      'lidar':lidar.astype(np.uint8),
+      # 'lidar':lidar.astype(np.uint8),
       'birdeye':birdeye.astype(np.uint8),
       'newcam':newcam.astype(np.uint8),
       'state': state,
@@ -787,7 +818,7 @@ class CarlaEnv(gym.Env):
     if self.pixor:
       obs.update({
         'roadmap':roadmap.astype(np.uint8),
-        'vh_clas':np.expand_dims(vh_clas, -1).astype(np.float32),
+        # 'vh_clas':np.expand_dims(vh_clas, -1).astype(np.float32),
         'vh_regr':vh_regr.astype(np.float32),
         'newmap':newmap.astype(np.uint8),
         'pixor_state': pixor_state,
