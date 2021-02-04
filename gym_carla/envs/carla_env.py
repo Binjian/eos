@@ -138,6 +138,7 @@ class CarlaEnv(gym.Env):
       'lidar': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
       'birdeye': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
       'newcam': spaces.Box(low=0, high=511, shape=(2*self.obs_size, 2*self.obs_size, 3), dtype=np.uint8),
+      'newcam2': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
       'state': spaces.Box(np.array([-2, -1, -5, 0]), np.array([2, 1, 30, 1]), dtype=np.float32)
       }
     if self.pixor:
@@ -146,6 +147,7 @@ class CarlaEnv(gym.Env):
         'vh_clas': spaces.Box(low=0, high=1, shape=(self.pixor_size, self.pixor_size, 1), dtype=np.float32),
         'vh_regr': spaces.Box(low=-5, high=5, shape=(self.pixor_size, self.pixor_size, 6), dtype=np.float32),
         'newmap': spaces.Box(low=0, high=511, shape=(2*self.obs_size, 2*self.obs_size, 3), dtype=np.uint8),
+        'newmap2': spaces.Box(low=0, high=255, shape=(self.obs_size, self.obs_size, 3), dtype=np.uint8),
         'pixor_state': spaces.Box(np.array([-1000, -1000, -1, -1, -5]), np.array([1000, 1000, 1, 1, 20]), dtype=np.float32)
         })
     self.observation_space = spaces.Dict(observation_space_dict)
@@ -225,6 +227,19 @@ class CarlaEnv(gym.Env):
 
     # Set the time in seconds between sensor captures
     self.newcam_bp.set_attribute('sensor_tick', '0.02')
+
+    # newcam2 sensor
+    self.newcam2_img = np.zeros((self.obs_size, self.obs_size, 3), dtype=np.uint8)
+    self.newcam2_trans = carla.Transform(carla.Location(x=5.5,z=80),carla.Rotation(pitch = -90.0))
+    self.newcam2_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
+
+    # Modify the attributes of the blueprint to set image resolution and field of view.
+    self.newcam2_bp.set_attribute('image_size_x', str(self.obs_size))
+    self.newcam2_bp.set_attribute('image_size_y', str(self.obs_size))
+    self.newcam2_bp.set_attribute('fov', '110')
+
+    # Set the time in seconds between sensor captures
+    self.newcam2_bp.set_attribute('sensor_tick', '0.02')
 
 
     # Set fixed simulation step for synchronous mode
@@ -321,6 +336,7 @@ class CarlaEnv(gym.Env):
     self.lidar_sensor = None
     self.camera_sensor = None
     self.newcam_sensor = None
+    self.newcam2_sensor = None
 
     # Delete sensors, vehicles and walkers
     self._clear_all_actors(['sensor.other.collision', 'sensor.lidar.ray_cast', 'sensor.camera.rgb', 'vehicle.*', 'controller.ai.walker', 'walker.*'])
@@ -421,6 +437,16 @@ class CarlaEnv(gym.Env):
       array = array[:, :, ::-1]
       self.newcam_img = array
 
+    # Add camera sensor
+    self.newcam2_sensor = self.world.spawn_actor(self.newcam2_bp, self.newcam2_trans, attach_to=self.ego)
+    self.newcam2_sensor.listen(lambda data: get_newcam2_img(data))
+    def get_newcam2_img(data):
+      array = np.frombuffer(data.raw_data, dtype = np.dtype("uint8"))
+      array = np.reshape(array, (data.height, data.width, 4))
+      array = array[:, :, :3]
+      array = array[:, :, ::-1]
+      self.newcam2_img = array
+
     # Update timesteps
     self.time_step=0
     self.reset_step+=1
@@ -443,6 +469,7 @@ class CarlaEnv(gym.Env):
     self.lidar_sensor = None
     self.camera_sensor = None
     self.newcam_sensor = None
+    self.newcam2_sensor = None
 
     # Delete sensors, vehicles and walkers
     self._clear_all_actors(['sensor.other.collision', 'sensor.lidar.ray_cast', 'sensor.camera.rgb', 'vehicle.*', 'controller.ai.walker', 'walker.*'])
@@ -545,7 +572,7 @@ class CarlaEnv(gym.Env):
     pixels_per_meter = self.display_size / self.obs_range
     pixels_ahead_vehicle = (self.obs_range/2 - self.d_behind) * pixels_per_meter
     birdeye_params = {
-      'screen_size': [self.display_size, self.display_size],
+      'screen_size': [2*self.display_size, 2*self.display_size],
       'pixels_per_meter': pixels_per_meter,
       'pixels_ahead_vehicle': pixels_ahead_vehicle
     }
@@ -673,7 +700,7 @@ class CarlaEnv(gym.Env):
       birdeye_render_types.append('waypoints')
     self.birdeye_render.render(self.display, birdeye_render_types)
     birdeye = pygame.surfarray.array3d(self.display)
-    birdeye = birdeye[0:self.display_size * 2, :, :]
+    birdeye = birdeye[0:2*self.display_size, :, :]
     birdeye = display_to_rgb(birdeye, self.obs_size)
 
     # Roadmap
@@ -699,13 +726,27 @@ class CarlaEnv(gym.Env):
         self.birdeye_render.render(self.display, newmap_render_types)
         newmap = pygame.surfarray.array3d(self.display)
         newmap = newmap[0:2*self.display_size, :, :]
-        newmap = display_to_rgb(newmap, 2*self.obs_size)
+        newmap = display_to_rgb(2*newmap, self.obs_size)
         # Add ego vehicle
         for i in range(self.obs_size):
           for j in range(self.obs_size):
             if abs(birdeye[i, j, 0] - 255)<20 and abs(birdeye[i, j, 1] - 0)<20 and abs(birdeye[i, j, 0] - 255)<20:
               newmap[i, j, :] = birdeye[i, j, :]
 
+      # newmap2
+      if self.pixor:
+        newmap2_render_types = ['roadmap']
+        if self.display_route:
+          newmap2_render_types.append('waypoints')
+        self.birdeye_render.render(self.display, newmap2_render_types)
+        newmap2 = pygame.surfarray.array3d(self.display)
+        newmap2 = newmap2[0:self.display_size, :, :]
+        newmap2 = display_to_rgb(newmap2, self.obs_size)
+        # Add ego vehicle
+        for i in range(self.obs_size):
+          for j in range(self.obs_size):
+            if abs(birdeye[i, j, 0] - 255)<20 and abs(birdeye[i, j, 1] - 0)<20 and abs(birdeye[i, j, 0] - 255)<20:
+              newmap[i, j, :] = birdeye[i, j, :]
 
     ## Lidar image generation
     point_cloud = []
@@ -753,6 +794,11 @@ class CarlaEnv(gym.Env):
     newcam = resize(self.newcam_img, (2*self.obs_size, 2*self.obs_size)) * 255
     newcam_surface = rgb_to_display_surface(newcam, 2*self.display_size)
     self.display.blit(newcam_surface, (0, 0))
+
+    ## Display newcam2 image
+    newcam2 = resize(self.newcam2_img, (self.obs_size, self.obs_size)) * 255
+    newcam2_surface = rgb_to_display_surface(newcam2, self.display_size)
+    self.display.blit(newcam2_surface, (self.display_size * 3,self.display_size))
 
     if self._parse_events():
         return
@@ -809,18 +855,20 @@ class CarlaEnv(gym.Env):
 
     obs = {
       'camera':camera.astype(np.uint8),
-      # 'lidar':lidar.astype(np.uint8),
+      'lidar':lidar.astype(np.uint8),
       'birdeye':birdeye.astype(np.uint8),
       'newcam':newcam.astype(np.uint8),
+      'newcam2':newcam2.astype(np.uint8),
       'state': state,
     }
 
     if self.pixor:
       obs.update({
         'roadmap':roadmap.astype(np.uint8),
-        # 'vh_clas':np.expand_dims(vh_clas, -1).astype(np.float32),
+        'vh_clas':np.expand_dims(vh_clas, -1).astype(np.float32),
         'vh_regr':vh_regr.astype(np.float32),
         'newmap':newmap.astype(np.uint8),
+        'newmap2':newmap2.astype(np.uint8),
         'pixor_state': pixor_state,
       })
 
