@@ -64,7 +64,7 @@ def main():
     obs,r,done,info = env.step(action)
 
 
-    if env.mode == 0 and done:
+    if env.mode == 1 and done:
       obs = env.reset()
   
 

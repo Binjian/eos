@@ -105,9 +105,9 @@ class CarlaEnv(gym.Env):
     self.steer_increment = 0.5
     self.brake = 0
     self.reverse = False
-    # 0 is reinforcement learning mode, 1 is autopilot, 2 is manual control
-    self.modename = ["Reinforcement Learning","Autopilot","Manual Control"]
-    self.mode = 2
+    # 0 is autopilot, 1 is reinforcement learning, 2 is manual control
+    self.modename = ["AutoPilot","Reinforcement Learning","Manual Control"]
+    self.mode = 0
     self._mode_transforms = 3
 
     if 'pixor' in params.keys():
@@ -448,7 +448,7 @@ class CarlaEnv(gym.Env):
     self._clear_all_actors(['sensor.other.collision', 'sensor.lidar.ray_cast', 'sensor.camera.rgb', 'vehicle.*', 'controller.ai.walker', 'walker.*'])
 
   def step(self, action):
-    if self.mode == 0:
+    if self.mode == 1:
       self.autoflag = False
       self.ego.set_autopilot(self.autoflag)
       # Calculate acceleration and steering
@@ -470,7 +470,7 @@ class CarlaEnv(gym.Env):
       act = carla.VehicleControl(throttle=float(throttle), steer=float(-steer), brake=float(brake))
       self.ego.apply_control(act)
       self.world.tick()
-    elif self.mode == 1:
+    elif self.mode == 0:
       self.autoflag = True
       self.ego.set_autopilot(self.autoflag)
       self.world.tick()
