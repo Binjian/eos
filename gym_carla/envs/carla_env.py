@@ -747,12 +747,14 @@ class CarlaEnv(gym.Env):
             if abs(birdeye[i, j, 0] - 255)<20 and abs(birdeye[i, j, 1] - 0)<20 and abs(birdeye[i, j, 0] - 255)<20:
               newmap[i, j, :] = birdeye[i, j, :]
 
-    ## Lidar image generation
-    point_cloud = []
-    # Get point cloud data
-    for location in self.lidar_data:
-      point_cloud.append([location.x, location.y, -location.z])
-    point_cloud = np.array(point_cloud)
+    # ## Lidar image generation
+    location = np.frombuffer(self.lidar_data.raw_data, dtype=np.dtype('f4'))
+    points = np.reshape(location, (-1, 4))
+    points = points[: , :-1]
+    point_cloud = points.copy()
+    point_cloud[:,0] = points[:,1]
+    point_cloud[:,1] = -points[:,0]
+    
     # Separate the 3D space to bins for point cloud, x and y is set according to self.lidar_bin,
     # and z is set to be two bins.
     y_bins = np.arange(-(self.obs_range - self.d_behind), self.d_behind+self.lidar_bin, self.lidar_bin)
