@@ -163,7 +163,6 @@ class CarlaEnv(gym.Env):
     self.world = client.load_world(params['town'])
     print('Carla server connected!')
 
-    self.deleteElement()
 
     # Set weather
     self.world._weather_presets = find_weather_presets()

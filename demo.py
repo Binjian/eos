@@ -25,8 +25,8 @@ import weakref
 def main():
   # parameters for the gym_carla environment
   params = {
-    'number_of_vehicles': 0,
-    'number_of_walkers': 0,
+    'number_of_vehicles': 50,
+    'number_of_walkers': 200,
     'display_size': 256,  # screen size of bird-eye render
     'max_past_step': 1,  # the number of past steps to draw
     'dt': 0.1,  # time interval between two frames
