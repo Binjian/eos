@@ -9,7 +9,9 @@ logs
 # /dist
 __pycache__/
 
-# The file containing environment variables 
+.glab-cli/
+.idea/
+# The file containing environment variables
 # .env
 
 # Ignore IDE specific files
