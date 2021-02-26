@@ -107,8 +107,10 @@ class CarlaEnv(gym.Env):
     self.reverse = False
     # 0 is autopilot, 1 is reinforcement learning, 2 is manual control
     self.modename = ["AutoPilot","Reinforcement Learning","Manual Control"]
-    self.mode = 0
+    self.mode = 2
     self._mode_transforms = 3
+    self.thro_percent = 0
+    self.sec = 0
 
     if 'pixor' in params.keys():
       self.pixor = params['pixor']
@@ -156,11 +158,11 @@ class CarlaEnv(gym.Env):
     print('connecting to Carla server...')
     client = carla.Client(params['carlaserver'], params['port'])
     client.set_timeout(10.0)
-    # myFile = ET.parse("/home/hongchen/devel/Test_opend/maps/examples_and_use_cases/Ex_Poly3/Ex_Poly3.xodr")
-    # root = myFile.getroot()
-    # xodrStr = ET.tostring(root, encoding="utf8" ,method="xml")
-    # self.world = client.generate_opendrive_world(opendrive = xodrStr)
-    self.world = client.load_world(params['town'])
+    myFile = ET.parse("/home/hongchen/devel/throttle-output/tel.xodr")
+    root = myFile.getroot()
+    xodrStr = ET.tostring(root, encoding="utf8" ,method="xml")
+    self.world = client.generate_opendrive_world(opendrive = xodrStr)
+    # self.world = client.load_world(params['town'])
     print('Carla server connected!')
 
 
@@ -314,7 +316,21 @@ class CarlaEnv(gym.Env):
     return (key == K_ESCAPE) or (key == K_q and pygame.key.get_mods() & KMOD_CTRL)
 
   def _parse_vehicle_keys(self, keys):
-    self.throttle = 3.0 if keys[K_UP] or keys[K_w] else 0.0
+
+    if keys[K_UP] or keys[K_w]:
+        start = time.time()
+        self.throttle = 1.0
+        self.thro_percent = self.thro_percent + (time.time() - start)*5 + 1
+        if self.thro_percent > 100:
+          self.thro_percent = 100 
+    else:
+        start = time.time()
+        self.throttle = 0.0
+        self.thro_percent = self.thro_percent - (time.time() -start)*5 - 1
+        if self.thro_percent < 0:
+          self.thro_percent = 0 
+
+
     if keys[K_LEFT] or keys[K_a]:
         self.steer_cache -= self.steer_increment
     elif keys[K_RIGHT] or keys[K_d]:
@@ -323,12 +339,18 @@ class CarlaEnv(gym.Env):
         self.steer_cache = 0.0
     self.steer_cache = min(0.7, max(-0.7, self.steer_cache))
     steer = round(self.steer_cache, 1)
-    self.brake = 3.0 if keys[K_DOWN] or keys[K_s] else 0.0 
+    if keys[K_DOWN] or keys[K_s]:
+      self.brake = 1.0
+      self.thro_percent = 0
+    else:
+      self.brake = 0.0
+
     if keys[K_r]:
       self.reverse = not self.reverse
-    act = carla.VehicleControl(throttle=self.throttle, steer=steer, brake=self.brake, reverse = self.reverse)
+    act = carla.VehicleControl(throttle= self.throttle,steer=steer, brake=self.brake, reverse = self.reverse)
     self.ego.apply_control(act)           
-              
+
+
   def reset(self):
     # Clear sensor objects  
     self.collision_sensor = None
@@ -384,10 +406,11 @@ class CarlaEnv(gym.Env):
         self.reset()
 
       if self.task_mode == 'random':
-        transform = random.choice(self.vehicle_spawn_points)
-        transform = self.vehicle_spawn_points[1]
-        # self.start= [-25,6.5,2.5,-38,0]
-        # transform = set_carla_transform(self.start)        
+        # transform = random.choice(self.vehicle_spawn_points)
+        # transform = self.vehicle_spawn_points[1]
+        # self.start= [-50.53979238754325, 34.39446366782007,3,-0.33186980419760154*180/math.pi,0.005765]
+        self.start= [-50.53979238754325, 34.39446366782007,3,0,0.005765]
+        transform = set_carla_transform(self.start)        
       if self.task_mode == 'roundabout':
         self.start=[52.1+np.random.uniform(-5,5),-4.2, 178.66] # random
         # self.start= [0,8.823615,1,175.5]
@@ -503,7 +526,9 @@ class CarlaEnv(gym.Env):
     elif self.mode == 2:
       self.autoflag = False
       self.ego.set_autopilot(self.autoflag)
-      self._parse_vehicle_keys(pygame.key.get_pressed())
+      # self.ego.set_target_velocity(carla.Vector3D(x=5,y=5*(math.tan(-0.33186980419760154)),z=0))
+      # self._parse_vehicle_keys(pygame.key.get_pressed())
+      self.ego.add_torque(carla.Vector3D(x=0,y=100,z=0))
       self.world.tick()
       
 
@@ -747,7 +772,7 @@ class CarlaEnv(gym.Env):
             if abs(birdeye[i, j, 0] - 255)<20 and abs(birdeye[i, j, 1] - 0)<20 and abs(birdeye[i, j, 0] - 255)<20:
               newmap[i, j, :] = birdeye[i, j, :]
 
-    # ## Lidar image generation
+    # Lidar image generation
     location = np.frombuffer(self.lidar_data.raw_data, dtype=np.dtype('f4'))
     points = np.reshape(location, (-1, 4))
     points = points[: , :-1]

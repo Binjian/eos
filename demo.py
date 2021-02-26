@@ -9,9 +9,12 @@ import gym
 import gym_carla
 import carla
 import pyglet
+import time
 
 from carla import ColorConverter as cc
 
+import numpy as np
+import array
 import argparse
 import collections
 import datetime
@@ -20,13 +23,20 @@ import math
 import random
 import re
 import weakref
+import pandas as pd
 
+def writexslx(v,a,p):
+  # print (vehicle)
+  df = pd.DataFrame({'v':v,'a':a,'p':p})
+  writer = pd.ExcelWriter('data.xlsx')
+  df.to_excel(writer,index = False)
+  writer.save()
 
 def main():
   # parameters for the gym_carla environment
   params = {
-    'number_of_vehicles': 50,
-    'number_of_walkers': 200,
+    'number_of_vehicles': 0,
+    'number_of_walkers': 0,
     'display_size': 256,  # screen size of bird-eye render
     'max_past_step': 1,  # the number of past steps to draw
     'dt': 0.1,  # time interval between two frames
@@ -57,16 +67,37 @@ def main():
   env = gym.make('carla-v0', params=params)
   obs = env.reset()
   
+  start = time.time()
+  counter = 0
+  velocity = np.array([],dtype = float)
+  acceleration = np.array([],dtype = float)
+  pedal = np.array([],dtype = float)
+  
+  print('simulation starts')
 
-
-  while True:
+  while counter < 1805:
     action = [2.0, 0.0]
-    obs,r,done,info = env.step(action)
+    obs,r,done,info = env.step(action)   
 
+    if time.time() - start > 1:
+      print("-----------------------------")
+      sec = int(time.time() - start) + counter
+      print("time =", sec)
+      v = math.sqrt(env.ego.get_velocity().x**2 + env.ego.get_velocity().y**2)
+      print("vel=",v*3.6)
+      a = math.sqrt((env.ego.get_acceleration().x)**2 +(env.ego.get_acceleration().y)**2)
+      print("acc=",a)
+      print("throttle=",env.thro_percent)
+      velocity = np.append(velocity,v)
+      acceleration = np.append(acceleration,a)
+      pedal = np.append(pedal,env.thro_percent)
+      start = time.time()
+      counter = counter + 1
 
     if env.mode == 1 and done:
       obs = env.reset()
   
+  # writexslx(velocity,acceleration,pedal)
 
 
 

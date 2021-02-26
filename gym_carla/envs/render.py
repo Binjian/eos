@@ -102,7 +102,7 @@ class MapImage(object):
 
     width_in_pixels = int(self._pixels_per_meter * self.width)
 
-    self.big_map_surface = pygame.Surface((width_in_pixels, width_in_pixels)).convert()
+    self.big_map_surface = pygame.Surface((width_in_pixels/30, width_in_pixels/30)).convert()
 
     # Render map
     self.draw_road_map(self.big_map_surface, carla_world, carla_map, self.world_to_pixel, self.world_to_pixel_width)
