@@ -14,6 +14,7 @@ import sys
 import random
 import time
 import pyglet
+import pandas as pd
 from skimage.transform import resize
 
 import gym
@@ -526,9 +527,7 @@ class CarlaEnv(gym.Env):
     elif self.mode == 2:
       self.autoflag = False
       self.ego.set_autopilot(self.autoflag)
-      # self.ego.set_target_velocity(carla.Vector3D(x=5,y=5*(math.tan(-0.33186980419760154)),z=0))
-      # self._parse_vehicle_keys(pygame.key.get_pressed())
-      self.ego.add_torque(carla.Vector3D(x=0,y=100,z=0))
+      self._parse_vehicle_keys(pygame.key.get_pressed())
       self.world.tick()
       
 
@@ -840,8 +839,10 @@ class CarlaEnv(gym.Env):
     delta_yaw = np.arcsin(np.cross(w, 
       np.array(np.array([np.cos(ego_yaw), np.sin(ego_yaw)]))))
     v = self.ego.get_velocity()
+    a = self.ego.get_acceleration()
     speed = np.sqrt(v.x**2 + v.y**2)
-    state = np.array([lateral_dis, - delta_yaw, speed, self.vehicle_front])
+    acc = np.sqrt(a.x**2 + a.y**2)
+    state = np.array([lateral_dis, - delta_yaw, speed, self.vehicle_front,acc])
 
     if self.pixor:
       ## Vehicle classification and regression maps (requires further normalization)

@@ -33,7 +33,7 @@ class RoutePlanner():
     self._world = self._vehicle.get_world()
     self._map = self._world.get_map()
 
-    self._sampling_radius = 0.05
+    self._sampling_radius = 0.01
     self._min_distance = 100
 
     self._target_waypoint = None

@@ -28,7 +28,7 @@ import pandas as pd
 def writexslx(v,a,p):
   # print (vehicle)
   df = pd.DataFrame({'v':v,'a':a,'p':p})
-  writer = pd.ExcelWriter('data.xlsx')
+  writer = pd.ExcelWriter('data2.xlsx')
   df.to_excel(writer,index = False)
   writer.save()
 
@@ -66,38 +66,48 @@ def main():
   # Set gym-carla environment
   env = gym.make('carla-v0', params=params)
   obs = env.reset()
-  
+
+  # initialize start time and counter
   start = time.time()
   counter = 0
+
+  # initialize arrays to store data
   velocity = np.array([],dtype = float)
   acceleration = np.array([],dtype = float)
   pedal = np.array([],dtype = float)
+  df = pd.read_excel('WLTC.xlsx',sheet_name = 'WLTC')
+  f_real = np.array(df['F'])
   
   print('simulation starts')
 
-  while counter < 1805:
+  while counter < 1800:
     action = [2.0, 0.0]
     obs,r,done,info = env.step(action)   
 
     if time.time() - start > 1:
       print("-----------------------------")
+      # print current time
       sec = int(time.time() - start) + counter
-      print("time =", sec)
-      v = math.sqrt(env.ego.get_velocity().x**2 + env.ego.get_velocity().y**2)
-      print("vel=",v*3.6)
-      a = math.sqrt((env.ego.get_acceleration().x)**2 +(env.ego.get_acceleration().y)**2)
-      print("acc=",a)
-      print("throttle=",env.thro_percent)
+      print("time =", str(sec),"s")  
+      # print velocity
+      v = obs['state'][2]     
+      print("vel=",str(v*3.6),"km/h")
+      # print acceleration
+      a = obs['state'][4]
+      print("acc=",str(a),"m/s2")
+      # print throttle percentage
+      print("throttle=",str(env.thro_percent),"%")
+      # store data
       velocity = np.append(velocity,v)
       acceleration = np.append(acceleration,a)
       pedal = np.append(pedal,env.thro_percent)
+      # reset time and add on counter
       start = time.time()
       counter = counter + 1
 
     if env.mode == 1 and done:
       obs = env.reset()
   
-  # writexslx(velocity,acceleration,pedal)
 
 
 
