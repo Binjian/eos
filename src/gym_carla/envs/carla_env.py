@@ -159,7 +159,7 @@ class CarlaEnv(gym.Env):
     print('connecting to Carla server...')
     client = carla.Client(params['carlaserver'], params['port'])
     client.set_timeout(10.0)
-    myFile = ET.parse("/home/hongchen/devel/throttle-output/tel.xodr")
+    myFile = ET.parse(params['file_path'])
     root = myFile.getroot()
     xodrStr = ET.tostring(root, encoding="utf8" ,method="xml")
     self.world = client.generate_opendrive_world(opendrive = xodrStr)

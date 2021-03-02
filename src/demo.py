@@ -61,6 +61,7 @@ def main():
     'display_route': True,  # whether to render the desired route
     'pixor_size': 64,  # size of the pixor labels
     'pixor': False,  # whether to output PIXOR observation
+    'file_path': "../data/straight.xodr"
   }
 
   # Set gym-carla environment
@@ -75,7 +76,7 @@ def main():
   velocity = np.array([],dtype = float)
   acceleration = np.array([],dtype = float)
   pedal = np.array([],dtype = float)
-  df = pd.read_excel('WLTC.xlsx',sheet_name = 'WLTC')
+  df = pd.read_excel('../data/WLTC.xlsx',sheet_name = 'WLTC')
   f_real = np.array(df['F'])
   
   print('simulation starts')
