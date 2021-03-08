@@ -58,6 +58,8 @@ zipped_tvset = [item for item in enumerate(vs)]
 [tset, vset] = zip(*zipped_tvset)
 zipped_tvmset = [item for item in enumerate(vm)]
 [tmea, vmea] = zip(*zipped_tvmset)
+zipped_tph = [item for item in enumerate(ps)]
+[tph, ph] = zip(*zipped_tph)
 
 
 def main():
@@ -103,7 +105,7 @@ def main():
     episode_number = 0
     counter = 0
 
-    velocity, acceleration, pedal, timing = [], [], [], []
+    velocity, acceleration, pedal, timing, episode_reward = [], [], [], [], []
 
     obs = env.reset()
     start = time.time()
@@ -115,6 +117,7 @@ def main():
     # prev_x = None  #  reserved for computing the difference frame
     velocity.append(vel)
     acceleration.append(acc)
+    pedal.append(0)
     timing.append(0)
 
     while True:
@@ -124,6 +127,7 @@ def main():
             action = np.random.choice(A, 1, aprob.tolist())[0]
 
             acts.append(action)  # logging the actions taken for visualization
+            pedal.append(throttle_space[action]*100)
             # record various intermediates (needed later for backprop)
             xs.append(x)  # observation
             hs.append(h)  # hidden state
@@ -146,7 +150,7 @@ def main():
             vel_interp = np.interp(sec, tset, vset)
             r_speed = -np.sqrt(np.fabs(vel - vel_interp))
             r_egy_csm = -(acc ** 2)
-            reward = 1000 * r_speed + r_egy_csm
+            reward = r_speed + 1000 * r_egy_csm
             reward_sum += reward
 
             x = [vel, acc]
@@ -165,12 +169,21 @@ def main():
 
         ###### Episode done ######
         episode_number = episode_number + 1
+        episode_reward.append(reward_sum)
         counter = 0
 
         episode_len = len(timing)
         vs_epi = np.interp(timing, tset, vset)
         vm_epi = np.interp(timing, tmea, vmea)
+        ph_epi = np.interp(timing, tph, ph)
+        plt.subplot(411)
         plt.plot(timing, velocity, 'r-', timing, vs_epi, 'g--', timing, vm_epi, 'b-.')
+        plt.subplot(412)
+        plt.plot(timing, pedal, 'r-', timing, ph_epi, 'g--')
+        plt.subplot(413)
+        plt.plot(timing[1:], drs, 'r-')
+        plt.subplot(414)
+        plt.plot(episode_reward, 'r*')
         plt.show(block=False)
         # stack together all inputs, hidden states, action gradients, and
         # rewards for this episode
@@ -230,6 +243,7 @@ def main():
         velocity.append(vel)
         acceleration.append(acc)
         timing.append(0)
+        pedal.append(0)
         # prev_x = None  #  reserved for computing the difference frame
 
 

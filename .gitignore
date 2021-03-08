@@ -8,6 +8,7 @@ logs
 # Ignore the build directory
 # /dist
 __pycache__/
+.idea/
 
 # The file containing environment variables 
 # .env
