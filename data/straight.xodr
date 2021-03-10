@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<OpenDRIVE>
-		<header date="Thu Jan 28 14:30 2021" east="0.0000000000000000e+00" name=" " north="0.0000000000000000e+00" revMajor="1" revMinor="6" south="0.0000000000000000e+00" version="1.00" west="0.0000000000000000e+00">
-			<geoReference><![CDATA[+lat_0=4.9000000000000000e+1 +lon_0=8.0000000000000000e+0]]>			</geoReference>
-		</header>
+		<header date="Thu Jan 28 14:30 2021" east="0.0000000000000000e+00" name=" " north="0.0000000000000000e+00" revMajor="1" revMinor="6" south="0.0000000000000000e+00" version="1.00" west="0.0000000000000000e+00"/>
 		<road id="1" junction="-1" length="30000" name=" " rule="RHT">
 			<link></link>
 			<planView>
-				<geometry hdg="0" length="30000" s="0.0000000000000000e+00" x="-56.53979238754325" y="-34.39446366782007">
+				<geometry hdg="0.0" length="30000" s="0.0000000000000000e+00" x="-56.53979238754325" y="-34.39446366782007">
 					<line/>
 				</geometry>
 			</planView>
