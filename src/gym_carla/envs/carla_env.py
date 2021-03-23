@@ -8,6 +8,8 @@
 from __future__ import division
 
 import copy
+import argparse
+import collections
 import pygame
 import sys
 import random
@@ -27,6 +29,15 @@ import xml.etree.ElementTree as ET
 from gym_carla.envs.render import BirdeyeRender
 from gym_carla.envs.route_planner import RoutePlanner
 from gym_carla.envs.misc import *
+
+if sys.version_info >= (3, 0):
+
+    from configparser import ConfigParser
+
+else:
+
+    from ConfigParser import RawConfigParser as ConfigParser
+
 
 try:
     import pygame
@@ -96,26 +107,57 @@ class CarlaEnv(gym.Env):
         self.desired_speed = params["desired_speed"]
         self.max_ego_spawn_times = params["max_ego_spawn_times"]
         self.display_route = params["display_route"]
+        self.ai_mode = params["AI_mode"]
 
         # driving mode
         self.autoflag = False
-        # manual control settings
+        # keyboard manual control settings
         self.clock = pygame.time.Clock()
         self._cache = 0
         self.throttle = 0
         self.steer_increment = 0.5
         self.brake = 0
         self.reverse = False
+
+        # start and end point for race track
+
+        self.start_point = [-40, 34, 3, 0, 0]
+
+        self.end_point = [-50, 34, 3, 0, 0]
+
+        # target speed
+        self.df = pd.read_excel("../data/waypoint_small_track.xlsx")
+        self.counter = 0
+
+        # G29 settings
+        pygame.joystick.init()
+
+        joystick_count = pygame.joystick.get_count()
+        if joystick_count > 1:
+            raise ValueError("Please Connect Just One Joystick")
+
+        self._joystick = pygame.joystick.Joystick(0)
+        self._joystick.init()
+
+        self._parser = ConfigParser()
+        self._parser.read("wheel_config.ini")
+        self._steer_idx = int(self._parser.get("G29 Racing Wheel", "steering_wheel"))
+        self._throttle_idx = int(self._parser.get("G29 Racing Wheel", "throttle"))
+        self._brake_idx = int(self._parser.get("G29 Racing Wheel", "brake"))
+        self._reverse_idx = int(self._parser.get("G29 Racing Wheel", "reverse"))
+        self._handbrake_idx = int(self._parser.get("G29 Racing Wheel", "handbrake"))
+
         # 0 is autopilot, 1 is reinforcement learning, 2 is manual control
         self.modename = ["AutoPilot", "Reinforcement Learning", "Manual Control"]
         self.mode = 2
         self._mode_transforms = 3
-        self.thro_percent = 0
-        self.sec = 0
 
         # create map and define start point of agent
         self.map_road_number = params["map_road_number"]
         self.start = xmlmaker.createmap(self.map_road_number)
+        self.circle_num = 1
+        self.circle_thre = 3
+        self.diff = []
 
         # info
 
@@ -254,7 +296,7 @@ class CarlaEnv(gym.Env):
 
         # Create the ego vehicle blueprint
         self.ego_bp = self._create_vehicle_bluepprint(
-            params["ego_vehicle_filter"], color="49,8,8"
+            params["ego_vehicle_filter"], color="0,0,0"
         )
 
         # Collision sensor
@@ -274,7 +316,7 @@ class CarlaEnv(gym.Env):
 
         # Camera sensor
         self.camera_img = np.zeros((self.obs_size, self.obs_size, 3), dtype=np.uint8)
-        self.camera_trans = carla.Transform(carla.Location(x=0.8, z=1.7))
+        self.camera_trans = carla.Transform(carla.Location(x=1.9, y=-0.3, z=1.7))
         self.camera_bp = self.world.get_blueprint_library().find("sensor.camera.rgb")
 
         # Modify the attributes of the blueprint to set image resolution and field of view.
@@ -290,10 +332,10 @@ class CarlaEnv(gym.Env):
             (2 * self.obs_size, 2 * self.obs_size, 3), dtype=np.uint8
         )
         self._camera_transforms = [
+            carla.Transform(carla.Location(x=-10.0, z=6.0)),
+            carla.Transform(carla.Location(x=1.9, y=-0.3, z=1.7)),
+            carla.Transform(carla.Location(x=4, z=1.5)),
             carla.Transform(carla.Location(x=-5.5, z=2.5)),
-            carla.Transform(carla.Location(x=1.6, z=1.7)),
-            carla.Transform(carla.Location(x=5.5, y=1.5, z=1.5)),
-            carla.Transform(carla.Location(x=-8.0, z=6.0)),
             carla.Transform(carla.Location(x=5.5, z=80), carla.Rotation(pitch=-90.0)),
         ]
         self.newcam_index = 0
@@ -344,6 +386,14 @@ class CarlaEnv(gym.Env):
             )  # make a canvas with coordinates
             x, y = x.flatten(), y.flatten()
             self.pixel_grid = np.vstack((x, y))
+
+    def get_simulation_v(self):
+        time_length = len(self.df["v_kph"])
+        time_step = range(time_length)
+        sim_step = np.arange(0, time_length, 0.1)
+        self.v_sim = np.interp(sim_step, time_step, self.df["v_kph"])
+
+        return self.v_sim
 
     def toggle_mode(self):
         self.mode = (self.mode + 1) % (self._mode_transforms)
@@ -396,6 +446,17 @@ class CarlaEnv(gym.Env):
                     self.toggle_mode()
                     print("----------------------------")
                     print(self.modename[self.mode])
+                elif event.key == K_EQUALS:
+                    self.ai_mode = not self.ai_mode
+            elif event.type == pygame.JOYBUTTONDOWN:
+                if event.button == 0:
+                    self.reverse = not self.reverse
+                elif event.button == 6:
+                    self.next_weather()
+                elif event.button == 10:
+                    self.toggle_camera()
+                elif event.button == 7:
+                    self.ai_mode = not self.ai_mode
 
     @staticmethod
     def _is_quit_shortcut(key):
@@ -404,17 +465,9 @@ class CarlaEnv(gym.Env):
     def _parse_vehicle_keys(self, keys):
 
         if keys[K_UP] or keys[K_w]:
-            start = time.time()
             self.throttle = 1.0
-            self.thro_percent = self.thro_percent + (time.time() - start) * 5 + 1
-            if self.thro_percent > 100:
-                self.thro_percent = 100
         else:
-            start = time.time()
             self.throttle = 0.0
-            self.thro_percent = self.thro_percent - (time.time() - start) * 5 - 1
-            if self.thro_percent < 0:
-                self.thro_percent = 0
 
         if keys[K_LEFT] or keys[K_a]:
             self.steer_cache -= self.steer_increment
@@ -426,7 +479,6 @@ class CarlaEnv(gym.Env):
         steer = round(self.steer_cache, 1)
         if keys[K_DOWN] or keys[K_s]:
             self.brake = 1.0
-            self.thro_percent = 0
         else:
             self.brake = 0.0
 
@@ -436,7 +488,56 @@ class CarlaEnv(gym.Env):
             throttle=self.throttle, steer=steer, brake=self.brake, reverse=self.reverse
         )
         self.ego.apply_control(act)
-        # self.ego.set_target_velocity()
+
+    def _parse_g29_keys(self):
+
+        numAxes = self._joystick.get_numaxes()
+        jsInputs = [float(self._joystick.get_axis(i)) for i in range(numAxes)]
+        # print (jsInputs)
+        jsButtons = [
+            float(self._joystick.get_button(i))
+            for i in range(self._joystick.get_numbuttons())
+        ]
+        # Custom function to map range of inputs [1, -1] to outputs [0, 1] i.e 1 from inputs means nothing is pressed
+        # For the steering, it seems fine as it is
+        K1 = 1.0  # 0.55
+        steerCmd = K1 * math.tan(1.1 * jsInputs[self._steer_idx])
+
+        K2 = 1.6  # 1.6
+        # throttleCmd = K2 + (2.05 * math.log10(
+        #     -0.7 * jsInputs[self._throttle_idx] + 1.4) - 1.2) / 0.92
+
+        throttleCmd = -(jsInputs[self._throttle_idx] - 1) / 2
+
+        if throttleCmd <= 0.01:
+            throttleCmd = 0
+        elif throttleCmd > 1:
+            throttleCmd = 1
+
+        # brakeCmd = 1.6 + (2.05 * math.log10(
+        #     -0.7 * jsInputs[self._brake_idx] + 1.4) - 1.2) / 0.92
+        brakeCmd = -(jsInputs[self._brake_idx] - 1) / 2
+
+        if brakeCmd <= 0.01:
+            brakeCmd = 0
+        elif brakeCmd > 1:
+            brakeCmd = 1
+
+        # if jsButtons[self._reverse_idx]:
+        #     self.reverse = not self.reverse
+
+        self.steer = steerCmd
+        self.brake = brakeCmd
+        self.throttle = throttleCmd
+
+        act = carla.VehicleControl(
+            throttle=self.throttle,
+            steer=self.steer,
+            brake=self.brake,
+            reverse=self.reverse,
+        )
+        self.ego.apply_control(act)
+        # print(jsButtons)
 
     def reset(self):
         # Clear sensor objects
@@ -445,6 +546,8 @@ class CarlaEnv(gym.Env):
         self.camera_sensor = None
         self.newcam_sensor = None
         self.newcam2_sensor = None
+        self.counter = 0
+        self.diff = []
 
         # Delete sensors, vehicles and walkers
         self._clear_all_actors(
@@ -508,15 +611,16 @@ class CarlaEnv(gym.Env):
             if self.task_mode == "random":
                 # transform = random.choice(self.vehicle_spawn_points)
                 # transform = self.vehicle_spawn_points[1]
-                start_point = [42, 34.39446366782007, 3, 0, 0]
-                # start_point = [
-                #     self.start[0] + 6,
-                #     -self.start[1],
-                #     self.start[2],
-                #     -self.start[3] * 180 / math.pi,
-                #     self.start[4],
-                # ]
-                transform = set_carla_transform(start_point)
+                # # start_point = [
+                # #     self.start[0] + 6,
+                # #     -self.start[1],
+                # #     self.start[2],
+                # #     -self.start[3] * 180 / math.pi,
+                # #     self.start[4],
+                # # ]
+                # self.start_point = [-56,34,3,0,0]
+                # print(self.start_point)
+                transform = set_carla_transform(self.start_point)
             if self.task_mode == "roundabout":
                 self.start = [52.1 + np.random.uniform(-5, 5), -4.2, 178.66]  # random
                 # self.start= [0,8.823615,1,175.5]
@@ -657,10 +761,12 @@ class CarlaEnv(gym.Env):
             self.autoflag = True
             self.ego.set_autopilot(self.autoflag)
             self.world.tick()
+
         elif self.mode == 2:
             self.autoflag = False
             self.ego.set_autopilot(self.autoflag)
-            self._parse_vehicle_keys(pygame.key.get_pressed())
+            # self._parse_vehicle_keys(pygame.key.get_pressed())
+            self._parse_g29_keys()
             self.world.tick()
 
         # Append actors polygon list
@@ -697,9 +803,7 @@ class CarlaEnv(gym.Env):
     def render(self, mode):
         pass
 
-    def _create_vehicle_bluepprint(
-        self, actor_filter, color=None, number_of_wheels=[4]
-    ):
+    def _create_vehicle_bluepprint(self, actor_filter, color, number_of_wheels=[4]):
         """Create the blueprint for a specific actor type.
 
         Args:
@@ -715,10 +819,8 @@ class CarlaEnv(gym.Env):
                 x for x in blueprints if int(x.get_attribute("number_of_wheels")) == nw
             ]
         bp = random.choice(blueprint_library)
-        if bp.has_attribute("color"):
-            if not color:
-                color = random.choice(bp.get_attribute("color").recommended_values)
-            bp.set_attribute("color", color)
+        # bp.set_attribute("color",color)
+
         return bp
 
     def _init_renderer(self):
@@ -974,17 +1076,47 @@ class CarlaEnv(gym.Env):
         birdeye_surface = rgb_to_display_surface(birdeye, self.display_size)
         # self.display.blit(birdeye_surface, (self.display_size * 2, self.display_size))
         text_color = (255, 255, 255)
+        v_color = (0, 255, 0)
+        v_target_color = (0, 0, 255)
+        c_warning = (255,0,0)
         background = (0, 0, 0)
         font = pygame.font.Font("freesansbold.ttf", 16)
         v = self.ego.get_velocity()
         a = self.ego.get_acceleration()
-        speed = np.sqrt(v.x ** 2 + v.y ** 2)
+        speed = 3.6*np.sqrt(v.x ** 2 + v.y ** 2)
         acc = np.sqrt(a.x ** 2 + a.y ** 2)
+        energy = acc ** 2
+
+        v_target_list = self.get_simulation_v()
+        v_target = v_target_list[self.counter]
+        self.diff.append(abs(v_target - speed))
+        avg_diff = sum(self.diff)/len(self.diff)
+
+        # if self._parse_g29_keys():
+        #     speed = -speed
+
         self._title_text = "Information board"
-        self._v_text = "Speed:   % .3g km/h" % (int(3.6 * speed))
-        self._a_text = "Acceleration:   % .3g m/s2" % (acc)
-        self._v_text = font.render(str(self._v_text), True, text_color, background)
-        self._a_text = font.render(str(self._a_text), True, text_color, background)
+        self._circle_rem = "Circle number: " + str(self.circle_num)
+        self._warn_text = "PLease press L2 for AI mode"
+        self._v_text = "Speed:   % .3g km/h" % (int(speed))
+        self._v_target_text = "Target speed:   % .3g km/h" % (int(v_target))
+        self._energy_text = "Energy loss:  % .2g " % (energy)
+
+        if self.ai_mode:
+            self._ai_text = "AI mode: On"
+        else:
+            self._ai_text = "Manual mode: On"
+
+        self._ai_text = font.render(str(self._ai_text), True, v_color, background)
+        self._circle_rem = font.render(str(self._circle_rem), True, text_color, background)
+        self._warn_text = font.render(str(self._warn_text), True, c_warning, background)
+        self._v_text = font.render(str(self._v_text), True, v_color, background)
+        self._v_target_text = font.render(
+            str(self._v_target_text), True, v_target_color, background
+        )
+        self._energy_text = font.render(
+            str(self._energy_text), True, text_color, background
+        )
         self._title_text = font.render(
             str(self._title_text), True, text_color, background
         )
@@ -992,8 +1124,25 @@ class CarlaEnv(gym.Env):
         self.display.blit(
             self._title_text, (self.display_size * 2, self.display_size + 16)
         )
-        self.display.blit(self._v_text, (self.display_size * 2, self.display_size + 64))
-        self.display.blit(self._a_text, (self.display_size * 2, self.display_size + 96))
+        self.display.blit(
+            self._circle_rem, (self.display_size * 2, self.display_size + 64)
+        )
+        self.display.blit(
+            self._ai_text, (self.display_size * 2, self.display_size + 96)
+        )
+        self.display.blit(self._v_text, (self.display_size * 2, self.display_size + 128))
+        self.display.blit(
+            self._v_target_text, (self.display_size * 2, self.display_size + 160)
+        )
+        self.display.blit(
+            self._energy_text, (self.display_size * 2, self.display_size + 192)
+        )
+
+        if self.circle_num == 2 and self.ai_mode == False:
+            self.display.blit(
+                self._warn_text, (self.display_size * 2, self.display_size + 224)
+            )    
+
 
         # Display lidar image
         lidar_surface = rgb_to_display_surface(lidar, self.display_size)
@@ -1021,6 +1170,7 @@ class CarlaEnv(gym.Env):
         pygame.display.flip()
 
         # State observation
+        # TODO offset between V_real and V_WLTC
         ego_trans = self.ego.get_transform()
         ego_x = ego_trans.location.x
         ego_y = ego_trans.location.y
@@ -1029,11 +1179,21 @@ class CarlaEnv(gym.Env):
         delta_yaw = np.arcsin(
             np.cross(w, np.array(np.array([np.cos(ego_yaw), np.sin(ego_yaw)])))
         )
-        v = self.ego.get_velocity()
-        a = self.ego.get_acceleration()
-        speed = np.sqrt(v.x ** 2 + v.y ** 2)
-        acc = np.sqrt(a.x ** 2 + a.y ** 2)
-        state = np.array([lateral_dis, -delta_yaw, speed, self.vehicle_front, acc])
+        finish_distance = np.sqrt(
+            (ego_x - self.end_point[0]) ** 2 + (ego_y - self.end_point[1]) ** 2
+        )
+        state = np.array(
+            [
+                lateral_dis,
+                -delta_yaw,
+                speed,
+                self.vehicle_front,
+                acc,
+                finish_distance,
+                avg_diff,
+                self.throttle
+            ]
+        )
 
         # info display
 

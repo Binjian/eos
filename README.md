@@ -24,6 +24,17 @@ a ---- left
 
 d ---- right
 
+## Under g29 wheel control mode:
+from left to right
+
+second pedal --------------- brake
+third pedal ---------------- throttle
+
+wheel ---------------------- steering left or right
+R2 ------------------------- change weather
+R3 ------------------------- change camera 
+Enter ---------------------- reverse
+
 # Run 
 
-Run test.py to execute the program
+Run demo.py to execute the program

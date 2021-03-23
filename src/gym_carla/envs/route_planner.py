@@ -40,7 +40,7 @@ class RoutePlanner:
         self._world = self._vehicle.get_world()
         self._map = self._world.get_map()
 
-        self._sampling_radius = 0.01
+        self._sampling_radius = 0.001
         self._min_distance = 100
 
         self._target_waypoint = None
@@ -83,12 +83,12 @@ class RoutePlanner:
             road_option = RoadOption.LANEFOLLOW
             # else:
             #   # random choice between the possible options
-            #   road_options_list = retrieve_options(
+            #     road_options_list = retrieve_options(
             #     next_waypoints, last_waypoint)
-            #   road_option = road_options_list[1]
-            #   road_option = random.choice(road_options_list)
+            #     road_option = road_options_list[1]
+            #     road_option = random.choice(road_options_list)
 
-            #   next_waypoint = next_waypoints[road_options_list.index(
+            #     next_waypoint = next_waypoints[road_options_list.index(
             #     road_option)]
 
             self._waypoints_queue.append((next_waypoint, road_option))
@@ -145,7 +145,7 @@ class RoutePlanner:
         if max_index >= 0:
             for i in range(max_index - 1):
                 self._waypoint_buffer.popleft()
-
+        # print(waypoints)
         return waypoints
 
     def _get_hazard(self):
