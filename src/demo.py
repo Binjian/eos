@@ -84,7 +84,7 @@ def main():
     params = {
         "number_of_vehicles": 0,
         "number_of_walkers": 0,
-        "display_size": 256,  # screen size of bird-eye render
+        "display_size": 320,  # screen size of bird-eye render
         "max_past_step": 1,  # the number of past steps to draw
         "dt": 0.1,  # time interval between two frames
         "discrete": False,  # whether to use discrete control space
@@ -186,7 +186,7 @@ def main():
     # show plot and save report
     visual.compare_pic(t_real, t, loss_AI, loss_real, thro_dev, thro_real_dev)
     visual.gen_report(offset, offset1, saved_AI)
-    
+
     # save data
     writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
     writexslx(x, y, v, "../data/train_data_highring/waypoint_set6.xls")

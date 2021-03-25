@@ -833,7 +833,7 @@ class CarlaEnv(gym.Env):
         pygame.font.init()
         self.display = pygame.display.set_mode(
             (self.display_size * 4, self.display_size * 2),
-            pygame.FULLSCREEN,
+            pygame.HWSURFACE | pygame.DOUBLEBUF,
         )
 
         pixels_per_meter = self.display_size / self.obs_range
