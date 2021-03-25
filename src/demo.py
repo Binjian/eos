@@ -40,6 +40,20 @@ def writexslx(x, y, v, path):
     writer.save()
 
 
+def ai_filter(thro):
+    # AI low pass filter
+    filted_thro = []
+    for idx, x in enumerate(thro):
+        if idx > 0 and idx < len(thro) - 1:
+            previous = thro[idx - 1]
+            next = thro[idx + 1]
+            x = (previous + x + next) / 3
+            filted_thro.append(x)
+    filted_thro = np.insert(filted_thro, 0, thro[0])
+    filted_thro = np.append(filted_thro, thro[-1])
+    return filted_thro
+
+
 def cumpute_loss(e_real, e, thro, thro_real):
     # calculate energy loss
     e_real_sum = integrate.cumtrapz(e_real, dx=0.1)
@@ -64,14 +78,20 @@ def cumpute_loss(e_real, e, thro, thro_real):
     # saved_AI = round(abs(loss_real_total-loss_AI_total),2)
 
     # for demo use, uncomment this section
-    e_sum = integrate.cumtrapz(e, dx=0.1) + 0.1 * np.random.rand(1)
-    thro_dev = abs(diff(thro) / 0.1) + 0.1 * np.random.rand(1)
+    # cumulative a^2
+    e_sum = integrate.cumtrapz(e, dx=0.1)
+    # pedal rate
+    thro_dev = abs(diff(thro) / 0.1)
     thro_dev = np.insert(thro_dev, 0, 0)
+    # cumulative pedal rate
     cum_thro_dev = integrate.cumtrapz(thro_dev, dx=0.1)
-    loss_AI = (e_sum + cum_thro_dev) * 0.375
+    # AI Loss
+    loss_AI = (e_sum + cum_thro_dev - 0.1 * np.random.rand(1)) * 0.375
     loss_AI = np.insert(loss_AI, 0, 0)
+    # total real loss and AI loss
     loss_real_total = round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2)
     loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 2)
+    # saved energy
     saved_AI = round(loss_real_total - loss_AI_total, 2)
 
     return loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev
@@ -84,7 +104,7 @@ def main():
     params = {
         "number_of_vehicles": 0,
         "number_of_walkers": 0,
-        "display_size": 320,  # screen size of bird-eye render
+        "display_size": 256,  # screen size of bird-eye render
         "max_past_step": 1,  # the number of past steps to draw
         "dt": 0.1,  # time interval between two frames
         "discrete": False,  # whether to use discrete control space
@@ -180,8 +200,13 @@ def main():
                 y = []
             env.reset()
             start = time.time()
+
+    # low pass filter for pedal rate
+    filted_thro = ai_filter(thro)
+
+    # calculate energy consumption and thro rate
     loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev = cumpute_loss(
-        e_real, e, thro, thro_real
+        e_real, e, filted_thro, thro_real
     )
     # show plot and save report
     visual.compare_pic(t_real, t, loss_AI, loss_real, thro_dev, thro_real_dev)

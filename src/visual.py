@@ -22,14 +22,17 @@ def visual(t_real, v_real, v_wltc):
 def compare_pic(t_real, t, e, e_real, thro_dev, thro_real_dev):
     fig, (ax1, ax2, ax3) = plt.subplots(3, constrained_layout=True)
     fig.suptitle("Energy Consumption Report")
+    # Manual Energy plot
     sub1 = ax1.plot(t_real, e_real, color="red")
     ax1.set_title("Manual Energy Consumption")
-    ax1.set(ylabel="Energy Consumption (wh)")
+    ax1.set(ylabel="Energy (wh)")
     ax1.annotate("{:.2f}".format(e_real[-1]), (t_real[-1], e_real[-1]))
+    # AI Energy plot
     sub2 = ax2.plot(t, e, color="green")
     ax2.set_title("AI Energy Consumption")
-    ax2.set(xlabel="Time (s)", ylabel="Energy Consumption (wh)")
+    ax2.set(xlabel="Time (s)", ylabel="Energy (wh)")
     ax2.annotate("{:.2f}".format(e[-1]), (t[-1], e[-1]))
+    # Thro rate comparison
     sub3 = ax3.plot(t_real, thro_real_dev)
     sub4 = ax3.plot(t, thro_dev)
     ax3.set_title("Throttle Rate Comparison")
@@ -43,6 +46,7 @@ def gen_report(diff, diff1, e):
     img = "../data/Comparison.png"
     styles = getSampleStyleSheet()
     avg_diff = round((diff + diff1) / 2, 2)
+    # title format
     title = ParagraphStyle(
         "title",
         fontName="Helvetica-Bold",
@@ -51,7 +55,7 @@ def gen_report(diff, diff1, e):
         alignment=1,
         spaceAfter=14,
     )
-
+    # warning format in red
     red = ParagraphStyle(
         "small",
         parent=styles["h1"],
@@ -60,18 +64,20 @@ def gen_report(diff, diff1, e):
         textColor="red",
         spaceAfter=14,
     )
-
+    # valid format in green
     green = ParagraphStyle(
         "small", fontSize=14, leading=8, spaceAfter=14, textColor="green"
     )
     report_title = Paragraph("Energy Consumption Report", title)
     v_lim = Paragraph("Velocity Offset Limit: 5 km/h", red)
 
+    # check if energy is saved
     if e >= 0:
         e_saved = Paragraph("You have saved total energy of " + str(e) + " wh", green)
     else:
-        e_saved = Paragraph("Energy is not saved: " + str(e) + " wh",red)
+        e_saved = Paragraph("Energy is not saved: " + str(e) + " wh", red)
 
+    # check if velocity offset valid
     if diff < 5 and diff1 < 5:
         v_actual = Paragraph(
             "Actual Velocity Offset: " + str(round(max(diff, diff1), 2)) + " km/h",
@@ -85,9 +91,8 @@ def gen_report(diff, diff1, e):
         vali = Paragraph("Validation: Invalid", red)
         e_saved = Paragraph("You have saved total energy of N\A wh", red)
 
-
-
-
+    # insert plot
     im = Image(img, 6 * inch, 4.5 * inch)
     report.build([report_title, v_lim, v_actual, vali, e_saved, im])
+    # open PDF
     wb.open("../data/report.pdf")

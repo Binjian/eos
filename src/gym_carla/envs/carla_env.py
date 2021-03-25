@@ -504,6 +504,7 @@ class CarlaEnv(gym.Env):
         ]
         # Custom function to map range of inputs [1, -1] to outputs [0, 1] i.e 1 from inputs means nothing is pressed
         # For the steering, it seems fine as it is
+
         K1 = 1.0  # 0.55
         steerCmd = K1 * math.tan(1.1 * jsInputs[self._steer_idx])
 
@@ -829,12 +830,16 @@ class CarlaEnv(gym.Env):
 
     def _init_renderer(self):
         """Initialize the birdeye view renderer."""
+        # full screen
         pygame.init()
         pygame.font.init()
         self.display = pygame.display.set_mode(
-            (self.display_size * 4, self.display_size * 2),
-            pygame.HWSURFACE | pygame.DOUBLEBUF,
+            (self.display_size * 4, self.display_size * 2), pygame.FULLSCREEN, 32
         )
+        # for small screen uncomment below
+        # self.display = pygame.display.set_mode(
+        #     (self.display_size * 4, self.display_size * 2),
+        #     pygame.HWSURFACE | pygame.DOUBLEBUF)
 
         pixels_per_meter = self.display_size / self.obs_range
         pixels_ahead_vehicle = (self.obs_range / 2 - self.d_behind) * pixels_per_meter
@@ -1081,7 +1086,7 @@ class CarlaEnv(gym.Env):
         # self.display.blit(birdeye_surface, (self.display_size * 2, self.display_size))
         text_color = (255, 255, 255)
         v_color = (0, 255, 0)
-        v_target_color = (255,20,147)
+        v_target_color = (255, 20, 147)
         c_warning = (255, 0, 0)
         background = (0, 0, 0)
         font = pygame.font.Font("freesansbold.ttf", 16)

@@ -198,10 +198,10 @@ def main():
         "-i", "--info", action="store_true", help="Show text information"
     )
     argparser.add_argument(
-        "-x", default= -60, type=float, help="X start position (default: 0.0)"
+        "-x", default=-60, type=float, help="X start position (default: 0.0)"
     )
     argparser.add_argument(
-        "-y", default= 36, type=float, help="Y start position (default: 0.0)"
+        "-y", default=36, type=float, help="Y start position (default: 0.0)"
     )
     argparser.add_argument(
         "-z", default=0, type=float, help="Z start position (default: 0.0)"
