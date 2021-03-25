@@ -27,13 +27,17 @@ d ---- right
 ## Under g29 wheel control mode:
 from left to right
 
-second pedal --------------- brake
-third pedal ---------------- throttle
+second pedal ---- brake
 
-wheel ---------------------- steering left or right
-R2 ------------------------- change weather
-R3 ------------------------- change camera 
-Enter ---------------------- reverse
+third pedal ---- throttle
+
+wheel ---- steering left or right
+
+R2 ---- change weather
+
+R3 ---- change camera 
+
+Enter ---- reverse
 
 # Run 
 
