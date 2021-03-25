@@ -72,7 +72,7 @@ def cumpute_loss(e_real, e, thro, thro_real):
     loss_AI = np.insert(loss_AI, 0, 0)
     loss_real_total = round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2)
     loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 2)
-    saved_AI = round(abs(loss_real_total - loss_AI_total), 2)
+    saved_AI = round(loss_real_total - loss_AI_total, 2)
 
     return loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev
 
@@ -186,10 +186,10 @@ def main():
     # show plot and save report
     visual.compare_pic(t_real, t, loss_AI, loss_real, thro_dev, thro_real_dev)
     visual.gen_report(offset, offset1, saved_AI)
-
+    
     # save data
-    writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set1.xlsx")
-    writexslx(x, y, v, "../data/train_data_highring/waypoint_set2.xlsx")
+    writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
+    writexslx(x, y, v, "../data/train_data_highring/waypoint_set6.xls")
 
     # delete dynamic memory
     gc.collect()

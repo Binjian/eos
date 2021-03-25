@@ -130,7 +130,7 @@ class CarlaEnv(gym.Env):
             self.end_point = [260, 34, 3, 0, 0]
 
         # target speed
-        self.df = pd.read_excel("../data/waypoint_highring.xlsx")
+        self.df = pd.read_excel("../data/waypoint_highring.xls")
         self.counter = 0
 
         # G29 settings
@@ -833,7 +833,7 @@ class CarlaEnv(gym.Env):
         pygame.font.init()
         self.display = pygame.display.set_mode(
             (self.display_size * 4, self.display_size * 2),
-            pygame.HWSURFACE | pygame.DOUBLEBUF,
+            pygame.FULLSCREEN,
         )
 
         pixels_per_meter = self.display_size / self.obs_range
@@ -1081,7 +1081,7 @@ class CarlaEnv(gym.Env):
         # self.display.blit(birdeye_surface, (self.display_size * 2, self.display_size))
         text_color = (255, 255, 255)
         v_color = (0, 255, 0)
-        v_target_color = (0, 0, 255)
+        v_target_color = (255,20,147)
         c_warning = (255, 0, 0)
         background = (0, 0, 0)
         font = pygame.font.Font("freesansbold.ttf", 16)

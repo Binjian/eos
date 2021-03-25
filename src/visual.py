@@ -21,14 +21,14 @@ def visual(t_real, v_real, v_wltc):
 
 def compare_pic(t_real, t, e, e_real, thro_dev, thro_real_dev):
     fig, (ax1, ax2, ax3) = plt.subplots(3, constrained_layout=True)
-    fig.suptitle("Energy Storage Report")
+    fig.suptitle("Energy Consumption Report")
     sub1 = ax1.plot(t_real, e_real, color="red")
-    ax1.set_title("Manual Energy Loss")
-    ax1.set(ylabel="Energy Loss (wh)")
+    ax1.set_title("Manual Energy Consumption")
+    ax1.set(ylabel="Energy Consumption (wh)")
     ax1.annotate("{:.2f}".format(e_real[-1]), (t_real[-1], e_real[-1]))
     sub2 = ax2.plot(t, e, color="green")
-    ax2.set_title("AI Energy Loss")
-    ax2.set(xlabel="Time (s)", ylabel="Energy Loss (wh)")
+    ax2.set_title("AI Energy Consumption")
+    ax2.set(xlabel="Time (s)", ylabel="Energy Consumption (wh)")
     ax2.annotate("{:.2f}".format(e[-1]), (t[-1], e[-1]))
     sub3 = ax3.plot(t_real, thro_real_dev)
     sub4 = ax3.plot(t, thro_dev)
@@ -64,8 +64,13 @@ def gen_report(diff, diff1, e):
     green = ParagraphStyle(
         "small", fontSize=14, leading=8, spaceAfter=14, textColor="green"
     )
-    report_title = Paragraph("Energy Loss Report", title)
+    report_title = Paragraph("Energy Consumption Report", title)
     v_lim = Paragraph("Velocity Offset Limit: 5 km/h", red)
+
+    if e >= 0:
+        e_saved = Paragraph("You have saved total energy of " + str(e) + " wh", green)
+    else:
+        e_saved = Paragraph("Energy is not saved: " + str(e) + " wh",red)
 
     if diff < 5 and diff1 < 5:
         v_actual = Paragraph(
@@ -73,13 +78,15 @@ def gen_report(diff, diff1, e):
             green,
         )
         vali = Paragraph("Validation: Valid", green)
-        e_saved = Paragraph("You have saved total energy of " + str(e) + " wh", green)
     else:
         v_actual = Paragraph(
             "Actual Velocity Offset: " + str(round(max(diff, diff1), 2)) + " km/h", red
         )
         vali = Paragraph("Validation: Invalid", red)
         e_saved = Paragraph("You have saved total energy of N\A wh", red)
+
+
+
 
     im = Image(img, 6 * inch, 4.5 * inch)
     report.build([report_title, v_lim, v_actual, vali, e_saved, im])
