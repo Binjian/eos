@@ -108,6 +108,7 @@ class CarlaEnv(gym.Env):
         self.max_ego_spawn_times = params["max_ego_spawn_times"]
         self.display_route = params["display_route"]
         self.ai_mode = params["AI_mode"]
+        self.file_path = params["file_path"]
 
         # driving mode
         self.autoflag = False
@@ -123,10 +124,13 @@ class CarlaEnv(gym.Env):
 
         self.start_point = [-40, 34, 3, 0, 0]
 
-        self.end_point = [-50, 34, 3, 0, 0]
+        if self.file_path == "../data/highring.xodr":
+            self.end_point = [-52, 34, 3, 0, 0]
+        elif self.file_path == "../data/straight.xodr":
+            self.end_point = [260, 34, 3, 0, 0]
 
         # target speed
-        self.df = pd.read_excel("../data/waypoint_small_track.xlsx")
+        self.df = pd.read_excel("../data/waypoint_highring.xlsx")
         self.counter = 0
 
         # G29 settings
@@ -273,7 +277,7 @@ class CarlaEnv(gym.Env):
         print("connecting to Carla server...")
         client = carla.Client(params["carlaserver"], params["port"])
         client.set_timeout(10.0)
-        myFile = ET.parse(params["file_path"])
+        myFile = ET.parse(self.file_path)
         root = myFile.getroot()
         xodrStr = ET.tostring(root, encoding="utf8", method="xml")
         self.world = client.generate_opendrive_world(opendrive=xodrStr)
@@ -388,10 +392,10 @@ class CarlaEnv(gym.Env):
             self.pixel_grid = np.vstack((x, y))
 
     def get_simulation_v(self):
-        time_length = len(self.df["v_kph"])
+        time_length = len(self.df["v"])
         time_step = range(time_length)
         sim_step = np.arange(0, time_length, 0.1)
-        self.v_sim = np.interp(sim_step, time_step, self.df["v_kph"])
+        self.v_sim = np.interp(sim_step, time_step, self.df["v"])
 
         return self.v_sim
 
@@ -1078,19 +1082,19 @@ class CarlaEnv(gym.Env):
         text_color = (255, 255, 255)
         v_color = (0, 255, 0)
         v_target_color = (0, 0, 255)
-        c_warning = (255,0,0)
+        c_warning = (255, 0, 0)
         background = (0, 0, 0)
         font = pygame.font.Font("freesansbold.ttf", 16)
         v = self.ego.get_velocity()
         a = self.ego.get_acceleration()
-        speed = 3.6*np.sqrt(v.x ** 2 + v.y ** 2)
+        speed = 3.6 * np.sqrt(v.x ** 2 + v.y ** 2)
         acc = np.sqrt(a.x ** 2 + a.y ** 2)
         energy = acc ** 2
 
         v_target_list = self.get_simulation_v()
         v_target = v_target_list[self.counter]
         self.diff.append(abs(v_target - speed))
-        avg_diff = sum(self.diff)/len(self.diff)
+        avg_diff = sum(self.diff) / len(self.diff)
 
         # if self._parse_g29_keys():
         #     speed = -speed
@@ -1100,7 +1104,6 @@ class CarlaEnv(gym.Env):
         self._warn_text = "PLease press L2 for AI mode"
         self._v_text = "Speed:   % .3g km/h" % (int(speed))
         self._v_target_text = "Target speed:   % .3g km/h" % (int(v_target))
-        self._energy_text = "Energy loss:  % .2g " % (energy)
 
         if self.ai_mode:
             self._ai_text = "AI mode: On"
@@ -1108,14 +1111,13 @@ class CarlaEnv(gym.Env):
             self._ai_text = "Manual mode: On"
 
         self._ai_text = font.render(str(self._ai_text), True, v_color, background)
-        self._circle_rem = font.render(str(self._circle_rem), True, text_color, background)
+        self._circle_rem = font.render(
+            str(self._circle_rem), True, text_color, background
+        )
         self._warn_text = font.render(str(self._warn_text), True, c_warning, background)
         self._v_text = font.render(str(self._v_text), True, v_color, background)
         self._v_target_text = font.render(
             str(self._v_target_text), True, v_target_color, background
-        )
-        self._energy_text = font.render(
-            str(self._energy_text), True, text_color, background
         )
         self._title_text = font.render(
             str(self._title_text), True, text_color, background
@@ -1130,19 +1132,17 @@ class CarlaEnv(gym.Env):
         self.display.blit(
             self._ai_text, (self.display_size * 2, self.display_size + 96)
         )
-        self.display.blit(self._v_text, (self.display_size * 2, self.display_size + 128))
         self.display.blit(
-            self._v_target_text, (self.display_size * 2, self.display_size + 160)
+            self._v_text, (self.display_size * 2, self.display_size + 128)
         )
         self.display.blit(
-            self._energy_text, (self.display_size * 2, self.display_size + 192)
+            self._v_target_text, (self.display_size * 2, self.display_size + 160)
         )
 
         if self.circle_num == 2 and self.ai_mode == False:
             self.display.blit(
                 self._warn_text, (self.display_size * 2, self.display_size + 224)
-            )    
-
+            )
 
         # Display lidar image
         lidar_surface = rgb_to_display_surface(lidar, self.display_size)
@@ -1191,7 +1191,7 @@ class CarlaEnv(gym.Env):
                 acc,
                 finish_distance,
                 avg_diff,
-                self.throttle
+                self.throttle,
             ]
         )
 

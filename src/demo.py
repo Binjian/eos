@@ -33,11 +33,48 @@ import pandas as pd
 import visual
 
 
-def writexslx(x, y, v):
+def writexslx(x, y, v, path):
     df = pd.DataFrame({"x": x, "y": y, "v": v})
-    writer = pd.ExcelWriter("../data/waypoint_small_track.xlsx")
+    writer = pd.ExcelWriter(path)
     df.to_excel(writer, index=False)
     writer.save()
+
+
+def cumpute_loss(e_real, e, thro, thro_real):
+    # calculate energy loss
+    e_real_sum = integrate.cumtrapz(e_real, dx=0.1)
+    # calculate throttle derivative
+    thro_real_dev = abs(diff(thro_real) / 0.1)
+    thro_real_dev = np.insert(thro_real_dev, 0, 0)
+    cum_thro_real_dev = integrate.cumtrapz(thro_real_dev, dx=0.1)
+    # calculate cumulative energy loss
+    loss_real = (e_real_sum + cum_thro_real_dev) * 0.375
+    loss_real = np.insert(loss_real, 0, 0)
+
+    # for developed algorithm, uncomment this section
+    # e_sum = integrate.cumtrapz(e,dx=0.1)
+    # thro_dev = abs(diff(thro)/0.1)
+    # thro_dev = np.insert(thro_dev,0,0)
+    # cum_thro_dev = integrate.cumtrapz(thro_dev,dx=0.1)
+    # cum_thro_dev = np.insert(cum_thro_dev,0,0)
+    # loss_AI = (e_sum + cum_thro_dev)* 0.375
+    # loss_AI = np.insert(loss_AI,0,0)
+    # loss_real_total = round((e_real_sum[-1] + sum(thro_real_dev))* 0.375,2)
+    # loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1])* 0.375,2)
+    # saved_AI = round(abs(loss_real_total-loss_AI_total),2)
+
+    # for demo use, uncomment this section
+    e_sum = integrate.cumtrapz(e, dx=0.1) + 0.1 * np.random.rand(1)
+    thro_dev = abs(diff(thro) / 0.1) + 0.1 * np.random.rand(1)
+    thro_dev = np.insert(thro_dev, 0, 0)
+    cum_thro_dev = integrate.cumtrapz(thro_dev, dx=0.1)
+    loss_AI = (e_sum + cum_thro_dev) * 0.375
+    loss_AI = np.insert(loss_AI, 0, 0)
+    loss_real_total = round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2)
+    loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 2)
+    saved_AI = round(abs(loss_real_total - loss_AI_total), 2)
+
+    return loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev
 
 
 def main():
@@ -71,7 +108,7 @@ def main():
         "display_route": True,  # whether to render the desired route
         "pixor_size": 64,  # size of the pixor labels
         "pixor": False,  # whether to output PIXOR observation
-        "file_path": "../data/small-racetrack.xodr",
+        "file_path": "../data/highring.xodr",
         "map_road_number": 1,
         "AI_mode": False,
     }
@@ -84,27 +121,33 @@ def main():
     # initialize arrays to store data
     df = env.df
     v_wltc = []
+    x = []
+    y = []
     v = []
     t = []
     e = []
     thro = []
+    loss_real = []
+    loss_AI = []
 
     # start simulation message
     print("simulation starts")
     print("------------------------------------------")
     print("Current circle: " + str(env.circle_num))
     while env.circle_num < env.circle_thre:
-        # simulation learning
         action = [2.0, 0.0]
         obs, r, done, info = env.step(action)
+        # simulation learning
         v.append(obs["state"][2])
+        x.append(env.ego.get_transform().location.x)
+        y.append(env.ego.get_transform().location.y)
         v_wltc.append(env.v_sim[env.counter])
-        t.append(env.counter)        
+        t.append(env.counter)
         e.append((obs["state"][4]) ** 2)
-        visual.visual(t, v, v_wltc)
+        # visual.visual(t, v, v_wltc)
         env.counter = env.counter + 1
         thro.append(obs["state"][7])
-        if obs["state"][5] < 5:
+        if obs["state"][5] < 10:
             duration = time.time() - start
             print(
                 "Congradulation! You completed the racetrack in",
@@ -122,6 +165,8 @@ def main():
                 t_real = t
                 e_real = e
                 v_real = v
+                x_real = x
+                y_real = y
                 wltc_real = v_wltc
                 offset1 = offset
                 thro_real = thro
@@ -131,18 +176,21 @@ def main():
                 v = []
                 v_wltc = []
                 thro = []
+                x = []
+                y = []
             env.reset()
             start = time.time()
+    loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev = cumpute_loss(
+        e_real, e, thro, thro_real
+    )
+    # show plot and save report
+    visual.compare_pic(t_real, t, loss_AI, loss_real, thro_dev, thro_real_dev)
+    visual.gen_report(offset, offset1, saved_AI)
 
-    # show plot and save figure
-    e_real_sum = integrate.cumtrapz(e_real,dx=0.1)
-    e_sum = integrate.cumtrapz(e,dx=0.1)
-    thro_dev = sum(abs(diff(thro)/0.1))
-    thro_real_dev = sum(abs(diff(thro_real)/0.1))
-    print(thro_dev,thro_real_dev)
-    print(e_sum,e_real_sum)
-    visual.compare_pic(t_real,t,e,e_real)
-    visual.gen_report(offset,offset1,300)
+    # save data
+    writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set1.xlsx")
+    writexslx(x, y, v, "../data/train_data_highring/waypoint_set2.xlsx")
+
     # delete dynamic memory
     gc.collect()
 
