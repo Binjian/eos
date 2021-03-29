@@ -4,6 +4,8 @@
 # Ignore Logs
 logs
 *.log
+*.pdf
+*.png
 
 # Ignore the build directory
 # /dist
