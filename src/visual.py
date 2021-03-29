@@ -89,7 +89,7 @@ def gen_report(diff, diff1, e):
             "Actual Velocity Offset: " + str(round(max(diff, diff1), 2)) + " km/h", red
         )
         vali = Paragraph("Validation: Invalid", red)
-        e_saved = Paragraph("You have saved total energy of N\A wh", red)
+        e_saved = Paragraph("Engery Saved!", red)
 
     # insert plot
     im = Image(img, 6 * inch, 4.5 * inch)

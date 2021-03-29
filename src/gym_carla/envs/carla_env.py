@@ -1090,6 +1090,8 @@ class CarlaEnv(gym.Env):
         c_warning = (255, 0, 0)
         background = (0, 0, 0)
         font = pygame.font.Font("freesansbold.ttf", 16)
+        fontAI = pygame.font.Font("freesansbold.ttf", 20)
+        fontSpeed = pygame.font.Font("freesansbold.ttf", 20)
         v = self.ego.get_velocity()
         a = self.ego.get_acceleration()
         speed = 3.6 * np.sqrt(v.x ** 2 + v.y ** 2)
@@ -1115,13 +1117,13 @@ class CarlaEnv(gym.Env):
         else:
             self._ai_text = "Manual mode: On"
 
-        self._ai_text = font.render(str(self._ai_text), True, v_color, background)
+        self._ai_text = fontAI.render(str(self._ai_text), True, v_color, background)
         self._circle_rem = font.render(
             str(self._circle_rem), True, text_color, background
         )
         self._warn_text = font.render(str(self._warn_text), True, c_warning, background)
-        self._v_text = font.render(str(self._v_text), True, v_color, background)
-        self._v_target_text = font.render(
+        self._v_text = fontSpeed.render(str(self._v_text), True, v_color, background)
+        self._v_target_text = fontSpeed.render(
             str(self._v_target_text), True, v_target_color, background
         )
         self._title_text = font.render(

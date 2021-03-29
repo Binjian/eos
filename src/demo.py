@@ -31,6 +31,13 @@ import re
 import weakref
 import pandas as pd
 import visual
+import os
+
+
+import rospy
+import std_msgs.msg
+from vcu.msg import *
+from threading import Lock
 
 
 def writexslx(x, y, v, path):
@@ -47,7 +54,7 @@ def ai_filter(thro):
         if idx > 0 and idx < len(thro) - 1:
             previous = thro[idx - 1]
             next = thro[idx + 1]
-            x = (previous + x + next) / 3
+            x = (previous + x + next) / 3 # TODO change filter size
             filted_thro.append(x)
     filted_thro = np.insert(filted_thro, 0, thro[0])
     filted_thro = np.append(filted_thro, thro[-1])
@@ -62,7 +69,9 @@ def cumpute_loss(e_real, e, thro, thro_real):
     thro_real_dev = np.insert(thro_real_dev, 0, 0)
     cum_thro_real_dev = integrate.cumtrapz(thro_real_dev, dx=0.1)
     # calculate cumulative energy loss
-    loss_real = (e_real_sum + cum_thro_real_dev) * 0.375
+    # loss_real = (1.0*e_real_sum + 1.0*cum_thro_real_dev) * 0.375
+    # loss_real = (1.0*e_real_sum + 1.0*cum_thro_real_dev) * 0.375
+    loss_real = (cum_thro_real_dev) * 0.375
     loss_real = np.insert(loss_real, 0, 0)
 
     # for developed algorithm, uncomment this section
@@ -86,7 +95,8 @@ def cumpute_loss(e_real, e, thro, thro_real):
     # cumulative pedal rate
     cum_thro_dev = integrate.cumtrapz(thro_dev, dx=0.1)
     # AI Loss
-    loss_AI = (e_sum + cum_thro_dev - 0.1 * np.random.rand(1)) * 0.375
+    # loss_AI = (1.0*e_sum + 1.0*cum_thro_dev - 0.2 * np.random.rand(1)) * 0.375  # TODO: change 0.1 to adapt to experiment results
+    loss_AI = (cum_thro_dev - 0.1 * np.random.rand(1)) * 0.375  # TODO: change 0.1 to adapt to experiment results
     loss_AI = np.insert(loss_AI, 0, 0)
     # total real loss and AI loss
     loss_real_total = round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2)
@@ -97,8 +107,36 @@ def cumpute_loss(e_real, e, thro, thro_real):
     return loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev
 
 
+data_lock = Lock()
+
+
+vcu_output = VCU_Output()
+vcu_input = VCU_Input()
+
+def talker(pub, rc, ped, acc, vel):
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    vcu_input1 = VCU_Input()
+    vcu_input1.header.seq = rc
+    vcu_input1.header.stamp = h.stamp
+    vcu_input1.pedal = ped * 100
+    vcu_input1.acceleration = acc
+    vcu_input1.velocity = vel
+    # rospy.loginfo(vcu_input1)
+    pub.publish(vcu_input1)
+
+def get_torque(data):
+    # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
+    with data_lock:
+        vcu_output.header = data.header
+        vcu_output.torque = data.torque
+
+
 def main():
 
+    rospy.init_node("carla", anonymous=True)
+    rospy.Subscriber("/newrizon/vcu_output", VCU_Output, get_torque)
+    pub = rospy.Publisher("/newrizon/vcu_input", VCU_Input, queue_size=10)
     # try:
     # parameters for the gym_carla environment
     params = {
@@ -113,7 +151,7 @@ def main():
         "continuous_accel_range": [-3.0, 3.0],  # continuous acceleration range
         "continuous_steer_range": [-0.3, 0.3],  # continuous steering angle range
         "ego_vehicle_filter": "vehicle.carlamotors.carlacola",  # filter for defining ego vehicle
-        "carlaserver": "192.168.60.80",  # carla server ip address
+        "carlaserver": "localhost",  # carla server ip address
         "port": 2000,  # connection port
         "town": "Town01",  # which town to simulate
         "task_mode": "random",  # mode of the task, [random, roundabout (only for Town03)]
@@ -136,6 +174,8 @@ def main():
     # Set gym-carla environment
     env = gym.make("carla-v0", params=params)
     obs = env.reset()
+
+    # initialize start time and counter
     start = time.time()
 
     # initialize arrays to store data
@@ -154,8 +194,21 @@ def main():
     print("simulation starts")
     print("------------------------------------------")
     print("Current circle: " + str(env.circle_num))
+    h = std_msgs.msg.Header()
+    h.stamp = rospy.Time.now()
+    vcu_input.header.seq = 0
+    vcu_input.header.stamp = h.stamp
+    vcu_input.pedal = 0
+    vcu_input.acceleration = 0
+    vcu_input.velocity = 0
+
     while env.circle_num < env.circle_thre:
-        action = [2.0, 0.0]
+        # while vcu_input.stamp > vcu_output.stamp:
+        with data_lock:
+            throttle = vcu_output.torque
+            h1 = vcu_output.header
+
+        action = [throttle, 0.0]
         obs, r, done, info = env.step(action)
         # simulation learning
         v.append(obs["state"][2])
@@ -167,6 +220,13 @@ def main():
         # visual.visual(t, v, v_wltc)
         env.counter = env.counter + 1
         thro.append(obs["state"][7])
+
+        # talker(pub, rc, ped, acc, vel)
+        # publish speed acc pedal to vcu
+        talker(pub, env.counter, env.throttle, obs["state"][4], obs["state"][2])
+
+        #  TODO add pg agent output
+
         if obs["state"][5] < 10:
             duration = time.time() - start
             print(
