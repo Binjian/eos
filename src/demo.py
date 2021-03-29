@@ -61,7 +61,7 @@ def ai_filter(thro):
     return filted_thro
 
 
-def cumpute_loss(e_real, e, thro, thro_real):
+def compute_loss(e_real, e, thro, thro_real):
     # calculate energy loss
     e_real_sum = integrate.cumtrapz(e_real, dx=0.1)
     # calculate throttle derivative
@@ -265,7 +265,7 @@ def main():
     filted_thro = ai_filter(thro)
 
     # calculate energy consumption and thro rate
-    loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev = cumpute_loss(
+    loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev = compute_loss(
         e_real, e, filted_thro, thro_real
     )
     # show plot and save report
