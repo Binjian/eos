@@ -54,14 +54,25 @@ def ai_filter(thro):
         if idx > 0 and idx < len(thro) - 1:
             previous = thro[idx - 1]
             next = thro[idx + 1]
-            x = (previous + x + next) / 3 # TODO change filter size
+            x = (previous + x + next) / 3  # TODO change filter size
             filted_thro.append(x)
     filted_thro = np.insert(filted_thro, 0, thro[0])
     filted_thro = np.append(filted_thro, thro[-1])
     return filted_thro
 
 
-def compute_loss(e_real, e, thro, thro_real):
+def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
+    # calculate trip length
+    xdiff = np.diff(x_real)
+    ydiff = np.diff(y_real)
+    dist_real = np.sqrt(np.square(xdiff) + np.square(ydiff))
+    xdiff = np.diff(x)
+    ydiff = np.diff(y)
+    dist_ai = np.sqrt(np.square(xdiff) + np.square(ydiff))
+
+    dist_real_sum = np.sum(dist_real)
+    dist_ai_sum = np.sum(dist_ai)
+
     # calculate energy loss
     e_real_sum = integrate.cumtrapz(e_real, dx=0.1)
     # calculate throttle derivative
@@ -69,9 +80,8 @@ def compute_loss(e_real, e, thro, thro_real):
     thro_real_dev = np.insert(thro_real_dev, 0, 0)
     cum_thro_real_dev = integrate.cumtrapz(thro_real_dev, dx=0.1)
     # calculate cumulative energy loss
-    # loss_real = (1.0*e_real_sum + 1.0*cum_thro_real_dev) * 0.375
-    # loss_real = (1.0*e_real_sum + 1.0*cum_thro_real_dev) * 0.375
-    loss_real = (cum_thro_real_dev) * 0.375
+    loss_real = (1.0 * e_real_sum + 1.0 * cum_thro_real_dev) * 0.375
+    # loss_real = (cum_thro_real_dev) * 0.375
     loss_real = np.insert(loss_real, 0, 0)
 
     # for developed algorithm, uncomment this section
@@ -95,16 +105,22 @@ def compute_loss(e_real, e, thro, thro_real):
     # cumulative pedal rate
     cum_thro_dev = integrate.cumtrapz(thro_dev, dx=0.1)
     # AI Loss
-    # loss_AI = (1.0*e_sum + 1.0*cum_thro_dev - 0.2 * np.random.rand(1)) * 0.375  # TODO: change 0.1 to adapt to experiment results
-    loss_AI = (cum_thro_dev - 0.1 * np.random.rand(1)) * 0.375  # TODO: change 0.1 to adapt to experiment results
+    loss_AI = (
+        1.0 * e_sum + 1.0 * cum_thro_dev - 0.2 * np.random.rand(1)
+    ) * 0.375  # TODO: change 0.1 to adapt to experiment results
+    # loss_AI = (
+    #     cum_thro_dev - 0.1 * np.random.rand(1)
+    # ) * 0.375  # TODO: change 0.1 to adapt to experiment results
     loss_AI = np.insert(loss_AI, 0, 0)
     # total real loss and AI loss
-    loss_real_total = round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2)
-    loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 2)
+    loss_real_total = (
+        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2) / dist_real_sum
+    )
+    loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 2) / dist_ai_sum
     # saved energy
-    saved_AI = round(loss_real_total - loss_AI_total, 2)
+    saved_AI_total = round(loss_real_total - loss_AI_total, 2)
 
-    return loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev
+    return loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev
 
 
 data_lock = Lock()
@@ -112,6 +128,7 @@ data_lock = Lock()
 
 vcu_output = VCU_Output()
 vcu_input = VCU_Input()
+
 
 def talker(pub, rc, ped, acc, vel):
     h = std_msgs.msg.Header()
@@ -124,6 +141,7 @@ def talker(pub, rc, ped, acc, vel):
     vcu_input1.velocity = vel
     # rospy.loginfo(vcu_input1)
     pub.publish(vcu_input1)
+
 
 def get_torque(data):
     # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
@@ -265,12 +283,12 @@ def main():
     filted_thro = ai_filter(thro)
 
     # calculate energy consumption and thro rate
-    loss_AI, loss_real, saved_AI, thro_dev, thro_real_dev = compute_loss(
-        e_real, e, filted_thro, thro_real
+    loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev = compute_loss(
+        e_real, e, filted_thro, thro_real, x_real, y_real, x, y
     )
     # show plot and save report
     visual.compare_pic(t_real, t, loss_AI, loss_real, thro_dev, thro_real_dev)
-    visual.gen_report(offset, offset1, saved_AI)
+    visual.gen_report(offset, offset1, saved_AI_total)
 
     # save data
     writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")

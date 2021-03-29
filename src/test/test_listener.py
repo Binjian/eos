@@ -23,7 +23,7 @@ def talker():
         vcu_input.ped = random()
         vcu_input.acc = random() * 10
         vcu_input.vel = random() * 100
-        rospy.loginfo(vcu_input)/home/is/devel/newrizon/__drl-carla-manual/src/test/test_doubler.py
+        rospy.loginfo(vcu_input)
         pub.publish(vcu_input)
         rc += 1
         rate.sleep()

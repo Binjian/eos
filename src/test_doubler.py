@@ -42,9 +42,10 @@ def doubler():
         with data_lock:
             throttle = vcu_output.torque
             h1 = vcu_output.header
-        print('rc:%d; throttle:%f' % (h1.seq, throttle))
+        print("rc:%d; throttle:%f" % (h1.seq, throttle))
         rc += 1
         rate.sleep()
+
 
 if __name__ == "__main__":
     try:

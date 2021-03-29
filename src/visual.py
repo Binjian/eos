@@ -73,9 +73,12 @@ def gen_report(diff, diff1, e):
 
     # check if energy is saved
     if e >= 0:
-        e_saved = Paragraph("You have saved total energy of " + str(e) + " wh", green)
+        e_saved_km = e * 1000
+        e_saved = Paragraph(
+            "Energy consumption reduction: " + str(e_saved_km) + "wh/km", green
+        )
     else:
-        e_saved = Paragraph("Energy is not saved: " + str(e) + " wh", red)
+        e_saved = Paragraph("Energy is not saved: " + str(e_saved_km) + "wh/km", red)
 
     # check if velocity offset valid
     if diff < 5 and diff1 < 5:

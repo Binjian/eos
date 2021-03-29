@@ -1,3 +1,4 @@
 import os
-prjpath = '../'
-os.environ['PATH'] += ':'+prjpath
+
+prjpath = "../"
+os.environ["PATH"] += ":" + prjpath
