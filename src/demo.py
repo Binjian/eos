@@ -114,11 +114,11 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
     loss_AI = np.insert(loss_AI, 0, 0)
     # total real loss and AI loss
     loss_real_total = (
-        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 2) / dist_real_sum
+        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 4) / dist_real_sum
     )
-    loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 2) / dist_ai_sum
+    loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 4) / dist_ai_sum
     # saved energy
-    saved_AI_total = round(loss_real_total - loss_AI_total, 2)
+    saved_AI_total = round(loss_real_total - loss_AI_total, 4)
 
     return loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev
 
