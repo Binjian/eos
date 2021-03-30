@@ -72,13 +72,12 @@ def gen_report(diff, diff1, e):
     v_lim = Paragraph("Velocity Offset Limit: 5 km/h", red)
 
     # check if energy is saved
+    e_saved_km = e * 1000
     if e >= 0:
-        e_saved_km = e * 1000
         e_saved = Paragraph(
             "Energy consumption reduction: " + str(e_saved_km) + "wh/km", green
         )
     else:
-        e_saved_km = e * 1000
         e_saved = Paragraph("Energy is not saved: " + str(e_saved_km) + "wh/km", red)
 
     # check if velocity offset valid
