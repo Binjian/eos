@@ -78,6 +78,7 @@ def gen_report(diff, diff1, e):
             "Energy consumption reduction: " + str(e_saved_km) + "wh/km", green
         )
     else:
+        e_saved_km = e * 1000
         e_saved = Paragraph("Energy is not saved: " + str(e_saved_km) + "wh/km", red)
 
     # check if velocity offset valid
