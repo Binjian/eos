@@ -39,6 +39,8 @@ import std_msgs.msg
 from vcu.msg import *
 from threading import Lock
 
+from pg_carla_agent import *
+from udp_sender import *
 
 def writexslx(x, y, v, path):
     df = pd.DataFrame({"x": x, "y": y, "v": v})
@@ -213,7 +215,7 @@ def main():
     loss_real = []
     loss_AI = []
 
-    # start simulation message
+    # start simulation message, ros message initialization
     print("simulation starts")
     print("------------------------------------------")
     print("Current circle: " + str(env.circle_num))
@@ -225,7 +227,49 @@ def main():
     vcu_input.acceleration = 0
     vcu_input.velocity = 0
 
+    # Simulation initialization, episode running reward
+    acts = []
+    running_reward = None
+    reward_sum = 0
+    episode_number = 0
+    counter = 0
+    episode_reward = []
+
+    # episode initialization
+    xs, hs, dlogps, drs = [], [], [], []
+    pos_x, pos_y, yaw_z, velocity, acceleration, timing = [], [], [], [], [], []
+    epi_kp, epi_ki, epi_kd = [], [], []
+
+    obs = env.reset()
+
+    current_yaw = obs["state"][1]
+    current_speed = obs["state"][2]
+    current_a = obs["state"][4]
+    current_x = obs["state"][5]
+    current_y = obs["state"][6]
+    xx = [current_speed, current_a]
+
     while env.circle_num < env.circle_thre:
+
+        # update vcu calibration table according to observation
+        print(xx)
+        aprob, h = policy_forward(xx)
+        # record various intermediates (needed later for backprop)
+        xs.append(xx)  # observation
+        hs.append(h)  # hidden state
+        # action = [2.0, 0.0]
+        action_index = np.random.choice(A3, 1, aprob.tolist())[0]
+        k1_ind = int(action_index / A2)
+        k2_ind = int((action_index % A2) / A)
+        kk_ind = action_index % A
+
+        k1 = KP_space[k1_ind]
+        k2 = KI_space[k2_ind]
+        kk = KD_space[kk_ind]
+
+        vcu_param_list = generate_vcu_calibration(k1, k2, kk)
+        send_table(vcu_param_list)
+
         # while vcu_input.stamp > vcu_output.stamp:
         with data_lock:
             throttle = vcu_output.torque
@@ -233,6 +277,15 @@ def main():
 
         action = [throttle, 0.0]
         obs, r, done, info = env.step(action)
+
+        # print("-----------------------------")
+        current_yaw = obs["state"][1]
+        current_speed = obs["state"][2]
+        current_a = obs["state"][4]
+        current_x = obs["state"][5]
+        current_y = obs["state"][6]
+        xx = [current_speed, current_a]
+
         # simulation learning
         v.append(obs["state"][2])
         x.append(env.ego.get_transform().location.x)
@@ -243,6 +296,18 @@ def main():
         # visual.visual(t, v, v_wltc)
         env.counter = env.counter + 1
         thro.append(obs["state"][7])
+        epi_kp.append(k1)
+        epi_ki.append(k2)
+        epi_kd.append(kk)
+        r_engy_consump = -(current_a ** 2)
+        r_time_lapse = -1  # for fixed trip length consider + r_time_lapse
+        # r_trip_length = wp_distance[frame]  # for fixed time range consider + r_trip_length
+        reward = r_engy_consump  # + r_time_lapse
+        reward_sum += reward
+
+        # record reward (has to be done after we call step() to get reward for
+        # previous action)
+        drs.append(reward)
 
         # talker(pub, rc, ped, acc, vel)
         # publish speed acc pedal to vcu
@@ -251,6 +316,7 @@ def main():
         #  TODO add pg agent output
 
         if obs["state"][5] < 10:
+
             duration = time.time() - start
             print(
                 "Congradulation! You completed the racetrack in",
@@ -260,6 +326,66 @@ def main():
                 "seconds",
             )
             plt.close()
+
+            episode_number = episode_number + 1
+            episode_reward.append(reward_sum)
+            # stack together all inputs, hidden states, action gradients, and
+            epx = np.vstack(xs)
+            eph = np.vstack(hs)
+            # epdlogp = np.vstack(dlogps)
+            # epr = np.vstack(drs)
+            # compute the discounted reward backwards through time
+            # discounted_epr = discount_rewards(epr)
+            # standardize the rewards to be unit normal (helps control the gradient
+            # estimator variance)
+            # discounted_epr -= np.mean(discounted_epr)
+            # discounted_epr /= np.std(discounted_epr)
+
+
+            # modulate the gradient with advantage (PG magic happens right here.)
+            # epdlogp *= discounted_epr
+            # grad = policy_backward(epx, eph, epdlogp)
+            # for k in model:
+            #     grad_buffer[k] += grad[k]  # accumulate grad over batch
+
+            if episode_number % batch_size == 0:
+                for k, v in list(model.items()):
+                    g = grad_buffer[k]  # gradient
+                    rmsprop_cache[k] = (
+                            decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g ** 2
+                    )
+                    model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
+                    # reset batch gradient buffer
+                    grad_buffer[k] = np.zeros_like(v)
+
+            # boring book-keeping
+            running_reward = (
+                reward_sum
+                if running_reward is None
+                else running_reward * 0.99 + reward_sum * 0.01
+            )
+
+            reward_sum = 0
+
+            # intialize the log arrays
+            xs, hs, dlogps, drs = [], [], [], []  # reset array memory
+            acts = []  # could be plotted to compare with human throttle input
+            velocity, acceleration, timing = [], [], []
+            xs, hs, dlogps, drs = [], [], [], []
+            pos_x, pos_y, yaw_z, velocity, acceleration, timing = [], [], [], [], [], []
+            epi_kp, epi_ki, epi_kd = [], [], []
+
+            # reset episode
+            obs = env.reset()  # reset env
+            start = time.time()
+            epi_start = start
+            vel = obs["state"][2]
+            acc = obs["state"][4]
+            xx = [vel, acc]
+            velocity.append(vel)
+            acceleration.append(acc)
+            timing.append(0)
+
             env.circle_num = env.circle_num + 1
             offset = obs["state"][6]
             print("------------------------------------------")
