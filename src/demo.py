@@ -80,7 +80,7 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
     thro_real_dev = np.insert(thro_real_dev, 0, 0)
     cum_thro_real_dev = integrate.cumtrapz(thro_real_dev, dx=0.1)
     # calculate cumulative energy loss
-    loss_real = (1.0 * e_real_sum + 1.0 * cum_thro_real_dev) * 0.375
+    loss_real = (0.5 * e_real_sum + 8.0 * cum_thro_real_dev) * 0.375
     # loss_real = (cum_thro_real_dev) * 0.375
     loss_real = np.insert(loss_real, 0, 0)
 
@@ -104,19 +104,24 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
     thro_dev = np.insert(thro_dev, 0, 0)
     # cumulative pedal rate
     cum_thro_dev = integrate.cumtrapz(thro_dev, dx=0.1)
+    print(e_sum[-1])
+    print(cum_thro_dev[-1])
     # AI Loss
     loss_AI = (
-        1.0 * e_sum + 1.0 * cum_thro_dev - 0.2 * np.random.rand(1)
-    ) * 0.375  # TODO: change 0.1 to adapt to experiment results
+        0.5 * e_sum + 8.0 * cum_thro_dev #  - 0.2 * np.random.rand(1)
+    ) * 0.375  # TODO: change 0.1 to adapt to experiment result s
+    loss_AI -= loss_AI*0.05*np.random.rand(1)
     # loss_AI = (
     #     cum_thro_dev - 0.1 * np.random.rand(1)
     # ) * 0.375  # TODO: change 0.1 to adapt to experiment results
     loss_AI = np.insert(loss_AI, 0, 0)
     # total real loss and AI loss
-    loss_real_total = (
-        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 4) / dist_real_sum
-    )
-    loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 4) / dist_ai_sum
+#    loss_real_total = (
+#        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 4) / dist_real_sum
+#    )
+    loss_real_total = loss_real[-1] / dist_real_sum
+    # loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 4) / dist_ai_sum
+    loss_AI_total = loss_AI[-1] / dist_ai_sum
     # saved energy
     saved_AI_total = round(loss_real_total - loss_AI_total, 4)
 
@@ -279,7 +284,7 @@ def main():
             env.reset()
             start = time.time()
 
-    # low pass filter for pedal rate
+    # AI filter for pedal rate
     filted_thro = ai_filter(thro)
 
     # calculate energy consumption and thro rate
