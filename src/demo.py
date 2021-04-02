@@ -42,6 +42,12 @@ from threading import Lock
 from pg_carla_agent import *
 from udp_sender import *
 
+# print(os.getcwd())
+# bashCommand = "sh ./carlademo.bash"
+# import subprocess
+# process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+# output, error = process.communicate()
+
 def writexslx(x, y, v, path):
     df = pd.DataFrame({"x": x, "y": y, "v": v})
     writer = pd.ExcelWriter(path)
@@ -162,6 +168,7 @@ def main():
     rospy.init_node("carla", anonymous=True)
     rospy.Subscriber("/newrizon/vcu_output", VCU_Output, get_torque)
     pub = rospy.Publisher("/newrizon/vcu_input", VCU_Input, queue_size=10)
+
     # try:
     # parameters for the gym_carla environment
     params = {
@@ -213,7 +220,7 @@ def main():
     e = []
     thro = []
     loss_real = []
-    loss_AI = []
+    loss_ai = []
 
     # start simulation message, ros message initialization
     print("simulation starts")
@@ -275,7 +282,14 @@ def main():
             throttle = vcu_output.torque
             h1 = vcu_output.header
 
+        throttle = 0
         action = [throttle, 0.0]
+
+        yy = np.zeros(A ** 3)
+        yy[action_index] = 1
+        # grad that encourages the action that was taken to be taken
+        dlogps.append(yy - aprob)
+        # (see http://cs231n.github.io/neural-networks-2/#losses if confused)
         obs, r, done, info = env.step(action)
 
         # print("-----------------------------")
@@ -315,6 +329,7 @@ def main():
 
         #  TODO add pg agent output
 
+        # if len(drs) > 50:
         if obs["state"][5] < 10:
 
             duration = time.time() - start
@@ -332,21 +347,20 @@ def main():
             # stack together all inputs, hidden states, action gradients, and
             epx = np.vstack(xs)
             eph = np.vstack(hs)
-            # epdlogp = np.vstack(dlogps)
-            # epr = np.vstack(drs)
+            epdlogp = np.vstack(dlogps)
+            epr = np.vstack(drs)
             # compute the discounted reward backwards through time
-            # discounted_epr = discount_rewards(epr)
-            # standardize the rewards to be unit normal (helps control the gradient
-            # estimator variance)
-            # discounted_epr -= np.mean(discounted_epr)
-            # discounted_epr /= np.std(discounted_epr)
+            discounted_epr = discount_rewards(epr)
+            # standardize the rewards to be unit normal (helps control the gradient estimator variance)
+            discounted_epr -= np.mean(discounted_epr)
+            discounted_epr /= np.std(discounted_epr)
 
 
             # modulate the gradient with advantage (PG magic happens right here.)
-            # epdlogp *= discounted_epr
-            # grad = policy_backward(epx, eph, epdlogp)
-            # for k in model:
-            #     grad_buffer[k] += grad[k]  # accumulate grad over batch
+            epdlogp *= discounted_epr
+            grad = policy_backward(epx, eph, epdlogp)
+            for k in model:
+                grad_buffer[k] += grad[k]  # accumulate grad over batch
 
             if episode_number % batch_size == 0:
                 for k, v in list(model.items()):
@@ -414,12 +428,12 @@ def main():
     filted_thro = ai_filter(thro)
 
     # calculate energy consumption and thro rate
-    loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev = compute_loss(
+    loss_ai, loss_real, saved_ai_total, thro_dev, thro_real_dev = compute_loss(
         e_real, e, filted_thro, thro_real, x_real, y_real, x, y
     )
     # show plot and save report
-    visual.compare_pic(t_real, t, loss_AI, loss_real, thro_dev, thro_real_dev)
-    visual.gen_report(offset, offset1, saved_AI_total)
+    visual.compare_pic(t_real, t, loss_ai, loss_real, thro_dev, thro_real_dev)
+    visual.gen_report(offset, offset1, saved_ai_total)
 
     # save data
     writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
