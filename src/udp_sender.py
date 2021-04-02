@@ -24,6 +24,9 @@ def send_table(table):
 
 def generate_vcu_calibration(k1, k2, kk):
   vcu_param_list = np.arange(36) + 0.01
+  vcu_param_list[0] = k1
+  vcu_param_list[1] = k2
+  vcu_param_list[2] = kk
   return vcu_param_list
 
 
