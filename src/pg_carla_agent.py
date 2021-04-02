@@ -8,13 +8,13 @@ import matplotlib.pyplot as plt
 
 # hyperparameters
 H = 10  # number of hidden layer neurons
-batch_size = 4  # every how many episodes to do a param update?
+batch_size = 1  # every how many episodes to do a param update?
 learning_rate = 1e-4
 gamma = 0.99  # discount factor for reward
 decay_rate = 0.99  # decay factor for RMSProp leaky sum of grad^2
 resume = False  # resume from previous checkpoint?
 render = False
-A = 6  # action_resolution
+A = 11  # action_resolution
 A2 = A * A  # A square
 A3 = A * A * A  # A cubic
 # throttle_space = np.linspace(0.0, 1.0, A)
