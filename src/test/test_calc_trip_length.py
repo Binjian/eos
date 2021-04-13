@@ -1,5 +1,6 @@
-import sys,os
-sys.path.insert(0, os.path.abspath('..'))
+import sys, os
+
+sys.path.insert(0, os.path.abspath(".."))
 
 import numpy as np
 import pandas as pd

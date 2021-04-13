@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-import sys,os
-sys.path.insert(0, os.path.abspath('..'))
+import sys, os
+
+sys.path.insert(0, os.path.abspath(".."))
 
 import rospy
 from std_msgs.msg import String

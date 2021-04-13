@@ -33,12 +33,13 @@ import os
 
 import rospy
 import std_msgs.msg
-from vcu.msg import *
+from communication.vcu.msg import *
 from threading import Lock
 
 from pg_carla_agent import *
-# from communication import udp_sender
-# from communication import carla_ros
+from communication import udp_sender
+from communication import carla_ros
+import socket
 
 def writexslx(x, y, v, path):
     df = pd.DataFrame({"x": x, "y": y, "v": v})
@@ -266,6 +267,9 @@ def main():
     epi_kp, epi_ki, epi_kd = [], [], []
 
     obs = env.reset()  # observation is [current_speed, current_a]
+    throt = obs[2]
+    finish_distance = obs[3]
+    obs = obs[0:2]
 
     while env.circle_num < env.circle_thre:
 
@@ -285,16 +289,16 @@ def main():
         k2 = KI_space[k2_ind]
         kk = KD_space[kk_ind]
 
-        vcu_param_list = udp_sender.generate_vcu_calibration(k1, k2, kk)
-        udp_sender.send_table(vcu_param_list)
+        vcu_param_list = generate_vcu_calibration(k1, k2, kk)
+        send_table(vcu_param_list)
 
         # while vcu_input.stamp > vcu_output.stamp:
         with data_lock:
             throttle = vcu_output.torque
             h1 = vcu_output.header
 
-        # throttle = 0
-        action = [throttle, env.steer]
+        throttle = throt
+        action = [throttle, 0]
 
         yy = np.zeros(A ** 3)
         yy[action_index] = 1
@@ -302,18 +306,20 @@ def main():
         dlogps.append(yy - aprob)
         # (see http://cs231n.github.io/neural-networks-2/#losses if confused)
         obs, r, done, info = env.step(action)
-
+        throt = obs[2]
+        finish_distance = obs[3]
+        obs = obs[0:2]
 
         # simulation learning
-        v.append(obs["state"][2])
+        v.append(obs[0])
         x.append(env.ego.get_transform().location.x)
         y.append(env.ego.get_transform().location.y)
         v_wltc.append(env.v_sim[env.counter])
         t.append(env.counter)
-        e.append((obs["state"][4]) ** 2)
+        e.append(obs[1] ** 2)
         # visual.visual(t, v, v_wltc)
         env.counter = env.counter + 1
-        thro.append(obs["state"][7])
+        thro.append(throt)
         epi_kp.append(k1)
         epi_ki.append(k2)
         epi_kd.append(kk)
@@ -325,12 +331,12 @@ def main():
 
         # talker(pub, rc, ped, acc, vel)
         # publish speed acc pedal to vcu
-        carla_ros.talker(pub, env.counter, obs[0], obs[1], obs[2])
+        carla_ros.talker(pub, env.counter, obs[0], obs[1], throt)
 
         #  TODO add pg agent output
 
         # if len(drs) > 50:
-        if obs["state"][5] < 10:
+        if finish_distance < 10:
 
             duration = time.time() - start
             print(

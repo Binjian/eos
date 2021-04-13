@@ -76,4 +76,3 @@ def policy_backward(epx, eph, epdlogp):  # something wrong here
     dh[eph <= 0] = 0  # backpro prelu
     dW1 = np.dot(dh.T, epx)  # 4x2
     return {"W1": dW1, "W2": dW2}
-

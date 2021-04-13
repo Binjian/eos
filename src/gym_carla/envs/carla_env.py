@@ -153,7 +153,10 @@ class CarlaEnv(gym.Env):
 
         # 0 is autopilot, 1 is reinforcement learning, 2 is manual control
         self.modename = ["AutoPilot", "Reinforcement Learning", "Manual Control"]
-        self.mode = 1
+        if not self.ai_mode:
+            self.mode = 2
+        else:
+            self.mode = 1
         self._mode_transforms = 3
 
         # create map and define start point of agent
@@ -740,8 +743,7 @@ class CarlaEnv(gym.Env):
                 steer = self.discrete_act[1][action % self.n_steer]
             else:
                 acc = action[0]
-                steer = env.steer
-
+                steer = self.steer
 
             # Convert acceleration to throttle and brake
             if acc > 0:
@@ -839,9 +841,9 @@ class CarlaEnv(gym.Env):
             (self.display_size * 4, self.display_size * 2), pygame.FULLSCREEN, 32
         )
         # for small screen uncomment below
-        # self.display = pygame.display.set_mode(
-        #     (self.display_size * 4, self.display_size * 2),
-        #     pygame.HWSURFACE | pygame.DOUBLEBUF)
+        self.display = pygame.display.set_mode(
+            (self.display_size * 4, self.display_size * 2),
+            pygame.HWSURFACE | pygame.DOUBLEBUF)
 
         pixels_per_meter = self.display_size / self.obs_range
         pixels_ahead_vehicle = (self.obs_range / 2 - self.d_behind) * pixels_per_meter
@@ -888,7 +890,7 @@ class CarlaEnv(gym.Env):
         walker_bp = random.choice(self.world.get_blueprint_library().filter("walker.*"))
         # set as not invencible
         if walker_bp.has_attribute("is_invincible"):
-            walker_bp.set_attribute("is_invincible", "false")
+            walker_bp.set_attribute("is_invincible", "False")
         walker_actor = self.world.try_spawn_actor(walker_bp, transform)
 
         if walker_actor is not None:
@@ -1205,7 +1207,7 @@ class CarlaEnv(gym.Env):
         )
 
         # return just speed and acceleration
-        observation = [speed, acc, self.throttle]
+        observation = [speed, acc, self.throttle, finish_distance]
         return observation
 
         # info display
@@ -1254,7 +1256,7 @@ class CarlaEnv(gym.Env):
         #     vh_clas = np.flip(vh_clas, axis=0)
         #     vh_regr = np.flip(vh_regr, axis=0)
         #
-        #     # Pixor state, [x, y, cos(yaw), sin(yaw), speed]
+        #     # Pixor statobs[2]e, [x, y, cos(yaw), sin(yaw), speed]
         #     pixor_state = [ego_x, ego_y, np.cos(ego_yaw), np.sin(ego_yaw), speed]
         #
         # obs = {
@@ -1282,11 +1284,12 @@ class CarlaEnv(gym.Env):
 
     def _get_reward(self):
         """Calculate the step reward."""
-        current_a = self.ego.get_acceleration()
-        r_engy_consump = -(current_a ** 2)
+        a = self.ego.get_acceleration()
+        acc = np.sqrt(a.x ** 2 + a.y ** 2)
+        r_engy_consump = (acc ** 2)
         # r_time_lapse = -1  # for fixed trip length consider + r_time_lapse
         # r_trip_length = wp_distance[frame]  # for fixed time range consider + r_trip_length
-        reward = r_engy_consump  # + r_time_lapse
+        reward = -r_engy_consump  # + r_time_lapse
         # TODO add speed as reward (being fast should be  rewarded)
 
         return reward

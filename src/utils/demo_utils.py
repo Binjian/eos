@@ -1,8 +1,8 @@
-
 import numpy as np
 from numpy import diff
 from scipy import integrate
 import pandas as pd
+
 
 def writexslx(x, y, v, path):
     df = pd.DataFrame({"x": x, "y": y, "v": v})
@@ -72,8 +72,8 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
     print(cum_thro_dev[-1])
     # AI Loss
     loss_AI = (
-                      0.5 * e_sum + 8.0 * cum_thro_dev  #  - 0.2 * np.random.rand(1)
-              ) * 0.375  # TODO: change 0.1 to adapt to experiment result s
+        0.5 * e_sum + 8.0 * cum_thro_dev  #  - 0.2 * np.random.rand(1)
+    ) * 0.375  # TODO: change 0.1 to adapt to experiment result s
     loss_AI -= loss_AI * 0.05 * np.random.rand(1)
     # loss_AI = (
     #     cum_thro_dev - 0.1 * np.random.rand(1)
@@ -90,4 +90,3 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
     saved_AI_total = round(loss_real_total - loss_AI_total, 4)
 
     return loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev
-

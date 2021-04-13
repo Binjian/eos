@@ -1,12 +1,14 @@
-
 import rospy
 import std_msgs.msg
-import sys,os
-sys.path.insert(0, os.path.abspath('..'))
+import sys, os
 
-from vcu.msg import *
+sys.path.insert(0, os.path.abspath(".."))
+
+from communication.vcu.msg import *
 from threading import Lock
-from ac_tf import data_lock, vcu_output
+
+# from ac_tf import data_lock, vcu_output
+
 
 def talker(pub, rc, vel, acc, ped):
     h = std_msgs.msg.Header()
@@ -26,4 +28,3 @@ def get_torque(data):
     with data_lock:
         vcu_output.header = data.header
         vcu_output.torque = data.torque
-
