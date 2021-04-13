@@ -11,8 +11,6 @@ import carla
 import pyglet
 import time
 import numpy as np
-from numpy import diff
-from scipy import integrate
 from carla import ColorConverter as cc
 
 import matplotlib.pyplot as plt
@@ -29,10 +27,9 @@ import math
 import random
 import re
 import weakref
-import pandas as pd
-import visual
+from visualization import visual
 import os
-
+# from utils import demo_utils
 
 import rospy
 import std_msgs.msg
@@ -40,13 +37,8 @@ from vcu.msg import *
 from threading import Lock
 
 from pg_carla_agent import *
-from udp_sender import *
-
-# print(os.getcwd())
-# bashCommand = "sh ./carlademo.bash"
-# import subprocess
-# process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-# output, error = process.communicate()
+# from communication import udp_sender
+# from communication import carla_ros
 
 def writexslx(x, y, v, path):
     df = pd.DataFrame({"x": x, "y": y, "v": v})
@@ -116,17 +108,17 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
     print(cum_thro_dev[-1])
     # AI Loss
     loss_AI = (
-        0.5 * e_sum + 8.0 * cum_thro_dev #  - 0.2 * np.random.rand(1)
-    ) * 0.375  # TODO: change 0.1 to adapt to experiment result s
-    loss_AI -= loss_AI*0.05*np.random.rand(1)
+                      0.5 * e_sum + 8.0 * cum_thro_dev  #  - 0.2 * np.random.rand(1)
+              ) * 0.375  # TODO: change 0.1 to adapt to experiment result s
+    loss_AI -= loss_AI * 0.05 * np.random.rand(1)
     # loss_AI = (
     #     cum_thro_dev - 0.1 * np.random.rand(1)
     # ) * 0.375  # TODO: change 0.1 to adapt to experiment results
     loss_AI = np.insert(loss_AI, 0, 0)
     # total real loss and AI loss
-#    loss_real_total = (
-#        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 4) / dist_real_sum
-#    )
+    #    loss_real_total = (
+    #        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 4) / dist_real_sum
+    #    )
     loss_real_total = loss_real[-1] / dist_real_sum
     # loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 4) / dist_ai_sum
     loss_AI_total = loss_AI[-1] / dist_ai_sum
@@ -135,15 +127,7 @@ def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
 
     return loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev
 
-
-data_lock = Lock()
-
-
-vcu_output = VCU_Output()
-vcu_input = VCU_Input()
-
-
-def talker(pub, rc, ped, acc, vel):
+def talker(pub, rc, vel, acc, ped):
     h = std_msgs.msg.Header()
     h.stamp = rospy.Time.now()
     vcu_input1 = VCU_Input()
@@ -161,6 +145,40 @@ def get_torque(data):
     with data_lock:
         vcu_output.header = data.header
         vcu_output.torque = data.torque
+
+
+def send_table(table):
+    if len(table) != 36:
+        print("table length must be 36")
+        return
+    # print(table)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    send_str = str(table[0])
+    for i in range(1, 36):
+        send_str = send_str + " " + (str(table[i]))
+
+    # s.sendto(send_str, ('192.168.8.107', 13251))
+    # s.sendto(send_str, ('127.0.0.1', 13251))
+    s.close()
+
+
+def generate_vcu_calibration(k1, k2, kk):
+    vcu_param_list = np.arange(36) + 0.01
+    vcu_param_list[0] = k1
+    vcu_param_list[1] = k2
+    vcu_param_list[2] = kk
+    return vcu_param_list
+
+
+def prepare_vcu_calibration_table(table):
+    vcu_param_list = table.astpye("float32")
+    return vcu_param_list
+
+data_lock = Lock()
+vcu_output = VCU_Output()
+vcu_input = VCU_Input()
+
 
 
 def main():
@@ -247,22 +265,15 @@ def main():
     pos_x, pos_y, yaw_z, velocity, acceleration, timing = [], [], [], [], [], []
     epi_kp, epi_ki, epi_kd = [], [], []
 
-    obs = env.reset()
-
-    current_yaw = obs["state"][1]
-    current_speed = obs["state"][2]
-    current_a = obs["state"][4]
-    current_x = obs["state"][5]
-    current_y = obs["state"][6]
-    xx = [current_speed, current_a]
+    obs = env.reset()  # observation is [current_speed, current_a]
 
     while env.circle_num < env.circle_thre:
 
         # update vcu calibration table according to observation
-        print(xx)
-        aprob, h = policy_forward(xx)
+        print(obs)
+        aprob, h = policy_forward(obs)
         # record various intermediates (needed later for backprop)
-        xs.append(xx)  # observation
+        xs.append(obs)  # observation
         hs.append(h)  # hidden state
         # action = [2.0, 0.0]
         action_index = np.random.choice(A3, 1, aprob.tolist())[0]
@@ -274,16 +285,16 @@ def main():
         k2 = KI_space[k2_ind]
         kk = KD_space[kk_ind]
 
-        vcu_param_list = generate_vcu_calibration(k1, k2, kk)
-        send_table(vcu_param_list)
+        vcu_param_list = udp_sender.generate_vcu_calibration(k1, k2, kk)
+        udp_sender.send_table(vcu_param_list)
 
         # while vcu_input.stamp > vcu_output.stamp:
         with data_lock:
             throttle = vcu_output.torque
             h1 = vcu_output.header
 
-        throttle = 0
-        action = [throttle, 0.0]
+        # throttle = 0
+        action = [throttle, env.steer]
 
         yy = np.zeros(A ** 3)
         yy[action_index] = 1
@@ -292,13 +303,6 @@ def main():
         # (see http://cs231n.github.io/neural-networks-2/#losses if confused)
         obs, r, done, info = env.step(action)
 
-        # print("-----------------------------")
-        current_yaw = obs["state"][1]
-        current_speed = obs["state"][2]
-        current_a = obs["state"][4]
-        current_x = obs["state"][5]
-        current_y = obs["state"][6]
-        xx = [current_speed, current_a]
 
         # simulation learning
         v.append(obs["state"][2])
@@ -313,19 +317,15 @@ def main():
         epi_kp.append(k1)
         epi_ki.append(k2)
         epi_kd.append(kk)
-        r_engy_consump = -(current_a ** 2)
-        r_time_lapse = -1  # for fixed trip length consider + r_time_lapse
-        # r_trip_length = wp_distance[frame]  # for fixed time range consider + r_trip_length
-        reward = r_engy_consump  # + r_time_lapse
-        reward_sum += reward
+        reward_sum += r
 
         # record reward (has to be done after we call step() to get reward for
         # previous action)
-        drs.append(reward)
+        drs.append(r)
 
         # talker(pub, rc, ped, acc, vel)
         # publish speed acc pedal to vcu
-        talker(pub, env.counter, env.throttle, obs["state"][4], obs["state"][2])
+        carla_ros.talker(pub, env.counter, obs[0], obs[1], obs[2])
 
         #  TODO add pg agent output
 
@@ -355,7 +355,6 @@ def main():
             discounted_epr -= np.mean(discounted_epr)
             discounted_epr /= np.std(discounted_epr)
 
-
             # modulate the gradient with advantage (PG magic happens right here.)
             epdlogp *= discounted_epr
             grad = policy_backward(epx, eph, epdlogp)
@@ -366,7 +365,7 @@ def main():
                 for k, v in list(model.items()):
                     g = grad_buffer[k]  # gradient
                     rmsprop_cache[k] = (
-                            decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g ** 2
+                        decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g ** 2
                     )
                     model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
                     # reset batch gradient buffer
@@ -393,9 +392,8 @@ def main():
             obs = env.reset()  # reset env
             start = time.time()
             epi_start = start
-            vel = obs["state"][2]
-            acc = obs["state"][4]
-            xx = [vel, acc]
+            vel = obs[0]
+            acc = obs[1]
             velocity.append(vel)
             acceleration.append(acc)
             timing.append(0)
@@ -425,10 +423,10 @@ def main():
             start = time.time()
 
     # AI filter for pedal rate
-    filted_thro = ai_filter(thro)
+    filted_thro = demo_utils.ai_filter(thro)
 
     # calculate energy consumption and thro rate
-    loss_ai, loss_real, saved_ai_total, thro_dev, thro_real_dev = compute_loss(
+    loss_ai, loss_real, saved_ai_total, thro_dev, thro_real_dev = demo_utils.compute_loss(
         e_real, e, filted_thro, thro_real, x_real, y_real, x, y
     )
     # show plot and save report
@@ -436,8 +434,8 @@ def main():
     visual.gen_report(offset, offset1, saved_ai_total)
 
     # save data
-    writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
-    writexslx(x, y, v, "../data/train_data_highring/waypoint_set6.xls")
+    demo_utils.writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
+    demo_utils.writexslx(x, y, v, "../data/train_data_highring/waypoint_set6.xls")
 
     # delete dynamic memory
     gc.collect()

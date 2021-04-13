@@ -153,7 +153,7 @@ class CarlaEnv(gym.Env):
 
         # 0 is autopilot, 1 is reinforcement learning, 2 is manual control
         self.modename = ["AutoPilot", "Reinforcement Learning", "Manual Control"]
-        self.mode = 2
+        self.mode = 1
         self._mode_transforms = 3
 
         # create map and define start point of agent
@@ -535,13 +535,6 @@ class CarlaEnv(gym.Env):
         self.brake = brakeCmd
         self.throttle = throttleCmd
 
-        act = carla.VehicleControl(
-            throttle=self.throttle,
-            steer=self.steer,
-            brake=self.brake,
-            reverse=self.reverse,
-        )
-        self.ego.apply_control(act)
         # print(jsButtons)
 
     def reset(self):
@@ -737,6 +730,7 @@ class CarlaEnv(gym.Env):
         )
 
     def step(self, action):
+        self._parse_g29_keys()
         if self.mode == 1:
             self.autoflag = False
             self.ego.set_autopilot(self.autoflag)
@@ -746,7 +740,8 @@ class CarlaEnv(gym.Env):
                 steer = self.discrete_act[1][action % self.n_steer]
             else:
                 acc = action[0]
-                steer = action[1]
+                steer = env.steer
+
 
             # Convert acceleration to throttle and brake
             if acc > 0:
@@ -761,6 +756,7 @@ class CarlaEnv(gym.Env):
             )
             self.ego.apply_control(act)
             self.world.tick()
+            self.counter += 1
 
         elif self.mode == 0:
             self.autoflag = True
@@ -770,8 +766,14 @@ class CarlaEnv(gym.Env):
         elif self.mode == 2:
             self.autoflag = False
             self.ego.set_autopilot(self.autoflag)
+            act = carla.VehicleControl(
+                throttle=self.throttle,
+                steer=self.steer,
+                brake=self.brake,
+                reverse=self.reverse,
+            )
+            self.ego.apply_control(act)
             # self._parse_vehicle_keys(pygame.key.get_pressed())
-            self._parse_g29_keys()
             self.world.tick()
 
         # Append actors polygon list
@@ -1202,123 +1204,137 @@ class CarlaEnv(gym.Env):
             ]
         )
 
+        # return just speed and acceleration
+        observation = [speed, acc, self.throttle]
+        return observation
+
         # info display
 
-        if self.pixor:
-            ## Vehicle classification and regression maps (requires further normalization)
-            vh_clas = np.zeros((self.pixor_size, self.pixor_size))
-            vh_regr = np.zeros((self.pixor_size, self.pixor_size, 6))
-
-            # Generate the PIXOR image. Note in CARLA it is using left-hand coordinate
-            # Get the 6-dim geom parametrization in PIXOR, here we use pixel coordinate
-            for actor in self.world.get_actors().filter("vehicle.*"):
-                x, y, yaw, l, w = get_info(actor)
-                x_local, y_local, yaw_local = get_local_pose(
-                    (x, y, yaw), (ego_x, ego_y, ego_yaw)
-                )
-                if actor.id != self.ego.id:
-                    if (
-                        abs(y_local) < self.obs_range / 2 + 1
-                        and x_local < self.obs_range - self.d_behind + 1
-                        and x_local > -self.d_behind - 1
-                    ):
-                        x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel = get_pixel_info(
-                            local_info=(x_local, y_local, yaw_local, l, w),
-                            d_behind=self.d_behind,
-                            obs_range=self.obs_range,
-                            image_size=self.pixor_size,
-                        )
-                        cos_t = np.cos(yaw_pixel)
-                        sin_t = np.sin(yaw_pixel)
-                        logw = np.log(w_pixel)
-                        logl = np.log(l_pixel)
-                        pixels = get_pixels_inside_vehicle(
-                            pixel_info=(x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel),
-                            pixel_grid=self.pixel_grid,
-                        )
-                        for pixel in pixels:
-                            vh_clas[pixel[0], pixel[1]] = 1
-                            dx = x_pixel - pixel[0]
-                            dy = y_pixel - pixel[1]
-                            vh_regr[pixel[0], pixel[1], :] = np.array(
-                                [cos_t, sin_t, dx, dy, logw, logl]
-                            )
-
-            # Flip the image matrix so that the origin is at the left-bottom
-            vh_clas = np.flip(vh_clas, axis=0)
-            vh_regr = np.flip(vh_regr, axis=0)
-
-            # Pixor state, [x, y, cos(yaw), sin(yaw), speed]
-            pixor_state = [ego_x, ego_y, np.cos(ego_yaw), np.sin(ego_yaw), speed]
-
-        obs = {
-            "camera": camera.astype(np.uint8),
-            "lidar": lidar.astype(np.uint8),
-            "birdeye": birdeye.astype(np.uint8),
-            "newcam": newcam.astype(np.uint8),
-            "newcam2": newcam2.astype(np.uint8),
-            "state": state,
-        }
-
-        if self.pixor:
-            obs.update(
-                {
-                    "roadmap": roadmap.astype(np.uint8),
-                    "vh_clas": np.expand_dims(vh_clas, -1).astype(np.float32),
-                    "vh_regr": vh_regr.astype(np.float32),
-                    "newmap": newmap.astype(np.uint8),
-                    "newmap2": newmap2.astype(np.uint8),
-                    "pixor_state": pixor_state,
-                }
-            )
-
-        return obs
+        # if self.pixor:
+        #     ## Vehicle classification and regression maps (requires further normalization)
+        #     vh_clas = np.zeros((self.pixor_size, self.pixor_size))
+        #     vh_regr = np.zeros((self.pixor_size, self.pixor_size, 6))
+        #
+        #     # Generate the PIXOR image. Note in CARLA it is using left-hand coordinate
+        #     # Get the 6-dim geom parametrization in PIXOR, here we use pixel coordinate
+        #     for actor in self.world.get_actors().filter("vehicle.*"):
+        #         x, y, yaw, l, w = get_info(actor)
+        #         x_local, y_local, yaw_local = get_local_pose(
+        #             (x, y, yaw), (ego_x, ego_y, ego_yaw)
+        #         )
+        #         if actor.id != self.ego.id:
+        #             if (
+        #                 abs(y_local) < self.obs_range / 2 + 1
+        #                 and x_local < self.obs_range - self.d_behind + 1
+        #                 and x_local > -self.d_behind - 1
+        #             ):
+        #                 x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel = get_pixel_info(
+        #                     local_info=(x_local, y_local, yaw_local, l, w),
+        #                     d_behind=self.d_behind,
+        #                     obs_range=self.obs_range,
+        #                     image_size=self.pixor_size,
+        #                 )
+        #                 cos_t = np.cos(yaw_pixel)
+        #                 sin_t = np.sin(yaw_pixel)
+        #                 logw = np.log(w_pixel)
+        #                 logl = np.log(l_pixel)
+        #                 pixels = get_pixels_inside_vehicle(
+        #                     pixel_info=(x_pixel, y_pixel, yaw_pixel, l_pixel, w_pixel),
+        #                     pixel_grid=self.pixel_grid,
+        #                 )
+        #                 for pixel in pixels:
+        #                     vh_clas[pixel[0], pixel[1]] = 1
+        #                     dx = x_pixel - pixel[0]
+        #                     dy = y_pixel - pixel[1]
+        #                     vh_regr[pixel[0], pixel[1], :] = np.array(
+        #                         [cos_t, sin_t, dx, dy, logw, logl]
+        #                     )
+        #
+        #     # Flip the image matrix so that the origin is at the left-bottom
+        #     vh_clas = np.flip(vh_clas, axis=0)
+        #     vh_regr = np.flip(vh_regr, axis=0)
+        #
+        #     # Pixor state, [x, y, cos(yaw), sin(yaw), speed]
+        #     pixor_state = [ego_x, ego_y, np.cos(ego_yaw), np.sin(ego_yaw), speed]
+        #
+        # obs = {
+        #     "camera": camera.astype(np.uint8),
+        #     "lidar": lidar.astype(np.uint8),
+        #     "birdeye": birdeye.astype(np.uint8),
+        #     "newcam": newcam.astype(np.uint8),
+        #     "newcam2": newcam2.astype(np.uint8),
+        #     "state": state,
+        # }
+        #
+        # if self.pixor:
+        #     obs.update(
+        #         {
+        #             "roadmap": roadmap.astype(np.uint8),
+        #             "vh_clas": np.expand_dims(vh_clas, -1).astype(np.float32),
+        #             "vh_regr": vh_regr.astype(np.float32),
+        #             "newmap": newmap.astype(np.uint8),
+        #             "newmap2": newmap2.astype(np.uint8),
+        #             "pixor_state": pixor_state,
+        #         }
+        #     )
+        #
+        # return obs
 
     def _get_reward(self):
         """Calculate the step reward."""
-        # reward for speed tracking
+        current_a = self.ego.get_acceleration()
+        r_engy_consump = -(current_a ** 2)
+        # r_time_lapse = -1  # for fixed trip length consider + r_time_lapse
+        # r_trip_length = wp_distance[frame]  # for fixed time range consider + r_trip_length
+        reward = r_engy_consump  # + r_time_lapse
+        # TODO add speed as reward (being fast should be  rewarded)
+
+        return reward
+
+        # """Calculate the step reward."""
+        # # reward for speed tracking
         v = self.ego.get_velocity()
-        speed = np.sqrt(v.x ** 2 + v.y ** 2)
-        r_speed = -abs(speed - self.desired_speed)
-
-        # reward for collision
-        r_collision = 0
-        if len(self.collision_hist) > 0:
-            r_collision = -1
-
-        # reward for steering:
-        r_steer = -self.ego.get_control().steer ** 2
-
-        # reward for out of lane
-        ego_x, ego_y = get_pos(self.ego)
-        dis, w = get_lane_dis(self.waypoints, ego_x, ego_y)
-        r_out = 0
-        if abs(dis) > self.out_lane_thres:
-            r_out = -1
-
-        # longitudinal speed
-        lspeed = np.array([v.x, v.y])
-        lspeed_lon = np.dot(lspeed, w)
-
-        # cost for too fast
-        r_fast = 0
-        if lspeed_lon > self.desired_speed:
-            r_fast = -1
-
-        # cost for lateral acceleration
-        r_lat = -abs(self.ego.get_control().steer) * lspeed_lon ** 2
-
-        r = (
-            200 * r_collision
-            + 1 * lspeed_lon
-            + 10 * r_fast
-            + 1 * r_out
-            + r_steer * 5
-            + 0.2 * r_lat
-            - 0.1
-        )
-
-        return r
+        # speed = np.sqrt(v.x ** 2 + v.y ** 2)
+        # r_speed = -abs(speed - self.desired_speed)
+        #
+        # # reward for collision
+        # r_collision = 0
+        # if len(self.collision_hist) > 0:
+        #     r_collision = -1
+        #
+        # # reward for steering:
+        # r_steer = -self.ego.get_control().steer ** 2
+        #
+        # # reward for out of lane
+        # ego_x, ego_y = get_pos(self.ego)
+        # dis, w = get_lane_dis(self.waypoints, ego_x, ego_y)
+        # r_out = 0
+        # if abs(dis) > self.out_lane_thres:
+        #     r_out = -1
+        #
+        # # longitudinal speed
+        # lspeed = np.array([v.x, v.y])
+        # lspeed_lon = np.dot(lspeed, w)
+        #
+        # # cost for too fast
+        # r_fast = 0
+        # if lspeed_lon > self.desired_speed:
+        #     r_fast = -1
+        #
+        # # cost for lateral acceleration
+        # r_lat = -abs(self.ego.get_control().steer) * lspeed_lon ** 2
+        #
+        # r = (
+        #     200 * r_collision
+        #     + 1 * lspeed_lon
+        #     + 10 * r_fast
+        #     + 1 * r_out
+        #     + r_steer * 5
+        #     + 0.2 * r_lat
+        #     - 0.1
+        # )
+        #
+        # return r
 
     def _terminal(self):
         """Calculate whether to terminate the current episode."""
