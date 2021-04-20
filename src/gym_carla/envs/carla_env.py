@@ -153,10 +153,10 @@ class CarlaEnv(gym.Env):
 
         # 0 is autopilot, 1 is reinforcement learning, 2 is manual control
         self.modename = ["AutoPilot", "Reinforcement Learning", "Manual Control"]
-        if not self.ai_mode:
-            self.mode = 2
-        else:
+        if self.ai_mode:
             self.mode = 1
+        else:
+            self.mode = 2
         self._mode_transforms = 3
 
         # create map and define start point of agent
@@ -539,6 +539,19 @@ class CarlaEnv(gym.Env):
         self.throttle = throttleCmd
 
         # print(jsButtons)
+    def get_init_state(self):
+        # State observation
+        self._parse_g29_keys()
+
+        v = self.ego.get_velocity()
+        a = self.ego.get_acceleration()
+        speed = 3.6 * np.sqrt(v.x ** 2 + v.y ** 2)
+        acc = np.sqrt(a.x ** 2 + a.y ** 2)
+
+        # return just speed and acceleration
+        observation = [speed, acc, self.throttle]
+        return observation
+
 
     def reset(self):
         # Clear sensor objects
@@ -733,7 +746,6 @@ class CarlaEnv(gym.Env):
         )
 
     def step(self, action):
-        self._parse_g29_keys()
         if self.mode == 1:
             self.autoflag = False
             self.ego.set_autopilot(self.autoflag)
@@ -747,11 +759,11 @@ class CarlaEnv(gym.Env):
 
             # Convert acceleration to throttle and brake
             if acc > 0:
-                throttle = np.clip(acc / 3, 0, 1)
+                throttle = np.clip(acc, 0, 1)
                 brake = 0
             else:
                 throttle = 0
-                brake = np.clip(-acc / 8, 0, 1)
+                brake = np.clip(-acc, 0, 1)
             # Apply control
             act = carla.VehicleControl(
                 throttle=float(throttle), steer=float(-steer), brake=float(brake)
@@ -1181,6 +1193,7 @@ class CarlaEnv(gym.Env):
         pygame.display.flip()
 
         # State observation
+        self._parse_g29_keys()
         # TODO offset between V_real and V_WLTC
         ego_trans = self.ego.get_transform()
         ego_x = ego_trans.location.x
@@ -1190,9 +1203,6 @@ class CarlaEnv(gym.Env):
         delta_yaw = np.arcsin(
             np.cross(w, np.array(np.array([np.cos(ego_yaw), np.sin(ego_yaw)])))
         )
-        finish_distance = np.sqrt(
-            (ego_x - self.end_point[0]) ** 2 + (ego_y - self.end_point[1]) ** 2
-        )
         state = np.array(
             [
                 lateral_dis,
@@ -1200,14 +1210,13 @@ class CarlaEnv(gym.Env):
                 speed,
                 self.vehicle_front,
                 acc,
-                finish_distance,
                 avg_diff,
                 self.throttle,
             ]
         )
 
         # return just speed and acceleration
-        observation = [speed, acc, self.throttle, finish_distance]
+        observation = [speed, acc, self.throttle]
         return observation
 
         # info display
@@ -1344,24 +1353,32 @@ class CarlaEnv(gym.Env):
         # Get ego state
         ego_x, ego_y = get_pos(self.ego)
 
-        # If collides
-        if len(self.collision_hist) > 0:
+        finish_distance = np.sqrt(
+            (ego_x - self.end_point[0]) ** 2 + (ego_y - self.end_point[1]) ** 2
+        )
+
+        # only terminal condition is to reach finishing line within 10 m
+        if finish_distance < 10:
             return True
 
-        # If reach maximum timestep
-        if self.time_step > self.max_time_episode:
-            return True
-
-        # If at destination
-        if self.dests is not None:  # If at destination
-            for dest in self.dests:
-                if np.sqrt((ego_x - dest[0]) ** 2 + (ego_y - dest[1]) ** 2) < 4:
-                    return True
-
-        # If out of lane
-        dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
-        if abs(dis) > self.out_lane_thres:
-            return True
+        # # If collides
+        # if len(self.collision_hist) > 0:
+        #     return True
+        #
+        # # If reach maximum timestep
+        # if self.time_step > self.max_time_episode:
+        #     return True
+        #
+        # # If at destination
+        # if self.dests is not None:  # If at destination
+        #     for dest in self.dests:
+        #         if np.sqrt((ego_x - dest[0]) ** 2 + (ego_y - dest[1]) ** 2) < 4:
+        #             return True
+        #
+        # # If out of lane
+        # dis, _ = get_lane_dis(self.waypoints, ego_x, ego_y)
+        # if abs(dis) > self.out_lane_thres:
+        #     return True
 
         return False
 

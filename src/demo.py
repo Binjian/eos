@@ -27,160 +27,23 @@ import math
 import random
 import re
 import weakref
-from visualization import visual
+from visualization.visual import visual, compare_pic, gen_report
 import os
-# from utils import demo_utils
+from utils.demo_utils import writexslx, ai_filter, compute_loss
 
 import rospy
 import std_msgs.msg
-from communication.vcu.msg import *
+from comm.vcu.msg import *
 from threading import Lock
 
 from pg_carla_agent import *
-from communication import udp_sender
-from communication import carla_ros
+from comm.udp_sender import send_table, generate_vcu_calibration, generate_lookup_table, prepare_vcu_calibration_table
+from comm.carla_ros import talker, get_torque
 import socket
-
-def writexslx(x, y, v, path):
-    df = pd.DataFrame({"x": x, "y": y, "v": v})
-    writer = pd.ExcelWriter(path)
-    df.to_excel(writer, index=False)
-    writer.save()
-
-
-def ai_filter(thro):
-    # AI low pass filter
-    filted_thro = []
-    for idx, x in enumerate(thro):
-        if idx > 0 and idx < len(thro) - 1:
-            previous = thro[idx - 1]
-            next = thro[idx + 1]
-            x = (previous + x + next) / 3  # TODO change filter size
-            filted_thro.append(x)
-    filted_thro = np.insert(filted_thro, 0, thro[0])
-    filted_thro = np.append(filted_thro, thro[-1])
-    return filted_thro
-
-
-def compute_loss(e_real, e, thro, thro_real, x_real, y_real, x, y):
-    # calculate trip length
-    xdiff = np.diff(x_real)
-    ydiff = np.diff(y_real)
-    dist_real = np.sqrt(np.square(xdiff) + np.square(ydiff))
-    xdiff = np.diff(x)
-    ydiff = np.diff(y)
-    dist_ai = np.sqrt(np.square(xdiff) + np.square(ydiff))
-
-    dist_real_sum = np.sum(dist_real)
-    dist_ai_sum = np.sum(dist_ai)
-
-    # calculate energy loss
-    e_real_sum = integrate.cumtrapz(e_real, dx=0.1)
-    # calculate throttle derivative
-    thro_real_dev = abs(diff(thro_real) / 0.1)
-    thro_real_dev = np.insert(thro_real_dev, 0, 0)
-    cum_thro_real_dev = integrate.cumtrapz(thro_real_dev, dx=0.1)
-    # calculate cumulative energy loss
-    loss_real = (0.5 * e_real_sum + 8.0 * cum_thro_real_dev) * 0.375
-    # loss_real = (cum_thro_real_dev) * 0.375
-    loss_real = np.insert(loss_real, 0, 0)
-
-    # for developed algorithm, uncomment this section
-    # e_sum = integrate.cumtrapz(e,dx=0.1)
-    # thro_dev = abs(diff(thro)/0.1)
-    # thro_dev = np.insert(thro_dev,0,0)
-    # cum_thro_dev = integrate.cumtrapz(thro_dev,dx=0.1)
-    # cum_thro_dev = np.insert(cum_thro_dev,0,0)
-    # loss_AI = (e_sum + cum_thro_dev)* 0.375
-    # loss_AI = np.insert(loss_AI,0,0)
-    # loss_real_total = round((e_real_sum[-1] + sum(thro_real_dev))* 0.375,2)
-    # loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1])* 0.375,2)
-    # saved_AI = round(abs(loss_real_total-loss_AI_total),2)
-
-    # for demo use, uncomment this section
-    # cumulative a^2
-    e_sum = integrate.cumtrapz(e, dx=0.1)
-    # pedal rate
-    thro_dev = abs(diff(thro) / 0.1)
-    thro_dev = np.insert(thro_dev, 0, 0)
-    # cumulative pedal rate
-    cum_thro_dev = integrate.cumtrapz(thro_dev, dx=0.1)
-    print(e_sum[-1])
-    print(cum_thro_dev[-1])
-    # AI Loss
-    loss_AI = (
-                      0.5 * e_sum + 8.0 * cum_thro_dev  #  - 0.2 * np.random.rand(1)
-              ) * 0.375  # TODO: change 0.1 to adapt to experiment result s
-    loss_AI -= loss_AI * 0.05 * np.random.rand(1)
-    # loss_AI = (
-    #     cum_thro_dev - 0.1 * np.random.rand(1)
-    # ) * 0.375  # TODO: change 0.1 to adapt to experiment results
-    loss_AI = np.insert(loss_AI, 0, 0)
-    # total real loss and AI loss
-    #    loss_real_total = (
-    #        round((e_real_sum[-1] + cum_thro_real_dev[-1]) * 0.375, 4) / dist_real_sum
-    #    )
-    loss_real_total = loss_real[-1] / dist_real_sum
-    # loss_AI_total = round((e_sum[-1] + cum_thro_dev[-1]) * 0.375, 4) / dist_ai_sum
-    loss_AI_total = loss_AI[-1] / dist_ai_sum
-    # saved energy
-    saved_AI_total = round(loss_real_total - loss_AI_total, 4)
-
-    return loss_AI, loss_real, saved_AI_total, thro_dev, thro_real_dev
-
-def talker(pub, rc, vel, acc, ped):
-    h = std_msgs.msg.Header()
-    h.stamp = rospy.Time.now()
-    vcu_input1 = VCU_Input()
-    vcu_input1.header.seq = rc
-    vcu_input1.header.stamp = h.stamp
-    vcu_input1.pedal = ped * 100
-    vcu_input1.acceleration = acc
-    vcu_input1.velocity = vel
-    # rospy.loginfo(vcu_input1)
-    pub.publish(vcu_input1)
-
-
-def get_torque(data):
-    # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
-    with data_lock:
-        vcu_output.header = data.header
-        vcu_output.torque = data.torque
-
-
-def send_table(table):
-    if len(table) != 36:
-        print("table length must be 36")
-        return
-    # print(table)
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    send_str = str(table[0])
-    for i in range(1, 36):
-        send_str = send_str + " " + (str(table[i]))
-
-    # s.sendto(send_str, ('192.168.8.107', 13251))
-    # s.sendto(send_str, ('127.0.0.1', 13251))
-    s.close()
-
-
-def generate_vcu_calibration(k1, k2, kk):
-    vcu_param_list = np.arange(36) + 0.01
-    vcu_param_list[0] = k1
-    vcu_param_list[1] = k2
-    vcu_param_list[2] = kk
-    return vcu_param_list
-
-
-def prepare_vcu_calibration_table(table):
-    vcu_param_list = table.astpye("float32")
-    return vcu_param_list
 
 data_lock = Lock()
 vcu_output = VCU_Output()
 vcu_input = VCU_Input()
-
-
 
 def main():
 
@@ -253,6 +116,19 @@ def main():
     vcu_input.acceleration = 0
     vcu_input.velocity = 0
 
+    vcu_calib_table_row = 17  # number of pedal steps
+    vcu_calib_table_col = 21  # numnber of velocity steps
+    vcu_calib_table_size = vcu_calib_table_row * vcu_calib_table_col
+    pedal_range = [0, 1.0]
+    velocity_range = [0, 20.0]
+
+    vcu_calib_table = generate_vcu_calibration(
+        vcu_calib_table_row, pedal_range, vcu_calib_table_col, velocity_range
+    )
+    vcu_lookup_table = generate_lookup_table(
+        pedal_range, velocity_range, vcu_calib_table
+    )
+
     # Simulation initialization, episode running reward
     acts = []
     running_reward = None
@@ -268,13 +144,28 @@ def main():
 
     obs = env.reset()  # observation is [current_speed, current_a]
     throt = obs[2]
-    finish_distance = obs[3]
     obs = obs[0:2]
+    rc = 0
+    vel = obs[0]
+    acc = obs[1]
 
     while env.circle_num < env.circle_thre:
 
         # update vcu calibration table according to observation
-        print(obs)
+        # print(obs)
+        throttle = vcu_lookup_table(
+            throt, vel
+        )  # look up vcu table with pedal and speed  for throttle request
+
+        # send_table(vcu_calib_table)
+        # while vcu_input.stamp > vcu_output.stamp:
+        # with data_lock:
+        #     throttle = vcu_output.torque
+        #     h1 = vcu_output.header
+
+        # throttle = throt
+        action = [throttle, 0]
+        obs, r, done, info = env.step(action)
         aprob, h = policy_forward(obs)
         # record various intermediates (needed later for backprop)
         xs.append(obs)  # observation
@@ -288,26 +179,24 @@ def main():
         k1 = KP_space[k1_ind]
         k2 = KI_space[k2_ind]
         kk = KD_space[kk_ind]
+        vcu_calib_table[0] = k1
+        vcu_calib_table[1] = k2
+        vcu_calib_table[2] = kk
 
-        vcu_param_list = generate_vcu_calibration(k1, k2, kk)
-        send_table(vcu_param_list)
-
-        # while vcu_input.stamp > vcu_output.stamp:
-        with data_lock:
-            throttle = vcu_output.torque
-            h1 = vcu_output.header
-
-        throttle = throt
-        action = [throttle, 0]
+        vcu_lookup_table = generate_lookup_table(
+            pedal_range,
+            velocity_range,
+            vcu_calib_table
+        )
 
         yy = np.zeros(A ** 3)
         yy[action_index] = 1
         # grad that encourages the action that was taken to be taken
         dlogps.append(yy - aprob)
         # (see http://cs231n.github.io/neural-networks-2/#losses if confused)
-        obs, r, done, info = env.step(action)
         throt = obs[2]
-        finish_distance = obs[3]
+        vel = obs[0]
+        acc = obs[1]
         obs = obs[0:2]
 
         # simulation learning
@@ -317,7 +206,7 @@ def main():
         v_wltc.append(env.v_sim[env.counter])
         t.append(env.counter)
         e.append(obs[1] ** 2)
-        # visual.visual(t, v, v_wltc)
+        visual(t, v, v_wltc)
         env.counter = env.counter + 1
         thro.append(throt)
         epi_kp.append(k1)
@@ -329,14 +218,15 @@ def main():
         # previous action)
         drs.append(r)
 
-        # talker(pub, rc, ped, acc, vel)
+        talker(pub, rc, throt, acc, vel)
+        rc += 1
         # publish speed acc pedal to vcu
-        carla_ros.talker(pub, env.counter, obs[0], obs[1], throt)
+        # carla_ros.talker(pub, env.counter, obs[0], obs[1], throt)
 
         #  TODO add pg agent output
 
         # if len(drs) > 50:
-        if finish_distance < 10:
+        if done:
 
             duration = time.time() - start
             print(
@@ -405,7 +295,7 @@ def main():
             timing.append(0)
 
             env.circle_num = env.circle_num + 1
-            offset = obs["state"][6]
+            offset = obs["state"][5]
             print("------------------------------------------")
             if env.circle_num < env.circle_thre:
                 # save data for 1st circle
@@ -425,23 +315,24 @@ def main():
                 thro = []
                 x = []
                 y = []
+                rc = 0
             env.reset()
             start = time.time()
 
     # AI filter for pedal rate
-    filted_thro = demo_utils.ai_filter(thro)
+    filted_thro = ai_filter(thro)
 
     # calculate energy consumption and thro rate
-    loss_ai, loss_real, saved_ai_total, thro_dev, thro_real_dev = demo_utils.compute_loss(
+    loss_ai, loss_real, saved_ai_total, thro_dev, thro_real_dev = compute_loss(
         e_real, e, filted_thro, thro_real, x_real, y_real, x, y
     )
     # show plot and save report
-    visual.compare_pic(t_real, t, loss_ai, loss_real, thro_dev, thro_real_dev)
-    visual.gen_report(offset, offset1, saved_ai_total)
+    compare_pic(t_real, t, loss_ai, loss_real, thro_dev, thro_real_dev)
+    gen_report(offset, offset1, saved_ai_total)
 
     # save data
-    demo_utils.writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
-    demo_utils.writexslx(x, y, v, "../data/train_data_highring/waypoint_set6.xls")
+    writexslx(x_real, y_real, v_real, "../data/train_data_highring/waypoint_set5.xls")
+    writexslx(x, y, v, "../data/train_data_highring/waypoint_set6.xls")
 
     # delete dynamic memory
     gc.collect()
