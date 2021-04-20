@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(".."))
 
 import rospy
 from std_msgs.msg import String
-from vcu.msg import *
+from comm.vcu.msg import *
 from random import random
 from threading import Lock
 
