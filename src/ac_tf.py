@@ -1,9 +1,9 @@
 """
-Title: Actor Critic Method
-Author: [Apoorv Nandan](https://twitter.com/NandanApoorv)
-Date created: 2020/05/13
-Last modified: 2020/05/13
-Description: Implement Actor Critic Method in CartPole environment.
+Title: Advantage Actor Critic Method
+Author: [Binjian Xin](https://www.newrizon.com)
+Date created: 2021/02/12
+Last modified: 2020/03/15
+Description: Implement Advantage Actor Critic Method in Carla environment.
 """
 """
 ## Introduction
@@ -32,12 +32,14 @@ as energy consumption
 
 - [CartPole](http://www.derongliu.org/adp/adp-cdrom/Barto1983.pdf)
 - [Actor Critic Method](https://hal.inria.fr/hal-00840470/document)
+
 """
 """
 ## Setup
 """
 import os
 import gym
+import gym_carla
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -48,85 +50,22 @@ tfd = tfp.distributions
 
 import rospy
 import std_msgs.msg
-from communication.vcu.msg import *
+from comm.vcu.msg import *
 from threading import Lock
 
-# import sys,os
-# sys.path.insert(0, os.path.abspath('..'))
-
-from communication.udp_sender import (
+from comm.udp_sender import (
     send_table,
-    generate_vcu_calibration,
-    generate_lookup_table,
     prepare_vcu_calibration_table,
 )
+from comm.vcu_calib_generator import (
+    generate_vcu_calibration,
+    generate_lookup_table,
+)
+
 
 # from communication import carla_ros
-from communication.carla_ros import get_torque, talker
-
-"""construct the actor network with mu and sigma as output"""
-
-
-def constructactorcriticnetwork(bias_mu, bias_sigma):
-    inputs = layers.input(
-        shape=(num_observations, sequence_len)
-    )  # input dimension, 3 rows, 20 columns.
-    hidden = layers.dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
-    )(inputs)
-    common = layers.dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
-    )(hidden)
-    mu = layers.dense(
-        num_actions,
-        activation="linear",
-        kernel_initializer=initializers.zeros(),
-        bias_initializer=initializers.constant(bias_mu),
-    )(common)
-    sigma = layers.dense(
-        num_actions,
-        activation="softplus",
-        kernel_initializer=initializers.zeros(),
-        bias_initializer=initializers.constant(bias_sigma),
-    )(common)
-    critic_value = layers.dense(1)(common)
-
-    mu_sigma = tf.stack([mu, sigma])
-    actorcritic_network = keras.model(inputs=inputs, outputs=[mu_sigma, critic_value])
-
-    return actorcritic_network
-
-
-"""
-weighted gaussian log likelihood loss function at time t
-modeling the multivariate normal distribution as independent in all dimensions, ???
-so that the logit are summed up in all dimensions.
-for episode calculation needs to store the history and call the function with history batch data.
-
-"""
-
-
-def customlossgaussian(mu_sigma, action, reward):
-    # obtain mu and sigma from actor network
-    nn_mu, nn_sigma = tf.unstack(mu_sigma)
-
-    # obtain pdf of gaussian distribution
-    pdf_value = (
-        tf.exp(-0.5 * ((action - nn_mu) / (nn_sigma)) ** 2)
-        * 1
-        / (nn_sigma * tf.sqrt(2 * np.pi))
-    )
-
-    # compute log probability
-    log_probability = tf.math.log(pdf_value + 1e-5)
-
-    # add up all dimenstions
-    log_probability_sum = tf.math.reduce_sum(log_probability)
-    # compute weighted loss
-    loss_actor = -reward * log_probability_sum
-
-    return loss_actor
-
+from comm.carla_ros import get_torque, talker
+from agent.ac_gaussian import customlossgaussian, constructactorcriticnetwork
 
 def main():
 
@@ -169,7 +108,7 @@ def main():
         "pixor": False,  # whether to output pixor observation
         "file_path": "../data/highring.xodr",
         "map_road_number": 1,
-        "ai_mode": True,
+        "AI_mode": True,
     }
 
     # configuration parameters for the whole setup
@@ -182,7 +121,7 @@ def main():
     obs = env.reset()
 
     env.seed(seed)
-    eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
+    eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     """
     ## implement actor critic network
@@ -229,8 +168,9 @@ def main():
     bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
     checkpoint_path = "./checkpoints/cp-{epoch:04d}.ckpt"
     checkpoint_dir = os.path.dirname(checkpoint_path)
-    actorcritic_network = constructactorcriticnetwork(bias_mu, bias_sigma)
-    optimizer = keras.optimizers.adam(learning_rate=0.001)
+    tf.keras.backend.set_floatx('float64')
+    actorcritic_network = constructactorcriticnetwork(num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma)
+    optimizer = keras.optimizers.Adam(learning_rate=0.001)
 
     latest = tf.train.latest_checkpoint(checkpoint_dir)
     if latest != None:
@@ -239,7 +179,7 @@ def main():
     ## train
     """
 
-    huber_loss = keras.losses.huber()
+    huber_loss = keras.losses.Huber()
     vcu_action_history = []
     mu_sigma_history = []
     vcu_critic_value_history = []
@@ -248,13 +188,24 @@ def main():
     running_reward = 0
     episode_count = 0
 
+    wait_for_reset = True
+    obs = env.reset()
     while True:  # run until solved
-        obs = env.reset()
+        # logictech g29 default throttle 0.5,
+        # after treading pedal of throttle and brake,
+        # both will be reset to zero.
+        if wait_for_reset:
+            # obs = env.get_init_state()
+            obs = env.reset()
+            if np.fabs(obs[2]-0.5) < eps:
+                continue
+            else:
+                wait_for_reset = False
         episode_reward = 0
         vcu_reward = 0
         vcu_states = []
-        state.append(obs)
-        with tf.gradienttape() as tape:
+        vcu_states.append(obs)
+        with tf.GradientTape() as tape:
             for timestep in range(1, max_steps_per_episode):
                 # env.render(); adding this line would show the attempts
                 # of the agent in a pop up window.
@@ -269,13 +220,15 @@ def main():
                 #     h1 = vcu_output.header
 
                 action = [throttle, 0]
+                print("action:{}".format(action[0]))
+                print("env.throttle:{}".format(env.throttle))
                 obs, r, done, info = env.step(action)
                 vcu_reward += r
                 vcu_states.append(obs)
 
                 # state has 20 [speed, acceleration, throttle] tripplets, update policy (mu, sigma and update vcu)
                 # update vcu calibration table every one second
-                if timestep % sequence_len == 0:  # sequence_len = 20; state.len == 20
+                if (timestep+1) % sequence_len == 0:  # sequence_len = 20; state.len == 20
                     vcu_states = tf.convert_to_tensor(
                         vcu_states
                     )  # state must have 20 (speed, acceleration, throttle) triples
@@ -286,14 +239,15 @@ def main():
                     # from environment state
                     mu_sigma, critic_value = actorcritic_network(vcu_states)
 
-                    vcu_critic_value_history.append(critic[0, 0])
+                    vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
 
                     # sample action from action probability distribution
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
-                    mvn = tfd.multivariatenormaldiag(loc=nn_mu, scale_diag=nn_sigma)
+                    mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action = mvn.sample()  # 17*21 =  357 actions
-                    vcu_action_history.append(vcu_action)
+                    vcu_action_clip = tf.clip_by_value(vcu_action, clip_value_min=0.0, clip_value_max=1.0)
+                    vcu_action_history.append(vcu_action_clip)
 
                     # action = np.random.choice(num_actions, p=np.squeeze(action_probs))
                     # action_probs_history.append(tf.math.log(action_probs[0, action]))
@@ -302,7 +256,7 @@ def main():
                     vcu_lookup_table = generate_lookup_table(
                         pedal_range,
                         velocity_range,
-                        vcu_action.reshape(vcu_calib_table_row, vcu_calib_table_col),
+                        tf.reshape(vcu_action_clip, [vcu_calib_table_row, vcu_calib_table_col]),
                     )
 
                     # reward history
@@ -371,6 +325,7 @@ def main():
             vcu_rewards_history.clear()
             mu_sigma_history.clear()
             vcu_critic_value_history.clear()
+            obs = env.reset()
 
         # log details
         actorcritic_network.save_weights("./checkpoints/cp-{epoch:04d}.ckpt")
