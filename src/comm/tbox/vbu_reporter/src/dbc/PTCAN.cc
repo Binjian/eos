@@ -1,0 +1,860 @@
+#include "dbc_node.h"
+
+double VCU_BMSPackCurrent_53_CAN1;
+double VCU_BMSPackVoltage_53_CAN1;
+double VCU_BMSMainRelayStatus_53_CAN1;
+double VCU_BMSSOC_53_CAN1;
+double VCU_BMSDIsplaySOC_53_CAN1;
+double VCU_BMSFaultLevel_53_CAN1;
+double VCU_BMSThermalRunaway_53_CAN1;
+double VCU_BMS_InletTemp_53_CAN1;
+double VCU_BMS_OutletTemp_53_CAN1;
+double VCU_BMS_CellTempHighAlarm_53_CAN1;
+double VCU_BMS_CellTempLowAlarm_53_CAN1;
+static uint8_t VCU_BMS2_53_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_BMS2_53_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_53_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_BMSPackCurrent_53_CAN1, DP_SIGNALTYPE_FLOAT, 0, 14, DP_BYTEORDER_INTEL, 0.1, -819.0, -819.0, 819.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSPackVoltage_53_CAN1, DP_SIGNALTYPE_FLOAT, 14, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSMainRelayStatus_53_CAN1, DP_SIGNALTYPE_FLOAT, 24, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSSOC_53_CAN1, DP_SIGNALTYPE_FLOAT, 26, 8, DP_BYTEORDER_INTEL, 0.5, 0.0, 0.0, 100.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSDIsplaySOC_53_CAN1, DP_SIGNALTYPE_FLOAT, 34, 7, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 100.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSFaultLevel_53_CAN1, DP_SIGNALTYPE_FLOAT, 41, 3, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSThermalRunaway_53_CAN1, DP_SIGNALTYPE_FLOAT, 44, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_InletTemp_53_CAN1, DP_SIGNALTYPE_FLOAT, 45, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_OutletTemp_53_CAN1, DP_SIGNALTYPE_FLOAT, 53, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_CellTempHighAlarm_53_CAN1, DP_SIGNALTYPE_FLOAT, 61, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_CellTempLowAlarm_53_CAN1, DP_SIGNALTYPE_FLOAT, 62, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_53_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_53_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double ABS_Active_68_CAN1;
+double EBD_Active_68_CAN1;
+double ABS_EBDFailed_68_CAN1;
+double ABS_Failed_68_CAN1;
+double ABS_VehicleSpeed_68_CAN1;
+double ABS_VehicleSpeedValid_68_CAN1;
+double ABS_Rolling_Counter_68_CAN1;
+double ABS_Checksum_68_CAN1;
+static uint8_t ABS_VehicleSpeedAndStatus_68_Buffer_CAN1[8];
+static DbcParserMsgStatusType ABS_VehicleSpeedAndStatus_68_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_68_SIGNALLIST[] =
+{
+	{(AddrType)&ABS_Active_68_CAN1, DP_SIGNALTYPE_FLOAT, 0, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EBD_Active_68_CAN1, DP_SIGNALTYPE_FLOAT, 1, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_EBDFailed_68_CAN1, DP_SIGNALTYPE_FLOAT, 2, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Failed_68_CAN1, DP_SIGNALTYPE_FLOAT, 3, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_VehicleSpeed_68_CAN1, DP_SIGNALTYPE_FLOAT, 8, 13, DP_BYTEORDER_INTEL, 0.05625, 0.0, 0.0, 296.04375, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_VehicleSpeedValid_68_CAN1, DP_SIGNALTYPE_FLOAT, 21, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Rolling_Counter_68_CAN1, DP_SIGNALTYPE_FLOAT, 32, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Checksum_68_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_68_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_68_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double ABS_WheelSpeed_FL_75_CAN1;
+double ABS_WheelSpeed_FL_Status_75_CAN1;
+double ABS_WheelSpeed_FR_75_CAN1;
+double ABS_WheelSpeed_FR_Status_75_CAN1;
+double ABS_Rolling_Counter_75_CAN1;
+double ABS_Checksum_75_CAN1;
+static uint8_t ABS_WheelSpeed_Front_Whl_75_Buffer_CAN1[8];
+static DbcParserMsgStatusType ABS_WheelSpeed_Front_Whl_75_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_75_SIGNALLIST[] =
+{
+	{(AddrType)&ABS_WheelSpeed_FL_75_CAN1, DP_SIGNALTYPE_FLOAT, 0, 13, DP_BYTEORDER_INTEL, 0.05625, 0.0, 0.0, 296.04375, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeed_FL_Status_75_CAN1, DP_SIGNALTYPE_FLOAT, 13, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeed_FR_75_CAN1, DP_SIGNALTYPE_FLOAT, 16, 13, DP_BYTEORDER_INTEL, 0.05625, 0.0, 0.0, 296.04375, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeed_FR_Status_75_CAN1, DP_SIGNALTYPE_FLOAT, 29, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Rolling_Counter_75_CAN1, DP_SIGNALTYPE_FLOAT, 48, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Checksum_75_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_75_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_75_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double ABS_WheelSpeedPlusCounter_FL_115_CAN1;
+double ABS_WheelSpeedPlusCounter_FL_inv_115_CAN1;
+double ABS_WheelSpeedPlusCounter_FR_115_CAN1;
+double ABS_WheelSpeedPlusCounter_FR_inv_115_CAN1;
+double ABS_WheelSpeedPlusCounter_RL_115_CAN1;
+double ABS_WheelSpeedPlusCounter_RL_inv_115_CAN1;
+double ABS_WheelSpeedPlusCounter_RR_115_CAN1;
+double ABS_WheelSpeedPlusCounter_RR_inv_115_CAN1;
+double ABS_Rolling_Counter_115_CAN1;
+double ABS_Checksum_115_CAN1;
+static uint8_t ABS_WheelSpeed_PulseCounter_115_Buffer_CAN1[8];
+static DbcParserMsgStatusType ABS_WheelSpeed_PulseCounter_115_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_115_SIGNALLIST[] =
+{
+	{(AddrType)&ABS_WheelSpeedPlusCounter_FL_115_CAN1, DP_SIGNALTYPE_FLOAT, 0, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_FL_inv_115_CAN1, DP_SIGNALTYPE_FLOAT, 10, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_FR_115_CAN1, DP_SIGNALTYPE_FLOAT, 11, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_FR_inv_115_CAN1, DP_SIGNALTYPE_FLOAT, 21, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_RL_115_CAN1, DP_SIGNALTYPE_FLOAT, 24, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_RL_inv_115_CAN1, DP_SIGNALTYPE_FLOAT, 34, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_RR_115_CAN1, DP_SIGNALTYPE_FLOAT, 35, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeedPlusCounter_RR_inv_115_CAN1, DP_SIGNALTYPE_FLOAT, 45, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Rolling_Counter_115_CAN1, DP_SIGNALTYPE_FLOAT, 48, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Checksum_115_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_115_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_115_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double ABS_WheelSpeed_RL_79_CAN1;
+double ABS_WheelSpeed_RL_Status_79_CAN1;
+double ABS_WheelSpeed_RR_79_CAN1;
+double ABS_WheelSpeed_RR_Status_79_CAN1;
+double ABS_Rolling_Counter_79_CAN1;
+double ABS_Checksum_79_CAN1;
+static uint8_t ABS_WheelSpeed_Rear_Whl_79_Buffer_CAN1[8];
+static DbcParserMsgStatusType ABS_WheelSpeed_Rear_Whl_79_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_79_SIGNALLIST[] =
+{
+	{(AddrType)&ABS_WheelSpeed_RL_79_CAN1, DP_SIGNALTYPE_FLOAT, 0, 13, DP_BYTEORDER_INTEL, 0.05625, 0.0, 0.0, 296.04375, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeed_RL_Status_79_CAN1, DP_SIGNALTYPE_FLOAT, 13, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeed_RR_79_CAN1, DP_SIGNALTYPE_FLOAT, 16, 13, DP_BYTEORDER_INTEL, 0.05625, 0.0, 0.0, 296.04375, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_WheelSpeed_RR_Status_79_CAN1, DP_SIGNALTYPE_FLOAT, 29, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Rolling_Counter_79_CAN1, DP_SIGNALTYPE_FLOAT, 48, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ABS_Checksum_79_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_79_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_79_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_AxAcceleration_201_CAN1;
+double VCU_AyAcceleration_201_CAN1;
+double VCU_AzAcceleration_201_CAN1;
+double VCU_Yawrate_201_CAN1;
+static uint8_t VCU_201_201_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_201_201_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_201_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_AxAcceleration_201_CAN1, DP_SIGNALTYPE_FLOAT, 0, 16, DP_BYTEORDER_INTEL, 0.001, -2.0, -2.0, 2.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_AyAcceleration_201_CAN1, DP_SIGNALTYPE_FLOAT, 16, 16, DP_BYTEORDER_INTEL, 0.001, -2.0, -2.0, 2.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_AzAcceleration_201_CAN1, DP_SIGNALTYPE_FLOAT, 32, 16, DP_BYTEORDER_INTEL, 0.001, -2.0, -2.0, 2.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_Yawrate_201_CAN1, DP_SIGNALTYPE_FLOAT, 48, 16, DP_BYTEORDER_INTEL, 0.01, -180.0, -180.0, 180.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_201_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_201_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_MCU_TrqReq_105_CAN1;
+double VCU_MCU_Mode_105_CAN1;
+double VCU_MCU_ActiveRelease_105_CAN1;
+double VCU_MCU_RelayStatus_105_CAN1;
+double VCUrollingcounter_105_CAN1;
+double VCUchecksum_105_CAN1;
+static uint8_t VCU_MCU_105_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_MCU_105_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_105_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_MCU_TrqReq_105_CAN1, DP_SIGNALTYPE_FLOAT, 0, 14, DP_BYTEORDER_INTEL, 0.1, -450.0, -450.0, 450.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_MCU_Mode_105_CAN1, DP_SIGNALTYPE_FLOAT, 14, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_MCU_ActiveRelease_105_CAN1, DP_SIGNALTYPE_FLOAT, 48, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_MCU_RelayStatus_105_CAN1, DP_SIGNALTYPE_FLOAT, 50, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUrollingcounter_105_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUchecksum_105_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_105_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_105_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_AccPedalPosition_151_CAN1;
+double VCU_AccPedalPositionValid_151_CAN1;
+double VCU_virtualAccPedalPosition_151_CAN1;
+double VCU_virtualAccPedalPositionValid_151_CAN1;
+double VCU_BrakePressure_151_CAN1;
+double VCU_BrakeSwitchStatus_151_CAN1;
+double VCU_rollingcounter_151_CAN1;
+double VCU_checksum_151_CAN1;
+static uint8_t VCU_151_151_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_151_151_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_151_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_AccPedalPosition_151_CAN1, DP_SIGNALTYPE_FLOAT, 0, 8, DP_BYTEORDER_INTEL, 0.392, 0.0, 0.0, 99.96, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_AccPedalPositionValid_151_CAN1, DP_SIGNALTYPE_FLOAT, 8, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_virtualAccPedalPosition_151_CAN1, DP_SIGNALTYPE_FLOAT, 16, 8, DP_BYTEORDER_INTEL, 0.392, 0.0, 0.0, 99.96, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_virtualAccPedalPositionValid_151_CAN1, DP_SIGNALTYPE_FLOAT, 24, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BrakePressure_151_CAN1, DP_SIGNALTYPE_FLOAT, 32, 8, DP_BYTEORDER_INTEL, 1.0, -10.0, -10.0, 245.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BrakeSwitchStatus_151_CAN1, DP_SIGNALTYPE_FLOAT, 40, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_rollingcounter_151_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_checksum_151_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_151_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_151_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCUEPFaultLevelWarning_210_CAN1;
+double VCUPwrDisp_210_CAN1;
+double VCUMotOverTemp_210_CAN1;
+double VCUVehRdy_210_CAN1;
+double VCUHVILError_210_CAN1;
+double VCUChgLineSts_210_CAN1;
+double VCU_Actual_210_CAN1;
+double VCURegenSts_210_CAN1;
+double VCUImdStopDriving_210_CAN1;
+double VCURmvAcChger_210_CAN1;
+double VCUVehPwrLimdLampReq_210_CAN1;
+double VCUHV_On_210_CAN1;
+double VCULowBatteryWarning_210_CAN1;
+double VCUHVBattCutOff_210_CAN1;
+double VCUMotorWarning_210_CAN1;
+double VCUHVBattWarning_210_CAN1;
+double VCUIsolutionWarning_210_CAN1;
+double VCULimpHome_210_CAN1;
+double VCUBrakWarning_210_CAN1;
+double VCUPlease_USE_750V_DC_210_CAN1;
+double VCUCruiseStatus_210_CAN1;
+double VCUOverSpeed_210_CAN1;
+double VCUPowerMode_210_CAN1;
+double VCUVehicleMode_210_CAN1;
+double VCUDrivingMode_210_CAN1;
+double VCUVehicleLimit_210_CAN1;
+double VCUBattPackTempWarning_210_CAN1;
+double VCUEPS_Fault_210_CAN1;
+double VCUEPB_Fault_210_CAN1;
+double VCUVehicleDrivingMode_210_CAN1;
+double VCUBMSChargeState_210_CAN1;
+static uint8_t VCU_IC_210_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_IC_210_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_210_SIGNALLIST[] =
+{
+	{(AddrType)&VCUEPFaultLevelWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 10, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUPwrDisp_210_CAN1, DP_SIGNALTYPE_FLOAT, 12, 10, DP_BYTEORDER_INTEL, 1.0, -300.0, -300.0, 700.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUMotOverTemp_210_CAN1, DP_SIGNALTYPE_FLOAT, 22, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUVehRdy_210_CAN1, DP_SIGNALTYPE_FLOAT, 23, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUHVILError_210_CAN1, DP_SIGNALTYPE_FLOAT, 24, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUChgLineSts_210_CAN1, DP_SIGNALTYPE_FLOAT, 25, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_Actual_210_CAN1, DP_SIGNALTYPE_FLOAT, 26, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCURegenSts_210_CAN1, DP_SIGNALTYPE_FLOAT, 28, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUImdStopDriving_210_CAN1, DP_SIGNALTYPE_FLOAT, 30, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCURmvAcChger_210_CAN1, DP_SIGNALTYPE_FLOAT, 31, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUVehPwrLimdLampReq_210_CAN1, DP_SIGNALTYPE_FLOAT, 32, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUHV_On_210_CAN1, DP_SIGNALTYPE_FLOAT, 33, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCULowBatteryWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 35, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUHVBattCutOff_210_CAN1, DP_SIGNALTYPE_FLOAT, 36, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUMotorWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 37, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUHVBattWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 38, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUIsolutionWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 40, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCULimpHome_210_CAN1, DP_SIGNALTYPE_FLOAT, 41, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUBrakWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 42, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUPlease_USE_750V_DC_210_CAN1, DP_SIGNALTYPE_FLOAT, 43, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUCruiseStatus_210_CAN1, DP_SIGNALTYPE_FLOAT, 44, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUOverSpeed_210_CAN1, DP_SIGNALTYPE_FLOAT, 46, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUPowerMode_210_CAN1, DP_SIGNALTYPE_FLOAT, 47, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUVehicleMode_210_CAN1, DP_SIGNALTYPE_FLOAT, 49, 3, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 7.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUDrivingMode_210_CAN1, DP_SIGNALTYPE_FLOAT, 52, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUVehicleLimit_210_CAN1, DP_SIGNALTYPE_FLOAT, 53, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUBattPackTempWarning_210_CAN1, DP_SIGNALTYPE_FLOAT, 54, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUEPS_Fault_210_CAN1, DP_SIGNALTYPE_FLOAT, 55, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUEPB_Fault_210_CAN1, DP_SIGNALTYPE_FLOAT, 56, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUVehicleDrivingMode_210_CAN1, DP_SIGNALTYPE_FLOAT, 57, 3, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUBMSChargeState_210_CAN1, DP_SIGNALTYPE_FLOAT, 60, 3, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 7.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_210_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_210_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_TenkmTripEnergy_501_CAN1;
+double VCU_HundredKmTripEnergy_501_CAN1;
+double VCU_SOCLowWarning_501_CAN1;
+double VCU_RemainingChargingTime_501_CAN1;
+double VCU_RemainingDrivingRange_501_CAN1;
+double VCU_LVBattVoltage_501_CAN1;
+static uint8_t VCU_501_501_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_501_501_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_501_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_TenkmTripEnergy_501_CAN1, DP_SIGNALTYPE_FLOAT, 0, 12, DP_BYTEORDER_INTEL, 0.1, -50.0, -50.0, 200.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_HundredKmTripEnergy_501_CAN1, DP_SIGNALTYPE_FLOAT, 12, 12, DP_BYTEORDER_INTEL, 0.1, -50.0, -50.0, 200.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_SOCLowWarning_501_CAN1, DP_SIGNALTYPE_FLOAT, 24, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_RemainingChargingTime_501_CAN1, DP_SIGNALTYPE_FLOAT, 25, 12, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 2048.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_RemainingDrivingRange_501_CAN1, DP_SIGNALTYPE_FLOAT, 37, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1000.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_LVBattVoltage_501_CAN1, DP_SIGNALTYPE_FLOAT, 47, 8, DP_BYTEORDER_INTEL, 0.125, 0.0, 0.0, 31.875, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_501_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_501_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_BMSPackCurrent_153_CAN1;
+double VCU_BMSPackVoltage_153_CAN1;
+double VCU_BMSMainRelayStatus_153_CAN1;
+double VCU_BMSSOC_153_CAN1;
+double VCU_BMSDIsplaySOC_153_CAN1;
+double VCU_BMSFaultLevel_153_CAN1;
+double VCU_BMSThermalRunaway_153_CAN1;
+double VCU_BMS_InletTemp_153_CAN1;
+double VCU_BMS_OutletTemp_153_CAN1;
+double VCU_BMS_CellTempHighAlarm_153_CAN1;
+double VCU_BMS_CellTempLowAlarm_153_CAN1;
+static uint8_t VCU_BMS_153_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_BMS_153_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_153_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_BMSPackCurrent_153_CAN1, DP_SIGNALTYPE_FLOAT, 0, 14, DP_BYTEORDER_INTEL, 0.1, -819.0, -819.0, 819.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSPackVoltage_153_CAN1, DP_SIGNALTYPE_FLOAT, 14, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSMainRelayStatus_153_CAN1, DP_SIGNALTYPE_FLOAT, 24, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSSOC_153_CAN1, DP_SIGNALTYPE_FLOAT, 26, 8, DP_BYTEORDER_INTEL, 0.5, 0.0, 0.0, 100.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSDIsplaySOC_153_CAN1, DP_SIGNALTYPE_FLOAT, 34, 7, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 100.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSFaultLevel_153_CAN1, DP_SIGNALTYPE_FLOAT, 41, 3, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMSThermalRunaway_153_CAN1, DP_SIGNALTYPE_FLOAT, 44, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_InletTemp_153_CAN1, DP_SIGNALTYPE_FLOAT, 45, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_OutletTemp_153_CAN1, DP_SIGNALTYPE_FLOAT, 53, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_CellTempHighAlarm_153_CAN1, DP_SIGNALTYPE_FLOAT, 61, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_BMS_CellTempLowAlarm_153_CAN1, DP_SIGNALTYPE_FLOAT, 62, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_153_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_153_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_TotalChargeEnergy_502_CAN1;
+double VCU_TotalDischargeEnergy_502_CAN1;
+static uint8_t VCU_502_502_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_502_502_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_502_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_TotalChargeEnergy_502_CAN1, DP_SIGNALTYPE_FLOAT, 0, 24, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 1000000.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_TotalDischargeEnergy_502_CAN1, DP_SIGNALTYPE_FLOAT, 24, 24, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 1000000.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_502_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_502_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_DCDCVoltageReq_250_CAN1;
+double VCU_DCDCEnable_250_CAN1;
+static uint8_t VCU_DCDC_250_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_DCDC_250_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_250_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_DCDCVoltageReq_250_CAN1, DP_SIGNALTYPE_FLOAT, 48, 8, DP_BYTEORDER_INTEL, 0.125, 0.0, 0.0, 32.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_DCDCEnable_250_CAN1, DP_SIGNALTYPE_FLOAT, 56, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_250_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_250_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_Vehicle_Speed_155_CAN1;
+double VCU_EPB_Control_Request_155_CAN1;
+double VCU_Braking_While_Driving_155_CAN1;
+double VCU_EPB_Control_Mode_155_CAN1;
+double VCURollingcounter_155_CAN1;
+double VCUchecksum_155_CAN1;
+static uint8_t VCU_EPB_155_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_EPB_155_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_155_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_Vehicle_Speed_155_CAN1, DP_SIGNALTYPE_FLOAT, 0, 8, DP_BYTEORDER_INTEL, 1.0, -50.0, -50.0, 200.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_EPB_Control_Request_155_CAN1, DP_SIGNALTYPE_FLOAT, 8, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_Braking_While_Driving_155_CAN1, DP_SIGNALTYPE_FLOAT, 12, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 16.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_EPB_Control_Mode_155_CAN1, DP_SIGNALTYPE_FLOAT, 16, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 16.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCURollingcounter_155_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCUchecksum_155_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_155_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_155_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_ACSpeed_238_CAN1;
+double VCU_ACPower_238_CAN1;
+double VCU_AC_238_CAN1;
+static uint8_t VCU_AC_238_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_AC_238_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_238_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_ACSpeed_238_CAN1, DP_SIGNALTYPE_FLOAT, 0, 16, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 65534.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_ACPower_238_CAN1, DP_SIGNALTYPE_FLOAT, 16, 8, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 25.4, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_AC_238_CAN1, DP_SIGNALTYPE_FLOAT, 24, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_238_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_238_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_TboxDVRUploadReq_550_CAN1;
+static uint8_t VCU_Tbox_550_Buffer_CAN1[1];
+static DbcParserMsgStatusType VCU_Tbox_550_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_550_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_TboxDVRUploadReq_550_CAN1, DP_SIGNALTYPE_FLOAT, 0, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_550_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_550_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double VCU_VehicleSpeedValidStatus_8F101D0_CAN1;
+double VCU_VehicleStatus_8F101D0_CAN1;
+double VCU_GearValidStatus_8F101D0_CAN1;
+double VCU_VehicleSpeed_8F101D0_CAN1;
+double VCU_Gears_8F101D0_CAN1;
+double VCU_VehicleOperatingMode_8F101D0_CAN1;
+double VCU_DynamicMode_8F101D0_CAN1;
+double VCU_DGears_8F101D0_CAN1;
+double VCU_PowerLimit_8F101D0_CAN1;
+double VCU_ErrLevel3_8F101D0_CAN1;
+double VCU_GearboxErr_8F101D0_CAN1;
+double VCU_ErrLevel2_8F101D0_CAN1;
+double VCU_ErrLevel1_8F101D0_CAN1;
+double VCU_OilPressureStatus_8F101D0_CAN1;
+double VCU_EnergyFlow_8F101D0_CAN1;
+double VCU_AcceleratorPedalOpening_8F101D0_CAN1;
+double VCU_Life_8F101D0_CAN1;
+static uint8_t VCU_AVAS_8F101D0_Buffer_CAN1[8];
+static DbcParserMsgStatusType VCU_AVAS_8F101D0_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_8F101D0_SIGNALLIST[] =
+{
+	{(AddrType)&VCU_VehicleSpeedValidStatus_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 0, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_VehicleStatus_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 3, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_GearValidStatus_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 5, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_VehicleSpeed_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 8, 16, DP_BYTEORDER_INTEL, 0.004, 0.0, 0.0, 255.996, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_Gears_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 24, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_VehicleOperatingMode_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 26, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_DynamicMode_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 28, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_DGears_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 30, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_PowerLimit_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 31, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_ErrLevel3_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 32, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_GearboxErr_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 33, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_ErrLevel2_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 34, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_ErrLevel1_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 35, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_OilPressureStatus_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 36, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_EnergyFlow_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 37, 3, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 7.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_AcceleratorPedalOpening_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 48, 8, DP_BYTEORDER_INTEL, 0.4, 0.0, 0.0, 100.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&VCU_Life_8F101D0_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_8F101D0_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_8F101D0_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double MCU_MotorSpeed_205_CAN1;
+double MCU_MotorTorque_205_CAN1;
+double MCU_MotorMode_205_CAN1;
+double MCU_MotorSpeedValid_205_CAN1;
+double MCU_ActiveRelease_205_CAN1;
+double MCU_MotorHillHold_205_CAN1;
+double MCU_CalDCCurrent_205_CAN1;
+double MCU_rollingcounter_205_CAN1;
+double MCU_checksum_205_CAN1;
+static uint8_t MCU_205_205_Buffer_CAN1[8];
+static DbcParserMsgStatusType MCU_205_205_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_205_SIGNALLIST[] =
+{
+	{(AddrType)&MCU_MotorSpeed_205_CAN1, DP_SIGNALTYPE_FLOAT, 0, 16, DP_BYTEORDER_INTEL, 1.0, -30000.0, -30000.0, 30000.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_MotorTorque_205_CAN1, DP_SIGNALTYPE_FLOAT, 16, 14, DP_BYTEORDER_INTEL, 0.1, -450.0, -450.0, 450.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_MotorMode_205_CAN1, DP_SIGNALTYPE_FLOAT, 30, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_MotorSpeedValid_205_CAN1, DP_SIGNALTYPE_FLOAT, 32, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_ActiveRelease_205_CAN1, DP_SIGNALTYPE_FLOAT, 33, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_MotorHillHold_205_CAN1, DP_SIGNALTYPE_FLOAT, 35, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_CalDCCurrent_205_CAN1, DP_SIGNALTYPE_FLOAT, 40, 12, DP_BYTEORDER_INTEL, 1.0, 0.0, -2048.0, 2047.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_rollingcounter_205_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_checksum_205_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_205_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_205_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double MCU_AllowMaxTorque_305_CAN1;
+double MCU_DC_BUSVoltage_305_CAN1;
+double MCU_DCRelayOutSideVoltage_305_CAN1;
+double MCU_rollingcounter_305_CAN1;
+double MCU_checksum_305_CAN1;
+static uint8_t MCU_305_305_Buffer_CAN1[8];
+static DbcParserMsgStatusType MCU_305_305_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_305_SIGNALLIST[] =
+{
+	{(AddrType)&MCU_AllowMaxTorque_305_CAN1, DP_SIGNALTYPE_FLOAT, 10, 14, DP_BYTEORDER_INTEL, 0.1, -450.0, -450.0, 450.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_DC_BUSVoltage_305_CAN1, DP_SIGNALTYPE_FLOAT, 24, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1012.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_DCRelayOutSideVoltage_305_CAN1, DP_SIGNALTYPE_FLOAT, 0, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1012.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_rollingcounter_305_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_checksum_305_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_305_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_305_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double MCU_IGBTMaxTemperature_405_CAN1;
+double MCU_MotorTemperature_405_CAN1;
+double MCU_IPM_Temperature_405_CAN1;
+double MCU_UVWMaxCurrent_405_CAN1;
+double MCU_rollingcounter_405_CAN1;
+double MCU_checksum_405_CAN1;
+static uint8_t MCU_405_405_Buffer_CAN1[8];
+static DbcParserMsgStatusType MCU_405_405_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_405_SIGNALLIST[] =
+{
+	{(AddrType)&MCU_IGBTMaxTemperature_405_CAN1, DP_SIGNALTYPE_FLOAT, 0, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_MotorTemperature_405_CAN1, DP_SIGNALTYPE_FLOAT, 8, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_IPM_Temperature_405_CAN1, DP_SIGNALTYPE_FLOAT, 16, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 160.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_UVWMaxCurrent_405_CAN1, DP_SIGNALTYPE_FLOAT, 24, 8, DP_BYTEORDER_INTEL, 4.0, 0.0, 0.0, 1020.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_rollingcounter_405_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_checksum_405_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_405_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_405_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double MCU_OverCurrent_505_CAN1;
+double MCU_IGBTfault_505_CAN1;
+double MCU_OutputFault_505_CAN1;
+double MCU_OverSpeed_505_CAN1;
+double MCU_HallFault_505_CAN1;
+double MCU_ResolverFault_505_CAN1;
+double MCU_IGBToverheat_505_CAN1;
+double MCU_MotorOverheat_505_CAN1;
+double MCU_BusOverVoltage_505_CAN1;
+double MCU_BusUnderVoltage_505_CAN1;
+double MCU_Hardware_OverVoltage_505_CAN1;
+double MCU_Hardware_UnderVoltage_505_CAN1;
+double MCU_Drive_Uparm_failure_505_CAN1;
+double MCU_Drive_Downarm_failure_505_CAN1;
+double MCU_CPLD_Status_505_CAN1;
+double MCU_Motor_overTem_limit_505_CAN1;
+double MCU_IGBT_NTC_overTem_limit_505_CAN1;
+double MCU_IGBT_Junction_overTem_limit_505_CAN1;
+double MCU_Radiator_overTem_limit_505_CAN1;
+double MCU_CAN_Fault_505_CAN1;
+double MCU_FaultLevel_505_CAN1;
+double MCU_rollingcounter_505_CAN1;
+double MCU_checksum_505_CAN1;
+static uint8_t MCU_505_505_Buffer_CAN1[8];
+static DbcParserMsgStatusType MCU_505_505_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_505_SIGNALLIST[] =
+{
+	{(AddrType)&MCU_OverCurrent_505_CAN1, DP_SIGNALTYPE_FLOAT, 0, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_IGBTfault_505_CAN1, DP_SIGNALTYPE_FLOAT, 1, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_OutputFault_505_CAN1, DP_SIGNALTYPE_FLOAT, 2, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_OverSpeed_505_CAN1, DP_SIGNALTYPE_FLOAT, 3, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_HallFault_505_CAN1, DP_SIGNALTYPE_FLOAT, 4, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_ResolverFault_505_CAN1, DP_SIGNALTYPE_FLOAT, 5, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_IGBToverheat_505_CAN1, DP_SIGNALTYPE_FLOAT, 6, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_MotorOverheat_505_CAN1, DP_SIGNALTYPE_FLOAT, 7, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_BusOverVoltage_505_CAN1, DP_SIGNALTYPE_FLOAT, 8, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_BusUnderVoltage_505_CAN1, DP_SIGNALTYPE_FLOAT, 9, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_Hardware_OverVoltage_505_CAN1, DP_SIGNALTYPE_FLOAT, 10, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_Hardware_UnderVoltage_505_CAN1, DP_SIGNALTYPE_FLOAT, 11, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_Drive_Uparm_failure_505_CAN1, DP_SIGNALTYPE_FLOAT, 12, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_Drive_Downarm_failure_505_CAN1, DP_SIGNALTYPE_FLOAT, 13, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_CPLD_Status_505_CAN1, DP_SIGNALTYPE_FLOAT, 14, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_Motor_overTem_limit_505_CAN1, DP_SIGNALTYPE_FLOAT, 16, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_IGBT_NTC_overTem_limit_505_CAN1, DP_SIGNALTYPE_FLOAT, 17, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_IGBT_Junction_overTem_limit_505_CAN1, DP_SIGNALTYPE_FLOAT, 18, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_Radiator_overTem_limit_505_CAN1, DP_SIGNALTYPE_FLOAT, 19, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_CAN_Fault_505_CAN1, DP_SIGNALTYPE_FLOAT, 20, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_FaultLevel_505_CAN1, DP_SIGNALTYPE_FLOAT, 24, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_rollingcounter_505_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&MCU_checksum_505_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_505_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_505_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double CDC_DriveMode_220_CAN1;
+double CDC_RegenMode_220_CAN1;
+double CDC_GoNotifierOnOff_220_CAN1;
+double CDC_TowMode_220_CAN1;
+double CDC_CreepOnOff_220_CAN1;
+double CDC_rollingcounter_220_CAN1;
+double CDC_checksum_220_CAN1;
+static uint8_t CDC_VCU_220_Buffer_CAN1[8];
+static DbcParserMsgStatusType CDC_VCU_220_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_220_SIGNALLIST[] =
+{
+	{(AddrType)&CDC_DriveMode_220_CAN1, DP_SIGNALTYPE_FLOAT, 0, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CDC_RegenMode_220_CAN1, DP_SIGNALTYPE_FLOAT, 2, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CDC_GoNotifierOnOff_220_CAN1, DP_SIGNALTYPE_FLOAT, 4, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CDC_TowMode_220_CAN1, DP_SIGNALTYPE_FLOAT, 5, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CDC_CreepOnOff_220_CAN1, DP_SIGNALTYPE_FLOAT, 7, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CDC_rollingcounter_220_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CDC_checksum_220_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_220_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_220_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double BCM_LeftTurnLightStatus_8FE0121_CAN1;
+double BCM_RightTurnLightStatus_8FE0121_CAN1;
+double BCM_LowBeam_8FE0121_CAN1;
+double BCM_HighBeam_8FE0121_CAN1;
+double BCM_FrontFogLight_8FE0121_CAN1;
+double BCM_RearFogLight_8FE0121_CAN1;
+double BCM_Park_Light_Status_8FE0121_CAN1;
+double BCM_Day_Light_Status_8FE0121_CAN1;
+double BCM_Reversing_Switch_Status_8FE0121_CAN1;
+double BCM_Horn_Status_8FE0121_CAN1;
+double BCM_Prak_Switch_Status_8FE0121_CAN1;
+double BCM_Brake_Light_Status_8FE0121_CAN1;
+double BCM_DoorStatus_8FE0121_CAN1;
+double BCM_IG1_Power_8FE0121_CAN1;
+double BCM_Wash_Motor_Status_8FE0121_CAN1;
+double BCM_Low_Wiper_Status_8FE0121_CAN1;
+double BCM_HI_Wiper_Status_8FE0121_CAN1;
+double BCM_Automatic_wiper_gear_8FE0121_CAN1;
+double BCM_Automatic_headlight_gear_8FE0121_CAN1;
+static uint8_t BCM_VCU_8FE0121_Buffer_CAN1[8];
+static DbcParserMsgStatusType BCM_VCU_8FE0121_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_8FE0121_SIGNALLIST[] =
+{
+	{(AddrType)&BCM_LeftTurnLightStatus_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 12, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_RightTurnLightStatus_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 14, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_LowBeam_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 10, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_HighBeam_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 8, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_FrontFogLight_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 0, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_RearFogLight_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 6, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Park_Light_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 2, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Day_Light_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 4, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Reversing_Switch_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 21, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Horn_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 29, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Prak_Switch_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 28, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Brake_Light_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 24, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_DoorStatus_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 46, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_IG1_Power_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 55, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Wash_Motor_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 52, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Low_Wiper_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 50, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_HI_Wiper_Status_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 48, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Automatic_wiper_gear_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 62, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&BCM_Automatic_headlight_gear_8FE0121_CAN1, DP_SIGNALTYPE_FLOAT, 60, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_8FE0121_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_8FE0121_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double DCDCInputVoltage_303_CAN1;
+double DCDCOutputVoltage_303_CAN1;
+double DCDCInputCurrent_303_CAN1;
+double DCDCOutputCurrent_303_CAN1;
+double DCDCEnableFeedback_303_CAN1;
+double DCDCWorkstatus_303_CAN1;
+double DCDCrollingcounter_303_CAN1;
+double DCDCchecksum_303_CAN1;
+static uint8_t DCDC_VCU_303_303_Buffer_CAN1[8];
+static DbcParserMsgStatusType DCDC_VCU_303_303_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_303_SIGNALLIST[] =
+{
+	{(AddrType)&DCDCInputVoltage_303_CAN1, DP_SIGNALTYPE_FLOAT, 0, 10, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1023.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOutputVoltage_303_CAN1, DP_SIGNALTYPE_FLOAT, 10, 10, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 102.3, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCInputCurrent_303_CAN1, DP_SIGNALTYPE_FLOAT, 20, 8, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 25.6, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOutputCurrent_303_CAN1, DP_SIGNALTYPE_FLOAT, 28, 12, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 409.4, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCEnableFeedback_303_CAN1, DP_SIGNALTYPE_FLOAT, 48, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCWorkstatus_303_CAN1, DP_SIGNALTYPE_FLOAT, 49, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCrollingcounter_303_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCchecksum_303_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_303_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_303_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double DCDCTemperature_509_CAN1;
+double DCDCDeriting_509_CAN1;
+double DCDCOverHeat_509_CAN1;
+double DCDCOverInputCurrent_509_CAN1;
+double DCDCOverOutputCurrent_509_CAN1;
+double DCDCOverInputVoltage_509_CAN1;
+double DCDCUnderInputVoltage_509_CAN1;
+double DCDCOverOutputVoltage_509_CAN1;
+double DCDCUnderOutputVoltage_509_CAN1;
+double DCDCrollingcounter_509_CAN1;
+double DCDCchecksum_509_CAN1;
+static uint8_t DCDC_VCU_509_509_Buffer_CAN1[8];
+static DbcParserMsgStatusType DCDC_VCU_509_509_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_509_SIGNALLIST[] =
+{
+	{(AddrType)&DCDCTemperature_509_CAN1, DP_SIGNALTYPE_FLOAT, 0, 8, DP_BYTEORDER_INTEL, 1.0, -40.0, -40.0, 215.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCDeriting_509_CAN1, DP_SIGNALTYPE_FLOAT, 8, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOverHeat_509_CAN1, DP_SIGNALTYPE_FLOAT, 9, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOverInputCurrent_509_CAN1, DP_SIGNALTYPE_FLOAT, 10, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOverOutputCurrent_509_CAN1, DP_SIGNALTYPE_FLOAT, 11, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOverInputVoltage_509_CAN1, DP_SIGNALTYPE_FLOAT, 12, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCUnderInputVoltage_509_CAN1, DP_SIGNALTYPE_FLOAT, 13, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCOverOutputVoltage_509_CAN1, DP_SIGNALTYPE_FLOAT, 14, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCUnderOutputVoltage_509_CAN1, DP_SIGNALTYPE_FLOAT, 15, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCrollingcounter_509_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DCDCchecksum_509_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_509_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_509_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double ACCompActSpeed_248_CAN1;
+double ACCompStatus_248_CAN1;
+double ACOverCurrent_248_CAN1;
+double ACOverVoltage_248_CAN1;
+double ACUnderVoltage_248_CAN1;
+double ACStandby_overvoltage_248_CAN1;
+double ACStandby_undervoltage_248_CAN1;
+double ACComFault_248_CAN1;
+double ACOver_current_FreqReduction_248_CAN1;
+double ACSpeedFault_248_CAN1;
+double ACCompCurrent_248_CAN1;
+double ACCompVoltage_248_CAN1;
+static uint8_t AC_VCU_248_Buffer_CAN1[8];
+static DbcParserMsgStatusType AC_VCU_248_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_248_SIGNALLIST[] =
+{
+	{(AddrType)&ACCompActSpeed_248_CAN1, DP_SIGNALTYPE_FLOAT, 0, 16, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 65534.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACCompStatus_248_CAN1, DP_SIGNALTYPE_FLOAT, 24, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACOverCurrent_248_CAN1, DP_SIGNALTYPE_FLOAT, 32, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACOverVoltage_248_CAN1, DP_SIGNALTYPE_FLOAT, 33, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACUnderVoltage_248_CAN1, DP_SIGNALTYPE_FLOAT, 34, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACStandby_overvoltage_248_CAN1, DP_SIGNALTYPE_FLOAT, 35, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACStandby_undervoltage_248_CAN1, DP_SIGNALTYPE_FLOAT, 36, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACComFault_248_CAN1, DP_SIGNALTYPE_FLOAT, 37, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACOver_current_FreqReduction_248_CAN1, DP_SIGNALTYPE_FLOAT, 38, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACSpeedFault_248_CAN1, DP_SIGNALTYPE_FLOAT, 39, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACCompCurrent_248_CAN1, DP_SIGNALTYPE_FLOAT, 48, 8, DP_BYTEORDER_INTEL, 0.1, 0.0, 0.0, 25.4, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&ACCompVoltage_248_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 4.0, 0.0, 0.0, 1016.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_248_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_248_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double EPS_Steering_Angle_70_CAN1;
+double EPS_steering_angle_spd_70_CAN1;
+double EPS_Torque_Steering_70_CAN1;
+double EPS_TORque_Motor_70_CAN1;
+double EPS_ECU_MODE_CONT_70_CAN1;
+double EPS_ECU_msg_counter_70_CAN1;
+static uint8_t EPS_FEEDBACK_STA_70_Buffer_CAN1[8];
+static DbcParserMsgStatusType EPS_FEEDBACK_STA_70_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_70_SIGNALLIST[] =
+{
+	{(AddrType)&EPS_Steering_Angle_70_CAN1, DP_SIGNALTYPE_FLOAT, 0, 16, DP_BYTEORDER_INTEL, 0.1, -1080.0, -1080.0, 1080.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_steering_angle_spd_70_CAN1, DP_SIGNALTYPE_FLOAT, 16, 8, DP_BYTEORDER_INTEL, 4.0, 0.0, 0.0, 1000.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_Torque_Steering_70_CAN1, DP_SIGNALTYPE_FLOAT, 24, 8, DP_BYTEORDER_INTEL, 0.1, -12.8, -12.8, 12.7, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_TORque_Motor_70_CAN1, DP_SIGNALTYPE_FLOAT, 32, 16, DP_BYTEORDER_INTEL, 0.001, -20.0, -20.0, 20.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_ECU_MODE_CONT_70_CAN1, DP_SIGNALTYPE_FLOAT, 48, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_ECU_msg_counter_70_CAN1, DP_SIGNALTYPE_FLOAT, 56, 8, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_70_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_70_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double EPS_TorqueSensorVoltError_507_CAN1;
+double EPS_T2TorqueOutRange_507_CAN1;
+double EPS_T1TorqueOutRange_507_CAN1;
+double EPS_T1T2Mismatch_507_CAN1;
+double EPS_ECUCaliFail_507_CAN1;
+double EPS_ASteeringAngleOutRange_507_CAN1;
+double EPS_RSteeringAngleOutRange_507_CAN1;
+double EPS_AMismathcR_507_CAN1;
+double EPS_MotorCurrentinvalid_507_CAN1;
+double EPS_MotorDriverCircurtFail_507_CAN1;
+double EPS_CurrentOverDevition_507_CAN1;
+double EPS_RelayFail_507_CAN1;
+double EPS_ECUCurrentSensorInvalid_507_CAN1;
+double EPS_LVOverVoltage_507_CAN1;
+double EPS_LVUnderVoltage_507_CAN1;
+double EPS_CAN_BUS_OFF_507_CAN1;
+double EPS_PTReadyLostFrame_507_CAN1;
+double EPS_SpeedLose_507_CAN1;
+double EPS_MotorPoSensorFault_507_CAN1;
+double EPS_TemOverHigh_507_CAN1;
+double EPS_TemOverLow_507_CAN1;
+double EPS_InvalidSpeed_507_CAN1;
+double EPS_SpeedOut_507_CAN1;
+static uint8_t EPS_DM1_507_Buffer_CAN1[8];
+static DbcParserMsgStatusType EPS_DM1_507_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_507_SIGNALLIST[] =
+{
+	{(AddrType)&EPS_TorqueSensorVoltError_507_CAN1, DP_SIGNALTYPE_FLOAT, 0, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_T2TorqueOutRange_507_CAN1, DP_SIGNALTYPE_FLOAT, 1, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_T1TorqueOutRange_507_CAN1, DP_SIGNALTYPE_FLOAT, 2, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_T1T2Mismatch_507_CAN1, DP_SIGNALTYPE_FLOAT, 3, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_ECUCaliFail_507_CAN1, DP_SIGNALTYPE_FLOAT, 4, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_ASteeringAngleOutRange_507_CAN1, DP_SIGNALTYPE_FLOAT, 5, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_RSteeringAngleOutRange_507_CAN1, DP_SIGNALTYPE_FLOAT, 6, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_AMismathcR_507_CAN1, DP_SIGNALTYPE_FLOAT, 7, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_MotorCurrentinvalid_507_CAN1, DP_SIGNALTYPE_FLOAT, 8, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_MotorDriverCircurtFail_507_CAN1, DP_SIGNALTYPE_FLOAT, 9, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_CurrentOverDevition_507_CAN1, DP_SIGNALTYPE_FLOAT, 10, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_RelayFail_507_CAN1, DP_SIGNALTYPE_FLOAT, 11, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_ECUCurrentSensorInvalid_507_CAN1, DP_SIGNALTYPE_FLOAT, 12, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_LVOverVoltage_507_CAN1, DP_SIGNALTYPE_FLOAT, 13, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_LVUnderVoltage_507_CAN1, DP_SIGNALTYPE_FLOAT, 14, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_CAN_BUS_OFF_507_CAN1, DP_SIGNALTYPE_FLOAT, 15, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_PTReadyLostFrame_507_CAN1, DP_SIGNALTYPE_FLOAT, 16, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_SpeedLose_507_CAN1, DP_SIGNALTYPE_FLOAT, 17, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_MotorPoSensorFault_507_CAN1, DP_SIGNALTYPE_FLOAT, 18, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_TemOverHigh_507_CAN1, DP_SIGNALTYPE_FLOAT, 19, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_TemOverLow_507_CAN1, DP_SIGNALTYPE_FLOAT, 20, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_InvalidSpeed_507_CAN1, DP_SIGNALTYPE_FLOAT, 21, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPS_SpeedOut_507_CAN1, DP_SIGNALTYPE_FLOAT, 22, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_507_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_507_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double EPB_state_80_CAN1;
+double EPB_Control_Mode_80_CAN1;
+double EPB_Fault_Level_80_CAN1;
+double Park_LED_Sta_80_CAN1;
+double EPB_SolValve_ErrInd_80_CAN1;
+double DragForce_80_CAN1;
+double IGN_80_CAN1;
+double EPB_Key_Sta_80_CAN1;
+double EPB_Key_Err_80_CAN1;
+double EPB_PSensor_Err_80_CAN1;
+double Communication_80_CAN1;
+double Rollingcounter_80_CAN1;
+double CheckSum_80_CAN1;
+static uint8_t EPB_State_80_Buffer_CAN1[8];
+static DbcParserMsgStatusType EPB_State_80_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_80_SIGNALLIST[] =
+{
+	{(AddrType)&EPB_state_80_CAN1, DP_SIGNALTYPE_FLOAT, 0, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPB_Control_Mode_80_CAN1, DP_SIGNALTYPE_FLOAT, 4, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPB_Fault_Level_80_CAN1, DP_SIGNALTYPE_FLOAT, 8, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&Park_LED_Sta_80_CAN1, DP_SIGNALTYPE_FLOAT, 12, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPB_SolValve_ErrInd_80_CAN1, DP_SIGNALTYPE_FLOAT, 14, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&DragForce_80_CAN1, DP_SIGNALTYPE_FLOAT, 16, 16, DP_BYTEORDER_INTEL, 0.125, 0.0, 0.0, 2000.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&IGN_80_CAN1, DP_SIGNALTYPE_FLOAT, 39, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPB_Key_Sta_80_CAN1, DP_SIGNALTYPE_FLOAT, 41, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPB_Key_Err_80_CAN1, DP_SIGNALTYPE_FLOAT, 43, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&EPB_PSensor_Err_80_CAN1, DP_SIGNALTYPE_FLOAT, 45, 2, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&Communication_80_CAN1, DP_SIGNALTYPE_FLOAT, 48, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 3.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&Rollingcounter_80_CAN1, DP_SIGNALTYPE_FLOAT, 52, 4, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 15.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&CheckSum_80_CAN1, DP_SIGNALTYPE_FLOAT, 56, 7, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 255.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_80_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_80_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double T_BOXTime_Year_511_CAN1;
+double T_BOXTime_Month_511_CAN1;
+double T_BOXTime_Hour_511_CAN1;
+double T_BOXTime_Day_511_CAN1;
+double T_BOXTime_Min_511_CAN1;
+double T_BOXTime_Sec_511_CAN1;
+static uint8_t T_BOX_511_511_Buffer_CAN1[8];
+static DbcParserMsgStatusType T_BOX_511_511_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_511_SIGNALLIST[] =
+{
+	{(AddrType)&T_BOXTime_Year_511_CAN1, DP_SIGNALTYPE_FLOAT, 0, 8, DP_BYTEORDER_INTEL, 1.0, 2000.0, 2000.0, 2255.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&T_BOXTime_Month_511_CAN1, DP_SIGNALTYPE_FLOAT, 8, 4, DP_BYTEORDER_INTEL, 1.0, 1.0, 1.0, 12.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&T_BOXTime_Hour_511_CAN1, DP_SIGNALTYPE_FLOAT, 16, 5, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 23.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&T_BOXTime_Day_511_CAN1, DP_SIGNALTYPE_FLOAT, 24, 5, DP_BYTEORDER_INTEL, 1.0, 1.0, 1.0, 31.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&T_BOXTime_Min_511_CAN1, DP_SIGNALTYPE_FLOAT, 32, 6, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 59.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&T_BOXTime_Sec_511_CAN1, DP_SIGNALTYPE_FLOAT, 40, 6, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 59.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_511_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_511_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double T_BOXGPS_Longitude_510_CAN1;
+double T_BOXGPS_Latitude_510_CAN1;
+static uint8_t T_BOX_510_510_Buffer_CAN1[8];
+static DbcParserMsgStatusType T_BOX_510_510_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_510_SIGNALLIST[] =
+{
+	{(AddrType)&T_BOXGPS_Longitude_510_CAN1, DP_SIGNALTYPE_FLOAT, 0, 28, DP_BYTEORDER_INTEL, 1E-006, 0.0, 0.0, 180.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&T_BOXGPS_Latitude_510_CAN1, DP_SIGNALTYPE_FLOAT, 32, 28, DP_BYTEORDER_INTEL, 1E-006, 0.0, 0.0, 180.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_510_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_510_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double IC_BrakeDisWarning_401_CAN1;
+double IC_SeatbeltUnlock_401_CAN1;
+double IC_VehOdometer_401_CAN1;
+double IC_BrakeFluidWarning_401_CAN1;
+static uint8_t IC_401_401_Buffer_CAN1[8];
+static DbcParserMsgStatusType IC_401_401_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_401_SIGNALLIST[] =
+{
+	{(AddrType)&IC_BrakeDisWarning_401_CAN1, DP_SIGNALTYPE_FLOAT, 7, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&IC_SeatbeltUnlock_401_CAN1, DP_SIGNALTYPE_FLOAT, 6, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&IC_VehOdometer_401_CAN1, DP_SIGNALTYPE_FLOAT, 8, 24, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 16777216.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&IC_BrakeFluidWarning_401_CAN1, DP_SIGNALTYPE_FLOAT, 32, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_401_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_401_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+double AVAS_WorkingStatus_801D0D3_CAN1;
+double AVAS_HardwareVersion_801D0D3_CAN1;
+double AVAS_SoftwareVersion_801D0D3_CAN1;
+static uint8_t AVAS_801D0D3_Buffer_CAN1[8];
+static DbcParserMsgStatusType AVAS_801D0D3_Msg_Status;
+const DbcParserSignalTblType TBL_DP_CAN1_801D0D3_SIGNALLIST[] =
+{
+	{(AddrType)&AVAS_WorkingStatus_801D0D3_CAN1, DP_SIGNALTYPE_FLOAT, 0, 1, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 1.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&AVAS_HardwareVersion_801D0D3_CAN1, DP_SIGNALTYPE_FLOAT, 8, 16, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 65535.0, DP_SIGNTYPE_UNSIGNED},
+	{(AddrType)&AVAS_SoftwareVersion_801D0D3_CAN1, DP_SIGNALTYPE_FLOAT, 24, 32, DP_BYTEORDER_INTEL, 1.0, 0.0, 0.0, 4294967295.0, DP_SIGNTYPE_UNSIGNED},
+};
+const uint16_t u8s_dp_CAN1_801D0D3_SignalTblSize = (uint16_t)(sizeof(TBL_DP_CAN1_801D0D3_SIGNALLIST) / sizeof(DbcParserSignalTblType));
+
+DbcParserMsgTblType TBL_DP_DBCMSGLIST_PTCAN[] =
+{
+	{0x53, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_53_SIGNALLIST, u8s_dp_CAN1_53_SignalTblSize, VCU_BMS2_53_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_BMS2_53_Msg_Status},
+	{0x68, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_68_SIGNALLIST, u8s_dp_CAN1_68_SignalTblSize, ABS_VehicleSpeedAndStatus_68_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,7, &ABS_VehicleSpeedAndStatus_68_Msg_Status},
+	{0x75, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_75_SIGNALLIST, u8s_dp_CAN1_75_SignalTblSize, ABS_WheelSpeed_Front_Whl_75_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,5, &ABS_WheelSpeed_Front_Whl_75_Msg_Status},
+	{0x115, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_115_SIGNALLIST, u8s_dp_CAN1_115_SignalTblSize, ABS_WheelSpeed_PulseCounter_115_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,9, &ABS_WheelSpeed_PulseCounter_115_Msg_Status},
+	{0x79, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_79_SIGNALLIST, u8s_dp_CAN1_79_SignalTblSize, ABS_WheelSpeed_Rear_Whl_79_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,5, &ABS_WheelSpeed_Rear_Whl_79_Msg_Status},
+	{0x201, DP_MSGDIR_TX, DP_PERIODICMACRO, 50, (const DbcParserSignalTblType*)TBL_DP_CAN1_201_SIGNALLIST, u8s_dp_CAN1_201_SignalTblSize, VCU_201_201_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_201_201_Msg_Status},
+	{0x105, DP_MSGDIR_TX, DP_PERIODICMACRO, 10, (const DbcParserSignalTblType*)TBL_DP_CAN1_105_SIGNALLIST, u8s_dp_CAN1_105_SignalTblSize, VCU_MCU_105_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_MCU_105_Msg_Status},
+	{0x151, DP_MSGDIR_TX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_151_SIGNALLIST, u8s_dp_CAN1_151_SignalTblSize, VCU_151_151_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_151_151_Msg_Status},
+	{0x210, DP_MSGDIR_TX, DP_PERIODICMACRO, 500, (const DbcParserSignalTblType*)TBL_DP_CAN1_210_SIGNALLIST, u8s_dp_CAN1_210_SignalTblSize, VCU_IC_210_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_IC_210_Msg_Status},
+	{0x501, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_501_SIGNALLIST, u8s_dp_CAN1_501_SignalTblSize, VCU_501_501_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_501_501_Msg_Status},
+	{0x153, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_153_SIGNALLIST, u8s_dp_CAN1_153_SignalTblSize, VCU_BMS_153_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_BMS_153_Msg_Status},
+	{0x502, DP_MSGDIR_TX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_502_SIGNALLIST, u8s_dp_CAN1_502_SignalTblSize, VCU_502_502_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_502_502_Msg_Status},
+	{0x250, DP_MSGDIR_TX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_250_SIGNALLIST, u8s_dp_CAN1_250_SignalTblSize, VCU_DCDC_250_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_DCDC_250_Msg_Status},
+	{0x155, DP_MSGDIR_TX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_155_SIGNALLIST, u8s_dp_CAN1_155_SignalTblSize, VCU_EPB_155_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_EPB_155_Msg_Status},
+	{0x238, DP_MSGDIR_TX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_238_SIGNALLIST, u8s_dp_CAN1_238_SignalTblSize, VCU_AC_238_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_AC_238_Msg_Status},
+	{0x550, DP_MSGDIR_TX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_550_SIGNALLIST, u8s_dp_CAN1_550_SignalTblSize, VCU_Tbox_550_Buffer_CAN1, 1, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_Tbox_550_Msg_Status},
+	{0x8F101D0, DP_MSGDIR_TX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_8F101D0_SIGNALLIST, u8s_dp_CAN1_8F101D0_SignalTblSize, VCU_AVAS_8F101D0_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &VCU_AVAS_8F101D0_Msg_Status},
+	{0x205, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_205_SIGNALLIST, u8s_dp_CAN1_205_SignalTblSize, MCU_205_205_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &MCU_205_205_Msg_Status},
+	{0x305, DP_MSGDIR_RX, DP_PERIODICMACRO, 50, (const DbcParserSignalTblType*)TBL_DP_CAN1_305_SIGNALLIST, u8s_dp_CAN1_305_SignalTblSize, MCU_305_305_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &MCU_305_305_Msg_Status},
+	{0x405, DP_MSGDIR_RX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_405_SIGNALLIST, u8s_dp_CAN1_405_SignalTblSize, MCU_405_405_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &MCU_405_405_Msg_Status},
+	{0x505, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_505_SIGNALLIST, u8s_dp_CAN1_505_SignalTblSize, MCU_505_505_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &MCU_505_505_Msg_Status},
+	{0x220, DP_MSGDIR_RX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_220_SIGNALLIST, u8s_dp_CAN1_220_SignalTblSize, CDC_VCU_220_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &CDC_VCU_220_Msg_Status},
+	{0x8FE0121, DP_MSGDIR_RX, DP_PERIODICMACRO, 50, (const DbcParserSignalTblType*)TBL_DP_CAN1_8FE0121_SIGNALLIST, u8s_dp_CAN1_8FE0121_SignalTblSize, BCM_VCU_8FE0121_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &BCM_VCU_8FE0121_Msg_Status},
+	{0x303, DP_MSGDIR_RX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_303_SIGNALLIST, u8s_dp_CAN1_303_SignalTblSize, DCDC_VCU_303_303_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &DCDC_VCU_303_303_Msg_Status},
+	{0x509, DP_MSGDIR_RX, DP_PERIODICMACRO, 500, (const DbcParserSignalTblType*)TBL_DP_CAN1_509_SIGNALLIST, u8s_dp_CAN1_509_SignalTblSize, DCDC_VCU_509_509_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &DCDC_VCU_509_509_Msg_Status},
+	{0x248, DP_MSGDIR_RX, DP_PERIODICMACRO, 100, (const DbcParserSignalTblType*)TBL_DP_CAN1_248_SIGNALLIST, u8s_dp_CAN1_248_SignalTblSize, AC_VCU_248_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &AC_VCU_248_Msg_Status},
+	{0x70, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_70_SIGNALLIST, u8s_dp_CAN1_70_SignalTblSize, EPS_FEEDBACK_STA_70_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &EPS_FEEDBACK_STA_70_Msg_Status},
+	{0x507, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_507_SIGNALLIST, u8s_dp_CAN1_507_SignalTblSize, EPS_DM1_507_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &EPS_DM1_507_Msg_Status},
+	{0x80, DP_MSGDIR_RX, DP_PERIODICMACRO, 20, (const DbcParserSignalTblType*)TBL_DP_CAN1_80_SIGNALLIST, u8s_dp_CAN1_80_SignalTblSize, EPB_State_80_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &EPB_State_80_Msg_Status},
+	{0x511, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_511_SIGNALLIST, u8s_dp_CAN1_511_SignalTblSize, T_BOX_511_511_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &T_BOX_511_511_Msg_Status},
+	{0x510, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_510_SIGNALLIST, u8s_dp_CAN1_510_SignalTblSize, T_BOX_510_510_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &T_BOX_510_510_Msg_Status},
+	{0x401, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_401_SIGNALLIST, u8s_dp_CAN1_401_SignalTblSize, IC_401_401_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &IC_401_401_Msg_Status},
+	{0x801D0D3, DP_MSGDIR_RX, DP_PERIODICMACRO, 1000, (const DbcParserSignalTblType*)TBL_DP_CAN1_801D0D3_SIGNALLIST, u8s_dp_CAN1_801D0D3_SignalTblSize, AVAS_801D0D3_Buffer_CAN1, 8, DP_MSGKIND_NORMAL,DP_MSG_INVALID_INDEX,DP_MSG_INVALID_INDEX, &AVAS_801D0D3_Msg_Status},
+};
+uint16_t u16s_dp_MsgTblSize_PTCAN = (uint16_t)(sizeof(TBL_DP_DBCMSGLIST_PTCAN) / sizeof(DbcParserMsgTblType ));

@@ -66,6 +66,12 @@ from comm.vcu_calib_generator import (
 from comm.carla_ros import get_torque, talker
 from agent.ac_gaussian import customlossgaussian, constructactorcriticnetwork
 
+from comm.tbox.scripts.tbox_sim import *
+set_tbox_sim_path('/home/is/devel/carla-drl/drl-carla-manual/src/comm/tbox')
+# value = [99.0] * 21 * 17
+# send_float_array('TQD_trqTrqSetECO_MAP_v', value)
+
+
 def main():
 
     # # ros msgs for vcu communication
@@ -246,6 +252,10 @@ def main():
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action = mvn.sample()  # 17*21 =  357 actions
                     vcu_action_clip = tf.clip_by_value(vcu_action, clip_value_min=0.0, clip_value_max=1.0)
+                    # flashing calibration through xcp
+                    # value = [99.0] * 21 * 17
+                    send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_action_clip)
+
                     vcu_action_history.append(vcu_action_clip)
 
                     # action = np.random.choice(num_actions, p=np.squeeze(action_probs))
