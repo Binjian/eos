@@ -115,7 +115,7 @@ class CarlaEnv(gym.Env):
         # keyboard manual control settings
         self.clock = pygame.time.Clock()
         self._cache = 0
-        self.throttle = 0
+        self.pedal = 0
         self.steer_increment = 0.5
         self.brake = 0
         self.reverse = False
@@ -469,12 +469,13 @@ class CarlaEnv(gym.Env):
     def _is_quit_shortcut(key):
         return (key == K_ESCAPE) or (key == K_q and pygame.key.get_mods() & KMOD_CTRL)
 
+    # keyboard simulation of pedal, not used if logitech is available
     def _parse_vehicle_keys(self, keys):
 
         if keys[K_UP] or keys[K_w]:
-            self.throttle = 1.0
+            self.pedal = 1.0
         else:
-            self.throttle = 0.0
+            self.pedal = 0.0
 
         if keys[K_LEFT] or keys[K_a]:
             self.steer_cache -= self.steer_increment
@@ -491,10 +492,6 @@ class CarlaEnv(gym.Env):
 
         if keys[K_r]:
             self.reverse = not self.reverse
-        act = carla.VehicleControl(
-            throttle=self.throttle, steer=steer, brake=self.brake, reverse=self.reverse
-        )
-        self.ego.apply_control(act)
 
     def _parse_g29_keys(self):
 
@@ -536,7 +533,7 @@ class CarlaEnv(gym.Env):
 
         self.steer = steerCmd
         self.brake = brakeCmd
-        self.throttle = throttleCmd
+        self.pedal = throttleCmd
 
         # print(jsButtons)
     def get_init_state(self):
@@ -549,7 +546,7 @@ class CarlaEnv(gym.Env):
         acc = np.sqrt(a.x ** 2 + a.y ** 2)
 
         # return just speed and acceleration
-        observation = [speed, acc, self.throttle]
+        observation = [speed, acc, self.pedal]
         return observation
 
 
@@ -781,7 +778,7 @@ class CarlaEnv(gym.Env):
             self.autoflag = False
             self.ego.set_autopilot(self.autoflag)
             act = carla.VehicleControl(
-                throttle=self.throttle,
+                throttle=self.pedal,
                 steer=self.steer,
                 brake=self.brake,
                 reverse=self.reverse,
@@ -1119,9 +1116,6 @@ class CarlaEnv(gym.Env):
         self.diff.append(abs(v_target - speed))
         avg_diff = sum(self.diff) / len(self.diff)
 
-        # if self._parse_g29_keys():
-        #     speed = -speed
-
         self._title_text = "Information board"
         self._circle_rem = "Circle number: " + str(self.circle_num)
         self._warn_text = "PLease press L2 for AI mode"
@@ -1211,12 +1205,12 @@ class CarlaEnv(gym.Env):
                 self.vehicle_front,
                 acc,
                 avg_diff,
-                self.throttle,
+                self.pedal,
             ]
         )
 
         # return just speed and acceleration
-        observation = [speed, acc, self.throttle]
+        observation = [speed, acc, self.pedal]
         return observation
 
         # info display
