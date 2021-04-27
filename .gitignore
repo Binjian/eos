@@ -8,6 +8,8 @@ logs
 *.png
 *.xls
 *.xlsx
+*.xml
+*.iml
 
 # Ignore the build directory
 # /dist
