@@ -11,14 +11,13 @@ from scipy import interpolate
 #   test_list[i] = test_list[i] + 0.01
 
 
-
 # for real vcu, values in the table will be the requrested torque
 # Current throttlel (0,1) should be a coefficient of multplicative factor
 # like between +/- 20% or empirically give safety bounds.
 # action space will be then within this bounds
 # TODO ask for safety bounds and real vcu to be integrated.
 # TODO generate a mask according to WLTC to reduce parameter optimization space.
-def generate_vcu_calibration( # pedal is x(column), velocity is y(row) )
+def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     npd, pedal_range, nvl, velocity_range
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
     pd = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
@@ -59,7 +58,8 @@ def generate_lookup_table(
     return calib_lookup
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     def test_generate_lookup_table():
         vcu_calib_table_row = 17  # number of pedal steps
         vcu_calib_table_col = 21  # numnber of velocity steps
@@ -72,7 +72,6 @@ if __name__ == '__main__':
             pedal_range, velocity_range, vcu_calib_table
         )
         return vcu_lookup_table
-
 
     def test_generate_vcu_calibration():
         vcu_calib_table_row = 17  # number of pedal steps
@@ -118,4 +117,3 @@ if __name__ == '__main__':
         throt, speed
     )  # look up vcu table with pedal and speed  for throttle request
     print("throttle={}".format(throttle))
-

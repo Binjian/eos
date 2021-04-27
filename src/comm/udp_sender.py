@@ -23,6 +23,7 @@ def send_table(table):
     # s.sendto(send_str, ('127.0.0.1', 13251))
     s.close()
 
+
 def prepare_vcu_calibration_table(table):
     vcu_param_list = table.astpye("float32")
     return vcu_param_list

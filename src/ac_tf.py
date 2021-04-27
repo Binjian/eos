@@ -66,6 +66,7 @@ from comm.vcu_calib_generator import (
 from comm.carla_ros import get_torque, talker
 from agent.ac_gaussian import customlossgaussian, constructactorcriticnetwork
 
+
 def main():
 
     # # ros msgs for vcu communication
@@ -167,8 +168,10 @@ def main():
     bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
     checkpoint_path = "./checkpoints/cp-{epoch:04d}.ckpt"
     checkpoint_dir = os.path.dirname(checkpoint_path)
-    tf.keras.backend.set_floatx('float64')
-    actorcritic_network = constructactorcriticnetwork(num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma)
+    tf.keras.backend.set_floatx("float64")
+    actorcritic_network = constructactorcriticnetwork(
+        num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
+    )
     optimizer = keras.optimizers.Adam(learning_rate=0.001)
 
     latest = tf.train.latest_checkpoint(checkpoint_dir)
@@ -196,7 +199,7 @@ def main():
         if wait_for_reset:
             # obs = env.get_init_state()
             obs = env.reset()
-            if np.fabs(obs[2]-0.5) < eps:
+            if np.fabs(obs[2] - 0.5) < eps:
                 continue
             else:
                 wait_for_reset = False
@@ -227,7 +230,9 @@ def main():
 
                 # state has 20 [speed, acceleration, throttle] tripplets, update policy (mu, sigma and update vcu)
                 # update vcu calibration table every one second
-                if (timestep+1) % sequence_len == 0:  # sequence_len = 20; state.len == 20
+                if (
+                    timestep + 1
+                ) % sequence_len == 0:  # sequence_len = 20; state.len == 20
                     vcu_states = tf.convert_to_tensor(
                         vcu_states
                     )  # state must have 20 (speed, acceleration, throttle) triples
@@ -245,7 +250,9 @@ def main():
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action = mvn.sample()  # 17*21 =  357 actions
-                    vcu_action_clip = tf.clip_by_value(vcu_action, clip_value_min=0.0, clip_value_max=1.0)
+                    vcu_action_clip = tf.clip_by_value(
+                        vcu_action, clip_value_min=0.0, clip_value_max=1.0
+                    )
                     vcu_action_history.append(vcu_action_clip)
 
                     # action = np.random.choice(num_actions, p=np.squeeze(action_probs))
@@ -255,7 +262,9 @@ def main():
                     vcu_lookup_table = generate_lookup_table(
                         pedal_range,
                         velocity_range,
-                        tf.reshape(vcu_action_clip, [vcu_calib_table_row, vcu_calib_table_col]),
+                        tf.reshape(
+                            vcu_action_clip, [vcu_calib_table_row, vcu_calib_table_col]
+                        ),
                     )
 
                     # reward history

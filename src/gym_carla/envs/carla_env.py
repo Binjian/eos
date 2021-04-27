@@ -536,6 +536,7 @@ class CarlaEnv(gym.Env):
         self.pedal = throttleCmd
 
         # print(jsButtons)
+
     def get_init_state(self):
         # State observation
         self._parse_g29_keys()
@@ -548,7 +549,6 @@ class CarlaEnv(gym.Env):
         # return just speed and acceleration
         observation = [speed, acc, self.pedal]
         return observation
-
 
     def reset(self):
         # Clear sensor objects
@@ -852,7 +852,8 @@ class CarlaEnv(gym.Env):
         # for small screen uncomment below
         self.display = pygame.display.set_mode(
             (self.display_size * 4, self.display_size * 2),
-            pygame.HWSURFACE | pygame.DOUBLEBUF)
+            pygame.HWSURFACE | pygame.DOUBLEBUF,
+        )
 
         pixels_per_meter = self.display_size / self.obs_range
         pixels_ahead_vehicle = (self.obs_range / 2 - self.d_behind) * pixels_per_meter
@@ -1289,7 +1290,7 @@ class CarlaEnv(gym.Env):
         """Calculate the step reward."""
         a = self.ego.get_acceleration()
         acc = np.sqrt(a.x ** 2 + a.y ** 2)
-        r_engy_consump = (acc ** 2)
+        r_engy_consump = acc ** 2
         # r_time_lapse = -1  # for fixed trip length consider + r_time_lapse
         # r_trip_length = wp_distance[frame]  # for fixed time range consider + r_trip_length
         reward = -r_engy_consump  # + r_time_lapse

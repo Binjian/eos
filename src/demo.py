@@ -37,13 +37,19 @@ from comm.vcu.msg import *
 from threading import Lock
 
 from pg_carla_agent import *
-from comm.udp_sender import send_table, generate_vcu_calibration, generate_lookup_table, prepare_vcu_calibration_table
+from comm.udp_sender import (
+    send_table,
+    generate_vcu_calibration,
+    generate_lookup_table,
+    prepare_vcu_calibration_table,
+)
 from comm.carla_ros import talker, get_torque
 import socket
 
 data_lock = Lock()
 vcu_output = VCU_Output()
 vcu_input = VCU_Input()
+
 
 def main():
 
@@ -184,9 +190,7 @@ def main():
         vcu_calib_table[2] = kk
 
         vcu_lookup_table = generate_lookup_table(
-            pedal_range,
-            velocity_range,
-            vcu_calib_table
+            pedal_range, velocity_range, vcu_calib_table
         )
 
         yy = np.zeros(A ** 3)

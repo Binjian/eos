@@ -1,4 +1,3 @@
-
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -6,9 +5,13 @@ import tensorflow.keras.initializers as initializers
 import tensorflow_probability as tfp
 
 """construct the actor network with mu and sigma as output"""
-def constructactorcriticnetwork(num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma):
+
+
+def constructactorcriticnetwork(
+    num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
+):
     inputs = layers.Input(
-        shape=(sequence_len, num_observations) # TODO should be flattened
+        shape=(sequence_len, num_observations)  # TODO should be flattened
     )  # input dimension, 3 rows, 20 columns.
     # add flatten layer
     flatinputs = layers.Flatten()(inputs)
@@ -56,9 +59,9 @@ def customlossgaussian(mu_sigma, action, reward):
 
     # obtain pdf of gaussian distribution
     pdf_value = (
-            tf.exp(-0.5 * ((action - nn_mu) / (nn_sigma)) ** 2)
-            * 1
-            / (nn_sigma * tf.sqrt(2 * np.pi))
+        tf.exp(-0.5 * ((action - nn_mu) / (nn_sigma)) ** 2)
+        * 1
+        / (nn_sigma * tf.sqrt(2 * np.pi))
     )
 
     # compute log probability
@@ -68,6 +71,9 @@ def customlossgaussian(mu_sigma, action, reward):
     log_probability_sum = tf.math.reduce_sum(log_probability)
     # compute weighted loss
     loss_actor = -reward * log_probability_sum
-
-    return loss_actor
-
+    # add entropy loss (Gaussian Entropy) to reduce randomness with training onging
+    loss_entropy = 1e-4 * (
+        -(tf.math.log(2 * M_PI * tf.math.square(tf.norm(nn_sigma)) + 1) / 2)
+    )
+    loss = loss_actor + loss_entropy
+    return loss

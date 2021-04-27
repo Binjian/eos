@@ -7,7 +7,9 @@ while True:
     pid = os.fork()
     if pid == 0:  # copy process
         time.sleep(2)
-        os.execlp("python", "python", "./visualization/draw_lane.py")  #  draw lane on the road
+        os.execlp(
+            "python", "python", "./visualization/draw_lane.py"
+        )  #  draw lane on the road
         assert False, "error starting program"  # shouldn't return
     else:
         print("Child is", pid)
