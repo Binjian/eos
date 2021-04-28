@@ -744,6 +744,7 @@ class CarlaEnv(gym.Env):
 
     def step(self, action):
         if self.mode == 1:
+            self._parse_g29_keys()
             self.autoflag = False
             self.ego.set_autopilot(self.autoflag)
             # Calculate acceleration and steering
@@ -763,7 +764,7 @@ class CarlaEnv(gym.Env):
                 brake = np.clip(-acc, 0, 1)
             # Apply control
             act = carla.VehicleControl(
-                throttle=float(throttle), steer=float(-steer), brake=float(brake)
+                throttle=float(throttle), steer=float(steer), brake=float(brake)
             )
             self.ego.apply_control(act)
             self.world.tick()
@@ -1289,11 +1290,13 @@ class CarlaEnv(gym.Env):
     def _get_reward(self):
         """Calculate the step reward."""
         a = self.ego.get_acceleration()
+        v = self.ego.get_velocity()
+        speed = np.sqrt(v.x ** 2 + v.y ** 2)
         acc = np.sqrt(a.x ** 2 + a.y ** 2)
         r_engy_consump = acc ** 2
         # r_time_lapse = -1  # for fixed trip length consider + r_time_lapse
         # r_trip_length = wp_distance[frame]  # for fixed time range consider + r_trip_length
-        reward = -r_engy_consump  # + r_time_lapse
+        reward = -r_engy_consump + (speed * 0.1) ** 2  # + r_time_lapse
         # TODO add speed as reward (being fast should be  rewarded)
 
         return reward
