@@ -141,15 +141,19 @@ def main():
     
     in our implementation, they share the initial layer.
     """
-    vcu_calib_table_row = 17  # number of pedal steps
-    vcu_calib_table_col = 21  # numnber of velocity steps
+    vcu_calib_table_col = 17  # number of pedal steps, x direction
+    vcu_calib_table_row = 21  # numnber of velocity steps, y direction
+    vcu_calib_table_budget = 0.2  # interval that allows modifying the calibration table
     vcu_calib_table_size = vcu_calib_table_row * vcu_calib_table_col
     pedal_range = [0, 1.0]
     velocity_range = [0, 20.0]
 
-    vcu_calib_table = generate_vcu_calibration(
-        vcu_calib_table_row, pedal_range, vcu_calib_table_col, velocity_range
+    # default table
+    vcu_calib_table0 = generate_vcu_calibration(
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range
     )
+    vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
+
     vcu_lookup_table = generate_lookup_table(
         pedal_range, velocity_range, vcu_calib_table
     )
@@ -172,7 +176,8 @@ def main():
     # create actor-critic network
     bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
     bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
-    checkpoint_path = "./checkpoints/cp-{epoch:04d}.ckpt"
+    # checkpoint_path = "./checkpoints/cp-{epoch:04d}.ckpt"
+    checkpoint_path = "./checkpoints/cp-last.kpt"
     checkpoint_dir = os.path.dirname(checkpoint_path)
     tf.keras.backend.set_floatx("float64")
     # TODO option fix sigma, just optimize mu
@@ -199,7 +204,7 @@ def main():
     episode_count = 0
 
     wait_for_reset = True
-    obs = env.reset()
+    # obs = env.reset()
     while True:  # run until solved
         # logictech g29 default throttle 0.5,
         # after treading pedal of throttle and brake,
@@ -230,8 +235,8 @@ def main():
                 #     h1 = vcu_output.header
 
                 action = [throttle, 0]
-                print("action:{}".format(action[0]))
-                print("env.throttle:{}".format(env.throttle))
+                # print("action:{}".format(action[0]))
+                # print("env.throttle:{}".format(env.pedal))
                 obs, r, done, info = env.step(action)
                 vcu_reward += r
                 vcu_states.append(obs)
@@ -258,29 +263,30 @@ def main():
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action = mvn.sample()  # 17*21 =  357 actions
+                    vcu_action_history.append(vcu_action)
                     # Here the loopup table with contrained output is part of the environemnt,
                     # clip is part of the environment to be learned
                     # action is not contrained!
-                    vcu_action_clip = tf.clip_by_value(
-                        vcu_action, clip_value_min=0.0, clip_value_max=1.0
+                    vcu_act = tf.reshape(
+                        vcu_action, [vcu_calib_table_row, vcu_calib_table_col]
+                    )
+                    vcu_act = tf.clip_by_value(
+                        vcu_act * vcu_calib_table_budget
+                        + vcu_calib_table0,  # add changes to the default value
+                        clip_value_min=0.0,
+                        clip_value_max=1.0,
                     )
 
                     # flashing calibration through xcp
                     # value = [99.0] * 21 * 17
-                    # send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_action_clip)
-
-                    vcu_action_history.append(vcu_action_clip)
+                    send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_act.numpy().tolist() )
 
                     # action = np.random.choice(num_actions, p=np.squeeze(action_probs))
                     # action_probs_history.append(tf.math.log(action_probs[0, action]))
                     # vcu_param_list = udp_sender.prepare_vcu_calibration_table(vcu_action.numpy())
                     # udp_sender.send_table(vcu_param_list)
                     vcu_lookup_table = generate_lookup_table(
-                        pedal_range,
-                        velocity_range,
-                        tf.reshape(
-                            vcu_action_clip, [vcu_calib_table_row, vcu_calib_table_col]
-                        ),
+                        pedal_range, velocity_range, vcu_act
                     )
 
                     # reward history
@@ -336,7 +342,7 @@ def main():
 
             # now the agent backpropagate every episode. todo or backpropagation every n (say 20) episodes
             # backpropagation
-            loss_value = sum(actor_losses) + sum(critic_losses)
+            loss_value = sum(actor_losses) + 300 * sum(critic_losses) # todo 300-400 times
 
             grads = tape.gradient(loss_value, actorcritic_network.trainable_variables)
             optimizer.apply_gradients(
@@ -352,7 +358,8 @@ def main():
             obs = env.reset()
 
         # log details
-        actorcritic_network.save_weights("./checkpoints/cp-{epoch:04d}.ckpt")
+        # actorcritic_network.save_weights("./checkpoints/cp-{epoch:04d}.ckpt")
+        actorcritic_network.save("./checkpoints/cp-last.kpt")
         episode_count += 1
         if episode_count % 10 == 0:
             template = "running reward: {:.2f} at episode {}"
