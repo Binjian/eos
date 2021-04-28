@@ -44,7 +44,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     # return np.float32(v)
 
 
-def generate_lookup_table(
+def generate_lookup_table( # pedal in x(col), velocity in y(row)
     pedal_range, velocity_range, calib_table
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
     nvl, npd = calib_table.shape
