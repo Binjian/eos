@@ -4,10 +4,17 @@
 # Ignore Logs
 logs
 *.log
+*.pdf
+*.png
+*.xls
+*.xlsx
+*.xml
+*.iml
 
 # Ignore the build directory
 # /dist
 __pycache__/
+.idea/
 
 .glab-cli/
 .idea/
