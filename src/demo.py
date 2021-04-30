@@ -39,17 +39,25 @@ from threading import Lock
 from pg_carla_agent import *
 from comm.udp_sender import (
     send_table,
-    generate_vcu_calibration,
-    generate_lookup_table,
     prepare_vcu_calibration_table,
 )
-from comm.carla_ros import talker, get_torque
+from comm.vcu_calib_generator import (
+    generate_vcu_calibration,
+    generate_lookup_table,
+)
+
+from comm.carla_ros import talker
 import socket
 
 data_lock = Lock()
 vcu_output = VCU_Output()
 vcu_input = VCU_Input()
 
+def get_torque(data):
+    # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
+    with data_lock:
+        vcu_output.header = data.header
+        vcu_output.torque = data.torque
 
 def main():
 
@@ -165,9 +173,9 @@ def main():
 
         # send_table(vcu_calib_table)
         # while vcu_input.stamp > vcu_output.stamp:
-        # with data_lock:
-        #     throttle = vcu_output.torque
-        #     h1 = vcu_output.header
+        with data_lock:
+            throttle = vcu_output.torque
+            h1 = vcu_output.header
 
         # throttle = throt
         action = [throttle, 0]

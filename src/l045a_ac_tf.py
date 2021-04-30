@@ -64,7 +64,7 @@ from comm.vcu_calib_generator import (
 
 
 # from communication import carla_ros
-from comm.carla_ros import get_torque, talker
+from comm.carla_ros import talker
 from agent.ac_gaussian import customlossgaussian, constructactorcriticnetwork, train_step
 
 from comm.tbox.scripts.tbox_sim import *
@@ -77,16 +77,25 @@ set_tbox_sim_path("/home/is/devel/carla-drl/drl-carla-manual/src/comm/tbox")
 # TODO add visualization and logging
 # TODO add model checkpoint episodically unique
 
+data_lock = Lock()
+vcu_output = VCU_Output()
+vcu_input = VCU_Input()
+
+def get_torque(data):
+    # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
+    with data_lock:
+        vcu_output.header = data.header
+        vcu_output.torque = data.torque
+# TODO add a thread for send_float_array
+# TODO add printing calibration table
+# TODO add initialize table to EP input
 def main():
 
-    # # ros msgs for vcu communication
-    # data_lock = Lock()
-    # vcu_output = VCU_Output()
-    # vcu_input = VCU_Input()
-    #
-    # rospy.init_node("carla", anonymous=True)
-    # rospy.Subscriber("/newrizon/vcu_output", vcu_output, get_torque)
-    # pub = rospy.Publisher("/newrizon/vcu_input", vcu_input, queue_size=10)
+    # ros msgs for vcu communication
+
+    rospy.init_node("carla", anonymous=True)
+    rospy.Subscriber("/newrizon/vcu_output", VCU_Output, get_torque)
+    pub = rospy.Publisher("/newrizon/vcu_input", VCU_Input, queue_size=10)
 
     # parameters for the gym_carla environment
     params = {
@@ -170,13 +179,6 @@ def main():
 
     # todo connect gym-carla env, collect 20 steps of data for 1 second and update vcu calib table.
 
-    # inputs = layers.input(shape=(num_inputs,))
-    # common = layers.dense(num_hidden, activation="relu")(inputs)
-    # action = layers.dense(num_actions, activation="softmax")(common)
-    # critic = layers.dense(1)(common)
-    #
-    # model = keras.model(inputs=inputs, outputs=[action, critic])
-
     # create actor-critic network
     bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
     bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
@@ -215,7 +217,7 @@ def main():
     episode_count = 0
 
     wait_for_reset = True
-    # obs = env.reset()
+    L045B = True
     while True:  # run until solved
         # logictech g29 default throttle 0.5,
         # after treading pedal of throttle and brake,
@@ -233,17 +235,16 @@ def main():
         vcu_states.append(obs)
         with tf.GradientTape() as tape:
             for timestep in range(1, max_steps_per_episode):
-                # env.render(); adding this line would show the attempts
-                # of the agent in a pop up window.
-
-                throttle = vcu_lookup_table(
-                    obs[2], obs[0]
-                )  # look up vcu table with pedal and speed  for throttle request
-                # while vcu_input.stamp > vcu_output.stamp:
-                # talker(pub, env.counter, obs[0], obs[1], obs[2]) # ... vel, acc, throttle
-                # with data_lock:
-                #     throttle = vcu_output.torque
-                #     h1 = vcu_output.header
+                if L045B:
+                    # while vcu_input.stamp > vcu_output.stamp:
+                    talker(pub, env.counter, obs[0], obs[1], obs[2]) # ... vel, acc, pedal
+                    with data_lock:
+                        throttle = vcu_output.torque
+                        h1 = vcu_output.header
+                else:
+                    throttle = vcu_lookup_table(
+                        obs[2], obs[0]
+                    )  # look up vcu table with pedal and speed  for throttle request
 
                 action = [throttle, 0]
                 # print("action:{}".format(action[0]))
@@ -288,17 +289,18 @@ def main():
                         clip_value_max=1.0,
                     )
 
-                    # flashing calibration through xcp
-                    # value = [99.0] * 21 * 17
-                    # send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_act.numpy().tolist() )
 
                     # action = np.random.choice(num_actions, p=np.squeeze(action_probs))
                     # action_probs_history.append(tf.math.log(action_probs[0, action]))
                     # vcu_param_list = udp_sender.prepare_vcu_calibration_table(vcu_action.numpy())
                     # udp_sender.send_table(vcu_param_list)
-                    vcu_lookup_table = generate_lookup_table(
-                        pedal_range, velocity_range, vcu_act
-                    )
+                    if L045B:
+                        # flashing calibration through xcp
+                        send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_act.numpy().reshape(-1).tolist() )
+                    else:
+                        vcu_lookup_table = generate_lookup_table(
+                            pedal_range, velocity_range, vcu_act
+                        )
 
                     # reward history
                     vcu_rewards_history.append(vcu_reward)

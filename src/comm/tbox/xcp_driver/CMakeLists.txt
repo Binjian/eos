@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(xcp_driver)
 
-find_package(Boost COMPONENTS thread system program_options chrono REQUIRED)
+find_package(Boost COMPONENTS thread system chrono program_options REQUIRED)
 
 include_directories(
     ${Boost_INCLUDE_DIRS}

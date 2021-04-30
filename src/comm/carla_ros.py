@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(".."))
 from comm.vcu.msg import *
 from threading import Lock
 
-# from ac_tf import data_lock, vcu_output
+# from demo import data_lock, vcu_output
 
 
 def talker(pub, rc, vel, acc, ped):
@@ -23,8 +23,3 @@ def talker(pub, rc, vel, acc, ped):
     pub.publish(vcu_input1)
 
 
-def get_torque(data):
-    # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
-    with data_lock:
-        vcu_output.header = data.header
-        vcu_output.torque = data.torque
