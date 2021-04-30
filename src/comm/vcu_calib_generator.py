@@ -18,15 +18,19 @@ from scipy import interpolate
 # TODO ask for safety bounds and real vcu to be integrated.
 # TODO generate a mask according to WLTC to reduce parameter optimization space.
 def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
-    npd, pedal_range, nvl, velocity_range
+    npd, pedal_range, nvl, velocity_range, shortcut
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
     pd = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
-    vl = np.linspace(
-        velocity_range[0], velocity_range[1], num=nvl
-    )  # 0 - 72kmph velocity
-    pdv, vlv = np.meshgrid(pd, vl, sparse=True)
-    v = pdv / (1 + np.sqrt(np.abs(vlv)))
-
+    if shortcut:
+        vl = np.ones(nvl)
+        pdv, vlv = np.meshgrid(pd, vl, sparse=False)
+        v = pdv
+    else:
+        vl = np.linspace(
+            velocity_range[0], velocity_range[1], num=nvl
+        )  # 0 - 72kmph velocity
+        pdv, vlv = np.meshgrid(pd, vl, sparse=True)
+        v = pdv / (1 + np.sqrt(np.abs(vlv)))
     return v
     # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
     # # Plot the surface.
