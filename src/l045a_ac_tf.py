@@ -181,8 +181,8 @@ def main():
     bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
     bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
     # checkpoint_path = "./checkpoints/cp-{epoch:04d}.ckpt"
-    checkpoint_path = "./checkpoints/cp-last.kpt"
-    checkpoint_dir = os.path.dirname(checkpoint_path)
+    # checkpoint_path = "../tf_ckpts/checkpoint"
+    # checkpoint_dir = os.path.dirname(checkpoint_path)
     tf.keras.backend.set_floatx("float64")
     # TODO option fix sigma, just optimize mu
     # TODO create testing scenes for gathering data
@@ -191,11 +191,17 @@ def main():
     )
     opt = keras.optimizers.Adam(learning_rate=0.001)
     # add checkpoints manager
+    checkpoint_dir = '../tf_ckpts'
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
-    manager = tf.train.CheckpointManager(ckpt, '../tf_ckpts', max_to_keep=10)
-    latest = tf.train.latest_checkpoint(checkpoint_dir)
-    if latest != None:
-        actorcritic_network.load_weights(latest)
+    manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
+    ckpt.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        print("Restored from {}".format(manager.latest_checkpoint))
+    else:
+        print("Initializing from scratch")
+    # latest = tf.train.latest_checkpoint(checkpoint_dir)
+    # if latest != None:
+    #     actorcritic_network = keras.models.load_model(latest)
     """
     ## train
     """
