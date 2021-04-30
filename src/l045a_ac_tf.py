@@ -37,6 +37,7 @@ as energy consumption
 ## Setup
 """
 import os
+import datetime
 import gym
 import gym_carla
 import numpy as np
@@ -64,7 +65,7 @@ from comm.vcu_calib_generator import (
 
 # from communication import carla_ros
 from comm.carla_ros import get_torque, talker
-from agent.ac_gaussian import customlossgaussian, constructactorcriticnetwork
+from agent.ac_gaussian import customlossgaussian, constructactorcriticnetwork, train_step
 
 from comm.tbox.scripts.tbox_sim import *
 
@@ -72,6 +73,9 @@ set_tbox_sim_path("/home/is/devel/carla-drl/drl-carla-manual/src/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
+# TODO add vehicle communication insterface
+# TODO add visualization and logging
+# TODO add model checkpoint episodically unique
 
 def main():
 
@@ -143,14 +147,14 @@ def main():
     """
     vcu_calib_table_col = 17  # number of pedal steps, x direction
     vcu_calib_table_row = 21  # numnber of velocity steps, y direction
-    vcu_calib_table_budget = 0.2  # interval that allows modifying the calibration table
+    vcu_calib_table_budget = 0.05  # interval that allows modifying the calibration table
     vcu_calib_table_size = vcu_calib_table_row * vcu_calib_table_col
     pedal_range = [0, 1.0]
     velocity_range = [0, 20.0]
 
     # default table
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, True
     )
     vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 
@@ -185,8 +189,10 @@ def main():
     actorcritic_network = constructactorcriticnetwork(
         num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
     )
-    optimizer = keras.optimizers.Adam(learning_rate=0.001)
-
+    opt = keras.optimizers.Adam(learning_rate=0.001)
+    # add checkpoints manager
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
+    manager = tf.train.CheckpointManager(ckpt, '../tf_ckpts', max_to_keep=10)
     latest = tf.train.latest_checkpoint(checkpoint_dir)
     if latest != None:
         actorcritic_network.load_weights(latest)
@@ -194,7 +200,6 @@ def main():
     ## train
     """
 
-    huber_loss = keras.losses.Huber()
     vcu_action_history = []
     mu_sigma_history = []
     vcu_critic_value_history = []
@@ -279,7 +284,7 @@ def main():
 
                     # flashing calibration through xcp
                     # value = [99.0] * 21 * 17
-                    send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_act.numpy().tolist() )
+                    # send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_act.numpy().tolist() )
 
                     # action = np.random.choice(num_actions, p=np.squeeze(action_probs))
                     # action_probs_history.append(tf.math.log(action_probs[0, action]))
@@ -321,33 +326,10 @@ def main():
             history = zip(
                 vcu_action_history, mu_sigma_history, vcu_critic_value_history, returns
             )
-            actor_losses = []
-            critic_losses = []
-            for action, mu_sigma, value, ret in history:
-                # at this point in history, the critic estimated that we would get a
-                # total reward = `value` in the future. we took an action with log probability
-                # of `log_prob` and ended up recieving a total reward = `ret`.
-                # the actor must be updated so that it predicts an action that leads to
-                # high rewards (compared to critic's estimate) with high probability.
-                diff = ret - value
-                actor_loss = customlossgaussian(mu_sigma, action, diff)
-                actor_losses.append(actor_loss)  # actor loss
 
-                # the critic must be updated so that it predicts a better estimate of
-                # the future rewards.
-                # todo calculate loss_critic
-                critic_losses.append(
-                    huber_loss(tf.expand_dims(value, 0), tf.expand_dims(ret, 0))
-                )
-
-            # now the agent backpropagate every episode. todo or backpropagation every n (say 20) episodes
-            # backpropagation
-            loss_value = sum(actor_losses) + 300 * sum(critic_losses) # todo 300-400 times
-
-            grads = tape.gradient(loss_value, actorcritic_network.trainable_variables)
-            optimizer.apply_gradients(
-                zip(grads, actorcritic_network.trainable_variables)
-            )
+            # back propagation
+            loss = train_step(actorcritic_network, history, opt, tape)
+            ckpt.step.assign_add(1)
 
             # clear the loss and reward history
             vcu_states_history.clear()
@@ -356,18 +338,28 @@ def main():
             mu_sigma_history.clear()
             vcu_critic_value_history.clear()
             obs = env.reset()
-
         # log details
         # actorcritic_network.save_weights("./checkpoints/cp-{epoch:04d}.ckpt")
-        actorcritic_network.save("./checkpoints/cp-last.kpt")
+        # actorcritic_network.save("./checkpoints/cp-last.kpt")
+        # ckp_moment = datetime.datetime.now().strftime("%Y%b%d-%H%M%S")
+        # last_model_save_path = f"./checkpoints/cp-{ckp_moment}-{episode_count}.ckpt"
+        # actorcritic_network.save(last_model_save_path)
+
+        # Checkpoint manager save model
+        save_path = manager.save()
+        print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+        print("loss {:1.2f}".format(loss.numpy()))
+
         episode_count += 1
-        if episode_count % 10 == 0:
+        if episode_count % 1 == 0:
             template = "running reward: {:.2f} at episode {}"
+            print('========================')
             print(template.format(running_reward, episode_count))
 
-        if running_reward > 195:  # condition to consider the task solved
-            print("solved at episode {}!".format(episode_count))
-            break
+        # TODO terminate condition to be defined: reward > limit (percentage); time too long
+        # if running_reward > 195:  # condition to consider the task solved
+        #     print("solved at episode {}!".format(episode_count))
+        #     break
     """
     ## visualizations
     in early stages of training:
