@@ -52,6 +52,7 @@ import rospy
 import std_msgs.msg
 from comm.vcu.msg import *
 from threading import Lock
+import _thread as thread, queue, time
 
 from comm.udp_sender import (
     send_table,
@@ -77,9 +78,18 @@ set_tbox_sim_path("/home/is/devel/carla-drl/drl-carla-manual/src/comm/tbox")
 # TODO add visualization and logging
 # TODO add model checkpoint episodically unique
 
-data_lock = Lock()
-vcu_output = VCU_Output()
-vcu_input = VCU_Input()
+# dataqueue contains a table which is a list of type float
+# this is the consumer
+def flash_vcu(dataqueue):
+    while True:
+        time.sleep(0.1)
+        try:
+            table = dataqueue.get() # default block = True
+        except queue.Empty:
+            pass
+        else:
+            send_float_array('TQD_trqTrqSetECO_MAP_v', table)
+
 
 def get_torque(data):
     # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
@@ -91,11 +101,20 @@ def get_torque(data):
 # TODO add initialize table to EP input
 def main():
 
-    # ros msgs for vcu communication
+    # multithreading initialization
+    data_lock = Lock()
+    vcu_output = VCU_Output()
+    vcu_input = VCU_Input()
+    # flash_mutex = thread.allocate_lock()
+    dataQueue = queue.Queue()
+    # flash_mutex.acquire()
 
+    # ros msgs for vcu communication
     rospy.init_node("carla", anonymous=True)
     rospy.Subscriber("/newrizon/vcu_output", VCU_Output, get_torque)
     pub = rospy.Publisher("/newrizon/vcu_input", VCU_Input, queue_size=10)
+
+
 
     # parameters for the gym_carla environment
     params = {
@@ -166,6 +185,11 @@ def main():
         vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, True
     )
     vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
+    # vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
+
+    # Start thread for flashing vcu, flash first
+    thread.start_new_thread(flash_vcu, (dataQueue,))
+    # flash_mutex.acquire()
 
     vcu_lookup_table = generate_lookup_table(
         pedal_range, velocity_range, vcu_calib_table
@@ -253,7 +277,7 @@ def main():
                 vcu_reward += r
                 vcu_states.append(obs)
 
-                # state has 20 [speed, acceleration, throttle] tripplets, update policy (mu, sigma and update vcu)
+                # state has 20 [speed, acceleration, throttle] triplets, update policy (mu, sigma and update vcu)
                 # update vcu calibration table every one second
                 if (
                     timestep + 1
@@ -279,11 +303,11 @@ def main():
                     # Here the loopup table with contrained output is part of the environemnt,
                     # clip is part of the environment to be learned
                     # action is not contrained!
-                    vcu_act = tf.reshape(
+                    vcu_calib_table = tf.reshape(
                         vcu_action, [vcu_calib_table_row, vcu_calib_table_col]
                     )
-                    vcu_act = tf.clip_by_value(
-                        vcu_act * vcu_calib_table_budget
+                    vcu_calib_table = tf.clip_by_value(
+                        vcu_calib_table * vcu_calib_table_budget
                         + vcu_calib_table0,  # add changes to the default value
                         clip_value_min=0.0,
                         clip_value_max=1.0,
@@ -296,10 +320,13 @@ def main():
                     # udp_sender.send_table(vcu_param_list)
                     if L045B:
                         # flashing calibration through xcp
-                        send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_act.numpy().reshape(-1).tolist() )
+                        # with flash_mutex:
+                        vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
+                        dataQueue.put(vcu_act_list)
+                        # send_float_array('TQD_trqTrqSetECO_MAP_v', vcu_calib_table.numpy().reshape(-1).tolist() )
                     else:
                         vcu_lookup_table = generate_lookup_table(
-                            pedal_range, velocity_range, vcu_act
+                            pedal_range, velocity_range, vcu_calib_table
                         )
 
                     # reward history
