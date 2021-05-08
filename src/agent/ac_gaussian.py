@@ -6,9 +6,12 @@ import tensorflow.keras.initializers as initializers
 import tensorflow_probability as tfp
 
 """ one training step to update network"""
+
+
 def train_step(net, history, optimizer, tape):
     huber_loss = keras.losses.Huber()
-    actor_losses = []
+    act_losses = []
+    entropy_losses = []
     critic_losses = []
     for action, mu_sigma, value, ret in history:
         # at this point in history, the critic estimated that we would get a
@@ -17,8 +20,9 @@ def train_step(net, history, optimizer, tape):
         # the actor must be updated so that it predicts an action that leads to
         # high rewards (compared to critic's estimate) with high probability.
         diff = ret - value
-        actor_loss = customlossgaussian(mu_sigma, action, diff)
-        actor_losses.append(actor_loss)  # actor loss
+        loss_act, loss_entropy = customlossgaussian(mu_sigma, action, diff)
+        act_losses.append(loss_act)
+        entropy_losses.append(loss_entropy)
 
         # the critic must be updated so that it predicts a better estimate of
         # the future rewards.
@@ -29,19 +33,27 @@ def train_step(net, history, optimizer, tape):
 
     # now the agent backpropagate every episode. todo or backpropagation every n (say 20) episodes
     # backpropagation
-    loss_value = sum(actor_losses) + 300 * sum(critic_losses)  # todo 300-400 times
+    act_losses_all = sum(act_losses)
+    entropy_losses_all = sum(entropy_losses)
+    critic_losses_all = sum(critic_losses)
 
-    grads = tape.gradient(loss_value, net.trainable_variables)
-    optimizer.apply_gradients(
-        zip(grads, net.trainable_variables)
+    k_loss_entropy = (
+        10  # todo too small DONE adjust to a bigger value original value 1e-4;
     )
-    return loss_value
+    k_loss_critic = 300  # # todo 300-400 times
+    actor_losses_all = act_losses_all + k_loss_entropy * entropy_losses_all
+    loss_all = actor_losses_all + k_loss_critic * critic_losses_all
 
+    grads = tape.gradient(loss_all, net.trainable_variables)
+    optimizer.apply_gradients(zip(grads, net.trainable_variables))
+    return loss_all, act_losses_all, entropy_losses_all, critic_losses_all
 
 
 """construct the actor network with mu and sigma as output"""
+
+
 def constructactorcriticnetwork(
-        num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
+    num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
 ):
     inputs = layers.Input(
         shape=(sequence_len, num_observations)  # DONE should be flattened
@@ -104,14 +116,12 @@ def customlossgaussian(mu_sigma, action, reward):
     # add up all dimenstions
     log_probability_sum = tf.math.reduce_sum(log_probability)
     # compute weighted loss
-    # actor loss shoud be negative, negative loss is the sum of reward
-    loss_actor = -reward * log_probability_sum
+    # act loss shoud be negative, negative loss is the sum of reward
+    loss_act = -reward * log_probability_sum
     # add entropy loss (Gaussian Entropy) to reduce randomness with training onging
     # entropy loss shoud be positive
-    k_loss = 1.0 # todo too small DONE adjust to a bigger value original value 1e-4;
-    loss_entropy = k_loss * (
+    loss_entropy = (
         tf.math.log(2 * np.float64(np.pi) * tf.math.square(tf.norm(nn_sigma)) + 1) / 2
     )
 
-    loss = loss_actor + loss_entropy
-    return loss
+    return loss_act, loss_entropy
