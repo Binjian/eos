@@ -21,5 +21,3 @@ def talker(pub, rc, vel, acc, ped):
     vcu_input1.velocity = vel
     # rospy.loginfo(vcu_input1)
     pub.publish(vcu_input1)
-
-
