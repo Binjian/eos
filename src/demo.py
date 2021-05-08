@@ -53,11 +53,13 @@ data_lock = Lock()
 vcu_output = VCU_Output()
 vcu_input = VCU_Input()
 
+
 def get_torque(data):
     # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
     with data_lock:
         vcu_output.header = data.header
         vcu_output.torque = data.torque
+
 
 def main():
 
