@@ -292,7 +292,7 @@ def main():
     episode_reward = 0
 
     wait_for_reset = True
-    L045B = True
+    L045A = True
     while True:  # run until solved
         # logictech g29 default throttle 0.5,
         # after treading pedal of throttle and brake,
@@ -309,7 +309,7 @@ def main():
         vcu_states.append(obs)
         with tf.GradientTape() as tape:
             for timestep in range(1, max_steps_per_episode):
-                if L045B:
+                if L045A:
                     # while vcu_input.stamp > vcu_output.stamp:
                     talker(
                         pub, env.counter, obs[0], obs[1], obs[2]
@@ -400,7 +400,7 @@ def main():
                     # action_probs_history.append(tf.math.log(action_probs[0, action]))
                     # vcu_param_list = udp_sender.prepare_vcu_calibration_table(vcu_action.numpy())
                     # udp_sender.send_table(vcu_param_list)
-                    if L045B:
+                    if L045A:
                         # flashing calibration through xcp
                         # with flash_mutex:
                         vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
