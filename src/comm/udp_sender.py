@@ -2,10 +2,8 @@
 
 import socket
 import numpy as np
+import json
 
-# test_list = range(1, 37)
-# for i in range(36):
-#   test_list[i] = test_list[i] + 0.01
 
 
 def send_table(table):
@@ -28,7 +26,3 @@ def prepare_vcu_calibration_table(table):
     vcu_param_list = table.astpye("float32")
     return vcu_param_list
 
-
-#
-# # env = Environment()
-# send_table(test_list)
