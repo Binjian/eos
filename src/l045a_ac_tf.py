@@ -39,6 +39,7 @@ as energy consumption
 
 # drl import
 import datetime
+
 # import gym
 # import gym_carla
 import numpy as np
@@ -227,7 +228,9 @@ def get_motionpower(data):
 
     with hmi_lock:
         if not wait_for_reset:
-            get_motionpower.motionpower_states.append(motion_power)  # obs_reward [speed, acc, pedal, current, voltage]
+            get_motionpower.motionpower_states.append(
+                motion_power
+            )  # obs_reward [speed, acc, pedal, current, voltage]
             if len(get_motionpower.motionpower_states) >= 20:
                 motionpowerQueue.put(get_motionpower.motionpower_states)
                 get_motionpower.motionpower_states = []
@@ -357,12 +360,16 @@ def main():
 
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
-                vcu_reward = tf.reduce_sum(tf.reduce_prod(power_states, 1)) # vcu_reward is a scalar
+                vcu_reward = tf.reduce_sum(
+                    tf.reduce_prod(power_states, 1)
+                )  # vcu_reward is a scalar
                 vcu_rewards_history.append(vcu_reward)
                 episode_reward += vcu_reward
 
                 motion_states_history.append(motion_states)
-                motion_states = tf.expand_dims(motion_states, 0) # motion states is 20*3 matrix
+                motion_states = tf.expand_dims(
+                    motion_states, 0
+                )  # motion states is 20*3 matrix
 
                 # predict action probabilities and estimated future rewards
                 # from environment state
@@ -387,11 +394,13 @@ def main():
                     + vcu_calib_table0,  # add changes to the default value
                     clip_value_min=0.0,
                     clip_value_max=1.0,
-                    )
+                )
 
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 tableQueue.put(vcu_act_list)
-                print("update vcu calib table") # env.step(action) action is flash the vcu calibration table
+                print(
+                    "update vcu calib table"
+                )  # env.step(action) action is flash the vcu calibration table
 
                 # Create a matplotlib 3d figure, //export and save in log
                 pd_data = pd.DataFrame(
@@ -459,9 +468,7 @@ def main():
             tf.summary.scalar("loss_critic", critic_losses_all, step=episode_count)
             tf.summary.scalar("episode reward", episode_reward, step=episode_count)
             tf.summary.scalar("running reward", running_reward, step=episode_count)
-            tf.summary.image(
-                "Calibration Table", plot_to_image(fig), episode_count
-            )
+            tf.summary.image("Calibration Table", plot_to_image(fig), episode_count)
         plt.close(fig)
 
         output_template = "Episode {}, Loss all: {}, Act loss: {}, Entropy loss: {}, Critic loss: {}, Episode Reward: {}"

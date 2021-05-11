@@ -26,7 +26,7 @@ zpos = 0
 # Construct arrays with the dimensions for the 16 bars.
 dx = dy = 0.5 * np.ones_like(zpos)
 dz = hist.ravel()
-ax.bar3d(xpos, ypos, zpos, dx, dy, dz, zsort="average", cmap='plasma')
+ax.bar3d(xpos, ypos, zpos, dx, dy, dz, zsort="average", cmap="plasma")
 ax.set(xlabel="Velocity (m/s)", ylabel="Acceleration (m/s2)", zlabel="Number")
 plt.savefig("./hist_3d.png")
 
