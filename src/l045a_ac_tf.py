@@ -47,9 +47,10 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import tensorflow_probability as tfp
-
 tfd = tfp.distributions
 
+import socket
+import json
 # communcation import
 import rospy
 import std_msgs.msg
@@ -81,7 +82,6 @@ from agent.ac_gaussian import (
     constructactorcriticnetwork,
     train_step,
 )
-
 from comm.tbox.scripts.tbox_sim import *
 
 set_tbox_sim_path("/home/is/devel/newrizon/drl-carla-manual/src/comm/tbox")
@@ -140,12 +140,12 @@ velocity_range = [0, 20.0]
 
 # default table
 vcu_calib_table0 = generate_vcu_calibration(
-    vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, True
+    vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
 )
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 # vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
 # create actor-critic network
-num_observations = 3  # observed are the current speed and acceleration, throttle
+num_observations = 2  # observed are the current speed and throttle; !! acceleration not available in l045a
 sequence_len = 20  # 20 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
@@ -161,6 +161,7 @@ tf.keras.backend.set_floatx("float64")
 actorcritic_network = constructactorcriticnetwork(
     num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
 )
+gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
 checkpoint_dir = "../tf_ckpts"
@@ -172,73 +173,119 @@ if manager.latest_checkpoint:
 else:
     print("Initializing from scratch")
 
-
-# latest = tf.train.latest_checkpoint(checkpoint_dir)
-# if latest != None:
-#     actorcritic_network = keras.models.load_model(latest)
-
-
-# def get_torque(data):
-#     # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
-#     vcu_output.header = data.header
-#     vcu_output.torque = data.torque
-
-# # ros subscription for reward (energy consumption: voltage, current value)
-# def get_reward(data):
-#     # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
-#     vcu_reward.header = data.header
-#     vcu_reward.current = data.current
-#     vcu_reward.voltage = data.voltage
-
-# electric power is P = U I, work is \int_0^t P dt
-
-
-# ros subscription for reward (energy consumption: voltage, current value)
-def get_hmi(data):
+# get hmi status from udp message
+def get_hmi_status():
     global wait_for_reset, episode_done
-    # rospy.loginfo(rospy.get_caller_id() + "vcu.rc:%d,vcu.torque:%f", data.rc, data.tqu)
-    hmi_input = HMI_Input()
-    hmi_input.header = data.header
-    hmi_input.reset = data.reset
-    hmi_input.done = data.done
-    with hmi_lock:
-        wait_for_reset = hmi_input.reset
-        episode_done = hmi_input.done
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(get_hmi_status.myHost, get_hmi_status.myPort)
+    s.listen(5)
+
+    while True:
+        connection, address = s.accept()
+        time.sleep(0.1)
+        print('Server connected by', address)
+        while True:
+            data = connection.recv(1024)
+            while not data:
+                time.sleep(0.1)
+                break
+            else:
+                status = data['status']
+                with hmi_lock:
+                    if status=='begin':
+                        wait_for_reset = False
+                        episode_done = False
+                    elif status=='end':
+                        wait_for_reset = True
+                        episode_done = True
+                    time.sleep(0.1)
+            connection.close()
+    s.close()
 
 
-# ros subscription callback
-def get_motionpower(data):
-    # get velocity, acceleration and pedal opening from CAN/UDP/ROS,
-    # counting to N periods and return a list as observation for agent
-    vcu_input = VCU_Input()
+get_hmi_status.myHost = "localhost"
+get_hmi_status.myPort = "1234"
 
-    vcu_input.header = data.header
-    vcu_input.velocity = data.velocity
-    vcu_input.acceleration = data.acceleration
-    vcu_input.pedal = data.pedal
-    vcu_input.current = data.current
-    vcu_input.voltage = data.voltage
-    motion_power = [
-        vcu_input.velocity,
-        vcu_input.acceleration,
-        vcu_input.pedal,
-        vcu_input.current,
-        vcu_input.voltage,
-    ]
+def get_truck_status():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(get_truck_status.myHost, get_truck_status.myPort)
+    s.listen(5)
 
-    with hmi_lock:
-        if not wait_for_reset:
-            get_motionpower.motionpower_states.append(
-                motion_power
-            )  # obs_reward [speed, acc, pedal, current, voltage]
-            if len(get_motionpower.motionpower_states) >= 20:
-                motionpowerQueue.put(get_motionpower.motionpower_states)
-                get_motionpower.motionpower_states = []
+    while True:
+        connection, address = s.accept()
+        print('Server connected by', address)
+        while True:
+            data = connection.recv(1024)
+            while not data:
+                time.sleep(0.1)
+                break
+            else:
+                timestamp = data['timestamp']
+                velocity = data['velocity']
+                # acceleration in invalid for l045a
+                acceleration = data['acceleration']
+                pedal = data['pedal']
+                current = data['A']
+                voltage = data['V']
+                power = data['W']
+                motion_power = [
+                    velocity,
+                    pedal,
+                    current,
+                    voltage
+                ]
+
+                with hmi_lock:
+                    if not wait_for_reset:
+                        get_truck_status.motionpower_states.append(
+                            motion_power
+                        )  # obs_reward [speed, acc, pedal, current, voltage]
+                        if len(get_truck_status.motionpower_states) >= 20:
+                            motionpowerQueue.put(get_truck_status.motionpower_states)
+                            get_truck_status.motionpower_states = []
+                continue
+            time.sleep(0.1)
+            connection.close()
+
+    s.close()
 
 
-# Create a static variable inside the function to avoid global variable clutter
-get_motionpower.motionpower_states = []
+get_truck_status.motionpower_states = []
+get_truck_status.myHost = "localhost"
+get_truck_status.myPort = "1234"
 
+# # ros subscription callback
+# def get_motionpower(data):
+#     # get velocity, acceleration and pedal opening from CAN/UDP/ROS,
+#     # counting to N periods and return a list as observation for agent
+#     vcu_input = VCU_Input()
+#
+#     vcu_input.header = data.header
+#     vcu_input.velocity = data.velocity
+#     vcu_input.acceleration = data.acceleration
+#     vcu_input.pedal = data.pedal
+#     vcu_input.current = data.current
+#     vcu_input.voltage = data.voltage
+#     motion_power = [
+#         vcu_input.velocity,
+#         vcu_input.acceleration,
+#         vcu_input.pedal,
+#         vcu_input.current,
+#         vcu_input.voltage,
+#     ]
+#
+#     with hmi_lock:
+#         if not wait_for_reset:
+#             get_motionpower.motionpower_states.append(
+#                 motion_power
+#             )  # obs_reward [speed, acc, pedal, current, voltage]
+#             if len(get_motionpower.motionpower_states) >= 20:
+#                 motionpowerQueue.put(get_motionpower.motionpower_states)
+#                 get_motionpower.motionpower_states = []
+#
+#
+# # Create a static variable inside the function to avoid global variable clutter
+# get_motionpower.motionpower_states = []
 
 # this is the inference for updating the calibration table
 def update_calib_table(motionpowerqueue):
@@ -298,13 +345,14 @@ def main():
     global vcu_step
     # ros msgs for vcu communication
     rospy.init_node("carla", anonymous=True)
-    rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
-    rospy.Subscriber("/newrizon/hmi", HMI_Input, get_hmi)
+    # rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
     # rospy.Subscriber("/newrizon/vcu_reward", VCU_Reward, get_reward)
 
     eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     # Start thread for flashing vcu, flash first
+    thread.start_new_thread(get_hmi_status(), ())
+    thread.start_new_thread(get_truck_status(), ())
     thread.start_new_thread(
         update_calib_table, (motionpowerQueue,)
     )  # should be done by main thread?
@@ -336,12 +384,8 @@ def main():
         with hmi_lock:
             done = episode_done
             if wait_for_reset:
-                # obs = env.get_init_state()
-                # obs = env.reset()
-                if np.fabs(obs[2] - 0.5) < eps:
-                    continue
-                else:
-                    wait_for_reset = False
+                time.sleep(0.1)
+                continue
 
         with tf.GradientTape() as tape:
             while not done:
@@ -356,7 +400,7 @@ def main():
                 motionpower_states = tf.convert_to_tensor(
                     states_rewards
                 )  # state must have 20 (speed, acceleration, throttle, current, voltage) 5 tuple
-                motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
+                motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
@@ -369,7 +413,7 @@ def main():
                 motion_states_history.append(motion_states)
                 motion_states = tf.expand_dims(
                     motion_states, 0
-                )  # motion states is 20*3 matrix
+                )  # motion states is 20*2 matrix
 
                 # predict action probabilities and estimated future rewards
                 # from environment state
