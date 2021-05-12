@@ -29,10 +29,10 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         )  # 0 - 72kmph velocity
         pdv, vlv = np.meshgrid(pd, vl, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
-    elif shortcut == 2: # import default eco calibration table
+    elif shortcut == 2:  # import default eco calibration table
         pd_data = pd.read_csv("../../data/init_table")
         # Create a matplotlib 3d figure, //export and save in log
-        pd_data.columns  = np.linspace(0, 1.0, num=17)
+        pd_data.columns = np.linspace(0, 1.0, num=17)
         pd_data.index = np.linspace(0, 30, num=21)
         v = pd_data.numpy()
     else:
@@ -40,20 +40,22 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         pdv, vlv = np.meshgrid(pd, vl, sparse=False)
         v = pdv
     return v
+
+
 # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 # # Plot the surface.
-    # surf = ax.plot_surface(pdv, vlv, v, cmap=cm.coolwarm,
-    #                        linewidth=0, antialiased=False)
-    # # Customize the z axis.
-    # ax.set_zlim(-0.01, 1.01)
-    # ax.zaxis.set_major_locator(LinearLocator(10))
-    # # A StrMethodFormatter is used automatically
-    # ax.zaxis.set_major_formatter('{x:.02f}')
-    #
-    # # Add a color bar which maps values to colors.
-    # fig.colorbar(surf, shrink=0.5, aspect=5)
-    # plt.show()
-    # return np.float32(v)
+# surf = ax.plot_surface(pdv, vlv, v, cmap=cm.coolwarm,
+#                        linewidth=0, antialiased=False)
+# # Customize the z axis.
+# ax.set_zlim(-0.01, 1.01)
+# ax.zaxis.set_major_locator(LinearLocator(10))
+# # A StrMethodFormatter is used automatically
+# ax.zaxis.set_major_formatter('{x:.02f}')
+#
+# # Add a color bar which maps values to colors.
+# fig.colorbar(surf, shrink=0.5, aspect=5)
+# plt.show()
+# return np.float32(v)
 
 
 def generate_lookup_table(  # pedal in x(col), velocity in y(row)

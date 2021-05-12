@@ -5,7 +5,6 @@ import numpy as np
 import json
 
 
-
 def send_table(table):
     if len(table) != 36:
         print("table length must be 36")
@@ -25,4 +24,3 @@ def send_table(table):
 def prepare_vcu_calibration_table(table):
     vcu_param_list = table.astpye("float32")
     return vcu_param_list
-

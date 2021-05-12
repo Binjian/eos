@@ -226,7 +226,7 @@ def get_truck_status():
             else:
                 pop_data = json.loads(candata)
                 for key, value in pop_data.items():
-                    if key == 'status':
+                    if key == "status":
                         with hmi_lock:
                             if value == "begin":
                                 wait_for_reset = False
@@ -235,7 +235,7 @@ def get_truck_status():
                                 wait_for_reset = True
                                 episode_done = True
                                 time.sleep(0.1)
-                    elif key == 'data':
+                    elif key == "data":
                         timestamp = value["timestamp"]
                         velocity = value["velocity"]
                         # acceleration in invalid for l045a
@@ -251,7 +251,9 @@ def get_truck_status():
                                     motion_power
                                 )  # obs_reward [speed, acc, pedal, current, voltage]
                                 if len(get_truck_status.motionpower_states) >= 20:
-                                    motionpowerQueue.put(get_truck_status.motionpower_states)
+                                    motionpowerQueue.put(
+                                        get_truck_status.motionpower_states
+                                    )
                                     get_truck_status.motionpower_states = []
                     else:
                         continue
