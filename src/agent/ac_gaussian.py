@@ -57,7 +57,7 @@ def constructactorcriticnetwork(
 ):
     inputs = layers.Input(
         shape=(sequence_len, num_observations)  # DONE should be flattened
-    )  # input dimension, 3 rows, 20 columns.
+    )  # input dimension, 2 rows, 20 columns. (speed, pedal)
     # add flatten layer
     flatinputs = layers.Flatten()(inputs)
     hidden = layers.Dense(
