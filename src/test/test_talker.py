@@ -2,7 +2,7 @@
 
 import rospy
 from std_msgs.msg import String
-from vbu.msg import *
+from vcu.msg import *
 from random import random
 
 

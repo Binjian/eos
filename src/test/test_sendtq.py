@@ -2,7 +2,7 @@
 
 import rospy
 import std_msgs.msg
-from vbu.msg import *
+from vcu.msg import *
 from random import random
 
 # vcu_output = VCU_Output()
