@@ -47,10 +47,12 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import tensorflow_probability as tfp
+
 tfd = tfp.distributions
 
 import socket
 import json
+
 # communcation import
 import rospy
 import std_msgs.msg
@@ -173,76 +175,87 @@ if manager.latest_checkpoint:
 else:
     print("Initializing from scratch")
 
-# get hmi status from udp message
-def get_hmi_status():
-    global wait_for_reset, episode_done
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.bind(get_hmi_status.myHost, get_hmi_status.myPort)
-    s.listen(5)
+# # get hmi status from udp message
+# def get_hmi_status():
+#     global wait_for_reset, episode_done
+#     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#     s.bind(get_hmi_status.myHost, get_hmi_status.myPort)
+#     s.listen(5)
+#
+#     while True:
+#         connection, address = s.accept()
+#         time.sleep(0.1)
+#         print("Server connected by", address)
+#         while True:
+#             data = connection.recv(1024)
+#             while not data:
+#                 time.sleep(0.1)
+#                 break
+#             else:
+#                 status = data["status"]
+#                 with hmi_lock:
+#                     if status == "begin":
+#                         wait_for_reset = False
+#                         episode_done = False
+#                     elif status == "end":
+#                         wait_for_reset = True
+#                         episode_done = True
+#                     time.sleep(0.1)
+#             connection.close()
+#     s.close()
+#
+#
+# get_hmi_status.myHost = "127.0.0.1"
+# get_hmi_status.myPort = "8002"
 
-    while True:
-        connection, address = s.accept()
-        time.sleep(0.1)
-        print('Server connected by', address)
-        while True:
-            data = connection.recv(1024)
-            while not data:
-                time.sleep(0.1)
-                break
-            else:
-                status = data['status']
-                with hmi_lock:
-                    if status=='begin':
-                        wait_for_reset = False
-                        episode_done = False
-                    elif status=='end':
-                        wait_for_reset = True
-                        episode_done = True
-                    time.sleep(0.1)
-            connection.close()
-    s.close()
-
-
-get_hmi_status.myHost = "localhost"
-get_hmi_status.myPort = "1234"
 
 def get_truck_status():
+    global episode_done, wait_for_reset
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind(get_truck_status.myHost, get_truck_status.myPort)
     s.listen(5)
 
     while True:
         connection, address = s.accept()
-        print('Server connected by', address)
+        print("Server connected by", address)
         while True:
-            data = connection.recv(1024)
-            while not data:
+            candata = connection.recv(1024)
+            while not candata:
                 time.sleep(0.1)
                 break
             else:
-                timestamp = data['timestamp']
-                velocity = data['velocity']
-                # acceleration in invalid for l045a
-                acceleration = data['acceleration']
-                pedal = data['pedal']
-                current = data['A']
-                voltage = data['V']
-                power = data['W']
-                motion_power = [
-                    velocity,
-                    pedal,
-                    current,
-                    voltage
-                ]
+                pop_data = json.loads(candata)
+                for key, value in pop_data.items():
+                    if key == 'status':
+                        with hmi_lock:
+                            if value == "begin":
+                                wait_for_reset = False
+                                episode_done = False
+                            elif value == "end":
+                                wait_for_reset = True
+                                episode_done = True
+                                time.sleep(0.1)
+                    elif key == 'data':
+                        timestamp = value["timestamp"]
+                        velocity = value["velocity"]
+                        # acceleration in invalid for l045a
+                        acceleration = value["acceleration"]
+                        pedal = value["pedal"]
+                        current = value["A"]
+                        voltage = value["V"]
+                        power = value["W"]
+                        motion_power = [velocity, pedal, current, voltage]
+                        with hmi_lock:
+                            if not wait_for_reset:
+                                get_truck_status.motionpower_states.append(
+                                    motion_power
+                                )  # obs_reward [speed, acc, pedal, current, voltage]
+                                if len(get_truck_status.motionpower_states) >= 20:
+                                    motionpowerQueue.put(get_truck_status.motionpower_states)
+                                    get_truck_status.motionpower_states = []
+                    else:
+                        continue
 
-                with hmi_lock:
-                    if not wait_for_reset:
-                        get_truck_status.motionpower_states.append(
-                            motion_power
-                        )  # obs_reward [speed, acc, pedal, current, voltage]
-                        if len(get_truck_status.motionpower_states) >= 20:
-                            motionpowerQueue.put(get_truck_status.motionpower_states)
-                            get_truck_status.motionpower_states = []
                 continue
             time.sleep(0.1)
             connection.close()
@@ -251,8 +264,8 @@ def get_truck_status():
 
 
 get_truck_status.motionpower_states = []
-get_truck_status.myHost = "localhost"
-get_truck_status.myPort = "1234"
+get_truck_status.myHost = "127.0.0.1"
+get_truck_status.myPort = "8002"
 
 # # ros subscription callback
 # def get_motionpower(data):
@@ -351,7 +364,7 @@ def main():
     eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     # Start thread for flashing vcu, flash first
-    thread.start_new_thread(get_hmi_status(), ())
+    # thread.start_new_thread(get_hmi_status(), ())
     thread.start_new_thread(get_truck_status(), ())
     thread.start_new_thread(
         update_calib_table, (motionpowerQueue,)
