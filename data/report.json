@@ -1,0 +1,11 @@
+{
+    "data":{
+        "timestamp":0,
+        "velocity":0,
+        "acceleration":0,
+        "pedal":0,
+        "V":0,
+        "A":0,
+        "W":0
+    }
+}

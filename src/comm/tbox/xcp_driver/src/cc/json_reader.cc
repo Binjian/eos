@@ -40,7 +40,7 @@ void JsonReader::Init() {
 
 void JsonReader::ParseJson(const pt::ptree& root) {
   Init();
-  cout << "start reading json" << endl;
+  // cout << "start reading json" << endl;
   // Load the json file in this ptree
   pt::ptree config = root.get_child("config");
   pt::ptree data = root.get_child("data");
@@ -70,7 +70,7 @@ void JsonReader::ParseJson(const pt::ptree& root) {
     vec_data_->push_back(data);
   }
 
-  cout << "end reading json" << endl;
+  // cout << "end reading json" << endl;
 }
 
 void JsonReader::LoadJsonFromBuffer(const std::string& json) {
@@ -94,7 +94,7 @@ void JsonReader::SaveJson(std::string path) {
     for (int i = 0; i < vec_data_->size(); ++i) {
       if (name == vec_data_->at(i).name) {
         std::string value_str = VectorUInt8ToString(vec_data_->at(i).data);
-        std::cout << "value_str length == " << value_str.size() << std::endl;
+        // std::cout << "value_str length == " << value_str.size() << std::endl;
         it->second.put("value", value_str);
       } else {
       }

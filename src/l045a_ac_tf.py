@@ -45,7 +45,6 @@ import datetime
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
@@ -145,6 +144,33 @@ vcu_calib_table0 = generate_vcu_calibration(
     vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
 )
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
+vcu_table = vcu_calib_table.reshape(-1).tolist()
+send_float_array("TQD_trqTrqSetECO_MAP_v", vcu_table)
+
+# # Create a matplotlib 3d figure, //export and save in log
+# pd_data = pd.DataFrame(
+#     vcu_calib_table,
+#     columns=np.linspace(0, 1.0, num=17),
+#     index=np.linspace(0, 30, num=21),
+# )
+# df = pd_data.unstack().reset_index()
+# df.columns = ["pedal", "velocity", "throttle"]
+#
+# fig = plt.figure()
+# ax = fig.gca(projection="3d")
+# surf = ax.plot_trisurf(
+#     df["pedal"],
+#     df["velocity"],
+#     df["throttle"],
+#     cmap=plt.cm.viridis,
+#     linewidth=0.2,
+# )
+# fig.colorbar(surf, shrink=0.5, aspect=5)
+# ax.view_init(30, 135)
+# plt.show()
+# time.sleep(10)
+# plt.close()
+
 # vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
 # create actor-critic network
 num_observations = 2  # observed are the current speed and throttle; !! acceleration not available in l045a
@@ -212,62 +238,76 @@ else:
 def get_truck_status():
     global episode_done, wait_for_reset
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.bind(get_truck_status.myHost, get_truck_status.myPort)
-    s.listen(5)
+    socket.socket.settimeout(s, None)
+    s.bind((get_truck_status.myHost, get_truck_status.myPort))
+    # s.listen(5)
+    # datetime.datetime.now().strftime("%Y%b%d-%H%M%S")
+    # start_moment = time.time()
 
     while True:
-        connection, address = s.accept()
-        print("Server connected by", address)
+        # connection, address = s.accept()
+        # print("Server connected by", address)
+        # socket.socket.setblocking(s, True)
         while True:
-            candata = connection.recv(1024)
-            while not candata:
-                time.sleep(0.1)
-                break
-            else:
-                pop_data = json.loads(candata)
-                for key, value in pop_data.items():
-                    if key == "status":
-                        with hmi_lock:
-                            if value == "begin":
-                                wait_for_reset = False
-                                episode_done = False
-                            elif value == "end":
-                                wait_for_reset = True
-                                episode_done = True
-                                time.sleep(0.1)
-                    elif key == "data":
-                        timestamp = value["timestamp"]
-                        velocity = value["velocity"]
-                        # acceleration in invalid for l045a
-                        acceleration = value["acceleration"]
-                        pedal = value["pedal"]
-                        current = value["A"]
-                        voltage = value["V"]
-                        power = value["W"]
-                        motion_power = [velocity, pedal, current, voltage]
-                        with hmi_lock:
-                            if not wait_for_reset:
-                                get_truck_status.motionpower_states.append(
-                                    motion_power
-                                )  # obs_reward [speed, acc, pedal, current, voltage]
-                                if len(get_truck_status.motionpower_states) >= 20:
-                                    motionpowerQueue.put(
-                                        get_truck_status.motionpower_states
-                                    )
-                                    get_truck_status.motionpower_states = []
-                    else:
-                        continue
+            candata, addr = s.recvfrom(2048)
+            pop_data = json.loads(candata)
+            for key, value in pop_data.items():
+                if key == "status":
+                    # print(candata)
+                    with hmi_lock:
+                        if value == "begin":
+                            get_truck_status.start = True
+                            wait_for_reset = False
+                            episode_done = False
+                        elif value == "end":
+                            get_truck_status.start = False
+                            wait_for_reset = True
+                            episode_done = True
+                            # time.sleep(0.1)
+                elif key == "data":
+                    timestamp = float(value["timestamp"])
+                    velocity = float(value["velocity"])
+                    # acceleration in invalid for l045a
+                    acceleration = float(value["acceleration"])
+                    pedal = float(value["pedal"])
+                    current = float(value["A"])
+                    voltage = float(value["V"])
+                    power = float(value["W"])
+                    motion_power = [velocity, pedal, current, voltage]
+                    step_moment = time.time()
+                    # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
+                    send_moment = float(timestamp) / 1e06 - 28800
+                    # send_dt_object = datetime.datetime.fromtimestamp(send_moment)
+
+                    # print(step_moment-send_moment)
+
+                    # print(step_moment, step_dt_object)
+                    # print(send_moment, send_dt_object)
+                    # print(step_moment-send_moment)
+                    # start_moment = step_moment
+                    # time.sleep(0.1)
+                    # print("timestamp:{},velocity:{},acceleration:{},pedal:{},current:{},voltage:{},power:{}".format(timestamp,velocity,acceleration,pedal,current,voltage,power))
+
+                    if get_truck_status.start:
+                        get_truck_status.motionpower_states.append(
+                            motion_power
+                        )  # obs_reward [speed, acc, pedal, current, voltage]
+                        if len(get_truck_status.motionpower_states) >= 20:
+                            motionpowerQueue.put(get_truck_status.motionpower_states)
+                            get_truck_status.motionpower_states = []
+                else:
+                    continue
 
                 continue
-            time.sleep(0.1)
-            connection.close()
+            # time.sleep(0.1)
 
     s.close()
 
 
 get_truck_status.motionpower_states = []
 get_truck_status.myHost = "127.0.0.1"
-get_truck_status.myPort = "8002"
+get_truck_status.myPort = 8002
+get_truck_status.start = False
 
 # # ros subscription callback
 # def get_motionpower(data):
@@ -312,9 +352,11 @@ def update_calib_table(motionpowerqueue):
         try:
             states_rewards = motionpowerqueue.get()  # default block = Truereward
         except queue.Empty:
+            with vcu_step_lock:
+                vcu_step = False
             pass
         else:
-            print("run the A2C agent to update the vcu calib table!")
+            # print("run the A2C agent to update the vcu calib table!")
             with vcu_step_lock:
                 vcu_step = True
 
@@ -329,27 +371,27 @@ def flash_vcu(tablequeue):
         except queue.Empty:
             pass
         else:
-            print("flash vcu calib table!")
-            # send_float_array('TQD_trqTrqSetECO_MAP_v', table)
+            # print("flash vcu calib table!")
+            send_float_array("TQD_trqTrqSetECO_MAP_v", table)
 
 
-# this is the figure consumer for visualization
-def show_calib_table(figqueue):
-    global episode_done, episode_count
-
-    while True:
-        time.sleep(0.1)
-        try:
-            figure = figqueue.get()  # default block = True
-        except queue.Empty:
-            pass
-        else:
-            plt.show()
-            time.sleep(1)
-            plt.close(figure)
-            # print("show the calib table!")
-            # send_float_array('TQD_trqTrqSetECO_MAP_v', table)
-
+# # this is the figure consumer for visualization
+# def show_calib_table(figqueue):
+#     global episode_done, episode_count
+#
+#     while True:
+#         time.sleep(0.1)
+#         try:
+#             figure = figqueue.get()  # default block = True
+#         except queue.Empty:
+#             pass
+#         else:
+#             plt.show(figure)
+#             time.sleep(1)
+#             plt.close(figure)
+#             # print("show the calib table!")
+#             # send_float_array('TQD_trqTrqSetECO_MAP_v', table)
+#
 
 # TODO add a thread for send_float_array
 # TODO add printing calibration table
@@ -359,20 +401,20 @@ def main():
     global states_rewards
     global vcu_step
     # ros msgs for vcu communication
-    rospy.init_node("carla", anonymous=True)
+    # rospy.init_node("carla", anonymous=True)
     # rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
     # rospy.Subscriber("/newrizon/vcu_reward", VCU_Reward, get_reward)
 
     eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     # Start thread for flashing vcu, flash first
-    # thread.start_new_thread(get_hmi_status(), ())
-    thread.start_new_thread(get_truck_status(), ())
+    # thread.start_new_thread(get_hmi_status, ())
+    thread.start_new_thread(get_truck_status, ())
     thread.start_new_thread(
         update_calib_table, (motionpowerQueue,)
     )  # should be done by main thread?
     thread.start_new_thread(flash_vcu, (tableQueue,))
-    thread.start_new_thread(show_calib_table, (figQueue,))
+    # thread.start_new_thread(show_calib_table, (figQueue,))
     # flash_mutex.acquire()
 
     # vcu_lookup_table = generate_lookup_table(
@@ -390,6 +432,7 @@ def main():
     vcu_rewards_history = []
     running_reward = 0
     episode_reward = 0
+    episode_wh = 0
     motion_states_history = []
 
     while True:  # run until solved
@@ -402,28 +445,36 @@ def main():
                 time.sleep(0.1)
                 continue
 
+        step = False
         with tf.GradientTape() as tape:
             while not done:
                 # TODO l045a define episode done (time, distance, defined end event)
                 # obs, r, done, info = env.step(action)
                 # episode_done = done
-                with vcu_step_lock:
-                    while not vcu_step:
-                        time.sleep(0.05)
-                    vcu_step = False
+                while not step:
+                    time.sleep(0.05)
+                    with vcu_step_lock:
+                        step = vcu_step
                 # reward history
                 motionpower_states = tf.convert_to_tensor(
                     states_rewards
                 )  # state must have 20 (speed, acceleration, throttle, current, voltage) 5 tuple
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
+                motion_magnitude = tf.reduce_sum(tf.math.abs(motion_states), 0)
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
                 vcu_reward = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
                 )  # vcu_reward is a scalar
+                wh = vcu_reward/3600.0 * 0.05  # negative wh
+                k_vcu_reward = 1000  # TODO determine the ratio
+                # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # add velocitoy sum as reward
+                vcu_reward = -1.0 * wh  # add velocitoy sum as reward
+                # TODO add speed sum as positive reward
                 vcu_rewards_history.append(vcu_reward)
                 episode_reward += vcu_reward
+                episode_wh += wh
 
                 motion_states_history.append(motion_states)
                 motion_states = tf.expand_dims(
@@ -448,45 +499,54 @@ def main():
                 vcu_calib_table = tf.reshape(
                     vcu_action, [vcu_calib_table_row, vcu_calib_table_col]
                 )
+                # get change budget : % of initial table
+                vcu_calib_table = tf.math.multiply(
+                    vcu_calib_table * vcu_calib_table_budget, vcu_calib_table0
+                )
+                # add changes to the default value
+                vcu_calib_table_min = 0.8 * vcu_calib_table0
+                vcu_calib_table_max = 1.0 * vcu_calib_table0
+
                 vcu_calib_table = tf.clip_by_value(
-                    vcu_calib_table * vcu_calib_table_budget
-                    + vcu_calib_table0,  # add changes to the default value
-                    clip_value_min=0.0,
-                    clip_value_max=1.0,
+                    vcu_calib_table + vcu_calib_table0,
+                    clip_value_min=vcu_calib_table_min,
+                    clip_value_max=vcu_calib_table_max,
                 )
 
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 tableQueue.put(vcu_act_list)
-                print(
-                    "update vcu calib table"
-                )  # env.step(action) action is flash the vcu calibration table
+                # print(
+                #     "update vcu calib table"
+                # )  # env.step(action) action is flash the vcu calibration table
 
-                # Create a matplotlib 3d figure, //export and save in log
-                pd_data = pd.DataFrame(
-                    vcu_calib_table.numpy(),
-                    columns=np.linspace(0, 1.0, num=17),
-                    index=np.linspace(0, 30, num=21),
-                )
-                df = pd_data.unstack().reset_index()
-                df.columns = ["pedal", "velocity", "throttle"]
-
-                fig = plt.figure()
-                ax = fig.gca(projection="3d")
-                surf = ax.plot_trisurf(
-                    df["pedal"],
-                    df["velocity"],
-                    df["throttle"],
-                    cmap=plt.cm.viridis,
-                    linewidth=0.2,
-                )
-                fig.colorbar(surf, shrink=0.5, aspect=5)
-                ax.view_init(30, 135)
                 with hmi_lock:
                     done = episode_done
-                if not done:
-                    # throw figure to the visualization thread
-                    figQueue.put(fig)
+                # if not done:
+                #     # throw figure to the visualization thread
+                #     figQueue.put(fig)
 
+            # Create a matplotlib 3d figure, //export and save in log
+            pd_data = pd.DataFrame(
+                vcu_calib_table.numpy(),
+                columns=np.linspace(0, 1.0, num=17),
+                index=np.linspace(0, 30, num=21),
+            )
+            df = pd_data.unstack().reset_index()
+            df.columns = ["pedal", "velocity", "throttle"]
+
+            fig = plt.figure()
+            ax = fig.gca(projection="3d")
+            surf = ax.plot_trisurf(
+                df["pedal"],
+                df["velocity"],
+                df["throttle"],
+                cmap=plt.cm.viridis,
+                linewidth=0.2,
+            )
+            fig.colorbar(surf, shrink=0.5, aspect=5)
+            ax.view_init(30, 135)
+            # plt.show()
+            # time.sleep(5)
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
@@ -521,16 +581,17 @@ def main():
             ckpt.step.assign_add(1)
 
         with train_summary_writer.as_default():
+            tf.summary.scalar("KWH", episode_wh, step=episode_count)
             tf.summary.scalar("loss_sum", loss_all, step=episode_count)
             tf.summary.scalar("loss_act", act_losses_all, step=episode_count)
             tf.summary.scalar("loss_entropy", entropy_losses_all, step=episode_count)
             tf.summary.scalar("loss_critic", critic_losses_all, step=episode_count)
-            tf.summary.scalar("episode reward", episode_reward, step=episode_count)
+            tf.summary.scalar("reward", episode_reward, step=episode_count)
             tf.summary.scalar("running reward", running_reward, step=episode_count)
-            tf.summary.image("Calibration Table", plot_to_image(fig), episode_count)
+            tf.summary.image("Calibration Table", plot_to_image(fig), step=episode_count)
         plt.close(fig)
 
-        output_template = "Episode {}, Loss all: {}, Act loss: {}, Entropy loss: {}, Critic loss: {}, Episode Reward: {}"
+        output_template = "Episode {}, Loss all: {}, Act loss: {}, Entropy loss: {}, Critic loss: {}, Episode Reward: {}, Wh: {}"
         print(
             output_template.format(
                 episode_count + 1,
@@ -539,6 +600,7 @@ def main():
                 entropy_losses_all,
                 critic_losses_all,
                 episode_reward,
+                episode_wh
             )
         )
         #
@@ -569,6 +631,7 @@ def main():
 
         episode_count += 1
         episode_reward = 0
+        episode_wh = 0
         if episode_count % 1 == 0:
             template = "running reward: {:.2f} at episode {}"
             print("========================")
@@ -578,6 +641,7 @@ def main():
         # if running_reward > 195:  # condition to consider the task solved
         #     print("solved at episode {}!".format(episode_count))
         #     break
+
     """
     ## visualizations
     in early stages of training:

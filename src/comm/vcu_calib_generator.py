@@ -21,23 +21,23 @@ import pandas as pd
 def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     npd, pedal_range, nvl, velocity_range, shortcut
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
-    pd = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
+    ped = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
 
     if shortcut == 1:
-        vl = np.linspace(
+        vel = np.linspace(
             velocity_range[0], velocity_range[1], num=nvl
         )  # 0 - 72kmph velocity
-        pdv, vlv = np.meshgrid(pd, vl, sparse=True)
+        pdv, vlv = np.meshgrid(ped, vel, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
-        pd_data = pd.read_csv("../../data/init_table")
+        pd_data = pd.read_csv("../data/init_table")
         # Create a matplotlib 3d figure, //export and save in log
         pd_data.columns = np.linspace(0, 1.0, num=17)
         pd_data.index = np.linspace(0, 30, num=21)
-        v = pd_data.numpy()
+        v = pd_data.to_numpy()
     else:
-        vl = np.ones(nvl)
-        pdv, vlv = np.meshgrid(pd, vl, sparse=False)
+        vel = np.ones(nvl)
+        pdv, vlv = np.meshgrid(ped, vel, sparse=False)
         v = pdv
     return v
 

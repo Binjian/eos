@@ -35,30 +35,30 @@ po::variables_map ParseArgs(int argc, char** argv) {
     po::notify(vm);
 
     if (vm.count("help")) {
-      cout << desc << "\n";
+      // cout << desc << "\n";
       exit(0);
     }
 
     if (vm.count("mode")) {
       string mode = vm["mode"].as<string>();
-      cout << "mode was set to " << mode << ".\n";
+      // cout << "mode was set to " << mode << ".\n";
       if (mode == "upload") {
         if (vm.count("output")) {
-          cout << "output json : " << vm["output"].as<string>() << ".\n";
+          // cout << "output json : " << vm["output"].as<string>() << ".\n";
         } else {
-          cout << "output json path was not set.\n";
+          // cout << "output json path was not set.\n";
           exit(0);
         }
       }
     } else {
-      cout << "mode was not set.\n";
+      // cout << "mode was not set.\n";
       exit(0);
     }
 
     if (vm.count("input")) {
-      cout << "input json : " << vm["input"].as<string>() << ".\n";
+      // cout << "input json : " << vm["input"].as<string>() << ".\n";
     } else {
-      cout << "input json path was not set.\n";
+      // cout << "input json path was not set.\n";
       exit(0);
     }
 
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
   newrizon::xcp::JsonReader json_reader;
   json_reader.LoadJsonFromPath(input_json_path);
-  PrintXcpData(json_reader.GetData());
+  // PrintXcpData(json_reader.GetData());
 
   newrizon::xcp::XcpInfo info = json_reader.GetXcpInfo();
   std::vector<uint32_t> bypass_ids;
@@ -94,12 +94,12 @@ int main(int argc, char** argv) {
   XCPMessageHandler* xcp_handler = XCPMessageHandler::GetInstance();
   xcp_handler->SetXcpInfo(json_reader.GetXcpInfo());
   if (mode == "download") {
-    std::cout << "download" << std::endl;
+    // std::cout << "download" << std::endl;
     xcp_handler->DownloadXcpData(*json_reader.GetData());
   } else if (mode == "upload") {
-    std::cout << "upload" << std::endl;
+    // std::cout << "upload" << std::endl;
     xcp_handler->UploadXcpData(json_reader.GetData());
-    std::cout << "save to json file : " << output_json_path << std::endl;
+    // std::cout << "save to json file : " << output_json_path << std::endl;
     json_reader.SaveJson(output_json_path);
   } else {
   }

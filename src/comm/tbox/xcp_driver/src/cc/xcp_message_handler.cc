@@ -45,9 +45,9 @@ int XCPMessageHandler::Connect() {
   do {
     can_driver_->ReadBlock(xcp_info_.channel, &id, msg, &dlc, &flag, &time);
     if (id == xcp_info_.upload_can_id && msg[0] == 0xFF) {
-      std::cout << "connecting : " << std::endl;
-      for (int i = 0; i < dlc; i++) printf("%02X ", msg[i]);
-      printf("\n");
+      // std::cout << "connecting : " << std::endl;
+      // for (int i = 0; i < dlc; i++) printf("%02X ", msg[i]);
+      // printf("\n");
       break;
     }
     // std::cout << "id : " << id << std::endl;
@@ -55,7 +55,7 @@ int XCPMessageHandler::Connect() {
     // std::cout << std::endl;
   } while (true);
   // if (msg[0] == 0xFF) {
-  std::cout << "connected" << std::endl;
+  // std::cout << "connected" << std::endl;
   // }
   // for (int i = 0; i < dlc; i++) printf("%02X \n", msg[i]);
   // printf("%02X \n", msg[1]);
@@ -72,10 +72,10 @@ XcpErrorCode XCPMessageHandler::Disconnect() {
                      out_dlc);
   XcpErrorCode err = WaitResponse("ff", 5000);
   if (err == XCP_SUCESS) {
-    std::cout << "disconnected" << std::endl;
+    // std::cout << "disconnected" << std::endl;
     return XCP_SUCESS;
   } else {
-    std::cout << "disconnected fail" << std::endl;
+    // std::cout << "disconnected fail" << std::endl;
     return XCP_ERROR;
   }
 }
@@ -85,42 +85,42 @@ int XCPMessageHandler::Download(const std::vector<uint8_t>& address,
   SetMta(address);
   XcpErrorCode err = WaitResponse("ff", 5000);
   if (err == XCP_SUCESS) {
-    std::cout << "SET_MTA Sucess" << std::endl;
+    // std::cout << "SET_MTA Sucess" << std::endl;
   } else {
-    std::cout << "SET_MTA Fail" << std::endl;
+    // std::cout << "SET_MTA Fail" << std::endl;
   }
   uint32_t total_length = download_message.size();
   int block_size = newrizon::config::xcp_max_download_block_size;
   int loop_time = total_length / block_size;
   int last_message_length = total_length % block_size;
-  std::cout << "total_length : " << total_length << std::endl;
-  std::cout << "last_message_length : " << last_message_length << std::endl;
+  // std::cout << "total_length : " << total_length << std::endl;
+  // std::cout << "last_message_length : " << last_message_length << std::endl;
 
   // boost::this_thread::sleep_for(
   //     boost::chrono::mircoseconds(newrizon::config::xcp_min_st));
   // std::vector<uint8_t> test_block;
   // std::vector<uint8_t> block(v1.begin() + 1, v1.end());
   for (int i = 0; i < loop_time; ++i) {
-    std::cout << "loop : " <<  i << std::endl;
-    std::cout << "start : " << block_size * i << std::endl;
-    std::cout << "end : " << block_size * (i + 1) << std::endl;
+    // std::cout << "loop : " <<  i << std::endl;
+    // std::cout << "start : " << block_size * i << std::endl;
+    // std::cout << "end : " << block_size * (i + 1) << std::endl;
     std::vector<uint8_t> block(download_message.begin() + block_size * i,
                                download_message.begin() + block_size * (i + 1));
 
-    std::cout << "block size : " << block.size() << std::endl;
+    // std::cout << "block size : " << block.size() << std::endl;
     // test_block.insert(test_block.end(), block.begin(), block.end());
     DownloadDataBlock(block);
   }
   // last message
   if (block_size * loop_time != total_length) {
-    std::cout << "last message : " << std::endl;
-    std::cout << "start : " << block_size * loop_time << std::endl;
-    std::cout << "end : " << block_size * loop_time + last_message_length
-              << std::endl;
+    // std::cout << "last message : " << std::endl;
+    // std::cout << "start : " << block_size * loop_time << std::endl;
+    // std::cout << "end : " << block_size * loop_time + last_message_length
+    //           << std::endl;
     std::vector<uint8_t> block(
         download_message.begin() + block_size * loop_time,
         download_message.begin() + total_length);
-    std::cout << "block size : " << block.size() << std::endl;
+    // std::cout << "block size : " << block.size() << std::endl;
     DownloadDataBlock(block);
   }
   // if (IsSame(test_block, download_message)) {
@@ -200,7 +200,7 @@ int XCPMessageHandler::DownloadDataBlock(
   do {
     can_driver_->ReadBlock(xcp_info_.channel, &id, msg, &dlc, &flag, &time);
   } while (id != xcp_info_.upload_can_id || msg[0] != 0xFF);
-  std::cout << "Write Sucess" << std::endl;
+  // std::cout << "Write Sucess" << std::endl;
 
   XcpErrorCode ret = XCP_SUCESS;
   return ret;
@@ -210,10 +210,10 @@ std::vector<uint8_t> XCPMessageHandler::Upload(
     const std::vector<uint8_t>& address, const uint32_t& message_length) {
   std::vector<uint8_t> ret;
   if (message_length <= 7) {
-    std::cout << "short uplaod" << std::endl;
+    // std::cout << "short uplaod" << std::endl;
     ret = ShortUpload(address, message_length);
   } else if (message_length > 7) {
-    std::cout << "long uplaod" << std::endl;
+    // std::cout << "long uplaod" << std::endl;
     ret = LongUpload(address, message_length);
   }
   return ret;
@@ -231,14 +231,14 @@ std::vector<uint8_t> XCPMessageHandler::LongUpload(
 
   std::vector<uint8_t> ret;
 
-  std::cout << "SET_MTA start" << std::endl;
+  // std::cout << "SET_MTA start" << std::endl;
   SetMta(address);
 
   XcpErrorCode err = WaitResponse("ff", 5000);
   if (err == XCP_SUCESS) {
-    std::cout << "SET_MTA Sucess" << std::endl;
+    // std::cout << "SET_MTA Sucess" << std::endl;
   } else {
-    std::cout << "SET_MTA Fail" << std::endl;
+    // std::cout << "SET_MTA Fail" << std::endl;
     return ret;
   }
 

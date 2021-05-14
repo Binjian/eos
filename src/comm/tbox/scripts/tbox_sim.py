@@ -73,9 +73,9 @@ def write_json(output_json_path, example_json_path, data):
                 for d in dim:
                     length = length * int(d)
                 if len(value) != length * value_length * 2:
-                    print(len(value))
-                    print(length * value_length * 2)
-                    print("value length does not match")
+                    # print(len(value))
+                    # print(length * value_length * 2)
+                    # print("value length does not match")
                     return
                 json_obj["data"][i]["value"] = value
     # 3 write output json
@@ -90,7 +90,7 @@ def send_float_array(name, float_array):
     data = [{"name": name, "value": value_str}]
     write_json(g_output_json_path, g_input_json_path, data)
     xcp_download = subprocess.run([g_download_script])
-    print("The exit code was: %d" % xcp_download.returncode)
+    #print("The exit code was: %d" % xcp_download.returncode)
 
 
 # if __name__ == '__main__':
