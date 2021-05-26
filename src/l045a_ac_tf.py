@@ -41,11 +41,16 @@ as energy consumption
 
 # drl import
 import datetime
+from birdseye import eye
 
-# import gym
-# import gym_carla
 import numpy as np
+import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
+
+from tensorflow.python.client import device_lib
+print(device_lib.list_local_devices())
+
 from tensorflow import keras
 import tensorflow_probability as tfp
 
@@ -141,7 +146,8 @@ vcu_calib_table0 = generate_vcu_calibration(
 )
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table = vcu_calib_table.reshape(-1).tolist()
-send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table)
+# send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table)
+print("flash initial table")
 # TQD_trqTrqSetECO_MAP_v
 
 # # Create a matplotlib 3d figure, //export and save in log
@@ -194,7 +200,7 @@ ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_n
 manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
 ckpt.restore(manager.latest_checkpoint)
 if manager.latest_checkpoint:
-    print("Restored from {}".format(manager.latest_checkpoint))
+    print(f"Restored from {manager.latest_checkpoint}")
 else:
     print("Initializing from scratch")
 
@@ -231,7 +237,7 @@ else:
 # get_hmi_status.myHost = "127.0.0.1"
 # get_hmi_status.myPort = "8002"
 
-
+# @eye
 def get_truck_status():
     global episode_done, wait_for_reset, motionpowerQueue
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -289,9 +295,10 @@ def get_truck_status():
                             motion_power
                         )  # obs_reward [speed, acc, pedal, current, voltage]
                         if len(get_truck_status.motionpower_states) >= 20:
-                            # print("motion_power num: {}".format(len(get_truck_status.motionpower_states)))
+                            # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
                             motionpowerQueue.put(get_truck_status.motionpower_states)
-                            # print("Producer mopo queue num: {}".format(motionpowerQueue.qsize()))
+                            print(f"Producer creates {motionpowerQueue.qsize()}")
+                            # print(f"Producer mopo queue num: {motionpowerQueue.qsize()}")
                             get_truck_status.motionpower_states = []
                 else:
                     continue
@@ -307,40 +314,9 @@ get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
 
-# # ros subscription callback
-# def get_motionpower(data):
-#     # get velocity, acceleration and pedal opening from CAN/UDP/ROS,
-#     # counting to N periods and return a list as observation for agent
-#     vcu_input = VCU_Input()
-#
-#     vcu_input.header = data.header
-#     vcu_input.velocity = data.velocity
-#     vcu_input.acceleration = data.acceleration
-#     vcu_input.pedal = data.pedal
-#     vcu_input.current = data.current
-#     vcu_input.voltage = data.voltage
-#     motion_power = [
-#         vcu_input.velocity,
-#         vcu_input.acceleration,
-#         vcu_input.pedal,
-#         vcu_input.current,
-#         vcu_input.voltage,
-#     ]
-#
-#     with hmi_lock:
-#         if not wait_for_reset:
-#             get_motionpower.motionpower_states.append(
-#                 motion_power
-#             )  # obs_reward [speed, acc, pedal, current, voltage]
-#             if len(get_motionpower.motionpower_states) >= 20:
-#                 motionpowerQueue.put(get_motionpower.motionpower_states)
-#                 get_motionpower.motionpower_states = []
-#
-#
-# # Create a static variable inside the function to avoid global variable clutter
-# get_motionpower.motionpower_states = []
 
 # this is the inference for updating the calibration table
+# @eye
 def update_calib_table(motionpowerqueue):
 
     global vcu_step
@@ -349,7 +325,7 @@ def update_calib_table(motionpowerqueue):
         time.sleep(0.1)
         try:
              motionpower = motionpowerqueue.get()  # default block = Truereward
-             # print("Consumer mopo queue num: {}".format(motionpowerqueue.qsize()))
+             # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
         except queue.Empty:
             with vcu_step_lock:
                 vcu_step = False
@@ -360,11 +336,12 @@ def update_calib_table(motionpowerqueue):
             with vcu_step_lock:
                 vcu_step = True
                 states_rewards = motionpower
+                print(f"Producer remains {motionpowerqueue.qsize()}")
                 # print("Consumer states reward size {}".format(len(states_rewards)))
-
 
 # flash_mutex.acquire()
 # this is the calibration table consumer for flashing
+# @eye
 def flash_vcu(tablequeue):
     flash_count = 0
     while True:
@@ -384,8 +361,8 @@ def flash_vcu(tablequeue):
             #     table = np.ones(17*21).tolist()
 
             # tf.print('calib table:', table, output_stream=output_path)
-            send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
-            # print("flash count:{}".format(flash_count))
+            # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
+            print(f"flash count:{flash_count}")
             flash_count += 1
 
 
@@ -410,6 +387,7 @@ def flash_vcu(tablequeue):
 # TODO add a thread for send_float_array
 # TODO add printing calibration table
 # TODO add initialize table to EP input
+# @eye
 def main():
     global episode_done, episode_count, wait_for_reset
     global states_rewards
@@ -471,6 +449,7 @@ def main():
                     with vcu_step_lock:
                         step = vcu_step
                         motionpower = states_rewards
+                        print(f"Consumer Step Count {step_count}")  # env.step(action) action is flash the vcu calibration table
                 # reward history
                 step = False
                 motionpower_states = tf.convert_to_tensor(
@@ -533,11 +512,9 @@ def main():
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                 tableQueue.put(vcu_act_list)
-                # print("Consumer tablequeue size: {}".format(tableQueue.qsize()))
-                # print(
-                #     "Step Count {}".format(step_count)
-                # )  # env.step(action) action is flash the vcu calibration table
+                print(f"Consumer tableQueue size: {tableQueue.qsize()}")
                 step_count += 1
+
                 time.sleep(0.9)
 
                 with hmi_lock:
@@ -650,16 +627,15 @@ def main():
 
         # Checkpoint manager save model
         save_path = manager.save()
-        print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
-        print("loss {:1.2f}".format(loss_all.numpy()))
+        print(f"Saved checkpoint for step {int(ckpt.step)}: {save_path}")
+        print(f"loss {loss_all.numpy():.2f}".format(loss_all.numpy()))
 
         episode_count += 1
         episode_reward = 0
         episode_wh = 0
         if episode_count % 1 == 0:
-            template = "running reward: {:.2f} at episode {}"
             print("========================")
-            print(template.format(running_reward, episode_count))
+            print(f"running reward: {running_reward:.2f} at episode {episode_count}")
 
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
