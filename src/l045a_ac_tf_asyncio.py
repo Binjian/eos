@@ -68,7 +68,8 @@ logger.addHandler(ch)
 
 logger.setLevel(logging.DEBUG)
 # dictLogger = {'funcName': '__self__.__func__.__name__'}
-dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
+# dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
+dictLogger = {'user': inspect.currentframe().f_code.co_name}
 import os
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 logger.info(f'Start Logging', extra=dictLogger)
@@ -382,6 +383,8 @@ def update_calib_table(motionpowerqueue):
         with hmi_lock:
             if episode_done:
                 th_exit = True
+                with vcu_step_lock:
+                    vcu_step = True
                 # logger.info('update_calib_table stop!!!')
                 logger.info(f'Update_calib_table stop!!!', extra=dictLogger)
                 break
@@ -436,6 +439,7 @@ def flash_vcu(tablequeue):
             # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
             flash_count += 1
             # print(f"flash count:{flash_count}")
+            # time.sleep(1.0)
             logger.info(f"flash count:{flash_count}", extra=dictLogger)
             # watch(flash_count)
 
@@ -543,6 +547,9 @@ def main():
                         if done:
                             break
                         # print(f"Consumer Step Count {step_count}")  # env.step(action) action is flash the vcu calibration table
+                # fix bug for deadlock while update_calib_table thread exit prematurely
+                with hmi_lock:
+                    done = episode_done
                 if done:
                     break
                 logger.info(f"Action start step {step_count}", extra=dictLogger)  # env.step(action) action is flash the vcu calibration table
