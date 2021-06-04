@@ -42,7 +42,7 @@ as energy consumption
 # drl import
 import datetime
 from birdseye import eye
-from viztracer import VizTracer
+# from viztracer import VizTracer
 from watchpoints import watch
 
 
@@ -440,7 +440,6 @@ def flash_vcu(tablequeue):
     logger.info(f'flash_vcu dies!!!', extra=dictLogger)
 
 
-# tracer.stop()
 
 # # this is the figure consumer for visualization
 # def show_calib_table(figqueue):
@@ -477,12 +476,20 @@ def main():
 
     # Start thread for flashing vcu, flash first
     # thread.start_new_thread(get_hmi_status, ())
-    thread.start_new_thread(get_truck_status, ())
-    thread.start_new_thread(
-        update_calib_table, (motionpowerQueue,)
-    )  # should be done by main thread?
-    thread.start_new_thread(flash_vcu, (tableQueue,))
+    # thread.start_new_thread(get_truck_status, ())
+    thr_observe = Thread(target=get_truck_status, args=())
+    # thread.start_new_thread(
+    #     update_calib_table, (motionpowerQueue,)
+    # )  # should be done by main thread?
+    thr_update = Thread(target=update_calib_table, args=(motionpowerQueue,))
+    # thread.start_new_thread(flash_vcu, (tableQueue,))
+    thr_flash = Thread(target=flash_vcu, args=(tableQueue,))
     # threads = [th_observe, th_update, th_flash]
+    thr_observe.start()
+    thr_update.start()
+    thr_flash.start()
+
+
 
     # thread.start_new_thread(show_calib_table, (figQueue,))
     # flash_mutex.acquire()
@@ -738,13 +745,17 @@ def main():
         #     thread.join()
         #     print(f"{thread.getName()} exits!")
         logger.info(f'main dies!!!!', extra=dictLogger)
-        thread.exit()
+        # thread.exit()
         break
 
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
         #     print("solved at episode {}!".format(episode_count))
         #     break
+
+    thr_observe.join()
+    thr_update.join()
+    thr_flash.join()
 
     """
     ## visualizations
@@ -755,6 +766,8 @@ def main():
     ![imgur](https://i.imgur.com/5ziizud.gif)
     """
 
+# tracer.stop()
+# tracer.save()
 
 if __name__ == "__main__":
     main()
