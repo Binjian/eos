@@ -213,7 +213,7 @@ logger.info(f'flash initial table', extra=dictLogger)
 # vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
 # create actor-critic network
 num_observations = 2  # observed are the current speed and throttle; !! acceleration not available in l045a
-sequence_len = 20  # 20 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1 second
+sequence_len = 40  # 40 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 2 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
 num_hidden = 128
@@ -349,7 +349,7 @@ def get_truck_status():
                         motion_power
                     )  # obs_reward [speed, acc, pedal, current, voltage]
                     # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
-                    if len(get_truck_status.motionpower_states) >= 20:
+                    if len(get_truck_status.motionpower_states) >= sequence_len:
                         # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
                         motionpowerQueue.put(get_truck_status.motionpower_states)
                         # watch(motionpowerQueue.qsize())
