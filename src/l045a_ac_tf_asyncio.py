@@ -213,7 +213,7 @@ logger.info(f'flash initial table', extra=dictLogger)
 # vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
 # create actor-critic network
 num_observations = 2  # observed are the current speed and throttle; !! acceleration not available in l045a
-sequence_len = 40  # 40 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 2 second
+sequence_len = 30  # 40 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 2 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
 num_hidden = 128
@@ -542,7 +542,7 @@ def main():
                 # obs, r, done, info = env.step(action)
                 # episode_done = done
                 while not step:
-                    time.sleep(0.05)
+                    # time.sleep(0.05)
                     with vcu_step_lock:
                         step = vcu_step
                         motionpower = states_rewards
