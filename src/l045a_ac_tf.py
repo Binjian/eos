@@ -42,14 +42,45 @@ as energy consumption
 # drl import
 import datetime
 from birdseye import eye
+from viztracer import VizTracer
+from watchpoints import watch
+import logging
+import inspect
+# tracer = VizTracer()
+# logging.basicConfig(level=logging.DEBUG, format=fmt)
+logging.getLogger('matplotlib.font_manager').disabled = True
+
+# logging.basicConfig(format=fmt)
+logger = logging.getLogger('l045a')
+formatter = logging.Formatter('T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d)C(%(user)s): Msg-%(message)s')
+logfilename = '../data/l045a_ac_tf_asyncio-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
+fh = logging.FileHandler(logfilename)
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(formatter)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(formatter)
+logger.addHandler(fh)
+logger.addHandler(ch)
+
+logger.setLevel(logging.DEBUG)
+# dictLogger = {'funcName': '__self__.__func__.__name__'}
+# dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
+dictLogger = {'user': inspect.currentframe().f_code.co_name}
+import os
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+logger.info(f'Start Logging', extra=dictLogger)
+
+
+import os
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
-import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 
 from tensorflow.python.client import device_lib
-print(device_lib.list_local_devices())
+logger.info(f'tensorflow device lib:\n{device_lib.list_local_devices()}\n', extra=dictLogger)
 
 from tensorflow import keras
 import tensorflow_probability as tfp
@@ -61,7 +92,8 @@ import json
 
 # communication import
 from threading import Lock
-import _thread as thread, queue, time
+import _thread as thread
+import queue, time
 
 # visualization import
 import pandas as pd
@@ -147,7 +179,7 @@ vcu_calib_table0 = generate_vcu_calibration(
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table = vcu_calib_table.reshape(-1).tolist()
 # send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table)
-print("flash initial table")
+logger.info(f'flash initial table', extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 # # Create a matplotlib 3d figure, //export and save in log
@@ -200,9 +232,9 @@ ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_n
 manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
 ckpt.restore(manager.latest_checkpoint)
 if manager.latest_checkpoint:
-    print(f"Restored from {manager.latest_checkpoint}")
+    logger.info(f'Restored from {manager.latest_checkpoint}', extra=dictLogger)
 else:
-    print("Initializing from scratch")
+    logger.info(f'Initializing from scratch', extra=dictLogger)
 
 # # get hmi status from udp message
 # def get_hmi_status():
@@ -259,10 +291,12 @@ def get_truck_status():
                     # print(candata)
                     with hmi_lock:
                         if value == "begin":
+                            logger.info('%s', 'Capture will start!!!', extra=dictLogger)
                             get_truck_status.start = True
                             wait_for_reset = False
                             episode_done = False
                         elif value == "end":
+                            logger.info('%s', 'Capture will stop!!!', extra=dictLogger)
                             get_truck_status.start = False
                             wait_for_reset = True
                             episode_done = True
@@ -288,16 +322,20 @@ def get_truck_status():
                         # print(step_moment, step_dt_object)
                         # print(send_moment, send_dt_object)
                         # print(step_moment-send_moment)
+                        # logger.info(f'transmission delay: {step_moment-send_moment:6f}', extra=dictLogger)
+                        # logger.info(f'step interval:{step_moment-last_moment :6f}', extra=dictLogger)
                         # start_moment = step_moment
                         # time.sleep(0.1)
                         # print("timestamp:{},velocity:{},acceleration:{},pedal:{},current:{},voltage:{},power:{}".format(timestamp,velocity,acceleration,pedal,current,voltage,power))
                         get_truck_status.motionpower_states.append(
                             motion_power
                         )  # obs_reward [speed, acc, pedal, current, voltage]
+                        # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
                         if len(get_truck_status.motionpower_states) >= 20:
                             # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
                             motionpowerQueue.put(get_truck_status.motionpower_states)
-                            print(f"Producer creates {motionpowerQueue.qsize()}")
+                            # print(f"Producer creates {motionpowerQueue.qsize()}")
+                            logger.info(f"Producer creates {motionpowerQueue.qsize()}", extra=dictLogger)
                             # print(f"Producer mopo queue num: {motionpowerQueue.qsize()}")
                             get_truck_status.motionpower_states = []
                 else:
@@ -336,7 +374,8 @@ def update_calib_table(motionpowerqueue):
             with vcu_step_lock:
                 vcu_step = True
                 states_rewards = motionpower
-                print(f"Producer remains {motionpowerqueue.qsize()}")
+                # print(f"Producer remains {motionpowerqueue.qsize()}")
+                logger.info(f"Producer remains {motionpowerQueue.qsize()}", extra=dictLogger)
                 # print("Consumer states reward size {}".format(len(states_rewards)))
 
 # flash_mutex.acquire()
@@ -362,8 +401,9 @@ def flash_vcu(tablequeue):
 
             # tf.print('calib table:', table, output_stream=output_path)
             # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
-            print(f"flash count:{flash_count}")
             flash_count += 1
+            # print(f"flash count:{flash_count}")
+            logger.info(f"flash count:{flash_count}", extra=dictLogger)
 
 
 # # this is the figure consumer for visualization
@@ -449,7 +489,8 @@ def main():
                     with vcu_step_lock:
                         step = vcu_step
                         motionpower = states_rewards
-                        print(f"Consumer Step Count {step_count}")  # env.step(action) action is flash the vcu calibration table
+                        # print(f"Consumer Step Count {step_count}")  # env.step(action) action is flash the vcu calibration table
+                        logging.info(f"Action start step {step_count}", extra=dictLogger)  # env.step(action) action is flash the vcu calibration table
                 # reward history
                 step = False
                 motionpower_states = tf.convert_to_tensor(
@@ -512,7 +553,8 @@ def main():
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                 tableQueue.put(vcu_act_list)
-                print(f"Consumer tableQueue size: {tableQueue.qsize()}")
+                # print(f"Consumer tableQueue size: {tableQueue.qsize()}")
+                logging.info(f"Action Push table: {tableQueue.qsize()}", extra=dictLogger)
                 step_count += 1
 
                 time.sleep(0.9)
