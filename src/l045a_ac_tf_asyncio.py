@@ -97,6 +97,9 @@ from threading import Lock, Thread
 import _thread as thread
 import queue, time
 
+# asyncio module import
+import asyncio
+
 # visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -141,13 +144,13 @@ current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 train_log_dir = "logs/gradient_tape/" + current_time + "/train"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
-# tableQueue contains a table which is a list of type float
-tableQueue = queue.Queue()
-# figQueue is for visualization thread to show the calibration 3d figure
-figQueue = queue.Queue()
-# motionpowerQueue contains a vcu states list with N(20) subsequent motion states + reward as observation
-motionpowerQueue = queue.Queue()
-
+# # tableQueue contains a table which is a list of type float
+# tableQueue = queue.Queue()
+# # figQueue is for visualization thread to show the calibration 3d figure
+# figQueue = queue.Queue()
+# # motionpowerQueue contains a vcu states list with N(20) subsequent motion states + reward as observation
+# motionpowerQueue = queue.Queue()
+#
 episode_done = False
 episode_count = 0
 
@@ -279,9 +282,9 @@ else:
 # tracer.start()
 logger.info(f'Global Initialization done!', extra=dictLogger)
 
-def get_truck_status():
-    global episode_done, wait_for_reset, motionpowerQueue
-    logger.info(f'Start Initialization!', extra=dictLogger)
+async def get_truck_status(motionpowerQueue: asyncio.Queue) -> None:
+    global episode_done, wait_for_reset
+    logger.info(f'Enter observation!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # set port reusable for enabling nc to monitor udp
     socket.socket.settimeout(s, None)
@@ -291,7 +294,7 @@ def get_truck_status():
     start_moment = time.time()
     th_exit = False
     last_moment = time.time()
-    logger.info(f'Initialization Done!', extra=dictLogger)
+    logger.info(f'Observation initialization Done!', extra=dictLogger)
 
     while not th_exit:
         candata, addr = s.recvfrom(2048)
@@ -309,11 +312,18 @@ def get_truck_status():
                         logger.info('%s', 'Capture will start!!!', extra=dictLogger)
                         wait_for_reset = False
                         episode_done = False
-                    elif value == "end":
+                    elif value == "end_valid":
                         get_truck_status.start = False
                         logger.info('%s', 'Capture will stop!!!', extra=dictLogger)
                         wait_for_reset = True
                         episode_done = True
+                    elif value == "end_invalid":
+                        get_truck_status.start = False
+                        logger.info('%s', 'Capture will stop!!!', extra=dictLogger)
+                        wait_for_reset = True
+                        episode_done = True
+                    elif value == "exit":
+                        logger.info('%s', 'Capture will exit!!!', extra=dictLogger)
                         th_exit = True
                         break
                         # time.sleep(0.1)
@@ -326,11 +336,13 @@ def get_truck_status():
                     velocity = float(value["velocity"])
                     # acceleration in invalid for l045a
                     acceleration = float(value["acceleration"])
-                    pedal = float(value["pedal"])
+                    acc_pedal = float(value["pedal"])
+                    brake_pressure = float(value["brake_pressure"])
                     current = float(value["A"])
                     voltage = float(value["V"])
                     power = float(value["W"])
-                    motion_power = [velocity, pedal, current, voltage]
+                    motion_power = [velocity, acc_pedal, brake_pressure, current, voltage]
+                    # motion_power = [velocity, acc_pedal, current, voltage]
                     step_moment = time.time()
                     # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
                     send_moment = float(timestamp) / 1e06 - 28800
@@ -351,7 +363,8 @@ def get_truck_status():
                     # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
                     if len(get_truck_status.motionpower_states) >= sequence_len:
                         # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
-                        motionpowerQueue.put(get_truck_status.motionpower_states)
+                        await motionpowerQueue.put(get_truck_status.motionpower_states)
+                        await asyncio.sleep(0.1)
                         # watch(motionpowerQueue.qsize())
                         logger.info(f"Producer creates {motionpowerQueue.qsize()}", extra=dictLogger)
                         get_truck_status.motionpower_states = []
@@ -368,74 +381,35 @@ get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
 
-
-# this is the inference for updating the calibration table
-# @eye
-def update_calib_table(motionpowerqueue):
-
-    global vcu_step
-    global states_rewards
-    th_exit = False
-    while not th_exit:
-        # time.sleep(0.1)
-        with hmi_lock:
-            if episode_done:
-                th_exit = True
-                with vcu_step_lock:
-                    vcu_step = True
-                logger.info(f'Update_calib_table stop!!!', extra=dictLogger)
-                break
-        try:
-            motionpower = motionpowerqueue.get(block=False, timeout=0.05)  # default block = True
-             # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
-        except queue.Empty:
-            with vcu_step_lock:
-                vcu_step = False
-                states_rewards = []
-            pass
-        else:
-            # print("run the A2C agent to update the vcu calib table!")
-            with vcu_step_lock:
-                vcu_step = True
-                states_rewards = motionpower
-                # watch(motionpowerqueue.qsize())
-                logger.info(f"Producer remains {motionpowerqueue.qsize()}", extra=dictLogger)
-
-    logger.info(f'update_calib_table dies!!!', extra=dictLogger)
-
-
-# flash_mutex.acquire()
 # this is the calibration table consumer for flashing
-# @eye
-def flash_vcu(tablequeue):
+async def flash_vcu(tableQueue: asyncio.Queue) -> None:
     flash_count = 0
     th_exit = False
+    logger.info(f'Flash task entered!', extra=dictLogger)
     while not th_exit:
         # time.sleep(0.1)
         with hmi_lock:
             if episode_done:
                 th_exit = True
                 break
-        try:
-            # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-            table = tablequeue.get(block=False, timeout=1)  # default block = True
-            # print("2 tablequeue size: {}".format(tablequeue.qsize()))
-        except queue.Empty:
-            pass
-        else:
-            # print("flash vcu calib table!")
-            # output_path = "file://../data/Calib_table_{}.out".format(flash_count)
-            # if flash_count % 2 == 0:
-            #     table = np.zeros(17*21).tolist()
-            # else:
-            #     table = np.ones(17*21).tolist()
+            # print("1 tableQueue size: {}".format(tableQueue.qsize()))
+        table = await tableQueue.get()  # default block = True
+        tableQueue.task_done()
+        # print("2 tableQueue size: {}".format(tableQueue.qsize()))
+        # print("flash vcu calib table!")
+        # output_path = "file://../data/Calib_table_{}.out".format(flash_count)
+        # if flash_count % 2 == 0:
+        #     table = np.zeros(17*21).tolist()
+        # else:
+        #     table = np.ones(17*21).tolist()
 
-            # tf.print('calib table:', table, output_stream=output_path)
-            # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
-            flash_count += 1
-            time.sleep(1.0)
-            logger.info(f"flash count:{flash_count}", extra=dictLogger)
-            # watch(flash_count)
+        # tf.print('calib table:', table, output_stream=output_path)
+        # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
+        flash_count += 1
+        # time.sleep(1.0)
+        await asyncio.sleep(1.0)
+        logger.info(f"flash count:{flash_count}", extra=dictLogger)
+        # watch(flash_count)
 
     logger.info(f'flash_vcu dies!!!', extra=dictLogger)
 
@@ -459,55 +433,8 @@ def flash_vcu(tablequeue):
 #             # send_float_array('TQD_trqTrqSetECO_MAP_v', table)
 #
 
-# TODO add a thread for send_float_array
-# TODO add printing calibration table
-# TODO add initialize table to EP input
-# @eye
-def main():
-    global episode_done, episode_count, wait_for_reset
-    global states_rewards
-    global vcu_step
-    # ros msgs for vcu communication
-    # rospy.init_node("carla", anonymous=True)
-    # rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
-    # rospy.Subscriber("/newrizon/vcu_reward", VCU_Reward, get_reward)
 
-    eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
-
-    # Start thread for flashing vcu, flash first
-    # thread.start_new_thread(get_hmi_status, ())
-    # thread.start_new_thread(get_truck_status, ())
-    thr_observe = Thread(target=get_truck_status, args=())
-    # thread.start_new_thread(
-    #     update_calib_table, (motionpowerQueue,)
-    # )  # should be done by main thread?
-    thr_update = Thread(target=update_calib_table, args=(motionpowerQueue,))
-    # thread.start_new_thread(flash_vcu, (tableQueue,))
-    thr_flash = Thread(target=flash_vcu, args=(tableQueue,))
-    # threads = [th_observe, th_update, th_flash]
-    thr_observe.start()
-    thr_update.start()
-    thr_flash.start()
-
-
-
-    # thread.start_new_thread(show_calib_table, (figQueue,))
-    # flash_mutex.acquire()
-    # threads = []
-    # th_observe = Thread(target=get_truck_status, args=())
-    # th_observe.start()
-    # threads.append(th_observe)
-    # th_update = Thread(target=update_calib_table, args=(motionpowerQueue,))
-    # th_update.start()
-    # threads.append(th_update)
-    # th_flash = Thread(target=flash_vcu,args=(tableQueue,))
-    # th_flash.start()
-    # threads.append(th_flash)
-
-    # vcu_lookup_table = generate_lookup_table(
-    #     pedal_range, velocity_range, vcu_calib_table
-    # )
-
+async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> None:
     # todo connect gym-carla env, collect 20 steps of data for 1 second and update vcu calib table.
 
     """
@@ -522,11 +449,9 @@ def main():
     episode_wh = 0
     motion_states_history = []
 
-    logger.info(f'main Initialization done!', extra=dictLogger)
+    logger.info(f'Learn Initialization done!', extra=dictLogger)
     while True:  # run until solved
-        # logitech g29 default throttle 0.5,
-        # after treading pedal of throttle and brake,
-        # both will be reset to zero.
+        # if not close, wait for start signal from hmi
         with hmi_lock:
             done = episode_done
             if wait_for_reset:
@@ -534,36 +459,28 @@ def main():
                 # logger.info(f'wait for start!', extra=dictLogger)
                 continue
 
-        step = False
+        # hmi click start so episode start from here
         step_count = 0
         with tf.GradientTape() as tape:
             while not done:
                 # TODO l045a define episode done (time, distance, defined end event)
                 # obs, r, done, info = env.step(action)
                 # episode_done = done
-                while not step:
-                    # time.sleep(0.05)
-                    with vcu_step_lock:
-                        step = vcu_step
-                        motionpower = states_rewards
-                        if done:
-                            break
-                # fix bug for deadlock while update_calib_table thread exit prematurely
-                with hmi_lock:
-                    done = episode_done
-                if done:
-                    break
+                motion_power = await motionpowerQueue.get()
+                motionpowerQueue.task_done()
+
                 logger.info(f"Action start step {step_count}", extra=dictLogger)  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
                 step = False
-                motionpower_states = tf.convert_to_tensor(
-                    motionpower
+                motion_power_states = tf.convert_to_tensor(
+                    motion_power
                 )  # state must have 20 (speed, acceleration, throttle, current, voltage) 5 tuple
-                motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
+                # motion_states, power_states = tf.split(motion_power_states, [3, 2], 1)
+                motion_states, power_states = tf.split(motion_power_states, [2, 2], 1)
 
-                motion_magnitude = tf.reduce_sum(tf.math.abs(motion_states), 0)
-                # rewards should be a 20x2 matrix after split
+                # motion_magnitude = tf.reduce_sum(tf.math.abs(motion_states), 0)
+                # rewards should be a 30x2 matrix after split, if add brake_pressure, should be x3
                 # reward is sum of power (U*I)
                 vcu_reward = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
@@ -580,7 +497,7 @@ def main():
                 motion_states_history.append(motion_states)
                 motion_states = tf.expand_dims(
                     motion_states, 0
-                )  # motion states is 20*2 matrix
+                )  # motion states is 20*3 matrix
 
                 # predict action probabilities and estimated future rewards
                 # from environment state
@@ -612,11 +529,11 @@ def main():
                     vcu_calib_table + vcu_calib_table0,
                     clip_value_min=vcu_calib_table_min,
                     clip_value_max=vcu_calib_table_max,
-                )
+                    )
 
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                tableQueue.put(vcu_act_list)
+                await tableQueue.put(vcu_act_list)
                 logger.info(f"Action Push table: {tableQueue.qsize()}", extra=dictLogger)
                 step_count += 1
 
@@ -746,6 +663,8 @@ def main():
         #     print(f"{thread.getName()} exits!")
         logger.info(f'main dies!!!!', extra=dictLogger)
         # thread.exit()
+
+        # need hmi exit signal to exit task properly
         break
 
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
@@ -753,9 +672,48 @@ def main():
         #     print("solved at episode {}!".format(episode_count))
         #     break
 
-    thr_observe.join()
-    thr_update.join()
-    thr_flash.join()
+    # thr_observe.join()
+    # thr_update.join()
+    # thr_flash.join()
+
+
+
+# TODO add a thread for send_float_array
+# TODO add printing calibration table
+# TODO add initialize table to EP input
+# @eye
+async def main():
+    global episode_done, episode_count, wait_for_reset
+    global states_rewards
+    global vcu_step
+    # ros msgs for vcu communication
+    # rospy.init_node("carla", anonymous=True)
+    # rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
+    # rospy.Subscriber("/newrizon/vcu_reward", VCU_Reward, get_reward)
+
+    eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
+
+    tskq_observation = asyncio.Queue()
+    tskq_table = asyncio.Queue()
+
+    # Start thread for flashing vcu, flash first
+    # thread.start_new_thread(get_hmi_status, ())
+    # thread.start_new_thread(get_truck_status, ())
+    # observe = Thread(target=get_truck_status, args=())
+    tsk_observe = asyncio.create_task(get_truck_status(tskq_observation))
+    tsk_learn = asyncio.create_task(learn(tskq_observation, tskq_table))
+    tsk_flash = asyncio.create_task(flash_vcu(tskq_table))
+
+    await asyncio.gather(tsk_observe, tsk_learn, tsk_flash)
+    # await tsk_observe
+    # await tsk_observe.join()
+
+    await tskq_observation.join()
+    await tskq_table.join()
+
+    # tsk_learn.cancel()
+    # tsk_flash.cancel()
+
 
     """
     ## visualizations
@@ -770,4 +728,7 @@ def main():
 # tracer.save()
 
 if __name__ == "__main__":
-    main()
+    s = time.perf_counter()
+    asyncio.run(main())
+    elapsed = time.perf_counter() - s
+    print(f"{__file__} executed in {elapsed: 0.2f} seconds.")
