@@ -42,8 +42,11 @@ as energy consumption
 # drl import
 import datetime
 from birdseye import eye
-from viztracer import VizTracer
+# from viztracer import VizTracer
 from watchpoints import watch
+
+
+# Logging Service Initialization
 import logging
 import inspect
 # tracer = VizTracer()
@@ -72,7 +75,6 @@ import os
 logger.info(f'Start Logging', extra=dictLogger)
 
 
-import os
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
@@ -87,11 +89,13 @@ import tensorflow_probability as tfp
 
 tfd = tfp.distributions
 
+logger.info(f'Tensorflow Imported!', extra=dictLogger)
+
 import socket
 import json
 
 # communication import
-from threading import Lock
+from threading import Lock, Thread
 import _thread as thread
 import queue, time
 
@@ -105,6 +109,8 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
 import io  # needed by convert figure to png in memory
+
+logger.info(f'External Modules Imported!', extra=dictLogger)
 
 # internal import
 from comm.vcu_calib_generator import (
@@ -144,13 +150,16 @@ figQueue = queue.Queue()
 # motionpowerQueue contains a vcu states list with N(20) subsequent motion states + reward as observation
 motionpowerQueue = queue.Queue()
 
-episode_done = False
-episode_count = 0
 
-states_rewards = []
 
+# initial status of the switches
 wait_for_reset = True
 vcu_step = False
+program_exit = False
+episode_done = False
+episode_count = 0
+states_rewards = []
+
 """
 ## implement actor critic network
 
@@ -209,7 +218,7 @@ logger.info(f'flash initial table', extra=dictLogger)
 # vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
 # create actor-critic network
 num_observations = 2  # observed are the current speed and throttle; !! acceleration not available in l045a
-sequence_len = 20  # 20 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1 second
+sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 2 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
 num_hidden = 128
@@ -270,79 +279,105 @@ else:
 # get_hmi_status.myPort = "8002"
 
 # @eye
+# tracer.start()
+logger.info(f'Global Initialization done!', extra=dictLogger)
+
 def get_truck_status():
-    global episode_done, wait_for_reset, motionpowerQueue
+    global episode_done, wait_for_reset, program_exit, motionpowerQueue
+    logger.info(f'Start Initialization!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     socket.socket.settimeout(s, None)
     s.bind((get_truck_status.myHost, get_truck_status.myPort))
     # s.listen(5)
     # datetime.datetime.now().strftime("%Y%b%d-%H%M%S")
-    # start_moment = time.time()
+    start_moment = time.time()
+    th_exit = False
+    last_moment = time.time()
+    logger.info(f'Initialization Done!', extra=dictLogger)
 
-    while True:
-        # connection, address = s.accept()
-        # print("Server connected by", address)
-        # socket.socket.setblocking(s, True)
-        while True:
-            candata, addr = s.recvfrom(2048)
-            pop_data = json.loads(candata)
-            for key, value in pop_data.items():
-                if key == "status":
-                    # print(candata)
-                    with hmi_lock:
-                        if value == "begin":
-                            logger.info('%s', 'Capture will start!!!', extra=dictLogger)
-                            get_truck_status.start = True
-                            wait_for_reset = False
-                            episode_done = False
-                        elif value == "end":
-                            logger.info('%s', 'Capture will stop!!!', extra=dictLogger)
-                            get_truck_status.start = False
-                            wait_for_reset = True
-                            episode_done = True
-                            # time.sleep(0.1)
-                elif key == "data":
-                    if get_truck_status.start:
-                        timestamp = float(value["timestamp"])
-                        velocity = float(value["velocity"])
-                        # acceleration in invalid for l045a
-                        acceleration = float(value["acceleration"])
-                        pedal = float(value["pedal"])
-                        current = float(value["A"])
-                        voltage = float(value["V"])
-                        power = float(value["W"])
-                        motion_power = [velocity, pedal, current, voltage]
-                        step_moment = time.time()
-                        # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
-                        send_moment = float(timestamp) / 1e06 - 28800
-                        # send_dt_object = datetime.datetime.fromtimestamp(send_moment)
-
-                        # print(step_moment-send_moment)
-
-                        # print(step_moment, step_dt_object)
-                        # print(send_moment, send_dt_object)
-                        # print(step_moment-send_moment)
-                        # logger.info(f'transmission delay: {step_moment-send_moment:6f}', extra=dictLogger)
-                        # logger.info(f'step interval:{step_moment-last_moment :6f}', extra=dictLogger)
-                        # start_moment = step_moment
+    while not th_exit:
+        candata, addr = s.recvfrom(2048)
+        # logger.info('Data received!!!', extra=dictLogger)
+        pop_data = json.loads(candata)
+        if len(pop_data) != 1:
+            logging.critical('udp sending multiple shots!')
+            break
+        for key, value in pop_data.items():
+            if key == "status":  # state machine chores
+                # print(candata)
+                with hmi_lock:
+                    if value == "begin":
+                        get_truck_status.start = True
+                        logger.info('%s', 'Capture will start!!!', extra=dictLogger)
+                        wait_for_reset = False  #  ignites the episode when tester kicks off; remains false within an episode
+                        episode_done = False
+                        program_exit = False
+                        th_exit = False
+                    elif value == "end_valid":
+                        get_truck_status.start = False
+                        logger.info('%s', 'Capture ends!!!', extra=dictLogger)
+                        wait_for_reset = True  # wait when episode starts
+                        episode_done = True
+                        program_exit = False
+                        th_exit = False
+                    elif value == "end_invalid":
+                        get_truck_status.start = False
+                        logger.info('%s', 'Capture is interrupted!!!', extra=dictLogger)
+                        wait_for_reset = True  # wait when episode starts
+                        episode_done = False
+                        program_exit = False
+                        th_exit = False
+                    elif value == "exit":
+                        get_truck_status.start = False
+                        logger.info('%s', 'Capture will exit!!!', extra=dictLogger)
+                        wait_for_reset = True  # reset main thread to recheck exit status
+                        episode_done = False
+                        program_exit = True
+                        th_exit = True
+                        break
                         # time.sleep(0.1)
-                        # print("timestamp:{},velocity:{},acceleration:{},pedal:{},current:{},voltage:{},power:{}".format(timestamp,velocity,acceleration,pedal,current,voltage,power))
-                        get_truck_status.motionpower_states.append(
-                            motion_power
-                        )  # obs_reward [speed, acc, pedal, current, voltage]
-                        # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
-                        if len(get_truck_status.motionpower_states) >= 20:
-                            # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
-                            motionpowerQueue.put(get_truck_status.motionpower_states)
-                            # print(f"Producer creates {motionpowerQueue.qsize()}")
-                            logger.info(f"Producer creates {motionpowerQueue.qsize()}", extra=dictLogger)
-                            # print(f"Producer mopo queue num: {motionpowerQueue.qsize()}")
-                            get_truck_status.motionpower_states = []
-                else:
-                    continue
+            elif key == "data":
+                # logger.info('Data received before Capture starting!!!', extra=dictLogger)
+                # logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=dictLogger)
 
+                if get_truck_status.start:
+                    timestamp = float(value["timestamp"])
+                    velocity = float(value["velocity"])
+                    # acceleration in invalid for l045a
+                    acceleration = float(value["acceleration"])
+                    pedal = float(value["pedal"])
+                    current = float(value["A"])
+                    voltage = float(value["V"])
+                    power = float(value["W"])
+                    motion_power = [velocity, pedal, current, voltage]
+                    step_moment = time.time()
+                    # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
+                    send_moment = float(timestamp) / 1e06 - 28800
+                    # send_dt_object = datetime.datetime.fromtimestamp(send_moment)
+
+                    # print(step_moment-send_moment)
+                    # print(step_moment, step_dt_object)
+                    # print(send_moment, send_dt_object)
+                    # print(step_moment-send_moment)
+                    # logger.info(f'transmission delay: {step_moment-send_moment:6f}', extra=dictLogger)
+                    # logger.info(f'step interval:{step_moment-last_moment :6f}', extra=dictLogger)
+                    last_moment = step_moment
+                    # time.sleep(0.1)
+                    # print("timestamp:{},velocity:{},acceleration:{},pedal:{},current:{},voltage:{},power:{}".format(timestamp,velocity,acceleration,pedal,current,voltage,power))
+                    get_truck_status.motionpower_states.append(
+                        motion_power
+                    )  # obs_reward [speed, acc, pedal, current, voltage]
+                    # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
+                    if len(get_truck_status.motionpower_states) >= sequence_len:
+                        # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
+                        motionpowerQueue.put(get_truck_status.motionpower_states)
+                        # watch(motionpowerQueue.qsize())
+                        logger.info(f"Producer creates {motionpowerQueue.qsize()}", extra=dictLogger)
+                        get_truck_status.motionpower_states = []
+            else:
                 continue
-            # time.sleep(0.1)
+        # time.sleep(0.1)
+    logger.info(f"get_truck_status dies!!!", extra=dictLogger)
 
     s.close()
 
@@ -359,11 +394,22 @@ def update_calib_table(motionpowerqueue):
 
     global vcu_step
     global states_rewards
-    while True:
-        time.sleep(0.1)
+    th_exit = False
+    while not th_exit:
+        # time.sleep(0.1)
+        with hmi_lock:
+            if program_exit:
+                th_exit = True
+                with vcu_step_lock:
+                    vcu_step = True  # fix the deadlock when main thread is waiting for step
+                logger.info(f'Update_calib_table stop!!!', extra=dictLogger)
+                continue
+
         try:
-             motionpower = motionpowerqueue.get()  # default block = Truereward
-             # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
+            motionpower = motionpowerqueue.get(block=False, timeout=0.05)  # default block = True
+            # TODO if main thread is not fast enough, then data loss will be incurred here.
+            # better to use queue!
+            # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
         except queue.Empty:
             with vcu_step_lock:
                 vcu_step = False
@@ -374,20 +420,29 @@ def update_calib_table(motionpowerqueue):
             with vcu_step_lock:
                 vcu_step = True
                 states_rewards = motionpower
-                # print(f"Producer remains {motionpowerqueue.qsize()}")
-                logger.info(f"Producer remains {motionpowerQueue.qsize()}", extra=dictLogger)
-                # print("Consumer states reward size {}".format(len(states_rewards)))
+                # watch(motionpowerqueue.qsize())
+                logger.info(f"Producer remains {motionpowerqueue.qsize()}", extra=dictLogger)
+
+    logger.info(f'update_calib_table dies!!!', extra=dictLogger)
+
 
 # flash_mutex.acquire()
 # this is the calibration table consumer for flashing
 # @eye
 def flash_vcu(tablequeue):
+    global program_exit
+
     flash_count = 0
-    while True:
-        time.sleep(0.1)
+    th_exit = False
+    while not th_exit:
+        # time.sleep(0.1)
+        with hmi_lock:
+            if program_exit:
+                th_exit = True
+                continue
         try:
             # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-            table = tablequeue.get()  # default block = True
+            table = tablequeue.get(block=False, timeout=1)  # default block = True
             # print("2 tablequeue size: {}".format(tablequeue.qsize()))
         except queue.Empty:
             pass
@@ -402,8 +457,12 @@ def flash_vcu(tablequeue):
             # tf.print('calib table:', table, output_stream=output_path)
             # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
             flash_count += 1
-            # print(f"flash count:{flash_count}")
+            time.sleep(1.0)
             logger.info(f"flash count:{flash_count}", extra=dictLogger)
+            # watch(flash_count)
+
+    logger.info(f'flash_vcu dies!!!', extra=dictLogger)
+
 
 
 # # this is the figure consumer for visualization
@@ -429,7 +488,7 @@ def flash_vcu(tablequeue):
 # TODO add initialize table to EP input
 # @eye
 def main():
-    global episode_done, episode_count, wait_for_reset
+    global episode_done, episode_count, wait_for_reset, program_exit
     global states_rewards
     global vcu_step
     # ros msgs for vcu communication
@@ -441,11 +500,21 @@ def main():
 
     # Start thread for flashing vcu, flash first
     # thread.start_new_thread(get_hmi_status, ())
-    thread.start_new_thread(get_truck_status, ())
-    thread.start_new_thread(
-        update_calib_table, (motionpowerQueue,)
-    )  # should be done by main thread?
-    thread.start_new_thread(flash_vcu, (tableQueue,))
+    # thread.start_new_thread(get_truck_status, ())
+    thr_observe = Thread(target=get_truck_status, args=())
+    # thread.start_new_thread(
+    #     update_calib_table, (motionpowerQueue,)
+    # )  # should be done by main thread?
+    thr_update = Thread(target=update_calib_table, args=(motionpowerQueue,))
+    # thread.start_new_thread(flash_vcu, (tableQueue,))
+    thr_flash = Thread(target=flash_vcu, args=(tableQueue,))
+    # threads = [th_observe, th_update, th_flash]
+    thr_observe.start()
+    thr_update.start()
+    thr_flash.start()
+
+
+
     # thread.start_new_thread(show_calib_table, (figQueue,))
     # flash_mutex.acquire()
 
@@ -466,36 +535,59 @@ def main():
     episode_reward = 0
     episode_wh = 0
     motion_states_history = []
+    th_exit = False
+    done = False
+    episode_end = False
 
-    while True:  # run until solved
+    logger.info(f'main Initialization done!', extra=dictLogger)
+    while not th_exit:  # run until solved or program exit
         # logitech g29 default throttle 0.5,
         # after treading pedal of throttle and brake,
         # both will be reset to zero.
-        with hmi_lock:
-            done = episode_done
-            if wait_for_reset:
-                time.sleep(0.1)
+        with hmi_lock:  # wait for tester to kick off or to exit
+            th_exit = program_exit  # if program_exit is false, reset to wait
+            if wait_for_reset:  # if program_exit is true, reset to exit
+                # time.sleep(0.1) # somehow this sleep is the reason why it took so long to start.
+                # logger.info(f'wait for start!', extra=dictLogger)
                 continue
+            else:
+                episode_end = False  # kick off
+
 
         step = False
         step_count = 0
         with tf.GradientTape() as tape:
-            while not done:
+            while not episode_end:  # end signal, either the episode ends normally or user interrupt
                 # TODO l045a define episode done (time, distance, defined end event)
                 # obs, r, done, info = env.step(action)
                 # episode_done = done
-                while not step:
-                    time.sleep(0.05)
+                while not step:  # wait for enough data to make a step while checking user input
+                    with hmi_lock:  # wait for tester to interrupt or to exit
+                        th_exit = program_exit  # if program_exit is false, reset to wait
+                        episode_end = wait_for_reset
+                        done = episode_done
+                    if episode_end:  # if program_exit is true, reset to exit
+                        break  # jump out of the loop
+                    # time.sleep(0.05)  # Do Not sleep!
                     with vcu_step_lock:
                         step = vcu_step
                         motionpower = states_rewards
-                        # print(f"Consumer Step Count {step_count}")  # env.step(action) action is flash the vcu calibration table
-                        logging.info(f"Action start step {step_count}", extra=dictLogger)  # env.step(action) action is flash the vcu calibration table
+
+                if episode_end:
+                    logger.info(f'main thread interrupt prematurely!!!', extra=dictLogger)
+                    continue
+
+                # # fix bug for deadlock while update_calib_table thread exit prematurely
+                # with hmi_lock:
+                #     done = episode_done
+
+                logger.info(f"Action start step {step_count}", extra=dictLogger)  # env.step(action) action is flash the vcu calibration table
+                # watch(step_count)
                 # reward history
                 step = False
                 motionpower_states = tf.convert_to_tensor(
                     motionpower
-                )  # state must have 20 (speed, acceleration, throttle, current, voltage) 5 tuple
+                )  # state must have 30 (speed, acceleration, throttle, current, voltage) 5 tuple
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
                 motion_magnitude = tf.reduce_sum(tf.math.abs(motion_states), 0)
@@ -547,25 +639,25 @@ def main():
                 vcu_calib_table = tf.clip_by_value(
                     vcu_calib_table + vcu_calib_table0,
                     clip_value_min=vcu_calib_table_min,
-                    clip_value_max=vcu_calib_table_max,
-                )
+                    clip_value_max=vcu_calib_table_max)
 
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                 tableQueue.put(vcu_act_list)
-                # print(f"Consumer tableQueue size: {tableQueue.qsize()}")
-                logging.info(f"Action Push table: {tableQueue.qsize()}", extra=dictLogger)
+                logger.info(f"Action Push table: {tableQueue.qsize()}", extra=dictLogger)
                 step_count += 1
 
-                time.sleep(0.9)
+                # time.sleep(0.9)  # this is a problem to add artificial delay (inappropriate workaround)
 
-                with hmi_lock:
-                    done = episode_done
-                # if not done:
-                #     # throw figure to the visualization thread
-                #     figQueue.put(fig)
 
-            output_path = "file://../data/Calib_table_{}.out".format(episode_count)
+
+            # if not done:
+            #     # throw figure to the visualization thread
+            #     figQueue.put(fig)
+            if not done:  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
+                continue  # otherwise assuming the history is valid and back propagate
+
+            output_path = f"file://../data/Calib_table_{episode_count}.out"
             tf.print('calib table:', vcu_calib_table, output_stream=output_path)
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
@@ -678,12 +770,22 @@ def main():
         if episode_count % 1 == 0:
             print("========================")
             print(f"running reward: {running_reward:.2f} at episode {episode_count}")
+        # for thread in threads:
+        #     thread.join()
+        #     print(f"{thread.getName()} exits!")
 
+        logger.info(f'main continues!', extra=dictLogger)
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
         #     print("solved at episode {}!".format(episode_count))
         #     break
 
+    thr_observe.join()
+    thr_update.join()
+    thr_flash.join()
+
+    logger.info(f'main dies!!!!', extra=dictLogger)
+    # thread.exit()
     """
     ## visualizations
     in early stages of training:
