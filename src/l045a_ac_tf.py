@@ -51,10 +51,12 @@ import logging
 import inspect
 # tracer = VizTracer()
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
-logging.getLogger('matplotlib.font_manager').disabled = True
+mpl_logger = logging.getLogger('matplotlib.font_manager')
+mpl_logger.disabled = True
 
 # logging.basicConfig(format=fmt)
 logger = logging.getLogger('l045a')
+logger.propagate = False
 formatter = logging.Formatter('T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d)C(%(user)s): Msg-%(message)s')
 logfilename = '../data/l045a_ac_tf_asyncio-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
 fh = logging.FileHandler(logfilename)
@@ -245,6 +247,12 @@ if manager.latest_checkpoint:
 else:
     logger.info(f'Initializing from scratch', extra=dictLogger)
 
+# # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
+# init_motionpower = np.random.rand(30, 4)
+# init_states = tf.convert_to_tensor(
+#     init_motionpower
+# )  # state must have 30 (speed, acceleration, throttle, current, voltage) 5 tuple
+# logger.info(f'manual load tf library by calling convert_to_tensor', extra=dictLogger)
 # # get hmi status from udp message
 # def get_hmi_status():
 #     global wait_for_reset, episode_done
@@ -284,7 +292,7 @@ logger.info(f'Global Initialization done!', extra=dictLogger)
 
 def get_truck_status():
     global episode_done, wait_for_reset, program_exit, motionpowerQueue
-    logger.info(f'Start Initialization!', extra=dictLogger)
+    # logger.info(f'Start Initialization!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     socket.socket.settimeout(s, None)
     s.bind((get_truck_status.myHost, get_truck_status.myPort))
@@ -377,6 +385,7 @@ def get_truck_status():
             else:
                 continue
         # time.sleep(0.1)
+    # motionpowerQueue.join()
     logger.info(f"get_truck_status dies!!!", extra=dictLogger)
 
     s.close()
@@ -387,44 +396,44 @@ get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
 
-
-# this is the inference for updating the calibration table
-# @eye
-def update_calib_table(motionpowerqueue):
-
-    global vcu_step
-    global states_rewards
-    th_exit = False
-    while not th_exit:
-        # time.sleep(0.1)
-        with hmi_lock:
-            if program_exit:
-                th_exit = True
-                with vcu_step_lock:
-                    vcu_step = True  # fix the deadlock when main thread is waiting for step
-                logger.info(f'Update_calib_table stop!!!', extra=dictLogger)
-                continue
-
-        try:
-            motionpower = motionpowerqueue.get(block=False, timeout=0.05)  # default block = True
-            # TODO if main thread is not fast enough, then data loss will be incurred here.
-            # better to use queue!
-            # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
-        except queue.Empty:
-            with vcu_step_lock:
-                vcu_step = False
-                states_rewards = []
-            pass
-        else:
-            # print("run the A2C agent to update the vcu calib table!")
-            with vcu_step_lock:
-                vcu_step = True
-                states_rewards = motionpower
-                # watch(motionpowerqueue.qsize())
-                logger.info(f"Producer remains {motionpowerqueue.qsize()}", extra=dictLogger)
-
-    logger.info(f'update_calib_table dies!!!', extra=dictLogger)
-
+#
+# # this is the inference for updating the calibration table
+# # @eye
+# def update_calib_table(motionpowerqueue):
+#
+#     global vcu_step
+#     global states_rewards
+#     th_exit = False
+#     while not th_exit:
+#         # time.sleep(0.1)
+#         with hmi_lock:
+#             if program_exit:
+#                 th_exit = True
+#                 with vcu_step_lock:
+#                     vcu_step = True  # fix the deadlock when main thread is waiting for step
+#                 logger.info(f'Update_calib_table stop!!!', extra=dictLogger)
+#                 continue
+#
+#         try:
+#             motionpower = motionpowerqueue.get(block=False, timeout=0.05)  # default block = True
+#             # TODO if main thread is not fast enough, then data loss will be incurred here.
+#             # better to use queue!
+#             # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
+#         except queue.Empty:
+#             with vcu_step_lock:
+#                 vcu_step = False
+#                 states_rewards = []
+#             pass
+#         else:
+#             # print("run the A2C agent to update the vcu calib table!")
+#             with vcu_step_lock:
+#                 vcu_step = True
+#                 states_rewards = motionpower
+#                 # watch(motionpowerqueue.qsize())
+#                 logger.info(f"Producer remains {motionpowerqueue.qsize()}", extra=dictLogger)
+#
+#     logger.info(f'update_calib_table dies!!!', extra=dictLogger)
+#
 
 # flash_mutex.acquire()
 # this is the calibration table consumer for flashing
@@ -434,6 +443,8 @@ def flash_vcu(tablequeue):
 
     flash_count = 0
     th_exit = False
+
+    logger.info(f'Initialization Done!', extra=dictLogger)
     while not th_exit:
         # time.sleep(0.1)
         with hmi_lock:
@@ -458,9 +469,12 @@ def flash_vcu(tablequeue):
             # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
             flash_count += 1
             time.sleep(1.0)
+            logger.info(f"flash starts", extra=dictLogger)
+            time.sleep(1.0)
             logger.info(f"flash count:{flash_count}", extra=dictLogger)
             # watch(flash_count)
 
+    # motionpowerQueue.join()
     logger.info(f'flash_vcu dies!!!', extra=dictLogger)
 
 
@@ -491,26 +505,23 @@ def main():
     global episode_done, episode_count, wait_for_reset, program_exit
     global states_rewards
     global vcu_step
-    # ros msgs for vcu communication
-    # rospy.init_node("carla", anonymous=True)
-    # rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
-    # rospy.Subscriber("/newrizon/vcu_reward", VCU_Reward, get_reward)
+    global motionpowerQueue
 
     eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     # Start thread for flashing vcu, flash first
     # thread.start_new_thread(get_hmi_status, ())
     # thread.start_new_thread(get_truck_status, ())
-    thr_observe = Thread(target=get_truck_status, args=())
+    thr_observe = Thread(target=get_truck_status, name='observe', args=())
     # thread.start_new_thread(
     #     update_calib_table, (motionpowerQueue,)
     # )  # should be done by main thread?
-    thr_update = Thread(target=update_calib_table, args=(motionpowerQueue,))
+    # thr_update = Thread(target=update_calib_table, args=(motionpowerQueue,))
     # thread.start_new_thread(flash_vcu, (tableQueue,))
-    thr_flash = Thread(target=flash_vcu, args=(tableQueue,))
+    thr_flash = Thread(target=flash_vcu, name='flash', args=(tableQueue,))
     # threads = [th_observe, th_update, th_flash]
     thr_observe.start()
-    thr_update.start()
+    # thr_update.start()
     thr_flash.start()
 
 
@@ -561,20 +572,30 @@ def main():
                 # TODO l045a define episode done (time, distance, defined end event)
                 # obs, r, done, info = env.step(action)
                 # episode_done = done
-                while not step:  # wait for enough data to make a step while checking user input
-                    with hmi_lock:  # wait for tester to interrupt or to exit
-                        th_exit = program_exit  # if program_exit is false, reset to wait
-                        episode_end = wait_for_reset
-                        done = episode_done
-                    if episode_end:  # if program_exit is true, reset to exit
-                        break  # jump out of the loop
+                # while not step:  # wait for enough data to make a step while checking user input
+                with hmi_lock:  # wait for tester to interrupt or to exit
+                    th_exit = program_exit  # if program_exit is false, reset to wait
+                    episode_end = wait_for_reset
+                    done = episode_done
+                # if episode_end:  # if program_exit is true, reset to exit
+                #     break  # jump out of the loop
                     # time.sleep(0.05)  # Do Not sleep!
-                    with vcu_step_lock:
-                        step = vcu_step
-                        motionpower = states_rewards
+                    # with vcu_step_lock:
+                    #     step = vcu_step
+                    #     motionpower = states_rewards
 
-                if episode_end:
-                    logger.info(f'main thread interrupt prematurely!!!', extra=dictLogger)
+                if episode_end and done:
+                    logger.info(f'Experience Collection ends!', extra=dictLogger)
+                    continue
+                elif episode_end and (not done):
+                    logger.info(f'Experience Collection is interrupted!', extra=dictLogger)
+                    continue
+
+                try:
+                    logger.warning(f'Wait for an object!!!', extra=dictLogger)
+                    motionpower = motionpowerQueue.get(block=True, timeout=1.55)
+                except queue.Empty:
+                    logger.warning(f'No data in the Queue!!!', extra=dictLogger)
                     continue
 
                 # # fix bug for deadlock while update_calib_table thread exit prematurely
@@ -590,6 +611,7 @@ def main():
                 )  # state must have 30 (speed, acceleration, throttle, current, voltage) 5 tuple
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
+                logger.info(f'tensor convert and split!', extra=dictLogger)
                 motion_magnitude = tf.reduce_sum(tf.math.abs(motion_states), 0)
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
@@ -612,8 +634,10 @@ def main():
 
                 # predict action probabilities and estimated future rewards
                 # from environment state
+                logger.info(f'before inference!', extra=dictLogger)
                 mu_sigma, critic_value = actorcritic_network(motion_states)
 
+                logger.info(f'inference done!', extra=dictLogger)
                 vcu_critic_value_history.append(critic_value[0, 0])
                 mu_sigma_history.append(mu_sigma)
 
@@ -621,6 +645,7 @@ def main():
                 nn_mu, nn_sigma = tf.unstack(mu_sigma)
                 mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                 vcu_action = mvn.sample()  # 17*21 =  357 actions
+                logger.info(f'sampling done!', extra=dictLogger)
                 vcu_action_history.append(vcu_action)
                 # Here the lookup table with contrained output is part of the environemnt,
                 # clip is part of the environment to be learned
@@ -655,6 +680,7 @@ def main():
             #     # throw figure to the visualization thread
             #     figQueue.put(fig)
             if not done:  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
+                logger.info(f'Episode interrupted, waits for next episode kicking off!', extra=dictLogger)
                 continue  # otherwise assuming the history is valid and back propagate
 
             output_path = f"file://../data/Calib_table_{episode_count}.out"
@@ -669,7 +695,7 @@ def main():
             df.columns = ["pedal", "velocity", "throttle"]
 
             fig = plt.figure()
-            ax = fig.gca(projection="3d")
+            ax = plt.axes(projection="3d")
             surf = ax.plot_trisurf(
                 df["pedal"],
                 df["velocity"],
@@ -705,6 +731,7 @@ def main():
                 vcu_action_history, mu_sigma_history, vcu_critic_value_history, returns
             )
 
+            logger.info(f"BP starts.", extra=dictLogger)
             # back propagation
             (
                 loss_all,
@@ -712,6 +739,7 @@ def main():
                 entropy_losses_all,
                 critic_losses_all,
             ) = train_step(actorcritic_network, history, opt, tape)
+            logger.info(f"BP ends.", extra=dictLogger)
             ckpt.step.assign_add(1)
 
         with train_summary_writer.as_default():
@@ -774,14 +802,14 @@ def main():
         #     thread.join()
         #     print(f"{thread.getName()} exits!")
 
-        logger.info(f'main continues!', extra=dictLogger)
+        logger.info(f'Episode done, waits for next episode kicking off!', extra=dictLogger)
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
         #     print("solved at episode {}!".format(episode_count))
         #     break
 
     thr_observe.join()
-    thr_update.join()
+    # thr_update.join()
     thr_flash.join()
 
     logger.info(f'main dies!!!!', extra=dictLogger)
