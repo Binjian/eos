@@ -247,12 +247,17 @@ if manager.latest_checkpoint:
 else:
     logger.info(f'Initializing from scratch', extra=dictLogger)
 
-# # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
-# init_motionpower = np.random.rand(30, 4)
-# init_states = tf.convert_to_tensor(
-#     init_motionpower
-# )  # state must have 30 (speed, acceleration, throttle, current, voltage) 5 tuple
-# logger.info(f'manual load tf library by calling convert_to_tensor', extra=dictLogger)
+# todo ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
+init_motionpower = np.random.rand(sequence_len, num_observations )
+init_states = tf.convert_to_tensor(
+    init_motionpower
+)  # state must have 30 (speed, acceleration, throttle, current, voltage) 5 tuple
+init_states = tf.expand_dims(
+    init_states, 0
+)  # motion states is 30*2 matrix
+mu_sigma, critic_value = actorcritic_network(init_states)
+logger.info(f'manual load tf library by calling convert_to_tensor', extra=dictLogger)
+
 # # get hmi status from udp message
 # def get_hmi_status():
 #     global wait_for_reset, episode_done
@@ -396,46 +401,7 @@ get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
 
-#
-# # this is the inference for updating the calibration table
-# # @eye
-# def update_calib_table(motionpowerqueue):
-#
-#     global vcu_step
-#     global states_rewards
-#     th_exit = False
-#     while not th_exit:
-#         # time.sleep(0.1)
-#         with hmi_lock:
-#             if program_exit:
-#                 th_exit = True
-#                 with vcu_step_lock:
-#                     vcu_step = True  # fix the deadlock when main thread is waiting for step
-#                 logger.info(f'Update_calib_table stop!!!', extra=dictLogger)
-#                 continue
-#
-#         try:
-#             motionpower = motionpowerqueue.get(block=False, timeout=0.05)  # default block = True
-#             # TODO if main thread is not fast enough, then data loss will be incurred here.
-#             # better to use queue!
-#             # print(f"Consumer mopo queue num: {motionpowerqueue.qsize()}")
-#         except queue.Empty:
-#             with vcu_step_lock:
-#                 vcu_step = False
-#                 states_rewards = []
-#             pass
-#         else:
-#             # print("run the A2C agent to update the vcu calib table!")
-#             with vcu_step_lock:
-#                 vcu_step = True
-#                 states_rewards = motionpower
-#                 # watch(motionpowerqueue.qsize())
-#                 logger.info(f"Producer remains {motionpowerqueue.qsize()}", extra=dictLogger)
-#
-#     logger.info(f'update_calib_table dies!!!', extra=dictLogger)
-#
 
-# flash_mutex.acquire()
 # this is the calibration table consumer for flashing
 # @eye
 def flash_vcu(tablequeue):
@@ -467,11 +433,10 @@ def flash_vcu(tablequeue):
 
             # tf.print('calib table:', table, output_stream=output_path)
             # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
-            flash_count += 1
-            time.sleep(1.0)
             logger.info(f"flash starts", extra=dictLogger)
             time.sleep(1.0)
             logger.info(f"flash count:{flash_count}", extra=dictLogger)
+            flash_count += 1
             # watch(flash_count)
 
     # motionpowerQueue.join()
@@ -630,7 +595,7 @@ def main():
                 motion_states_history.append(motion_states)
                 motion_states = tf.expand_dims(
                     motion_states, 0
-                )  # motion states is 20*2 matrix
+                )  # motion states is 30*2 matrix
 
                 # predict action probabilities and estimated future rewards
                 # from environment state
