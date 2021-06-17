@@ -677,7 +677,8 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
     # thr_flash.join()
 
 
-
+# TODO replace threads by asyncio task
+# TODO mix threading and asyncio
 # TODO add a thread for send_float_array
 # TODO add printing calibration table
 # TODO add initialize table to EP input
