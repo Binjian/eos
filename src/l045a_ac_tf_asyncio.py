@@ -42,6 +42,7 @@ as energy consumption
 # drl import
 import datetime
 from birdseye import eye
+
 # from viztracer import VizTracer
 from watchpoints import watch
 
@@ -49,14 +50,20 @@ from watchpoints import watch
 # Logging Service Initialization
 import logging
 import inspect
+
 # tracer = VizTracer()
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
-logging.getLogger('matplotlib.font_manager').disabled = True
+logging.getLogger("matplotlib.font_manager").disabled = True
 
 # logging.basicConfig(format=fmt)
-logger = logging.getLogger('l045a')
-formatter = logging.Formatter('T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d)C(%(user)s): Msg-%(message)s')
-logfilename = '../data/l045a_ac_tf_asyncio-' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
+logger = logging.getLogger("l045a")
+formatter = logging.Formatter(
+    "T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d)C(%(user)s): Msg-%(message)s"
+)
+logfilename = (
+    "../data/l045a_ac_tf_asyncio-"
+    + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
+)
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
 fh.setFormatter(formatter)
@@ -69,25 +76,30 @@ logger.addHandler(ch)
 logger.setLevel(logging.DEBUG)
 # dictLogger = {'funcName': '__self__.__func__.__name__'}
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
-dictLogger = {'user': inspect.currentframe().f_code.co_name}
+dictLogger = {"user": inspect.currentframe().f_code.co_name}
 import os
+
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-logger.info(f'Start Logging', extra=dictLogger)
+logger.info(f"Start Logging", extra=dictLogger)
 
 
 import numpy as np
+
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 
 from tensorflow.python.client import device_lib
-logger.info(f'tensorflow device lib:\n{device_lib.list_local_devices()}\n', extra=dictLogger)
+
+logger.info(
+    f"tensorflow device lib:\n{device_lib.list_local_devices()}\n", extra=dictLogger
+)
 
 from tensorflow import keras
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
 
-logger.info(f'Tensorflow Imported!', extra=dictLogger)
+logger.info(f"Tensorflow Imported!", extra=dictLogger)
 
 import socket
 import json
@@ -111,7 +123,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
 import io  # needed by convert figure to png in memory
 
-logger.info(f'External Modules Imported!', extra=dictLogger)
+logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
 from comm.vcu_calib_generator import (
@@ -186,7 +198,7 @@ vcu_calib_table0 = generate_vcu_calibration(
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table = vcu_calib_table.reshape(-1).tolist()
 # send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table)
-logger.info(f'flash initial table', extra=dictLogger)
+logger.info(f"flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 # # Create a matplotlib 3d figure, //export and save in log
@@ -240,10 +252,10 @@ manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
 ckpt.restore(manager.latest_checkpoint)
 if manager.latest_checkpoint:
     # logger.info(f"Restored from {manager.latest_checkpoint}")
-    logger.info(f'Restored from {manager.latest_checkpoint}', extra=dictLogger)
+    logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
 else:
     # logger.info("Initializing from scratch")
-    logger.info(f'Initializing from scratch', extra=dictLogger)
+    logger.info(f"Initializing from scratch", extra=dictLogger)
 
 # # get hmi status from udp message
 # def get_hmi_status():
@@ -280,11 +292,12 @@ else:
 
 # @eye
 # tracer.start()
-logger.info(f'Global Initialization done!', extra=dictLogger)
+logger.info(f"Global Initialization done!", extra=dictLogger)
+
 
 async def get_truck_status(motionpowerQueue: asyncio.Queue) -> None:
     global episode_done, wait_for_reset
-    logger.info(f'Enter observation!', extra=dictLogger)
+    logger.info(f"Enter observation!", extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)  # set port reusable for enabling nc to monitor udp
     socket.socket.settimeout(s, None)
@@ -294,14 +307,14 @@ async def get_truck_status(motionpowerQueue: asyncio.Queue) -> None:
     start_moment = time.time()
     th_exit = False
     last_moment = time.time()
-    logger.info(f'Observation initialization Done!', extra=dictLogger)
+    logger.info(f"Observation initialization Done!", extra=dictLogger)
 
     while not th_exit:
         candata, addr = s.recvfrom(2048)
         # logger.info('Data received!!!', extra=dictLogger)
         pop_data = json.loads(candata)
         if len(pop_data) != 1:
-            logging.critical('udp sending multiple shots!')
+            logging.critical("udp sending multiple shots!")
             break
         for key, value in pop_data.items():
             if key == "status":
@@ -309,21 +322,21 @@ async def get_truck_status(motionpowerQueue: asyncio.Queue) -> None:
                 with hmi_lock:
                     if value == "begin":
                         get_truck_status.start = True
-                        logger.info('%s', 'Capture will start!!!', extra=dictLogger)
+                        logger.info("%s", "Capture will start!!!", extra=dictLogger)
                         wait_for_reset = False
                         episode_done = False
                     elif value == "end_valid":
                         get_truck_status.start = False
-                        logger.info('%s', 'Capture will stop!!!', extra=dictLogger)
+                        logger.info("%s", "Capture will stop!!!", extra=dictLogger)
                         wait_for_reset = True
                         episode_done = True
                     elif value == "end_invalid":
                         get_truck_status.start = False
-                        logger.info('%s', 'Capture will stop!!!', extra=dictLogger)
+                        logger.info("%s", "Capture will stop!!!", extra=dictLogger)
                         wait_for_reset = True
                         episode_done = True
                     elif value == "exit":
-                        logger.info('%s', 'Capture will exit!!!', extra=dictLogger)
+                        logger.info("%s", "Capture will exit!!!", extra=dictLogger)
                         th_exit = True
                         break
                         # time.sleep(0.1)
@@ -341,7 +354,13 @@ async def get_truck_status(motionpowerQueue: asyncio.Queue) -> None:
                     current = float(value["A"])
                     voltage = float(value["V"])
                     power = float(value["W"])
-                    motion_power = [velocity, acc_pedal, brake_pressure, current, voltage]
+                    motion_power = [
+                        velocity,
+                        acc_pedal,
+                        brake_pressure,
+                        current,
+                        voltage,
+                    ]
                     # motion_power = [velocity, acc_pedal, current, voltage]
                     step_moment = time.time()
                     # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
@@ -366,7 +385,10 @@ async def get_truck_status(motionpowerQueue: asyncio.Queue) -> None:
                         await motionpowerQueue.put(get_truck_status.motionpower_states)
                         await asyncio.sleep(0.1)
                         # watch(motionpowerQueue.qsize())
-                        logger.info(f"Producer creates {motionpowerQueue.qsize()}", extra=dictLogger)
+                        logger.info(
+                            f"Producer creates {motionpowerQueue.qsize()}",
+                            extra=dictLogger,
+                        )
                         get_truck_status.motionpower_states = []
             else:
                 continue
@@ -385,7 +407,7 @@ get_truck_status.start = False
 async def flash_vcu(tableQueue: asyncio.Queue) -> None:
     flash_count = 0
     th_exit = False
-    logger.info(f'Flash task entered!', extra=dictLogger)
+    logger.info(f"Flash task entered!", extra=dictLogger)
     while not th_exit:
         # time.sleep(0.1)
         with hmi_lock:
@@ -411,8 +433,7 @@ async def flash_vcu(tableQueue: asyncio.Queue) -> None:
         logger.info(f"flash count:{flash_count}", extra=dictLogger)
         # watch(flash_count)
 
-    logger.info(f'flash_vcu dies!!!', extra=dictLogger)
-
+    logger.info(f"flash_vcu dies!!!", extra=dictLogger)
 
 
 # # this is the figure consumer for visualization
@@ -449,7 +470,7 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
     episode_wh = 0
     motion_states_history = []
 
-    logger.info(f'Learn Initialization done!', extra=dictLogger)
+    logger.info(f"Learn Initialization done!", extra=dictLogger)
     while True:  # run until solved
         # if not close, wait for start signal from hmi
         with hmi_lock:
@@ -469,7 +490,9 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
                 motion_power = await motionpowerQueue.get()
                 motionpowerQueue.task_done()
 
-                logger.info(f"Action start step {step_count}", extra=dictLogger)  # env.step(action) action is flash the vcu calibration table
+                logger.info(
+                    f"Action start step {step_count}", extra=dictLogger
+                )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
                 step = False
@@ -485,7 +508,7 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
                 vcu_reward = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
                 )  # vcu_reward is a scalar
-                wh = vcu_reward/3600.0 * 0.05  # negative wh
+                wh = vcu_reward / 3600.0 * 0.05  # negative wh
                 k_vcu_reward = 1000  # TODO determine the ratio
                 # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # add velocitoy sum as reward
                 vcu_reward = -1.0 * wh  # add velocitoy sum as reward
@@ -529,12 +552,14 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
                     vcu_calib_table + vcu_calib_table0,
                     clip_value_min=vcu_calib_table_min,
                     clip_value_max=vcu_calib_table_max,
-                    )
+                )
 
                 vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
                 # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                 await tableQueue.put(vcu_act_list)
-                logger.info(f"Action Push table: {tableQueue.qsize()}", extra=dictLogger)
+                logger.info(
+                    f"Action Push table: {tableQueue.qsize()}", extra=dictLogger
+                )
                 step_count += 1
 
                 # time.sleep(0.9)  # this is a problem to add artificial delay (inappropriate workaround)
@@ -546,7 +571,7 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
                 #     figQueue.put(fig)
 
             output_path = f"file://../data/Calib_table_{episode_count}.out"
-            tf.print('calib table:', vcu_calib_table, output_stream=output_path)
+            tf.print("calib table:", vcu_calib_table, output_stream=output_path)
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
                 vcu_calib_table.numpy(),
@@ -610,8 +635,12 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
             tf.summary.scalar("loss_critic", critic_losses_all, step=episode_count)
             tf.summary.scalar("reward", episode_reward, step=episode_count)
             tf.summary.scalar("running reward", running_reward, step=episode_count)
-            tf.summary.image("Calibration Table", plot_to_image(fig), step=episode_count)
-            tf.summary.histogram("Calibration Table Hist", vcu_act_list, step=episode_count)
+            tf.summary.image(
+                "Calibration Table", plot_to_image(fig), step=episode_count
+            )
+            tf.summary.histogram(
+                "Calibration Table Hist", vcu_act_list, step=episode_count
+            )
         plt.close(fig)
 
         output_template = "Episode {}, Loss all: {}, Act loss: {}, Entropy loss: {}, Critic loss: {}, Episode Reward: {}, Wh: {}"
@@ -623,7 +652,7 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
                 entropy_losses_all,
                 critic_losses_all,
                 episode_reward,
-                episode_wh
+                episode_wh,
             )
         )
         #
@@ -661,7 +690,7 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
         # for thread in threads:
         #     thread.join()
         #     print(f"{thread.getName()} exits!")
-        logger.info(f'main dies!!!!', extra=dictLogger)
+        logger.info(f"main dies!!!!", extra=dictLogger)
         # thread.exit()
 
         # need hmi exit signal to exit task properly
@@ -715,7 +744,6 @@ async def main():
     # tsk_learn.cancel()
     # tsk_flash.cancel()
 
-
     """
     ## visualizations
     in early stages of training:
@@ -724,6 +752,7 @@ async def main():
     in later stages of training:
     ![imgur](https://i.imgur.com/5ziizud.gif)
     """
+
 
 # tracer.stop()
 # tracer.save()

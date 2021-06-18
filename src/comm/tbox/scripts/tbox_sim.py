@@ -90,7 +90,7 @@ def send_float_array(name, float_array):
     data = [{"name": name, "value": value_str}]
     write_json(g_output_json_path, g_input_json_path, data)
     xcp_download = subprocess.run([g_download_script])
-    #print("The exit code was: %d" % xcp_download.returncode)
+    # print("The exit code was: %d" % xcp_download.returncode)
 
 
 # if __name__ == '__main__':

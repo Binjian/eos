@@ -50,7 +50,6 @@ def train_step(net, history, optimizer, tape):
     return loss_all, act_losses_all, entropy_losses_all, critic_losses_all
 
 
-
 """ one a2c training step to update network"""
 
 
@@ -100,7 +99,7 @@ def train_step(net, history, optimizer, tape):
 # TODO add batch sample and ddpg
 # if ignore sigma output, then use DDPG
 def construct_ddpg_network(
-        num_observations, sequence_len, num_actions, num_hidden, bias_mu
+    num_observations, sequence_len, num_actions, num_hidden, bias_mu
 ):
     inputs = layers.Input(
         shape=(sequence_len, num_observations)  # DONE should be flattened
