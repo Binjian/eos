@@ -481,6 +481,7 @@ def main():
                 )  # vcu_reward is a scalar
                 wh = vcu_reward / 3600.0 * 0.05  # negative wh
 
+
                 if (step_count % 2) == 0:  # only for even observation/reward take an action
                     # k_vcu_reward = 1000  # TODO determine the ratio
                     # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
@@ -537,16 +538,28 @@ def main():
                     logger.info(
                         f"Action Push table: {tableQueue.qsize()}", extra=dictLogger
                     )
+                    logger.info(
+                        f"Step : {step_count}", extra=dictLogger
+                    )
+                # during odd steps, old action remains effective due to learn and flash delay
+                # so just record the reward history
+                # motion states (observation) are not used later for backpropagation
                 else:
                     vcu_reward = vcu_reward0 + (-1.0) * wh  # odd + even indexed reward
                     # TODO add speed sum as positive reward
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
                     episode_wh += wh
+                    logger.info(
+                        f"Step : {step_count}", extra=dictLogger
+                    )
 
-                    motion_states = tf.stack([motion_states0, motion_states])
-                    motion_states_history.append(motion_states)  # 60 frames
+                    # motion_states = tf.stack([motion_states0, motion_states])
+                    # motion_states_history was not used for back propagation
+                    # 60 frames, but never used again
+                    # motion_states_history.append(motion_states)
 
+                # step level
                 step_count += 1
 
             if (
@@ -592,6 +605,9 @@ def main():
             # - these are the labels for our critic
             returns = []
             discounted_sum = 0
+            # everytime when episode ends, number of rewards items in history is always even
+            # if action history is odd when episode ends, then the last action/mu_sigma is ignored for backpropagation
+            # thus no extra handling is required
             for r in vcu_rewards_history[::-1]:
                 discounted_sum = r + gamma * discounted_sum
                 returns.insert(0, discounted_sum)
