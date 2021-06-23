@@ -1,3 +1,0 @@
-/home/is/devel/newrizon/drl-carla-manual/src/comm/tbox/xcp_driver/build/CMakeFiles/rebuild_cache.dir
-/home/is/devel/newrizon/drl-carla-manual/src/comm/tbox/xcp_driver/build/CMakeFiles/xcp_driver_node.dir
-/home/is/devel/newrizon/drl-carla-manual/src/comm/tbox/xcp_driver/build/CMakeFiles/edit_cache.dir
