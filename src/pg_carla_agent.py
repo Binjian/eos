@@ -41,7 +41,7 @@ rmsprop_cache = {k: np.zeros_like(v) for k, v in model.items()}  # rmsprop memor
 
 
 def discount_rewards(r):
-    """ take 1D float array of rewards and compute discounted reward """
+    """take 1D float array of rewards and compute discounted reward"""
     discounted_r = np.zeros_like(r)
     running_add = 0
     for t in reversed(list(range(0, r.size))):
@@ -67,7 +67,7 @@ def policy_forward(x):
 
 
 def policy_backward(epx, eph, epdlogp):  # something wrong here
-    """ backward pass. (eph is array of intermediate hidden states) """
+    """backward pass. (eph is array of intermediate hidden states)"""
     # dW2 = np.dot(eph.T, epdlogp).ravel()
     dW2 = np.dot(epdlogp.T, eph)  # 33*4
     # dh = np.outer(epdlogp, model["W2"])

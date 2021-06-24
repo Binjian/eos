@@ -467,7 +467,7 @@ def main():
                 vcu_reward = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
                 )  # vcu_reward is a scalar
-                kwh = vcu_reward/1000.0  # negative kwh
+                kwh = vcu_reward / 1000.0  # negative kwh
                 k_vcu_reward = 1000  # TODO determine the ratio
                 # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # add velocitoy sum as reward
                 vcu_reward = kwh  # add velocitoy sum as reward
@@ -589,7 +589,9 @@ def main():
             tf.summary.scalar("loss_critic", critic_losses_all, step=episode_count)
             tf.summary.scalar("reward", episode_reward, step=episode_count)
             tf.summary.scalar("running reward", running_reward, step=episode_count)
-            tf.summary.image("Calibration Table", plot_to_image(fig), step=episode_count)
+            tf.summary.image(
+                "Calibration Table", plot_to_image(fig), step=episode_count
+            )
         plt.close(fig)
 
         output_template = "Episode {}, Loss all: {}, Act loss: {}, Entropy loss: {}, Critic loss: {}, Episode Reward: {}"
@@ -601,7 +603,7 @@ def main():
                 entropy_losses_all,
                 critic_losses_all,
                 episode_reward,
-                episode_kwh
+                episode_kwh,
             )
         )
         #

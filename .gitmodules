@@ -1,0 +1,3 @@
+[submodule "src/comm/tbox"]
+	path = src/comm/tbox
+	url = ssh://git@gitlab.newrizon.work:2222/its/045bdemo/tbox-simulator.git
