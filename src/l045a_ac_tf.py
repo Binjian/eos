@@ -92,6 +92,9 @@ import numpy as np
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 
+# gpus = tf.config.experimental.list_physical_devices('GPU')
+# tf.config.experimental.set_memory_growth(gpus[0], True)
+
 from tensorflow.python.client import device_lib
 
 logger.info(
@@ -200,8 +203,10 @@ vcu_calib_table0 = generate_vcu_calibration(
 )
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table = vcu_calib_table.reshape(-1).tolist()
+logger.info(f"Start flash initial table", extra=dictLogger)
+time.sleep(1.0)
 # send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table)
-logger.info(f"flash initial table", extra=dictLogger)
+logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 # create actor-critic network
@@ -378,8 +383,8 @@ def flash_vcu(tablequeue):
         else:
 
             # tf.print('calib table:', table, output_stream=output_path)
-            # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
             logger.info(f"flash starts", extra=dictLogger)
+            # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
             time.sleep(1.0)
             logger.info(f"flash count:{flash_count}", extra=dictLogger)
             flash_count += 1
@@ -481,8 +486,9 @@ def main():
                 )  # vcu_reward is a scalar
                 wh = vcu_reward / 3600.0 * 0.05  # negative wh
 
-
-                if (step_count % 2) == 0:  # only for even observation/reward take an action
+                if (
+                    step_count % 2
+                ) == 0:  # only for even observation/reward take an action
                     # k_vcu_reward = 1000  # TODO determine the ratio
                     # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
                     vcu_reward0 = -1.0 * wh  # add velocitoy sum as reward
@@ -538,9 +544,7 @@ def main():
                     logger.info(
                         f"Action Push table: {tableQueue.qsize()}", extra=dictLogger
                     )
-                    logger.info(
-                        f"Step : {step_count}", extra=dictLogger
-                    )
+                    logger.info(f"Step : {step_count}", extra=dictLogger)
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so just record the reward history
                 # motion states (observation) are not used later for backpropagation
@@ -550,9 +554,7 @@ def main():
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
                     episode_wh += wh
-                    logger.info(
-                        f"Step : {step_count}", extra=dictLogger
-                    )
+                    logger.info(f"Step : {step_count}", extra=dictLogger)
 
                     # motion_states = tf.stack([motion_states0, motion_states])
                     # motion_states_history was not used for back propagation
