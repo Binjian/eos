@@ -19,5 +19,3 @@ else:
     )
     result = os.waitpid(-1, 0)
     p.terminate()
-
-
