@@ -244,7 +244,7 @@ class Buffer:
         # Get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
         record_range = min(self.buffer_counter, self.buffer_capacity)
-        # Randomly sample indices
+        # Randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
         batch_indices = np.random.choice(record_range, self.batch_size)
 
         # Convert to tensors
