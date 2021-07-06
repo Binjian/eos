@@ -277,7 +277,7 @@ buffer = Buffer(
     num_actions,
     buffer_capacity=50000,
     batch_size=4,
-    gamma=0.99,
+    gamma=0.99
 )
 
 
@@ -606,12 +606,8 @@ def main():
                         logger.info(f"BP starts.", extra=dictLogger)
                         buffer.learn()
 
-                        update_target(
-                            target_actor.variables, actor_model.variables, tau
-                        )
-                        update_target(
-                            target_critic.variables, critic_model.variables, tau
-                        )
+                        update_target(target_actor.variables, actor_model.variables, tau)
+                        update_target(target_critic.variables, critic_model.variables, tau)
                         logger.info(f"BP stops.", extra=dictLogger)
 
                     # motion_states_history.append(motion_states)
@@ -632,7 +628,7 @@ def main():
                         motion_states0,
                         action_lower,
                         action_upper,
-                        ou_noise,
+                        ou_noise
                     )
                     prev_motion_states = motion_states0
                     prev_action = action
@@ -824,6 +820,7 @@ def main():
     critic_model.save_weights("../model/veos_critic.h5")
     target_actor.save_weights("../model/veos_target_actor.h5")
     target_critic.save_weights("../model/veos_target_critic.h5")
+
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
