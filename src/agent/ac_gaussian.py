@@ -97,40 +97,7 @@ def train_step(net, history, optimizer, tape):
 """construct the actor network with mu and sigma as output"""
 # TODO add memory replay buffer
 # TODO add batch sample and ddpg
-# if ignore sigma output, then use DDPG
-def construct_ddpg_network(
-    num_observations, sequence_len, num_actions, num_hidden, bias_mu
-):
-    inputs = layers.Input(
-        shape=(sequence_len, num_observations)  # DONE should be flattened
-    )  # input dimension, 2 rows, 20 columns. (speed, pedal)
-    # add flatten layer
-    flatinputs = layers.Flatten()(inputs)
-    hidden = layers.Dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
-    )(flatinputs)
-    common = layers.Dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
-    )(hidden)
-    mu = layers.Dense(
-        num_actions,
-        activation="tanh",  # tanh for mu between (-1,+1) to be scaled by a hyperparameter
-        # activation="linear",
-        kernel_initializer=initializers.zeros(),
-        bias_initializer=initializers.constant(bias_mu),
-    )(common)
-
-    critic_value = layers.Dense(1)(common)
-
-    ddpg_network = keras.Model(inputs=inputs, outputs=[mu, critic_value])
-
-    return ddpg_network
-
-
-"""construct the actor network with mu and sigma as output"""
-# TODO add memory replay buffer
-# TODO add batch sample and ddpg
-# if ignore sigma output, then use DDPG
+# Actor and Critic share a backbone network (multitasking)
 def constructactorcriticnetwork(
     num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
 ):
