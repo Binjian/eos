@@ -1,4 +1,5 @@
 """
+portNum = 8002  # port number
 Title: Advantage Actor Critic Method
 Author: [Binjian Xin](https://www.newrizon.com)
 Date created: 2021/02/12
@@ -143,7 +144,7 @@ from agent.ac_gaussian import (
 )
 from comm.tbox.scripts.tbox_sim import *
 
-set_tbox_sim_path("/home/is/devel/newrizon/drl-carla-manual/src/comm/tbox")
+set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
@@ -204,8 +205,8 @@ vcu_calib_table0 = generate_vcu_calibration(
 vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table = vcu_calib_table.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
-time.sleep(1.0)
-# send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table)
+# time.sleep(1.0)
+send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table, sw_diff=False)
 logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
@@ -384,8 +385,8 @@ def flash_vcu(tablequeue):
 
             # tf.print('calib table:', table, output_stream=output_path)
             logger.info(f"flash starts", extra=dictLogger)
-            # send_float_array("TQD_trqTrqSetNormal_MAP_v", table)
-            time.sleep(1.0)
+            send_float_array("TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True)
+            # time.sleep(1.0)
             logger.info(f"flash count:{flash_count}", extra=dictLogger)
             flash_count += 1
             # watch(flash_count)
