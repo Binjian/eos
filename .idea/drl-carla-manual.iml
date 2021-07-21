@@ -3,8 +3,9 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/src/comm/tbox/tbox-simulator/.vscode" />
+      <excludeFolder url="file://$MODULE_DIR$/src/comm/tbox/xcp_driver/build" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.6 (gym-carla)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.8 (veos-p38)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
