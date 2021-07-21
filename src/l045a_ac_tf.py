@@ -202,11 +202,11 @@ velocity_range = [0, 20.0]
 vcu_calib_table0 = generate_vcu_calibration(
     vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
 )
-vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
-vcu_table = vcu_calib_table.reshape(-1).tolist()
+vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
+vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
 # time.sleep(1.0)
-send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table, sw_diff=False)
+send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
 logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
@@ -215,15 +215,19 @@ num_observations = 2  # observed are the current speed and throttle; !! accelera
 sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 2 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
+vcu_calib_table_row_reduced = 5  # first 5 rows correspond to low speed from  0, 7, 10, 15, 20 kmh
+num_reduced_actions = vcu_calib_table_row_reduced * vcu_calib_table_col  # 5x17=85
 num_hidden = 128
 bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
 bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
+
+vcu_calib_table0_reduced = vcu_calib_table0[:vcu_calib_table_row_reduced, :]
 
 tf.keras.backend.set_floatx("float64")
 # TODO option fix sigma, just optimize mu
 # TODO create testing scenes for gathering data
 actorcritic_network = constructactorcriticnetwork(
-    num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
+    num_observations, sequence_len, num_reduced_actions, num_hidden, bias_mu, bias_sigma
 )
 gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
@@ -507,39 +511,44 @@ def main():
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
                     logger.info(f"before inference!", extra=dictLogger)
+                    # Now with reduced action space (only low speed, 5 rows)
                     mu_sigma, critic_value = actorcritic_network(motion_states0)
 
-                    logger.info(f"inference done!", extra=dictLogger)
+                    logger.info(f"inference done with reduced action space!", extra=dictLogger)
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
 
                     # sample action from action probability distribution
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
-                    vcu_action = mvn.sample()  # 17*21 =  357 actions
+                    vcu_action_reduced = mvn.sample()  # 17*5 =  85 actions
                     logger.info(f"sampling done!", extra=dictLogger)
-                    vcu_action_history.append(vcu_action)
+                    vcu_action_history.append(vcu_action_reduced)
                     # Here the lookup table with contrained output is part of the environemnt,
                     # clip is part of the environment to be learned
                     # action is not constrained!
-                    vcu_calib_table = tf.reshape(
-                        vcu_action, [vcu_calib_table_row, vcu_calib_table_col]
+                    vcu_calib_table_reduced = tf.reshape(
+                        vcu_action_reduced, [vcu_calib_table_row_reduced, vcu_calib_table_col]
                     )
                     # get change budget : % of initial table
-                    vcu_calib_table = tf.math.multiply(
-                        vcu_calib_table * vcu_calib_table_budget, vcu_calib_table0
+                    vcu_calib_table_reduced = tf.math.multiply(
+                        vcu_calib_table_reduced * vcu_calib_table_budget, vcu_calib_table0_reduced
                     )
                     # add changes to the default value
-                    vcu_calib_table_min = 0.8 * vcu_calib_table0
-                    vcu_calib_table_max = 1.0 * vcu_calib_table0
+                    vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
+                    vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
 
-                    vcu_calib_table = tf.clip_by_value(
-                        vcu_calib_table + vcu_calib_table0,
-                        clip_value_min=vcu_calib_table_min,
-                        clip_value_max=vcu_calib_table_max,
+                    vcu_calib_table_reduced = tf.clip_by_value(
+                        vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                        clip_value_min=vcu_calib_table_min_reduced,
+                        clip_value_max=vcu_calib_table_max_reduced,
                     )
 
-                    vcu_act_list = vcu_calib_table.numpy().reshape(-1).tolist()
+                    # create updated complete pedal map, only update the first few rows
+                    vcu_calib_table1[:vcu_calib_table_row_reduced, :] = vcu_calib_table_reduced.numpy()
+                    # vcu_calib_table1[:vcu_calib_table_row_reduced, :] = np.zeros( vcu_calib_table0_reduced.shape)
+
+                    vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logger.info(
@@ -575,10 +584,10 @@ def main():
                 continue  # otherwise assuming the history is valid and back propagate
 
             output_path = f"file://../data/Calib_table_{episode_count}.out"
-            tf.print("calib table:", vcu_calib_table, output_stream=output_path)
+            tf.print("calib table:", vcu_calib_table1, output_stream=output_path)
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
-                vcu_calib_table.numpy(),
+                vcu_calib_table1,
                 columns=np.linspace(0, 1.0, num=17),
                 index=np.linspace(0, 30, num=21),
             )
