@@ -9,16 +9,22 @@ logs
 *.xls
 *.xlsx
 *.xml
-*.iml
+*.srctrlbm
+*.srctrldb
+*.srctrlprj
+
+
 
 # Ignore the build directory
 # /dist
 __pycache__/
-.idea/
 src/comm/tbox/xcp_driver/build
+data/
+tf_ckpts/
 
 .glab-cli/
 .idea/
+
 # The file containing environment variables
 # .env
 

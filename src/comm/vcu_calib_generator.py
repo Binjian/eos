@@ -31,7 +31,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
         pd_data = pd.read_csv("../data/init_table")
-        # Create a matplotlib 3d figure, //export and save in log
+        # create a matplotlib 3d figure, //export and save in log
         pd_data.columns = np.linspace(0, 1.0, num=17)
         pd_data.index = np.linspace(0, 30, num=21)
         v = pd_data.to_numpy()
