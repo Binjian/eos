@@ -6,6 +6,8 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 from scipy import interpolate
 import pandas as pd
+import pickle
+import os
 
 # test_list = range(1, 37)
 # for i in range(36):
@@ -31,7 +33,12 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
         pd_data = pd.read_csv("../data/init_table")
-        # create a matplotlib 3d figure, //export and save in log
+        pd_data.columns = np.linspace(0, 1.0, num=17)
+        pd_data.index = np.linspace(0, 30, num=21)
+        v = pd_data.to_numpy()
+    elif shortcut == 3:  # import last pedal map that is used
+        cpypath = os.getcwd() + '../data/last_table.out'
+        pd_data = pickle.load(open(cpypath, "wb"))
         pd_data.columns = np.linspace(0, 1.0, num=17)
         pd_data.index = np.linspace(0, 30, num=21)
         v = pd_data.to_numpy()

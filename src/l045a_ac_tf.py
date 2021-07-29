@@ -64,8 +64,8 @@ formatter = logging.Formatter(
     "T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d): Msg-%(message)s"
 )
 logfilename = (
-    "../data/l045a_ac_tf_asyncio-"
-    + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
+    "../data/l045a_ac_tf-"
+    + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
 )
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
@@ -81,6 +81,8 @@ logger.setLevel(logging.DEBUG)
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
 import os
+from shutil import copyfil
+import pickle
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 logger.info(f"Start Logging", extra=dictLogger)
@@ -200,7 +202,7 @@ velocity_range = [0, 20.0]
 
 # default table
 vcu_calib_table0 = generate_vcu_calibration(
-    vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
+    vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3
 )
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
@@ -583,8 +585,8 @@ def main():
                 )
                 continue  # otherwise assuming the history is valid and back propagate
 
-            output_path = f"file://../data/Calib_table_{episode_count}.out"
-            tf.print("calib table:", vcu_calib_table1, output_stream=output_path)
+            pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
+            tf.print("calib table:", vcu_calib_table1, output_stream=pm_output_path)
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
                 vcu_calib_table1,
@@ -716,6 +718,13 @@ def main():
 
     thr_observe.join()
     thr_flash.join()
+
+    # todo test restore last table
+    logger.info(f"Save the last table!!!!", extra=dictLogger)
+    # cpypath = os.getcwd() + '../data/last_table.json'
+    # copyfile("/dev/shm/out.json", cpypath)
+    cpypath = os.getcwd() + '../data/last_table.out'
+    pickle.dump(vcu_calib_table1, open(cpypath, "wb"))
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
