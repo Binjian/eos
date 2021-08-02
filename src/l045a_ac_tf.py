@@ -64,8 +64,9 @@ formatter = logging.Formatter(
     "T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d): Msg-%(message)s"
 )
 logfilename = (
-    "../data/l045a_ac_tf-"
+    "../data/py_logs/l045a_ac_tf-"
     + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    +".log"
 )
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
@@ -160,7 +161,7 @@ hmi_lock = Lock()
 
 # TODO add visualization and logging
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = "logs/gradient_tape/" + current_time + "/train"
+train_log_dir = "../data/tf_logs/gradient_tape/" + current_time + "/train"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
 # tableQueue contains a table which is a list of type float
@@ -234,7 +235,7 @@ actorcritic_network = constructactorcriticnetwork(
 gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
-checkpoint_dir = "../tf_ckpts"
+checkpoint_dir = "../data/tf_ckpts"
 ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
 manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
 ckpt.restore(manager.latest_checkpoint)
