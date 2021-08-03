@@ -573,6 +573,7 @@ def main():
                     # TODO add speed sum as positive reward
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
+                    # episode_wh += wh  # if only the odd steps, then only considers the effective action results?
                     logger.info(f"Step : {step_count}", extra=dictLogger)
 
                     # motion_states = tf.stack([motion_states0, motion_states])
@@ -655,7 +656,7 @@ def main():
             ckpt.step.assign_add(1)
 
         with train_summary_writer.as_default():
-            tf.summary.scalar("KWH", -episode_reward, step=episode_count)
+            tf.summary.scalar("WH", -episode_reward, step=episode_count)
             tf.summary.scalar("loss_sum", loss_all, step=episode_count)
             tf.summary.scalar("loss_act", act_losses_all, step=episode_count)
             tf.summary.scalar("loss_entropy", entropy_losses_all, step=episode_count)
