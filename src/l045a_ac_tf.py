@@ -262,7 +262,7 @@ logger.info(f"Global Initialization done!", extra=dictLogger)
 
 
 def get_truck_status():
-    global episode_done, wait_for_reset, program_exit, motionpowerQueue
+    global episode_done, wait_for_reset, program_exit, motionpowerQueue, sequence_len
     # logger.info(f'Start Initialization!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     socket.socket.settimeout(s, None)
@@ -292,8 +292,8 @@ def get_truck_status():
                         episode_done = False
                         program_exit = False
                         th_exit = False
-                    elif value == "end_valid":
-                        get_truck_status.start = False
+                    elif value == "end_valid":  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                        get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
                         logger.info("%s", "Capture ends!!!", extra=dictLogger)
                         wait_for_reset = True  # wait when episode starts
                         episode_done = True
@@ -564,7 +564,7 @@ def main():
                     logger.info(
                         f"Action Push table: {tableQueue.qsize()}", extra=dictLogger
                     )
-                    logger.info(f"Step : {step_count}", extra=dictLogger)
+                    logger.info(f"Step stop: {step_count}", extra=dictLogger)
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so just record the reward history
                 # motion states (observation) are not used later for backpropagation
@@ -574,7 +574,7 @@ def main():
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
                     # episode_wh += wh  # if only the odd steps, then only considers the effective action results?
-                    logger.info(f"Step : {step_count}", extra=dictLogger)
+                    logger.info(f"Step stop: {step_count}", extra=dictLogger)
 
                     # motion_states = tf.stack([motion_states0, motion_states])
                     # motion_states_history was not used for back propagation
@@ -630,10 +630,15 @@ def main():
             # everytime when episode ends, number of rewards items in history is always even
             # if action history is odd when episode ends, then the last action/mu_sigma is ignored for backpropagation
             # thus no extra handling is required
+            # TODO move vcu_rewards one step forward !!!
+            vcu_rewards_history = vcu_rewards_history[1:]
+            vcu_action_history = vcu_action_history[:-1]
+            mu_sigma_history = mu_sigma_history[:-1]
+            vcu_critic_value_history = vcu_critic_value_history[:-1]
+
             for r in vcu_rewards_history[::-1]:
                 discounted_sum = r + gamma * discounted_sum
                 returns.insert(0, discounted_sum)
-            # todo move vcu_rewards one step forward ?!!!
             # normalize
             returns = np.array(returns)
             returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
