@@ -66,7 +66,7 @@ formatter = logging.Formatter(
 logfilename = (
     "../data/py_logs/l045a_ac_tf-"
     + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-    +".log"
+    + ".log"
 )
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
@@ -218,7 +218,9 @@ num_observations = 2  # observed are the current speed and throttle; !! accelera
 sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
-vcu_calib_table_row_reduced = 5  # first 5 rows correspond to low speed from  0, 7, 10, 15, 20 kmh
+vcu_calib_table_row_reduced = (
+    5  # first 5 rows correspond to low speed from  0, 7, 10, 15, 20 kmh
+)
 num_reduced_actions = vcu_calib_table_row_reduced * vcu_calib_table_col  # 5x17=85
 num_hidden = 128
 bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
@@ -431,7 +433,6 @@ def main():
     vcu_rewards_history = []
     running_reward = 0
     episode_reward = 0
-    episode_wh = 0
     motion_states_history = []
     th_exit = False
     done = False
@@ -477,7 +478,7 @@ def main():
                     continue
 
                 logger.info(
-                    f"Action start step {step_count}", extra=dictLogger
+                    f"Episode start step {step_count}", extra=dictLogger
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
@@ -517,7 +518,9 @@ def main():
                     # Now with reduced action space (only low speed, 5 rows)
                     mu_sigma, critic_value = actorcritic_network(motion_states0)
 
-                    logger.info(f"inference done with reduced action space!", extra=dictLogger)
+                    logger.info(
+                        f"inference done with reduced action space!", extra=dictLogger
+                    )
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
 
@@ -531,11 +534,13 @@ def main():
                     # clip is part of the environment to be learned
                     # action is not constrained!
                     vcu_calib_table_reduced = tf.reshape(
-                        vcu_action_reduced, [vcu_calib_table_row_reduced, vcu_calib_table_col]
+                        vcu_action_reduced,
+                        [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
                     # get change budget : % of initial table
                     vcu_calib_table_reduced = tf.math.multiply(
-                        vcu_calib_table_reduced * vcu_calib_table_budget, vcu_calib_table0_reduced
+                        vcu_calib_table_reduced * vcu_calib_table_budget,
+                        vcu_calib_table0_reduced,
                     )
                     # add changes to the default value
                     vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
@@ -548,7 +553,9 @@ def main():
                     )
 
                     # create updated complete pedal map, only update the first few rows
-                    vcu_calib_table1[:vcu_calib_table_row_reduced, :] = vcu_calib_table_reduced.numpy()
+                    vcu_calib_table1[
+                        :vcu_calib_table_row_reduced, :
+                    ] = vcu_calib_table_reduced.numpy()
                     # vcu_calib_table1[:vcu_calib_table_row_reduced, :] = np.zeros( vcu_calib_table0_reduced.shape)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
@@ -566,7 +573,6 @@ def main():
                     # TODO add speed sum as positive reward
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
-                    episode_wh += wh
                     logger.info(f"Step : {step_count}", extra=dictLogger)
 
                     # motion_states = tf.stack([motion_states0, motion_states])
@@ -649,7 +655,7 @@ def main():
             ckpt.step.assign_add(1)
 
         with train_summary_writer.as_default():
-            tf.summary.scalar("KWH", episode_wh, step=episode_count)
+            tf.summary.scalar("KWH", -episode_reward, step=episode_count)
             tf.summary.scalar("loss_sum", loss_all, step=episode_count)
             tf.summary.scalar("loss_act", act_losses_all, step=episode_count)
             tf.summary.scalar("loss_entropy", entropy_losses_all, step=episode_count)
@@ -664,17 +670,9 @@ def main():
             )
         plt.close(fig)
 
-        output_template = "Episode {}, Loss all: {}, Act loss: {}, Entropy loss: {}, Critic loss: {}, Episode Reward: {}, Wh: {}"
-        print(
-            output_template.format(
-                episode_count + 1,
-                loss_all,
-                act_losses_all,
-                entropy_losses_all,
-                critic_losses_all,
-                episode_reward,
-                episode_wh,
-            )
+        logger.info(
+            f"Episode {episode_count + 1}, Loss all: {loss_all}, Act loss: {act_losses_all}, Entropy loss: {entropy_losses_all}, Critic loss: {critic_losses_all}, Episode Reward: {episode_reward}",
+            extra=dictLogger,
         )
         #
         #   # Reset metrics every epoch
@@ -699,15 +697,14 @@ def main():
 
         # Checkpoint manager save model
         save_path = manager.save()
-        print(f"Saved checkpoint for step {int(ckpt.step)}: {save_path}")
-        print(f"loss {loss_all.numpy():.2f}".format(loss_all.numpy()))
+        logger.info(f"Saved checkpoint for step {int(ckpt.step)}: {save_path}", extra=dictLogger)
+        logger.info(f"loss {loss_all.numpy():.2f}".format(loss_all.numpy()), extra=dictLogger)
 
         episode_count += 1
         episode_reward = 0
-        episode_wh = 0
-        if episode_count % 1 == 0:
-            print("========================")
-            print(f"running reward: {running_reward:.2f} at episode {episode_count}")
+        if episode_count % 10 == 0:
+            logger.info("========================", extra=dictLogger)
+            logger.info(f"running reward: {running_reward:.2f} at episode {episode_count}", extra=dictLogger)
 
         logger.info(
             f"Episode done, waits for next episode kicking off!", extra=dictLogger
@@ -724,7 +721,7 @@ def main():
     logger.info(f"Save the last table!!!!", extra=dictLogger)
     # cpypath = os.getcwd() + '../data/last_table.json'
     # copyfile("/dev/shm/out.json", cpypath)
-    cpypath = os.getcwd() + '../data/last_table.out'
+    cpypath = os.getcwd() + "../data/last_table.out"
     pickle.dump(vcu_calib_table1, open(cpypath, "wb"))
 
     logger.info(f"main dies!!!!", extra=dictLogger)
