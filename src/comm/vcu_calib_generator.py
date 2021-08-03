@@ -37,11 +37,9 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         pd_data.index = np.linspace(0, 30, num=21)
         v = pd_data.to_numpy()
     elif shortcut == 3:  # import last pedal map that is used
-        cpypath = os.getcwd() + '../data/last_table.out'
-        pd_data = pickle.load(open(cpypath, "wb"))
-        pd_data.columns = np.linspace(0, 1.0, num=17)
-        pd_data.index = np.linspace(0, 30, num=21)
-        v = pd_data.to_numpy()
+        last_table_store_path = os.getcwd() + '/../data/last_table.npy'
+        with open(last_table_store_path, 'rb') as f:
+            v = np.load(f)
     else:
         vel = np.ones(nvl)
         pdv, vlv = np.meshgrid(ped, vel, sparse=False)

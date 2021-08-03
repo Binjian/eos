@@ -726,9 +726,11 @@ def main():
     # todo test restore last table
     logger.info(f"Save the last table!!!!", extra=dictLogger)
     # cpypath = os.getcwd() + '../data/last_table.json'
-    # copyfile("/dev/shm/out.json", cpypath)
-    cpypath = os.getcwd() + "../data/last_table.out"
-    pickle.dump(vcu_calib_table1, open(cpypath, "wb"))
+    # copyfile("/dev/shm/out.json", cpypat)
+
+    last_table_store_path = os.getcwd() + "/../data/last_table"
+    with open(last_table_store_path, 'wb') as f:
+        np.save(last_table_store_path, vcu_calib_table1)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
