@@ -64,7 +64,8 @@ def train_step(net, history, optimizer, tape):
         # of `log_prob` and ended up recieving a total reward = `ret`.
         # the actor must be updated so that it predicts an action that leads to
         # high rewards (compared to critic's estimate) with high probability.
-        diff = ret - value
+        # Xin: use ret (action value samples) might have high variance. todo replace return with TD learning target
+        diff = ret - value  # return is reward (negative loss/energy consumption)
         loss_act, loss_entropy = customlossgaussian(mu_sigma, action, diff)
         act_losses.append(loss_act)
         entropy_losses.append(loss_entropy)
