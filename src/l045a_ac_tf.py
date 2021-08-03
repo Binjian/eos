@@ -61,7 +61,7 @@ mpl_logger.disabled = True
 logger = logging.getLogger("l045a")
 logger.propagate = False
 formatter = logging.Formatter(
-    "T(%(relativeCreated)d):Thr(%(threadName)s):F(%(funcName)s)L(%(lineno)d): Msg-%(message)s"
+    "%(asctime)s.%(msecs)03d-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 logfilename = (
     "../data/py_logs/l045a_ac_tf-"
@@ -215,7 +215,7 @@ logger.info(f"Done flash initial table", extra=dictLogger)
 
 # create actor-critic network
 num_observations = 2  # observed are the current speed and throttle; !! acceleration not available in l045a
-sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 2 second
+sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
 vcu_calib_table_row_reduced = 5  # first 5 rows correspond to low speed from  0, 7, 10, 15, 20 kmh
@@ -527,7 +527,7 @@ def main():
                     vcu_action_reduced = mvn.sample()  # 17*5 =  85 actions
                     logger.info(f"sampling done!", extra=dictLogger)
                     vcu_action_history.append(vcu_action_reduced)
-                    # Here the lookup table with contrained output is part of the environemnt,
+                    # Here the lookup table with constrained output is part of the environment,
                     # clip is part of the environment to be learned
                     # action is not constrained!
                     vcu_calib_table_reduced = tf.reshape(
@@ -626,7 +626,7 @@ def main():
             for r in vcu_rewards_history[::-1]:
                 discounted_sum = r + gamma * discounted_sum
                 returns.insert(0, discounted_sum)
-
+            # todo move vcu_rewards one step forward ?!!!
             # normalize
             returns = np.array(returns)
             returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
