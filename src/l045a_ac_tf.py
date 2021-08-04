@@ -7,7 +7,7 @@ Last modified: 2020/03/15
 Description: Implement Advantage Actor Critic Method in Carla environment.
 """
 import sys
-
+import argparse
 """
 ## Introduction
 
@@ -52,6 +52,14 @@ from watchpoints import watch
 import logging
 import inspect
 
+
+# resumption settings
+parser = argparse.ArgumentParser()
+parser.add_argument("-r", "--resume", help="resume the last training with restored model, checkpoint and pedal map",
+                    action="store_true")
+args = parser.parse_args()
+
+
 # tracer = VizTracer()
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
 mpl_logger = logging.getLogger("matplotlib.font_manager")
@@ -63,11 +71,19 @@ logger.propagate = False
 formatter = logging.Formatter(
     "%(asctime)s.%(msecs)03d-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
-logfilename = (
-    "../data/py_logs/l045a_ac_tf-"
-    + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-    + ".log"
-)
+if args.resume:
+    logfilename = (
+        "../data/py_logs/l045a_ac_tf-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + ".log"
+    )
+else:
+    logfilename = (
+            "../data/scratch/py_logs/l045a_ac_tf-"
+            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+            + ".log"
+    )
+
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
 fh.setFormatter(formatter)
@@ -82,14 +98,15 @@ logger.setLevel(logging.DEBUG)
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
 import os
-from shutil import copyfil
-import pickle
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 logger.info(f"Start Logging", extra=dictLogger)
 
+if args.resume:
+    logger.info(f'Resume last training', extra=dictLogger)
+else:
+    logger.info(f'Start from scratch', extra=dictLogger)
 
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import numpy as np
 
@@ -159,10 +176,6 @@ set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
 vcu_step_lock = Lock()
 hmi_lock = Lock()
 
-# TODO add visualization and logging
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = "../data/tf_logs/gradient_tape/" + current_time + "/train"
-train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
 # tableQueue contains a table which is a list of type float
 tableQueue = queue.Queue()
@@ -180,6 +193,15 @@ episode_done = False
 episode_count = 0
 states_rewards = []
 
+# TODO add visualization and logging
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+if args.resume:
+    train_log_dir = "../data/tf_logs/gradient_tape/" + current_time + "/train"
+else:
+    train_log_dir = "../data/scratch/tf_logs/gradient_tape/" + current_time + "/train"
+train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 """
 ## implement actor critic network
 
@@ -201,10 +223,16 @@ vcu_calib_table_size = vcu_calib_table_row * vcu_calib_table_col
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
 
-# default table
-vcu_calib_table0 = generate_vcu_calibration(
-    vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3
-)
+# resume last pedal map / scratch from default table
+if args.resume:
+    vcu_calib_table0 = generate_vcu_calibration(
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3
+    )
+else:
+    vcu_calib_table0 = generate_vcu_calibration(
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
+    )
+
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
@@ -237,14 +265,30 @@ actorcritic_network = constructactorcriticnetwork(
 gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
-checkpoint_dir = "../data/tf_ckpts"
-ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
-manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
-ckpt.restore(manager.latest_checkpoint)
-if manager.latest_checkpoint:
-    logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
+if args.resume:
+    checkpoint_dir = "../data/tf_ckpts"
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
+    manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
+    ckpt.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
+    else:
+        logger.info(f"Initializing from scratch", extra=dictLogger)
 else:
-    logger.info(f"Initializing from scratch", extra=dictLogger)
+    tf_chp_path = (
+            "../data/scratch/tf_ckpts/l045a_ac_tf-"
+            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    )
+    os.mkdir(tf_chp_path)
+    logger.info(f"Temporary checkpoints created in {tf_chp_path}", extra=dictLogger)
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
+    manager = tf.train.CheckpointManager(ckpt, tf_chp_path, max_to_keep=10)
+    ckpt.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
+    else:
+        logger.info(f"Initializing from scratch", extra=dictLogger)
+
 
 # todo ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
 init_motionpower = np.random.rand(sequence_len, num_observations)
@@ -484,23 +528,23 @@ def main():
                 # reward history
                 motionpower_states = tf.convert_to_tensor(
                     motionpower
-                )  # state must have 30 (speed, acceleration, throttle, current, voltage) 5 tuple
+                )  # state must have 30 (velocity, pedal, current, voltage) 4 tuple
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
                 logger.info(f"tensor convert and split!", extra=dictLogger)
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
-                vcu_reward = tf.reduce_sum(
+                ui_sum = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
                 )  # vcu_reward is a scalar
-                wh = vcu_reward / 3600.0 * 0.05  # negative wh
+                wh = ui_sum / 3600.0 * 0.05  # negative wh
 
                 if (
                     step_count % 2
                 ) == 0:  # only for even observation/reward take an action
                     # k_vcu_reward = 1000  # TODO determine the ratio
                     # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                    vcu_reward0 = -1.0 * wh  # add velocitoy sum as reward
+                    wh0 = wh  # add velocitoy sum as reward
                     # TODO add speed sum as positive reward
 
                     # motion_states_history.append(motion_states)
@@ -566,10 +610,10 @@ def main():
                     )
                     logger.info(f"Step stop: {step_count}", extra=dictLogger)
                 # during odd steps, old action remains effective due to learn and flash delay
-                # so just record the reward history
+                # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
                 else:
-                    vcu_reward = vcu_reward0 + (-1.0) * wh  # odd + even indexed reward
+                    vcu_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
                     # TODO add speed sum as positive reward
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
