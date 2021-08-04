@@ -69,7 +69,7 @@ mpl_logger.disabled = True
 logger = logging.getLogger("l045a")
 logger.propagate = False
 formatter = logging.Formatter(
-    "%(asctime)s.%(msecs)03d-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+    "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 if args.resume:
     logfilename = (
@@ -247,14 +247,14 @@ sequence_len = 30  # 30 observation pairs as a valid observation for agent, for 
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
 vcu_calib_table_row_reduced = (
-    5  # first 5 rows correspond to low speed from  0, 7, 10, 15, 20 kmh
+    4  # 1:5 rows correspond to low speed from  7, 10, 15, 20 kmh
 )
-num_reduced_actions = vcu_calib_table_row_reduced * vcu_calib_table_col  # 5x17=85
+num_reduced_actions = vcu_calib_table_row_reduced * vcu_calib_table_col  # 4x17=68
 num_hidden = 128
 bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
 bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
 
-vcu_calib_table0_reduced = vcu_calib_table0[:vcu_calib_table_row_reduced, :]
+vcu_calib_table0_reduced = vcu_calib_table0[1:vcu_calib_table_row_reduced+1, :]
 
 tf.keras.backend.set_floatx("float64")
 # TODO option fix sigma, just optimize mu
@@ -621,9 +621,9 @@ def main():
 
                     # create updated complete pedal map, only update the first few rows
                     vcu_calib_table1[
-                        :vcu_calib_table_row_reduced, :
+                        1:vcu_calib_table_row_reduced+1, :
                     ] = vcu_calib_table_reduced.numpy()
-                    # vcu_calib_table1[:vcu_calib_table_row_reduced, :] = np.zeros( vcu_calib_table0_reduced.shape)
+                    # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
