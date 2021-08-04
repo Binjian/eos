@@ -387,7 +387,7 @@ def get_truck_status():
                     # print("timestamp:{},velocity:{},acceleration:{},pedal:{},current:{},voltage:{},power:{}".format(timestamp,velocity,acceleration,pedal,current,voltage,power))
                     get_truck_status.motionpower_states.append(
                         motion_power
-                    )  # obs_reward [speed, acc, pedal, current, voltage]
+                    )  # obs_reward [speed, pedal, current, voltage]
                     # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
                     if len(get_truck_status.motionpower_states) >= sequence_len:
                         # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
@@ -395,6 +395,11 @@ def get_truck_status():
                         # watch(motionpowerQueue.qsize())
                         logger.info(
                             f"Producer creates {motionpowerQueue.qsize()}",
+                            extra=dictLogger,
+                        )
+                        motionpower_states_s = [f"{vel:.3f},{ped:.3f},{c:.3f},{v:.3f}" for (vel, ped, c, v) in get_truck_status.motionpower_states]
+                        logger.info(
+                            f"Motion Power States: {motionpower_states_s}",
                             extra=dictLogger,
                         )
                         get_truck_status.motionpower_states = []
@@ -532,12 +537,30 @@ def main():
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
                 logger.info(f"tensor convert and split!", extra=dictLogger)
+                motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
+                logger.info(
+                    f"Motion States: {motion_states_s}",
+                    extra=dictLogger,
+                )
+                power_states_s = [f"{c:.3f},{v:.3f}" for (c, v) in power_states]
+                logger.info(
+                    f"Power States: {motion_states_s}",
+                    extra=dictLogger,
+                )
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
                 ui_sum = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
                 )  # vcu_reward is a scalar
                 wh = ui_sum / 3600.0 * 0.05  # negative wh
+                logger.info(
+                    f"ui_sum: {ui_sum}",
+                    extra=dictLogger,
+                )
+                logger.info(
+                    f"wh: {wh}",
+                    extra=dictLogger,
+                )
 
                 if (
                     step_count % 2
