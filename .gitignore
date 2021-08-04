@@ -4,6 +4,7 @@
 # Ignore Logs
 logs
 *.log
+*.index
 *.out
 *.pcap
 *.pdf
@@ -21,7 +22,7 @@ logs
 # /dist
 __pycache__/
 src/comm/tbox/xcp_driver/build
-tf_ckpts/
+
 
 .glab-cli/
 .idea/
