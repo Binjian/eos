@@ -110,7 +110,7 @@ else:
 
 import numpy as np
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -164,7 +164,7 @@ from agent.ac_gaussian import (
 )
 from comm.tbox.scripts.tbox_sim import *
 
-set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
+set_tbox_sim_path("/home/hongchen/devel/newrizon/drl-carla-manual/src/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
@@ -544,7 +544,7 @@ def main():
                 )
                 power_states_s = [f"{c:.3f},{v:.3f}" for (c, v) in power_states]
                 logger.info(
-                    f"Power States: {motion_states_s}",
+                    f"Power States: {power_states_s}",
                     extra=dictLogger,
                 )
                 # rewards should be a 20x2 matrix after split
@@ -660,8 +660,8 @@ def main():
                 )
                 continue  # otherwise assuming the history is valid and back propagate
 
-            pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
-            tf.print("calib table:", vcu_calib_table1, output_stream=pm_output_path)
+            # pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
+            # tf.print("calib table:", vcu_calib_table1, output_stream=pm_output_path)
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
                 vcu_calib_table1,
@@ -795,7 +795,10 @@ def main():
     # cpypath = os.getcwd() + '../data/last_table.json'
     # copyfile("/dev/shm/out.json", cpypat)
 
-    last_table_store_path = os.getcwd() + "/../data/last_table"
+    if args.resume:
+        last_table_store_path = os.getcwd() + "/../data/last_table"
+    else:
+        last_table_store_path = os.getcwd() + "/../data/scratch/last_table"
     with open(last_table_store_path, 'wb') as f:
         np.save(last_table_store_path, vcu_calib_table1)
 
