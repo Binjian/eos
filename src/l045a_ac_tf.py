@@ -590,11 +590,16 @@ def main():
                     )
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
+                    mu_sigma_s = [f"({mu:.3f},{sigma:.3f})" for (mu, sigma) in tf.transpose(mu_sigma)]
+                    logger.info(
+                        f"mu sigma: {mu_sigma_s}",
+                        extra=dictLogger,
+                    )
 
                     # sample action from action probability distribution
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
-                    vcu_action_reduced = mvn.sample()  # 17*5 =  85 actions
+                    vcu_action_reduced = mvn.sample()  # 17*4 = 68 actions
                     logger.info(f"sampling done!", extra=dictLogger)
                     vcu_action_history.append(vcu_action_reduced)
                     # Here the lookup table with constrained output is part of the environment,
@@ -604,13 +609,24 @@ def main():
                         vcu_action_reduced,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
-                    # get change budget : % of initial table
-                    vcu_calib_table_reduced = tf.math.multiply(
-                        vcu_calib_table_reduced * vcu_calib_table_budget,
-                        vcu_calib_table0_reduced,
+                    vcu_action_table_reduced_s = [f"{col:.3f},"
+                                                  for row in vcu_calib_table_reduced
+                                                  for col in row]
+                    logger.info(
+                        f"vcu action table: {vcu_action_table_reduced_s}",
+                        extra=dictLogger,
                     )
+
+                    # get change budget : % of initial table
+                    vcu_calib_table_bound = 250
+                    vcu_calib_table_reduced = vcu_calib_table_reduced * vcu_calib_table_bound
+                    # vcu_calib_table_reduced = tf.math.multiply(
+                    #     vcu_calib_table_reduced * vcu_calib_table_budget,
+                    #     vcu_calib_table0_reduced,
+                    # )
                     # add changes to the default value
-                    vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
+                    # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
+                    vcu_calib_table_min_reduced = vcu_calib_table0_reduced - vcu_calib_table_bound
                     vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
 
                     vcu_calib_table_reduced = tf.clip_by_value(
