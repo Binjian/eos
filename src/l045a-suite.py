@@ -14,7 +14,7 @@ parser.add_argument("-r", "--resume", help="resume the last training with restor
 args = parser.parse_args()
 
 udpfileName = (
-        "/home/hongchen/l045a_ac_tf_noaircond-"
+        os.getcwd() + "/../data/udp-pcap/l045a_ac_tf_noaircond-"
         + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
         + ".pcap"
 )
@@ -23,7 +23,7 @@ pid = os.fork()
 if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
-        os.execlp("python", "python", "l045a_ac_tf.py -r")  #  run Simulation
+        os.execlp("python", "python", "l045a_ac_tf.py", "--resume")  #  run Simulation
     else:
         os.execlp("python", "python", "l045a_ac_tf.py")  #  run Simulation
 else:
