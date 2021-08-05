@@ -110,7 +110,7 @@ else:
 
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -164,7 +164,8 @@ from agent.ac_gaussian import (
 )
 from comm.tbox.scripts.tbox_sim import *
 
-set_tbox_sim_path("/home/hongchen/devel/newrizon/drl-carla-manual/src/comm/tbox")
+# set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
+set_tbox_sim_path(os.getcwd()+"/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
@@ -575,7 +576,7 @@ def main():
 
                     motion_states0 = tf.expand_dims(
                         motion_states0, 0
-                    )  # motion states is 30*2 matrix
+                    )  # motion states is 30*2 matrix.t
 
                     # predict action probabilities and estimated future rewards
                     # from environment state
@@ -590,11 +591,18 @@ def main():
                     )
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
-                    mu_sigma_s = [f"({mu:.3f},{sigma:.3f})" for (mu, sigma) in tf.transpose(mu_sigma)]
+                    
+                    mu_sigma_list = tf.transpose(tf.squeeze(mu_sigma))
+                    mu_sigma_s = [f"{mu:.3f},{sigma:.3f}" for (mu, sigma) in mu_sigma_list]
                     logger.info(
                         f"mu sigma: {mu_sigma_s}",
                         extra=dictLogger,
                     )
+                    # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
+                    # logger.info(
+                    #     f"Motion States: {motion_states_s}",
+                    #     extra=dictLogger,
+                    # )
 
                     # sample action from action probability distribution
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
