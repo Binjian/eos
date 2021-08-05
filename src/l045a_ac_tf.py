@@ -512,11 +512,11 @@ def main():
                     done = episode_done
 
                 if episode_end and done:
-                    logger.info(f"Experience Collection ends!", extra=dictLogger)
+                    logger.info(f"Episode {episode_count+1} Experience Collection ends!", extra=dictLogger)
                     continue
                 elif episode_end and (not done):
                     logger.info(
-                        f"Experience Collection is interrupted!", extra=dictLogger
+                        f"Episode {episode_count+1} Experience Collection is interrupted!", extra=dictLogger
                     )
                     continue
 
@@ -528,7 +528,7 @@ def main():
                     continue
 
                 logger.info(
-                    f"Episode start step {step_count}", extra=dictLogger
+                    f"Episode {episode_count + 1} start step {step_count}", extra=dictLogger
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
@@ -537,7 +537,7 @@ def main():
                 )  # state must have 30 (velocity, pedal, current, voltage) 4 tuple
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
-                logger.info(f"tensor convert and split!", extra=dictLogger)
+                logger.info(f"Episode {episode_count+1} tensor convert and split!", extra=dictLogger)
                 motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
                 logger.info(
                     f"Motion States: {motion_states_s}",
@@ -587,7 +587,7 @@ def main():
                     mu_sigma, critic_value = actorcritic_network(motion_states0)
 
                     logger.info(
-                        f"inference done with reduced action space!", extra=dictLogger
+                        f"Episode {episode_count+1} inference done with reduced action space!", extra=dictLogger
                     )
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
@@ -608,7 +608,7 @@ def main():
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action_reduced = mvn.sample()  # 17*4 = 68 actions
-                    logger.info(f"sampling done!", extra=dictLogger)
+                    logger.info(f"Episode {episode_count+1} sampling done!", extra=dictLogger)
                     vcu_action_history.append(vcu_action_reduced)
                     # Here the lookup table with constrained output is part of the environment,
                     # clip is part of the environment to be learned
@@ -653,9 +653,9 @@ def main():
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logger.info(
-                        f"Action Push table: {tableQueue.qsize()}", extra=dictLogger
+                        f"Episode {episode_count+1} Action Push table: {tableQueue.qsize()}", extra=dictLogger
                     )
-                    logger.info(f"Step stop: {step_count}", extra=dictLogger)
+                    logger.info(f"Episode {episode_count+1} Step done: {step_count}", extra=dictLogger)
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
@@ -665,7 +665,7 @@ def main():
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
                     # episode_wh += wh  # if only the odd steps, then only considers the effective action results?
-                    logger.info(f"Step stop: {step_count}", extra=dictLogger)
+                    logger.info(f"Episode {episode_count+1} Step done: {step_count}", extra=dictLogger)
 
                     # motion_states = tf.stack([motion_states0, motion_states])
                     # motion_states_history was not used for back propagation
@@ -679,9 +679,16 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logger.info(
-                    f"Episode interrupted, waits for next episode kicking off!",
+                    f"Episode {episode_count+1}  interrupted, waits for next episode kicking off!",
                     extra=dictLogger,
                 )
+                # clean up vcu_rewards_history, mu_sigma_history, episode_reward
+                motion_states_history.clear()
+                vcu_action_history.clear()
+                vcu_rewards_history.clear()
+                mu_sigma_history.clear()
+                vcu_critic_value_history.clear()
+                episode_reward = 0
                 continue  # otherwise assuming the history is valid and back propagate
 
             # pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
@@ -804,7 +811,7 @@ def main():
             logger.info(f"running reward: {running_reward:.2f} at episode {episode_count}", extra=dictLogger)
 
         logger.info(
-            f"Episode done, waits for next episode kicking off!", extra=dictLogger
+            f"Episode {episode_count + 1} done, waits for next episode kicking off!", extra=dictLogger
         )
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
