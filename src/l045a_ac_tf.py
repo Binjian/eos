@@ -392,12 +392,28 @@ def get_truck_status():
                     # logger.info(f'motionpower: {motion_power}', extra=dictLogger)
                     if len(get_truck_status.motionpower_states) >= sequence_len:
                         # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
-                        motionpowerQueue.put(get_truck_status.motionpower_states)
-                        # watch(motionpowerQueue.qsize())
+                        # empty queues for main thread to get the most fresh motion power state
                         logger.info(
                             f"Producer creates {motionpowerQueue.qsize()}",
                             extra=dictLogger,
                         )
+                        if not motionpowerQueue.empty():
+                            logger.info(
+                                f"Producer Queue has {motionpowerQueue.qsize()}, will be cleaned up!",
+                                extra=dictLogger,
+                            )
+                        else:
+                            logger.info(
+                                f"Producer Queue is clean!",
+                                extra=dictLogger,
+                            )
+                        while not motionpowerQueue.empty():
+                            motionpowerQueue.get()
+
+                        motionpowerQueue.put(get_truck_status.motionpower_states)
+                        # watch(motionpowerQueue.qsize())
+
+
                         motionpower_states_s = [f"{vel:.3f},{ped:.3f},{c:.3f},{v:.3f}" for (vel, ped, c, v) in get_truck_status.motionpower_states]
                         logger.info(
                             f"Motion Power States: {motionpower_states_s}",
@@ -582,7 +598,7 @@ def main():
                     # from environment state
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
-                    logger.info(f"before inference!", extra=dictLogger)
+                    logger.info(f"Episode {episode_count+1} before inference!", extra=dictLogger)
                     # Now with reduced action space (only low speed, 5 rows)
                     mu_sigma, critic_value = actorcritic_network(motion_states0)
 
