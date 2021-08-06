@@ -418,11 +418,11 @@ def get_truck_status():
                         # watch(motionpowerQueue.qsize())
 
 
-                        motionpower_states_s = [f"{vel:.3f},{ped:.3f},{c:.3f},{v:.3f}" for (vel, ped, c, v) in get_truck_status.motionpower_states]
-                        logger.info(
-                            f"Motion Power States: {motionpower_states_s}",
-                            extra=dictLogger,
-                        )
+                        # motionpower_states_s = [f"{vel:.3f},{ped:.3f},{c:.3f},{v:.3f}" for (vel, ped, c, v) in get_truck_status.motionpower_states]
+                        # logger.info(
+                        #     f"Motion Power States: {motionpower_states_s}",
+                        #     extra=dictLogger,
+                        # )
                         get_truck_status.motionpower_states = []
             else:
                 continue
@@ -558,16 +558,16 @@ def main():
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
                 logger.info(f"Episode {episode_count+1} tensor convert and split!", extra=dictLogger)
-                motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
-                logger.info(
-                    f"Motion States: {motion_states_s}",
-                    extra=dictLogger,
-                )
-                power_states_s = [f"{c:.3f},{v:.3f}" for (c, v) in power_states]
-                logger.info(
-                    f"Power States: {power_states_s}",
-                    extra=dictLogger,
-                )
+                # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
+                # logger.info(
+                #     f"Motion States: {motion_states_s}",
+                #     extra=dictLogger,
+                # )
+                # power_states_s = [f"{c:.3f},{v:.3f}" for (c, v) in power_states]
+                # logger.info(
+                #     f"Power States: {power_states_s}",
+                #     extra=dictLogger,
+                # )
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
                 ui_sum = tf.reduce_sum(
@@ -612,12 +612,12 @@ def main():
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
                     
-                    mu_sigma_list = tf.transpose(tf.squeeze(mu_sigma))
-                    mu_sigma_s = [f"{mu:.3f},{sigma:.3f}" for (mu, sigma) in mu_sigma_list]
-                    logger.info(
-                        f"mu sigma: {mu_sigma_s}",
-                        extra=dictLogger,
-                    )
+                    # mu_sigma_list = tf.transpose(tf.squeeze(mu_sigma))
+                    # mu_sigma_s = [f"{mu:.3f},{sigma:.3f}" for (mu, sigma) in mu_sigma_list]
+                    # logger.info(
+                    #     f"mu sigma: {mu_sigma_s}",
+                    #     extra=dictLogger,
+                    # )
                     # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
                     # logger.info(
                     #     f"Motion States: {motion_states_s}",
@@ -628,7 +628,7 @@ def main():
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action_reduced = mvn.sample()  # 17*4 = 68 actions
-                    logger.info(f"Episode {episode_count+1} sampling done!", extra=dictLogger)
+                    logger.info(f"Episode {episode_count+1} Step {step_count} sampling done!", extra=dictLogger)
                     vcu_action_history.append(vcu_action_reduced)
                     # Here the lookup table with constrained output is part of the environment,
                     # clip is part of the environment to be learned
@@ -637,13 +637,13 @@ def main():
                         vcu_action_reduced,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
-                    vcu_action_table_reduced_s = [f"{col:.3f},"
-                                                  for row in vcu_calib_table_reduced
-                                                  for col in row]
-                    logger.info(
-                        f"vcu action table: {vcu_action_table_reduced_s}",
-                        extra=dictLogger,
-                    )
+                    # vcu_action_table_reduced_s = [f"{col:.3f},"
+                    #                               for row in vcu_calib_table_reduced
+                    #                               for col in row]
+                    # logger.info(
+                    #     f"vcu action table: {vcu_action_table_reduced_s}",
+                    #     extra=dictLogger,
+                    # )
 
                     # get change budget : % of initial table
                     vcu_calib_table_bound = 250
