@@ -417,12 +417,12 @@ def get_truck_status():
                         motionpowerQueue.put(get_truck_status.motionpower_states)
                         # watch(motionpowerQueue.qsize())
 
-
                         # motionpower_states_s = [f"{vel:.3f},{ped:.3f},{c:.3f},{v:.3f}" for (vel, ped, c, v) in get_truck_status.motionpower_states]
                         # logger.info(
                         #     f"Motion Power States: {motionpower_states_s}",
                         #     extra=dictLogger,
                         # )
+                        logger.info('Motion Power States put in Queue!!!', extra=dictLogger)
                         get_truck_status.motionpower_states = []
             else:
                 continue
@@ -611,16 +611,12 @@ def main():
                     )
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
-                    
+
+                    logger.info(f"mu sigma appended!", extra=dictLogger)
                     # mu_sigma_list = tf.transpose(tf.squeeze(mu_sigma))
                     # mu_sigma_s = [f"{mu:.3f},{sigma:.3f}" for (mu, sigma) in mu_sigma_list]
                     # logger.info(
                     #     f"mu sigma: {mu_sigma_s}",
-                    #     extra=dictLogger,
-                    # )
-                    # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
-                    # logger.info(
-                    #     f"Motion States: {motion_states_s}",
                     #     extra=dictLogger,
                     # )
 
@@ -637,6 +633,7 @@ def main():
                         vcu_action_reduced,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
+                    logger.info(f"vcu action table reduced generated!", extra=dictLogger)
                     # vcu_action_table_reduced_s = [f"{col:.3f},"
                     #                               for row in vcu_calib_table_reduced
                     #                               for col in row]
