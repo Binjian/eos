@@ -393,22 +393,26 @@ def get_truck_status():
                     if len(get_truck_status.motionpower_states) >= sequence_len:
                         # print(f"motion_power num: {len(get_truck_status.motionpower_states)}")
                         # empty queues for main thread to get the most fresh motion power state
+                        # logger.info(
+                        #     f"Producer creates {motionpowerQueue.qsize()}",
+                        #     extra=dictLogger,
+                        # )
                         logger.info(
-                            f"Producer creates {motionpowerQueue.qsize()}",
+                            f"Producer Queue has {motionpowerQueue.qsize()}!",
                             extra=dictLogger,
                         )
-                        if not motionpowerQueue.empty():
-                            logger.info(
-                                f"Producer Queue has {motionpowerQueue.qsize()}, will be cleaned up!",
-                                extra=dictLogger,
-                            )
-                        else:
-                            logger.info(
-                                f"Producer Queue is clean!",
-                                extra=dictLogger,
-                            )
-                        while not motionpowerQueue.empty():
-                            motionpowerQueue.get()
+                        # if not motionpowerQueue.empty():
+                        #     logger.info(
+                        #         f"Producer Queue has {motionpowerQueue.qsize()}, will be cleaned up!",
+                        #         extra=dictLogger,
+                        #     )
+                        # else:
+                        #     logger.info(
+                        #         f"Producer Queue is clean!",
+                        #         extra=dictLogger,
+                        #     )
+                        # while not motionpowerQueue.empty():
+                        #     motionpowerQueue.get()
 
                         motionpowerQueue.put(get_truck_status.motionpower_states)
                         # watch(motionpowerQueue.qsize())
@@ -827,7 +831,7 @@ def main():
             logger.info(f"running reward: {running_reward:.2f} at episode {episode_count}", extra=dictLogger)
 
         logger.info(
-            f"Episode {episode_count + 1} done, waits for next episode kicking off!", extra=dictLogger
+            f"Episode {episode_count} done, waits for next episode kicking off!", extra=dictLogger
         )
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
