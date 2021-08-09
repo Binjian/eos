@@ -844,11 +844,16 @@ def main():
     # copyfile("/dev/shm/out.json", cpypat)
 
     if args.resume:
+        last_table_store_path = os.getcwd() + "/../data/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        with open(last_table_store_path, 'wb') as f:
+            np.save(last_table_store_path, vcu_calib_table1)
         last_table_store_path = os.getcwd() + "/../data/last_table"
+        with open(last_table_store_path, 'wb') as f:
+            np.save(last_table_store_path, vcu_calib_table1)
     else:
-        last_table_store_path = os.getcwd() + "/../data/scratch/last_table"
-    with open(last_table_store_path, 'wb') as f:
-        np.save(last_table_store_path, vcu_calib_table1)
+        last_table_store_path = os.getcwd() + "/../data/scratch/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        with open(last_table_store_path, 'wb') as f:
+            np.save(last_table_store_path, vcu_calib_table1)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
