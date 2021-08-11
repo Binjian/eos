@@ -596,7 +596,7 @@ def main():
 
                     motion_states0 = tf.expand_dims(
                         motion_states0, 0
-                    )  # motion states is 30*2 matrix.t
+                    )  # motion states is 30*2 matrix
 
                     # predict action probabilities and estimated future rewards
                     # from environment state
