@@ -288,9 +288,6 @@ def get_actor(
     sequence_len,
     num_hidden,
     action_bias,
-    action_budget,
-    action_lower,
-    action_upper,
 ):
     # Initialize weights between -3e-3 and 3-e3
     last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
@@ -310,13 +307,13 @@ def get_actor(
         bias_initializer=initializers.constant(action_bias),
     )(out)
 
-    # If our budget is +/-5%, outputs should be [0.95, 1.05]
-    outputs = outputs * action_budget + 1
-
-    # Apply lower and upper bound to the outputs,
-    # Typical value is [0.8, 1.0]
-    outputs = tf.clip_by_value(outputs, action_lower, action_upper)
-    model = tf.keras.Model(inputs, outputs)
+    # # if our budget is +/-5%, outputs should be [0.95, 1.05]
+    # outputs = outputs * action_budget + 1
+    #
+    # # apply lower and upper bound to the outputs,
+    # # typical value is [0.8, 1.0]
+    # outputs = tf.clip_by_value(outputs, action_lower, action_upper)
+    model = tf.keras.Model(inputs, out)
     return model
 
 
@@ -330,8 +327,8 @@ def get_critic(
 ):
     # State as input
     state_input = layers.Input(shape=(sequence_len, dim_observations))
-    flatted = layers.Flatten()(state_input)
-    state_out = layers.Dense(num_hidden0, activation="relu")(flatted)
+    flattened = layers.Flatten()(state_input)
+    state_out = layers.Dense(num_hidden0, activation="relu")(flattened)
     state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
 
     # Action as input
@@ -357,16 +354,16 @@ exploration.
 """
 
 # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
-def policy(actor_model, state, action_lower, action_upper, noise_object):
+def policy(actor_model, state, noise_object):
     sampled_actions = tf.squeeze(actor_model(state)).numpy()
     noise = noise_object()  # noise object is a row vector
     # Adding noise to action
     sampled_actions = sampled_actions + noise
 
     # We make sure action is within bounds
-    legal_action = np.clip(sampled_actions, action_lower, action_upper)
+    # legal_action = np.clip(sampled_actions, action_lower, action_upper)
 
-    return [np.squeeze(legal_action)]  # ? might be unnecessary
+    return [np.squeeze(sampled_actions)]  # ? might be unnecessary
 
 
 """
