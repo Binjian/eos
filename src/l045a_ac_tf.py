@@ -842,18 +842,28 @@ def main():
     logger.info(f"Save the last table!!!!", extra=dictLogger)
     # cpypath = os.getcwd() + '../data/last_table.json'
     # copyfile("/dev/shm/out.json", cpypat)
+    pd_index = np.linspace(0, 100, vcu_calib_table_row)
+    pd_index[1] = 7
+    pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+    # columns = np.arange(17)
+    # index = np.arrange(21)
+
+    pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
 
     if args.resume:
-        last_table_store_path = os.getcwd() + "/../data/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        last_table_store_path = os.getcwd() + "/../data/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3] + ".csv"
         with open(last_table_store_path, 'wb') as f:
-            np.save(last_table_store_path, vcu_calib_table1)
-        last_table_store_path = os.getcwd() + "/../data/last_table"
+            pds_last_table.to_csv(last_table_store_path)
+            # np.save(last_table_store_path, vcu_calib_table1)
+        last_table_store_path = os.getcwd() + "/../data/last_table.csv" + ".csv"
         with open(last_table_store_path, 'wb') as f:
-            np.save(last_table_store_path, vcu_calib_table1)
+            pds_last_table.to_csv(last_table_store_path)
+            # np.save(last_table_store_path, vcu_calib_table1)
     else:
-        last_table_store_path = os.getcwd() + "/../data/scratch/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        last_table_store_path = os.getcwd() + "/../data/scratch/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3] + ".csv"
         with open(last_table_store_path, 'wb') as f:
-            np.save(last_table_store_path, vcu_calib_table1)
+            pds_last_table.to_csv(last_table_store_path)
+            # np.save(last_table_store_path, vcu_calib_table1)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
