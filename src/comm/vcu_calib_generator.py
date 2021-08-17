@@ -32,14 +32,10 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         pdv, vlv = np.meshgrid(ped, vel, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
-        pd_data0 = pd.read_csv("../data/init_table.csv")
-        pd_data = pd.DataFrame(pd_data0.values[:, 1:], index=pd_data0.values[:, 0],
-                               columns=pd_data0.columns[1:].to_numpy())
+        pd_data = pd.read_csv("../data/init_table.csv", header=0, index_col=0)
         v = pd_data.to_numpy()
     elif shortcut == 3:  # import last pedal map that is used
-        pd_data0 = pd.read_csv("../data/last_table.csv")
-        pd_data = pd.DataFrame(pd_data0.values[:, 1:], index=pd_data0.values[:, 0],
-                               columns=pd_data0.columns[1:].to_numpy())
+        pd_data = pd.read_csv("../data/init_table.csv", header=0, index_col=0)
         v = pd_data.to_numpy()
     else:
         vel = np.ones(nvl)
