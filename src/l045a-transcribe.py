@@ -1,7 +1,11 @@
 import os
-
-fileName = "../data/udp-pcap/veos_L025.asc.pcap"  # file name
+import datetime
+udp_logfilename = (
+        "../data/udp-pcap/l045a-noAI-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + ".pcap"
+)
 portNum = 8002  # port number
 p = os.execlp(
-    "tcpdump", "udp", "-w", fileName, "-i", "lo", "port", str(portNum)
+    "tcpdump", "udp", "-w", udp_logfilename, "-i", "lo", "port", str(portNum)
 )
