@@ -73,13 +73,13 @@ formatter = logging.Formatter(
 )
 if args.resume:
     logfilename = (
-        "../data/py_logs/l045a_ac_tf-"
+        "../data/py_logs/l045a_ac_tf-coastdown-"
         + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
         + ".log"
     )
 else:
     logfilename = (
-            "../data/scratch/py_logs/l045a_ac_tf-"
+            "../data/scratch/py_logs/l045a_ac_tf-coastdown-"
             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
             + ".log"
     )
@@ -662,7 +662,7 @@ def main():
 
                     # create updated complete pedal map, only update the first few rows
                     vcu_calib_table1[
-                        vcu_calib_table_row_reduced, :
+                        :vcu_calib_table_row_reduced, :
                     ] = vcu_calib_table_reduced.numpy()
                     # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
 
