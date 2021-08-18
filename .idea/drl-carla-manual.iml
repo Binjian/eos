@@ -4,6 +4,18 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/src/comm/tbox/tbox-simulator/.vscode" />
       <excludeFolder url="file://$MODULE_DIR$/src/comm/tbox/xcp_driver/build" />
+      <excludeFolder url="file://$MODULE_DIR$/data/scratch/tf_ckpts/l045a_ac_tf-21-08-04-Aug-08-1628044176_445" />
+      <excludeFolder url="file://$MODULE_DIR$/data/scratch/tf_logs/gradient_tape/20210804-102933" />
+      <excludeFolder url="file://$MODULE_DIR$/data/scratch/tf_logs/gradient_tape/20210817-191455" />
+      <excludeFolder url="file://$MODULE_DIR$/data/scratch/tf_logs/gradient_tape/20210817-191553" />
+      <excludeFolder url="file://$MODULE_DIR$/data/scratch/tf_logs/gradient_tape/20210817-191611" />
+      <excludeFolder url="file://$MODULE_DIR$/data/tf_ckpts/ddpg-actor" />
+      <excludeFolder url="file://$MODULE_DIR$/data/tf_ckpts/ddpg-critic" />
+      <excludeFolder url="file://$MODULE_DIR$/data/tf_ckpts/ddpg-tactor" />
+      <excludeFolder url="file://$MODULE_DIR$/data/tf_ckpts/ddpg-tcritic" />
+      <excludeFolder url="file://$MODULE_DIR$/data/tf_logs/ddpg" />
+      <excludeFolder url="file://$MODULE_DIR$/data/tf_logs/gradient_tape" />
+      <excludeFolder url="file://$MODULE_DIR$/data/udp-pcap" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.8 (veos-p38)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
