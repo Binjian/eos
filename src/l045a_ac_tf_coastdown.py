@@ -855,7 +855,7 @@ def main():
         with open(last_table_store_path, 'wb') as f:
             pds_last_table.to_csv(last_table_store_path)
             # np.save(last_table_store_path, vcu_calib_table1)
-        last_table_store_path = os.getcwd() + "/../data/last_table.csv" + ".csv"
+        last_table_store_path = os.getcwd() + "/../data/last_table.csv"
         with open(last_table_store_path, 'wb') as f:
             pds_last_table.to_csv(last_table_store_path)
             # np.save(last_table_store_path, vcu_calib_table1)
