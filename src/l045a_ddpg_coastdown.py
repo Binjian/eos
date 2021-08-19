@@ -403,7 +403,7 @@ ou_noise = OUActionNoise(
     mean=np.zeros(num_reduced_actions), std_deviation=float(std_dev) * np.ones(num_reduced_actions)
 )
 
-action0 = policy(actor_model, init_states, action_lower, action_upper, ou_noise)
+action0 = policy(actor_model, init_states, ou_noise)
 logger.info(f"manual load tf library by calling convert_to_tensor", extra=dictLogger)
 ou_noise.reset()
 
@@ -727,7 +727,7 @@ def main():
                     # motion_states_history.append(motion_states)
                     motion_states0 = motion_states
 
-                    motion_states0 = tf.expand_dims(
+                    motion_states1 = tf.expand_dims(
                         motion_states0, 0
                     )  # motion states is 30*3 matrix
 
@@ -739,7 +739,7 @@ def main():
                     # mu_sigma, critic_value = actorcritic_network(motion_states0)
                     vcu_action_reduced = policy(
                         actor_model,
-                        motion_states0,
+                        motion_states1,
                         ou_noise
                     )
                     prev_motion_states = motion_states0
