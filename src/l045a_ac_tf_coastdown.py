@@ -320,6 +320,11 @@ def get_truck_status():
     logger.info(f"Initialization Done!", extra=dictLogger)
 
     while not th_exit:
+        with hmi_lock:  # wait for tester to kick off or to exit
+            if program_exit == True:  # if program_exit is True, exit thread
+                logger.info("%s", "Capture thread exit due to processing request!!!", extra=dictLogger)
+                th_exit = True
+                continue
         candata, addr = s.recvfrom(2048)
         # logger.info('Data received!!!', extra=dictLogger)
         pop_data = json.loads(candata)
@@ -826,6 +831,14 @@ def main():
         if episode_count % 10 == 0:
             logger.info("========================", extra=dictLogger)
             logger.info(f"running reward: {running_reward:.2f} at episode {episode_count}", extra=dictLogger)
+
+        if entropy_losses_all < 1e-10:
+            logger.info(f"Policy becomes deterministic. Training ends due to local optimum.")
+            th_exit = True
+            with hmi_lock:  # wait for tester to kick off or to exit
+                program_exit = True  # if program_exit is false, reset to wait
+
+
 
         logger.info(
             f"Episode {episode_count} done, waits for next episode kicking off!", extra=dictLogger
