@@ -297,15 +297,15 @@ def get_actor(
     hidden = layers.Dense(
         num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
     )(flatinputs)
-    out = layers.Dense(
+    hidden1 = layers.Dense(
         num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
     )(hidden)
-    outputs = layers.Dense(
+    out = layers.Dense(
         num_actions,
         activation="tanh",
         kernel_initializer=last_init,
         bias_initializer=initializers.constant(action_bias),
-    )(out)
+    )(hidden1)
 
     # # if our budget is +/-5%, outputs should be [0.95, 1.05]
     # outputs = outputs * action_budget + 1
