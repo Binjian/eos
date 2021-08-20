@@ -304,8 +304,9 @@ buffer = Buffer(
     actor_optimizer,
     critic_optimizer,
     num_observations,
-    num_actions,
-    buffer_capacity=50000,
+    sequence_len,
+    num_reduced_actions,
+    buffer_capacity=2000,
     batch_size=4,
     gamma=0.99
 )
