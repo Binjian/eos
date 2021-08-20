@@ -33,7 +33,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
         pd_data = pd.read_csv("../data/init_table_coastdown.csv", header=0, index_col=0)
-        # pd_data = pd.read_csv("../data/14pieces_approx-regen.csv", header=0, index_col=0)
+        # pd_data = pd.read_csv("../data/54_vertices_approx-regen3.csv", header=0, index_col=0)
         v = pd_data.to_numpy()
     elif shortcut == 3:  # import last pedal map that is used
         pd_data = pd.read_csv("../data/last_table.csv", header=0, index_col=0)
