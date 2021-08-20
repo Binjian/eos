@@ -161,8 +161,9 @@ class Buffer:
         actor_optimizer,
         critic_optimizer,
         num_observations,
+        sequence_len,
         num_actions,
-        buffer_capacity=100000,
+        buffer_capacity=2000,
         batch_size=4,
         gamma=0.99,
     ):
@@ -176,10 +177,10 @@ class Buffer:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
-        self.state_buffer = np.zeros((self.buffer_capacity, num_observations))
+        self.state_buffer = np.zeros((self.buffer_capacity, sequence_len, num_observations))
         self.action_buffer = np.zeros((self.buffer_capacity, num_actions))
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, num_observations))
+        self.next_state_buffer = np.zeros((self.buffer_capacity, sequence_len, num_observations))
         self.actor_model = actor_model
         self.critic_model = critic_model
         self.target_actor = target_actor
@@ -364,7 +365,8 @@ def policy(actor_model, state, noise_object):
     # We make sure action is within bounds
     # legal_action = np.clip(sampled_actions, action_lower, action_upper)
 
-    return [np.squeeze(sampled_actions)]  # ? might be unnecessary
+    # return np.squeeze(sampled_actions)  # ? might be unnecessary
+    return sampled_actions
 
 
 """
