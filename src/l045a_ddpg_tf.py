@@ -304,7 +304,7 @@ buffer = Buffer(
     critic_optimizer,
     num_observations,
     num_actions,
-    buffer_capacity=50000,
+    buffer_capacity=2000,
     batch_size=4,
     gamma=0.99
 )
