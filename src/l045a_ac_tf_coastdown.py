@@ -57,6 +57,8 @@ import inspect
 parser = argparse.ArgumentParser()
 parser.add_argument("-r", "--resume", help="resume the last training with restored model, checkpoint and pedal map",
                     action="store_true")
+parser.add_argument("-t", "--record_table", help="record action table during training",
+                    action="store_true")
 args = parser.parse_args()
 
 
@@ -220,6 +222,9 @@ vcu_calib_table_row = 21  # numnber of velocity steps, y direction
 vcu_calib_table_budget = 0.05  # interval that allows modifying the calibration table
 vcu_calib_table_size = vcu_calib_table_row * vcu_calib_table_col
 
+pd_index = np.linspace(0, 100, vcu_calib_table_row)
+pd_index[1] = 7
+pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
 
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
@@ -670,6 +675,15 @@ def main():
                         :vcu_calib_table_row_reduced, :
                     ] = vcu_calib_table_reduced.numpy()
                     # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
+                    pds_curr_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
+
+                    if args.record_table:
+                        curr_table_store_path = os.getcwd() + "/../data/scratch/instant_table" + datetime.datetime.now().strftime(
+                            "%y-%m-%d-%h-%m-%s_%f")[:-3] + str(episode_count+1) + "-" + str(step_count) + ".csv"
+                        with open(curr_table_store_path, 'wb') as f:
+                            pds_curr_table.to_csv(curr_table_store_path)
+                            # np.save(last_table_store_path, vcu_calib_table1)
+                        last_table_store_path = os.getcwd() + "/../data/last_table.csv"
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
@@ -855,9 +869,9 @@ def main():
     logger.info(f"Save the last table!!!!", extra=dictLogger)
     # cpypath = os.getcwd() + '../data/last_table.json'
     # copyfile("/dev/shm/out.json", cpypat)
-    pd_index = np.linspace(0, 100, vcu_calib_table_row)
-    pd_index[1] = 7
-    pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+    # pd_index = np.linspace(0, 100, vcu_calib_table_row)
+    # pd_index[1] = 7
+    # pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
     # columns = np.arange(17)
     # index = np.arrange(21)
 
