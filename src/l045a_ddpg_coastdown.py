@@ -273,7 +273,12 @@ actor_model = get_actor(
 )
 
 critic_model = get_critic(
-    num_observations, num_actions, sequence_len, num_hidden0, num_hidden1, num_hidden
+    num_observations,
+    num_reduced_actions,
+    sequence_len,
+    num_hidden0,
+    num_hidden1,
+    num_hidden
 )
 
 
@@ -287,7 +292,12 @@ target_actor = get_actor(
 )
 
 target_critic = get_critic(
-    num_observations, num_actions, sequence_len, num_hidden0, num_hidden1, num_hidden
+    num_observations,
+    num_reduced_actions,
+    sequence_len,
+    num_hidden0,
+    num_hidden1,
+    num_hidden
 )
 
 
