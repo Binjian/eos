@@ -342,11 +342,10 @@ def get_critic(
     state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
 
     # Action as input
-    action_input = layers.Input(shape=(sequence_len, dim_actions))
-    action_flattened = layers.Flatten()(action_input)
-    action_out = layers.Dense(num_hidden1, activation="relu")(action_flattened)
+    action_input = layers.Input(shape=(dim_actions,))  # action is defined as flattened.
+    action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
 
-    # Both are passed through seperate layer before concatenating
+    # Both are passed through separate layer before concatenating
     concat = layers.Concatenate()([state_out, action_out])
 
     out = layers.Dense(num_hidden2, activation="relu")(concat)
