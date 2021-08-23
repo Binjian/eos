@@ -23,7 +23,7 @@ logs
 # Ignore the build directory
 # /dist
 __pycache__/
-src/comm/tbox/xcp_driver/build
+src/comm/tbox/
 data
 .glab-cli/
 .idea/
