@@ -721,6 +721,7 @@ def main():
                     pds_curr_table = pd.DataFrame(
                         vcu_calib_table1, pd_index, pd_columns
                     )
+                    logger.info(f"Episode {episode_count+1} Start record instant table: {step_count}", extra=dictLogger)
 
                     if args.record_table:
                         curr_table_store_path = (
@@ -738,6 +739,7 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
+                    logger.info(f"Episode {episode_count+1} Done with record instant table: {step_count}", extra=dictLogger)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
