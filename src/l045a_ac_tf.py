@@ -8,6 +8,7 @@ Description: Implement Advantage Actor Critic Method in Carla environment.
 """
 import sys
 import argparse
+
 """
 ## Introduction
 
@@ -55,8 +56,12 @@ import inspect
 
 # resumption settings
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--resume", help="resume the last training with restored model, checkpoint and pedal map",
-                    action="store_true")
+parser.add_argument(
+    "-r",
+    "--resume",
+    help="resume the last training with restored model, checkpoint and pedal map",
+    action="store_true",
+)
 args = parser.parse_args()
 
 
@@ -79,9 +84,9 @@ if args.resume:
     )
 else:
     logfilename = (
-            "../data/scratch/py_logs/l045a_ac_tf-"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-            + ".log"
+        "../data/scratch/py_logs/l045a_ac_tf-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + ".log"
     )
 
 fh = logging.FileHandler(logfilename)
@@ -103,9 +108,9 @@ import os
 logger.info(f"Start Logging", extra=dictLogger)
 
 if args.resume:
-    logger.info(f'Resume last training', extra=dictLogger)
+    logger.info(f"Resume last training", extra=dictLogger)
 else:
-    logger.info(f'Start from scratch', extra=dictLogger)
+    logger.info(f"Start from scratch", extra=dictLogger)
 
 
 import numpy as np
@@ -165,7 +170,7 @@ from agent.ac_gaussian import (
 from comm.tbox.scripts.tbox_sim import *
 
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
-set_tbox_sim_path(os.getcwd()+"/comm/tbox")
+set_tbox_sim_path(os.getcwd() + "/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
@@ -255,7 +260,7 @@ num_hidden = 128
 bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
 bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
 
-vcu_calib_table0_reduced = vcu_calib_table0[1:vcu_calib_table_row_reduced+1, :]
+vcu_calib_table0_reduced = vcu_calib_table0[1 : vcu_calib_table_row_reduced + 1, :]
 
 tf.keras.backend.set_floatx("float64")
 # TODO option fix sigma, just optimize mu
@@ -268,7 +273,9 @@ opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
 if args.resume:
     checkpoint_dir = "../data/tf_ckpts"
-    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
+    ckpt = tf.train.Checkpoint(
+        step=tf.Variable(1), optimizer=opt, net=actorcritic_network
+    )
     manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
     ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
@@ -277,12 +284,14 @@ if args.resume:
         logger.info(f"Initializing from scratch", extra=dictLogger)
 else:
     tf_chp_path = (
-            "../data/scratch/tf_ckpts/l045a_ac_tf-"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        "../data/scratch/tf_ckpts/l045a_ac_tf-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
     )
     os.mkdir(tf_chp_path)
     logger.info(f"Temporary checkpoints created in {tf_chp_path}", extra=dictLogger)
-    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
+    ckpt = tf.train.Checkpoint(
+        step=tf.Variable(1), optimizer=opt, net=actorcritic_network
+    )
     manager = tf.train.CheckpointManager(ckpt, tf_chp_path, max_to_keep=10)
     ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
@@ -337,7 +346,9 @@ def get_truck_status():
                         episode_done = False
                         program_exit = False
                         th_exit = False
-                    elif value == "end_valid":  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                    elif (
+                        value == "end_valid"
+                    ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
                         logger.info("%s", "Capture ends!!!", extra=dictLogger)
                         wait_for_reset = True  # wait when episode starts
@@ -422,7 +433,9 @@ def get_truck_status():
                         #     f"Motion Power States: {motionpower_states_s}",
                         #     extra=dictLogger,
                         # )
-                        logger.info('Motion Power States put in Queue!!!', extra=dictLogger)
+                        logger.info(
+                            "Motion Power States put in Queue!!!", extra=dictLogger
+                        )
                         get_truck_status.motionpower_states = []
             else:
                 continue
@@ -532,11 +545,15 @@ def main():
                     done = episode_done
 
                 if episode_end and done:
-                    logger.info(f"Episode {episode_count+1} Experience Collection ends!", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} Experience Collection ends!",
+                        extra=dictLogger,
+                    )
                     continue
                 elif episode_end and (not done):
                     logger.info(
-                        f"Episode {episode_count+1} Experience Collection is interrupted!", extra=dictLogger
+                        f"Episode {episode_count+1} Experience Collection is interrupted!",
+                        extra=dictLogger,
                     )
                     continue
 
@@ -548,7 +565,8 @@ def main():
                     continue
 
                 logger.info(
-                    f"Episode {episode_count + 1} start step {step_count}", extra=dictLogger
+                    f"Episode {episode_count + 1} start step {step_count}",
+                    extra=dictLogger,
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
@@ -557,7 +575,10 @@ def main():
                 )  # state must have 30 (velocity, pedal, current, voltage) 4 tuple
                 motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
 
-                logger.info(f"Episode {episode_count+1} tensor convert and split!", extra=dictLogger)
+                logger.info(
+                    f"Episode {episode_count+1} tensor convert and split!",
+                    extra=dictLogger,
+                )
                 # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
                 # logger.info(
                 #     f"Motion States: {motion_states_s}",
@@ -602,12 +623,15 @@ def main():
                     # from environment state
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
-                    logger.info(f"Episode {episode_count+1} before inference!", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} before inference!", extra=dictLogger
+                    )
                     # Now with reduced action space (only low speed, 5 rows)
                     mu_sigma, critic_value = actorcritic_network(motion_states0)
 
                     logger.info(
-                        f"Episode {episode_count+1} inference done with reduced action space!", extra=dictLogger
+                        f"Episode {episode_count+1} inference done with reduced action space!",
+                        extra=dictLogger,
                     )
                     vcu_critic_value_history.append(critic_value[0, 0])
                     mu_sigma_history.append(mu_sigma)
@@ -624,7 +648,10 @@ def main():
                     nn_mu, nn_sigma = tf.unstack(mu_sigma)
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action_reduced = mvn.sample()  # 17*4 = 68 actions
-                    logger.info(f"Episode {episode_count+1} Step {step_count} sampling done!", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} Step {step_count} sampling done!",
+                        extra=dictLogger,
+                    )
                     vcu_action_history.append(vcu_action_reduced)
                     # Here the lookup table with constrained output is part of the environment,
                     # clip is part of the environment to be learned
@@ -633,7 +660,9 @@ def main():
                         vcu_action_reduced,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
-                    logger.info(f"vcu action table reduced generated!", extra=dictLogger)
+                    logger.info(
+                        f"vcu action table reduced generated!", extra=dictLogger
+                    )
                     # vcu_action_table_reduced_s = [f"{col:.3f},"
                     #                               for row in vcu_calib_table_reduced
                     #                               for col in row]
@@ -644,14 +673,18 @@ def main():
 
                     # get change budget : % of initial table
                     vcu_calib_table_bound = 250
-                    vcu_calib_table_reduced = vcu_calib_table_reduced * vcu_calib_table_bound
+                    vcu_calib_table_reduced = (
+                        vcu_calib_table_reduced * vcu_calib_table_bound
+                    )
                     # vcu_calib_table_reduced = tf.math.multiply(
                     #     vcu_calib_table_reduced * vcu_calib_table_budget,
                     #     vcu_calib_table0_reduced,
                     # )
                     # add changes to the default value
                     # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
-                    vcu_calib_table_min_reduced = vcu_calib_table0_reduced - vcu_calib_table_bound
+                    vcu_calib_table_min_reduced = (
+                        vcu_calib_table0_reduced - vcu_calib_table_bound
+                    )
                     vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
 
                     vcu_calib_table_reduced = tf.clip_by_value(
@@ -662,7 +695,7 @@ def main():
 
                     # create updated complete pedal map, only update the first few rows
                     vcu_calib_table1[
-                        1:vcu_calib_table_row_reduced+1, :
+                        1 : vcu_calib_table_row_reduced + 1, :
                     ] = vcu_calib_table_reduced.numpy()
                     # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
 
@@ -670,9 +703,13 @@ def main():
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logger.info(
-                        f"Episode {episode_count+1} Action Push table: {tableQueue.qsize()}", extra=dictLogger
+                        f"Episode {episode_count+1} Action Push table: {tableQueue.qsize()}",
+                        extra=dictLogger,
                     )
-                    logger.info(f"Episode {episode_count+1} Step done: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} Step done: {step_count}",
+                        extra=dictLogger,
+                    )
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
@@ -682,7 +719,10 @@ def main():
                     vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
                     # episode_wh += wh  # if only the odd steps, then only considers the effective action results?
-                    logger.info(f"Episode {episode_count+1} Step done: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} Step done: {step_count}",
+                        extra=dictLogger,
+                    )
 
                     # motion_states = tf.stack([motion_states0, motion_states])
                     # motion_states_history was not used for back propagation
@@ -818,17 +858,25 @@ def main():
 
         # Checkpoint manager save model
         save_path = manager.save()
-        logger.info(f"Saved checkpoint for step {int(ckpt.step)}: {save_path}", extra=dictLogger)
-        logger.info(f"loss {loss_all.numpy():.2f}".format(loss_all.numpy()), extra=dictLogger)
+        logger.info(
+            f"Saved checkpoint for step {int(ckpt.step)}: {save_path}", extra=dictLogger
+        )
+        logger.info(
+            f"loss {loss_all.numpy():.2f}".format(loss_all.numpy()), extra=dictLogger
+        )
 
         episode_count += 1
         episode_reward = 0
         if episode_count % 10 == 0:
             logger.info("========================", extra=dictLogger)
-            logger.info(f"running reward: {running_reward:.2f} at episode {episode_count}", extra=dictLogger)
+            logger.info(
+                f"running reward: {running_reward:.2f} at episode {episode_count}",
+                extra=dictLogger,
+            )
 
         logger.info(
-            f"Episode {episode_count} done, waits for next episode kicking off!", extra=dictLogger
+            f"Episode {episode_count} done, waits for next episode kicking off!",
+            extra=dictLogger,
         )
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # if running_reward > 195:  # condition to consider the task solved
@@ -844,24 +892,37 @@ def main():
     # copyfile("/dev/shm/out.json", cpypat)
     pd_index = np.linspace(0, 100, vcu_calib_table_row)
     pd_index[1] = 7
-    pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+    pd_columns = (
+        np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100])
+        / 100
+    )
     # columns = np.arange(17)
     # index = np.arrange(21)
 
     pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
 
     if args.resume:
-        last_table_store_path = os.getcwd() + "/../data/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3] + ".csv"
-        with open(last_table_store_path, 'wb') as f:
+        last_table_store_path = (
+            os.getcwd()
+            + "/../data/last_table"
+            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+            + ".csv"
+        )
+        with open(last_table_store_path, "wb") as f:
             pds_last_table.to_csv(last_table_store_path)
             # np.save(last_table_store_path, vcu_calib_table1)
         last_table_store_path = os.getcwd() + "/../data/last_table.csv" + ".csv"
-        with open(last_table_store_path, 'wb') as f:
+        with open(last_table_store_path, "wb") as f:
             pds_last_table.to_csv(last_table_store_path)
             # np.save(last_table_store_path, vcu_calib_table1)
     else:
-        last_table_store_path = os.getcwd() + "/../data/scratch/last_table" + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3] + ".csv"
-        with open(last_table_store_path, 'wb') as f:
+        last_table_store_path = (
+            os.getcwd()
+            + "/../data/scratch/last_table"
+            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+            + ".csv"
+        )
+        with open(last_table_store_path, "wb") as f:
             pds_last_table.to_csv(last_table_store_path)
             # np.save(last_table_store_path, vcu_calib_table1)
 

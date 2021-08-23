@@ -2,14 +2,14 @@
 # coding: utf-8
 
 # # create non eco pedal map
-# 
+#
 # **Author:** binjian Xin<br>
 # **Date Created:** 2021/07/07<br>
 # **Last Modified:** 2021/07/07<br>
 # **Description:** create non-eco pedal map and visualize<br>
-# 
+#
 # ## Create the non-eco pedal map
-# 
+#
 # read default pedal map (claiming to be eco) from data file
 
 # In[1]:
@@ -27,11 +27,9 @@ pd_data0 = pd.read_csv("../../data/init_table")
 #
 
 
-# 
+#
 
 # In[2]:
-
-
 
 
 # pd_data0 = pd.DataFrame(
@@ -53,7 +51,7 @@ pd_data0 = pd.read_csv("../../data/init_table")
 import plotly.graph_objects as go
 
 sh_0, sh_1 = pd_data0.shape
-x, y =  np.linspace(0,1.0,sh_1), np.linspace(0,30, sh_0)
+x, y = np.linspace(0, 1.0, sh_1), np.linspace(0, 30, sh_0)
 z = pd_data0.values
 # # Download data set from plotly repo
 # pts = np.loadtxt(np.DataSource().open('https://raw.githubusercontent.com/plotly/datasets/master/mesh_dataset.txt'))
@@ -62,27 +60,41 @@ z = pd_data0.values
 # fig1.show()
 
 z0 = np.zeros(z.shape)
-figure0 = go.Figure(data=[
-                        go.Surface(
-                        contours = {
-                            "y": {"show": True, "start":0, "end":10, "size":0.5, "color":"cyan"},
-                            "z": {"show": True, "start":-3000, "end":4600, "size":100, "color":"blue"}
-                        },
-                        x=x,
-                        y=y,
-                        z=pd_data0.values),
-                        go.Surface(x=x,y=y,z=z0)
-                        ]
-                  )
+figure0 = go.Figure(
+    data=[
+        go.Surface(
+            contours={
+                "y": {
+                    "show": True,
+                    "start": 0,
+                    "end": 10,
+                    "size": 0.5,
+                    "color": "cyan",
+                },
+                "z": {
+                    "show": True,
+                    "start": -3000,
+                    "end": 4600,
+                    "size": 100,
+                    "color": "blue",
+                },
+            },
+            x=x,
+            y=y,
+            z=pd_data0.values,
+        ),
+        go.Surface(x=x, y=y, z=z0),
+    ]
+)
 # figure.update_traces(contours_z=dict(show=True, usecolormap=True,
 #                                   highlightcolor="limegreen", project_z=True))
-figure0.update_layout(title='Pedal Map', autosize=False,
-                     scene=dict(
-                         xaxis_title='pedal',
-                         yaxis_title='velocity',
-                         zaxis_title='torque'),
-                     width=700, height=700,
-                     margin=dict(l=65,r=50,b=65,t=90))
+figure0.update_layout(
+    title="Pedal Map",
+    autosize=False,
+    scene=dict(xaxis_title="pedal", yaxis_title="velocity", zaxis_title="torque"),
+    width=700,
+    height=700,
+    margin=dict(l=65, r=50, b=65, t=90),
+)
 # figure0.add_trace(go.Surface(x=x,y=y,z=z0, surfacecolor=np.ones(z0.shape)))
 figure0.show()
-

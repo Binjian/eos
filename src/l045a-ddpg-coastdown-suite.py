@@ -9,21 +9,28 @@ import argparse
 
 # resumption settings
 parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--resume", help="resume the last training with restored model, checkpoint and pedal map",
-                    action="store_true")
+parser.add_argument(
+    "-r",
+    "--resume",
+    help="resume the last training with restored model, checkpoint and pedal map",
+    action="store_true",
+)
 args = parser.parse_args()
 
 udpfileName = (
-        os.getcwd() + "/../data/udp-pcap/l045a_ac_tf_coastdown-noaircond-"
-        + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
-        + ".pcap"
+    os.getcwd()
+    + "/../data/udp-pcap/l045a_ac_tf_coastdown-noaircond-"
+    + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
+    + ".pcap"
 )
 portNum = 8002  # port number
 pid = os.fork()
 if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
-        os.execlp("python", "python", "l045a_ddpg_coastdown.py", "--resume")  #  run Simulation
+        os.execlp(
+            "python", "python", "l045a_ddpg_coastdown.py", "--resume"
+        )  #  run Simulation
         # os.execlp("python", "python", "l045a_ac_tf_coastdown.py", "--resume")  #  run Simulation
     else:
         os.execlp("python", "python", "l045a_ddpg_coastdown.py")  #  run Simulation

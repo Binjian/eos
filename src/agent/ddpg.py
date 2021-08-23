@@ -177,10 +177,14 @@ class Buffer:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
-        self.state_buffer = np.zeros((self.buffer_capacity, sequence_len, num_observations))
+        self.state_buffer = np.zeros(
+            (self.buffer_capacity, sequence_len, num_observations)
+        )
         self.action_buffer = np.zeros((self.buffer_capacity, num_actions))
         self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros((self.buffer_capacity, sequence_len, num_observations))
+        self.next_state_buffer = np.zeros(
+            (self.buffer_capacity, sequence_len, num_observations)
+        )
         self.actor_model = actor_model
         self.critic_model = critic_model
         self.target_actor = target_actor
