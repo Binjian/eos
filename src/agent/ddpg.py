@@ -220,6 +220,11 @@ class Buffer:
             y = reward_batch + self.gamma * self.target_critic(
                 [next_state_batch, target_actions], training=True
             )
+            # ? need to confirm since replay buffer will take max over the actions of Q function.:with
+            # future_rewards = self.target_critic(
+            #             #     [next_state_batch, target_actions], training=True
+            #             # )
+            # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
             critic_value = self.critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
