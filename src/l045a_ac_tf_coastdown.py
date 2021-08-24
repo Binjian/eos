@@ -252,11 +252,11 @@ velocity_range = [0, 20.0]
 # resume last pedal map / scratch from default table
 if args.resume:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3, datafolder
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2, datafolder
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
@@ -953,30 +953,20 @@ def main():
 
     pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
 
-    if args.resume:
-        last_table_store_path = (
-            os.getcwd()
-            + "/../data/last_table"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-            + ".csv"
-        )
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-            # np.save(last_table_store_path, vcu_calib_table1)
-        last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-            # np.save(last_table_store_path, vcu_calib_table1)
-    else:
-        last_table_store_path = (
-            os.getcwd()
-            + "/../data/scratch/last_table"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-            + ".csv"
-        )
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-            # np.save(last_table_store_path, vcu_calib_table1)
+    last_table_store_path = (
+        datafolder  #  there's a backlash in the end of the string
+        + "last_table"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + ".csv"
+    )
+    with open(last_table_store_path, "wb") as f:
+        pds_last_table.to_csv(last_table_store_path)
+
+    # this is not needed since when initialization we get the latest table by timestamp instead of name.
+    # if args.resume:
+    #     resume_table_store_path = datafolder + "last_table.csv"
+    #     with open(resume_table_store_path, "wb") as f:
+    #         pds_last_table.to_csv(resume_table_store_path)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
