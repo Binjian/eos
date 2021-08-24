@@ -7,6 +7,7 @@ Last modified: 2020/03/15
 Description: Implement Advantage Actor Critic Method in Carla environment.
 """
 import sys
+import os
 import argparse
 
 """
@@ -55,7 +56,7 @@ import inspect
 
 
 # resumption settings
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser("use a2c with tensorflow backend for VEOS with coastdown activated")
 parser.add_argument(
     "-r",
     "--resume",
@@ -67,6 +68,12 @@ parser.add_argument(
     "--record_table",
     help="record action table during training",
     action="store_true",
+)
+parser.add_argument(
+    "-p",
+    "--path",
+    type=str,
+    help="relative path to be saved, for create subfolder for different drivers"
 )
 args = parser.parse_args()
 
@@ -83,17 +90,21 @@ formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 if args.resume:
-    logfilename = (
-        "../data/py_logs/l045a_ac_tf-coastdown-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-        + ".log"
-    )
+    datafolder = "../data/" + args.path
 else:
-    logfilename = (
-        "../data/scratch/py_logs/l045a_ac_tf-coastdown-"
+    datafolder = "../data/scratch/" + args.path
+
+logfolder = datafolder + "/py_logs"
+try:
+    os.makedirs(logfolder)
+except FileExistsError:
+    print("User folder exists, just resume!")
+
+logfilename = logfolder + (
+        "/l045a_ac_tf-coastdown-"
         + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
         + ".log"
-    )
+)
 
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
@@ -206,11 +217,9 @@ episode_count = 0
 states_rewards = []
 
 # TODO add visualization and logging
+# Create folder for ckpts loggings.
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-if args.resume:
-    train_log_dir = "../data/tf_logs/gradient_tape/" + current_time + "/train"
-else:
-    train_log_dir = "../data/scratch/tf_logs/gradient_tape/" + current_time + "/train"
+train_log_dir = datafolder + "/tf_logs/gradient_tape/" + current_time + "/train"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -283,32 +292,28 @@ gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
 if args.resume:
-    checkpoint_dir = "../data/tf_ckpts"
-    ckpt = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=opt, net=actorcritic_network
-    )
-    manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
-    ckpt.restore(manager.latest_checkpoint)
-    if manager.latest_checkpoint:
-        logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
-    else:
-        logger.info(f"Initializing from scratch", extra=dictLogger)
+    checkpoint_dir = datafolder + "/tf_ckpts/l045a_ac_tf"
 else:
-    tf_chp_path = (
-        "../data/scratch/tf_ckpts/l045a_ac_tf-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    checkpoint_dir = (
+            datafolder + "/tf_ckpts/l045a_ac_tf-"
+            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
     )
-    os.mkdir(tf_chp_path)
-    logger.info(f"Temporary checkpoints created in {tf_chp_path}", extra=dictLogger)
-    ckpt = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=opt, net=actorcritic_network
-    )
-    manager = tf.train.CheckpointManager(ckpt, tf_chp_path, max_to_keep=10)
-    ckpt.restore(manager.latest_checkpoint)
-    if manager.latest_checkpoint:
-        logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
-    else:
-        logger.info(f"Initializing from scratch", extra=dictLogger)
+try:
+    os.makedirs(checkpoint_dir)
+    logger.info("User folder doesn't exist. Created!", extra=dictLogger)
+except FileExistsError:
+    logger.info("User folder exists, just resume!", extra=dictLogger)
+
+ckpt = tf.train.Checkpoint(
+    step=tf.Variable(1), optimizer=opt, net=actorcritic_network
+)
+manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
+ckpt.restore(manager.latest_checkpoint)
+
+if manager.latest_checkpoint:
+    logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
+else:
+    logger.info(f"Initializing from scratch", extra=dictLogger)
 
 
 # todo ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
