@@ -750,14 +750,16 @@ def main():
                         )
                         logger.info(f"BP starts.", extra=dictLogger)
                         buffer.learn()
+                        logger.info(f"BP done.", extra=dictLogger)
 
                         update_target(
                             target_actor.variables, actor_model.variables, tau
                         )
+                        logger.info(f"Updated target actor", extra=dictLogger)
                         update_target(
                             target_critic.variables, critic_model.variables, tau
                         )
-                        logger.info(f"BP stops.", extra=dictLogger)
+                        logger.info(f"Updated target critic.", extra=dictLogger)
 
                         # Checkpoint manager save model
                         ckpt_actor.step.assign_add(1)

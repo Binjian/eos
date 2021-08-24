@@ -67,31 +67,15 @@ accumulated so far.
 
 Now, let's see how is it implemented.
 """
-import gym
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 import tensorflow.keras.initializers as initializers
-import matplotlib.pyplot as plt
-
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
 We will use the `upper_bound` parameter to scale our actions later.
 """
 
-# problem = "Pendulum-v0"
-# env = gym.make(problem)
-#
-# num_states = env.observation_space.shape[0]
-# print("Size of State Space ->  {}".format(num_states))
-# num_actions = env.action_space.shape[0]
-# print("Size of Action Space ->  {}".format(num_actions))
-#
-# upper_bound = env.action_space.high[0]
-# lower_bound = env.action_space.low[0]
-#
-# print("Max Value of Action ->  {}".format(upper_bound))
-# print("Min Value of Action ->  {}".format(lower_bound))
 
 """
 To implement better exploration by the Actor network, we use noisy perturbations,
@@ -232,6 +216,8 @@ class Buffer:
             # ! the question above is not necessary, since deterministic policy is the maximum!
             critic_value = self.critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
+
+        logger.info(f"BP done.", extra=dictLogger)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
