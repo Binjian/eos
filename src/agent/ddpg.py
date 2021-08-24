@@ -229,6 +229,7 @@ class Buffer:
             #             #     [next_state_batch, target_actions], training=True
             #             # )
             # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
+            # ! the question above is not necessary, since deterministic policy is the maximum!
             critic_value = self.critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
