@@ -262,7 +262,7 @@ num_hidden1 = 32
 
 vcu_calib_table0_reduced = vcu_calib_table0[:vcu_calib_table_row_reduced, :]
 
-tf.keras.backend.set_floatx("float64")
+tf.keras.backend.set_floatx("float32")
 # Initialize networks
 actor_model = get_actor(
     num_observations,
@@ -629,7 +629,7 @@ def main():
     global vcu_step
     global motionpowerQueue
 
-    eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
+    eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     # Start thread for flashing vcu, flash first
     thr_observe = Thread(target=get_truck_status, name="observe", args=())
