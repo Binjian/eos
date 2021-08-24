@@ -345,8 +345,8 @@ def get_truck_status():
     logger.info(f"Initialization Done!", extra=dictLogger)
 
     while not th_exit:
-        with hmi_lock:  # wait for tester to kick off or to exit
-            if program_exit == True:  # if program_exit is True, exit thread
+        with hmi_lock:  # This happens when policy turns deterministic, entropy goes to 0.
+            if program_exit == True:  # if program_exit is True, exit thread.
                 logger.info(
                     "%s",
                     "Capture thread exit due to processing request!!!",
