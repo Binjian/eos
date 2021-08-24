@@ -7,6 +7,7 @@ Last modified: 2020/03/15
 Description: Implement Advantage Actor Critic Method in Carla environment.
 """
 import sys
+import os
 import argparse
 
 """
@@ -55,12 +56,24 @@ import inspect
 
 
 # resumption settings
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser("use a2c with tensorflow backend for VEOS with coastdown activated")
 parser.add_argument(
     "-r",
     "--resume",
     help="resume the last training with restored model, checkpoint and pedal map",
     action="store_true",
+)
+parser.add_argument(
+    "-t",
+    "--record_table",
+    help="record action table during training",
+    action="store_true",
+)
+parser.add_argument(
+    "-p",
+    "--path",
+    type=str,
+    help="relative path to be saved, for create subfolder for different drivers"
 )
 args = parser.parse_args()
 
@@ -77,17 +90,21 @@ formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 if args.resume:
-    logfilename = (
-        "../data/py_logs/l045a_ac_tf_add_obs-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-        + ".log"
-    )
+    datafolder = "../data/" + args.path
 else:
-    logfilename = (
-        "../data/scratch/py_logs/l045a_ac_tf_add_obs-"
+    datafolder = "../data/scratch/" + args.path
+
+logfolder = datafolder + "/py_logs"
+try:
+    os.makedirs(logfolder)
+except FileExistsError:
+    print("User folder exists, just resume!")
+
+logfilename = logfolder + (
+        "/l045a_ac_tf-coastdown-"
         + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
         + ".log"
-    )
+)
 
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
@@ -200,11 +217,9 @@ episode_count = 0
 states_rewards = []
 
 # TODO add visualization and logging
+# Create folder for ckpts loggings.
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-if args.resume:
-    train_log_dir = "../data/tf_logs/gradient_tape/" + current_time + "/train"
-else:
-    train_log_dir = "../data/scratch/tf_logs/gradient_tape/" + current_time + "/train"
+train_log_dir = datafolder + "/tf_logs/gradient_tape/" + current_time + "/train"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -225,6 +240,11 @@ vcu_calib_table_row = 21  # numnber of velocity steps, y direction
 vcu_calib_table_budget = 0.05  # interval that allows modifying the calibration table
 vcu_calib_table_size = vcu_calib_table_row * vcu_calib_table_col
 
+pd_index = np.linspace(0, 100, vcu_calib_table_row)
+pd_index[1] = 7
+pd_columns = (
+    np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+)
 
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
@@ -253,14 +273,14 @@ sequence_len = 30  # 30 observation pairs as a valid observation for agent, for 
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
 vcu_calib_table_row_reduced = (
-    4  # 1:5 rows correspond to low speed from  7, 10, 15, 20 kmh
+    5  # 1:5 rows correspond to low speed from  7, 10, 15, 20 kmh
 )
-num_reduced_actions = vcu_calib_table_row_reduced * vcu_calib_table_col  # 4x17=68
+num_reduced_actions = vcu_calib_table_row_reduced * vcu_calib_table_col  # 5x17=85
 num_hidden = 128
 bias_mu = 0.0  # bias 0.0 yields mu=0.0 with linear activation function
 bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation function
 
-vcu_calib_table0_reduced = vcu_calib_table0[1 : vcu_calib_table_row_reduced + 1, :]
+vcu_calib_table0_reduced = vcu_calib_table0[:vcu_calib_table_row_reduced, :]
 
 tf.keras.backend.set_floatx("float64")
 # TODO option fix sigma, just optimize mu
@@ -272,32 +292,28 @@ gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
 if args.resume:
-    checkpoint_dir = "../data/tf_ckpts_add_obs"
-    ckpt = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=opt, net=actorcritic_network
-    )
-    manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
-    ckpt.restore(manager.latest_checkpoint)
-    if manager.latest_checkpoint:
-        logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
-    else:
-        logger.info(f"Initializing from scratch", extra=dictLogger)
+    checkpoint_dir = datafolder + "/tf_ckpts/l045a_ac_tf"
 else:
-    tf_chp_path = (
-        "../data/scratch/tf_ckpts/l045a_ac_tf-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    checkpoint_dir = (
+            datafolder + "/tf_ckpts/l045a_ac_tf-"
+            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
     )
-    os.mkdir(tf_chp_path)
-    logger.info(f"Temporary checkpoints created in {tf_chp_path}", extra=dictLogger)
-    ckpt = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=opt, net=actorcritic_network
-    )
-    manager = tf.train.CheckpointManager(ckpt, tf_chp_path, max_to_keep=10)
-    ckpt.restore(manager.latest_checkpoint)
-    if manager.latest_checkpoint:
-        logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
-    else:
-        logger.info(f"Initializing from scratch", extra=dictLogger)
+try:
+    os.makedirs(checkpoint_dir)
+    logger.info("User folder doesn't exist. Created!", extra=dictLogger)
+except FileExistsError:
+    logger.info("User folder exists, just resume!", extra=dictLogger)
+
+ckpt = tf.train.Checkpoint(
+    step=tf.Variable(1), optimizer=opt, net=actorcritic_network
+)
+manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
+ckpt.restore(manager.latest_checkpoint)
+
+if manager.latest_checkpoint:
+    logger.info(f"Restored from {manager.latest_checkpoint}", extra=dictLogger)
+else:
+    logger.info(f"Initializing from scratch", extra=dictLogger)
 
 
 # todo ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
@@ -329,6 +345,15 @@ def get_truck_status():
     logger.info(f"Initialization Done!", extra=dictLogger)
 
     while not th_exit:
+        with hmi_lock:  # This happens when policy turns deterministic, entropy goes to 0.
+            if program_exit == True:  # if program_exit is True, exit thread.
+                logger.info(
+                    "%s",
+                    "Capture thread exit due to processing request!!!",
+                    extra=dictLogger,
+                )
+                th_exit = True
+                continue
         candata, addr = s.recvfrom(2048)
         # logger.info('Data received!!!', extra=dictLogger)
         pop_data = json.loads(candata)
@@ -696,9 +721,31 @@ def main():
 
                     # create updated complete pedal map, only update the first few rows
                     vcu_calib_table1[
-                        1 : vcu_calib_table_row_reduced + 1, :
+                        :vcu_calib_table_row_reduced, :
                     ] = vcu_calib_table_reduced.numpy()
                     # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
+                    pds_curr_table = pd.DataFrame(
+                        vcu_calib_table1, pd_index, pd_columns
+                    )
+                    logger.info(f"Episode {episode_count+1} Start record instant table: {step_count}", extra=dictLogger)
+
+                    if args.record_table:
+                        curr_table_store_path = (
+                            os.getcwd()
+                            + "/../data/scratch/instant_table"
+                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[
+                                :-3
+                            ]
+                            + str(episode_count + 1)
+                            + "-"
+                            + str(step_count)
+                            + ".csv"
+                        )
+                        with open(curr_table_store_path, "wb") as f:
+                            pds_curr_table.to_csv(curr_table_store_path)
+                            # np.save(last_table_store_path, vcu_calib_table1)
+                        last_table_store_path = os.getcwd() + "/../data/last_table.csv"
+                    logger.info(f"Episode {episode_count+1} Done with record instant table: {step_count}", extra=dictLogger)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
@@ -875,6 +922,14 @@ def main():
                 extra=dictLogger,
             )
 
+        if entropy_losses_all < 1e-10:
+            logger.info(
+                f"Policy becomes deterministic. Training ends due to local optimum."
+            )
+            th_exit = True
+            with hmi_lock:  # wait for tester to kick off or to exit
+                program_exit = True  # if program_exit is false, reset to wait
+
         logger.info(
             f"Episode {episode_count} done, waits for next episode kicking off!",
             extra=dictLogger,
@@ -891,26 +946,28 @@ def main():
     logger.info(f"Save the last table!!!!", extra=dictLogger)
     # cpypath = os.getcwd() + '../data/last_table.json'
     # copyfile("/dev/shm/out.json", cpypat)
+    # pd_index = np.linspace(0, 100, vcu_calib_table_row)
+    # pd_index[1] = 7
+    # pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+    # columns = np.arange(17)
+    # index = np.arrange(21)
 
-    if args.resume:
-        last_table_store_path = (
-            os.getcwd()
-            + "/../data/last_table"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-        )
-        with open(last_table_store_path, "wb") as f:
-            np.save(last_table_store_path, vcu_calib_table1)
-        last_table_store_path = os.getcwd() + "/../data/last_table"
-        with open(last_table_store_path, "wb") as f:
-            np.save(last_table_store_path, vcu_calib_table1)
-    else:
-        last_table_store_path = (
-            os.getcwd()
-            + "/../data/scratch/last_table"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-        )
-        with open(last_table_store_path, "wb") as f:
-            np.save(last_table_store_path, vcu_calib_table1)
+    pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
+
+    last_table_store_path = (
+        datafolder  #  there's a backlash in the end of the string
+        + "last_table"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + ".csv"
+    )
+    with open(last_table_store_path, "wb") as f:
+        pds_last_table.to_csv(last_table_store_path)
+
+    # this is not needed since when initialization we get the latest table by timestamp instead of name.
+    # if args.resume:
+    #     resume_table_store_path = datafolder + "last_table.csv"
+    #     with open(resume_table_store_path, "wb") as f:
+    #         pds_last_table.to_csv(resume_table_store_path)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
