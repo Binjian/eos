@@ -89,6 +89,8 @@ logger.propagate = False
 formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
+if args.path is None:
+    args.path = '.'
 if args.resume:
     datafolder = "../data/" + args.path
 else:
@@ -954,8 +956,8 @@ def main():
     pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
 
     last_table_store_path = (
-        datafolder  #  there's a backlash in the end of the string
-        + "last_table"
+        datafolder  #  there's no slash in the end of the string
+        + "/last_table"
         + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
         + ".csv"
     )
