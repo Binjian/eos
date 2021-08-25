@@ -235,6 +235,7 @@ class Buffer:
         self.actor_optimizer.apply_gradients(
             zip(actor_grad, self.actor_model.trainable_variables)
         )
+        return critic_loss, actor_loss
 
     # We compute the loss and update parameters
     def learn(self):
@@ -251,7 +252,8 @@ class Buffer:
         reward_batch = tf.cast(reward_batch, dtype=tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
 
-        self.update(state_batch, action_batch, reward_batch, next_state_batch)
+        critic_loss, actor_loss = self.update(state_batch, action_batch, reward_batch, next_state_batch)
+        return critic_loss, actor_loss
 
 
 # This update target parameters slowly
