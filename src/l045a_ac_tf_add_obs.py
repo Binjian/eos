@@ -733,7 +733,7 @@ def main():
                     if args.record_table:
                         curr_table_store_path = (
                             datafolder
-                            + "/tables/instant_table-aa-"
+                            + "/tables/instant_table-ac-"
                             + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-")
                             + str(episode_count)
                             + "-"
