@@ -865,9 +865,13 @@ def main():
                 episode_reward = 0
                 continue  # otherwise assuming the history is valid and back propagate
 
+            critic_loss_seq = []
+            actor_loss_seq = []
             for k in range(6):
                 logger.info(f"BP starts.", extra=dictLogger)
-                buffer.learn()
+                (critic_loss, actor_loss) = buffer.learn()
+                critic_loss_seq.append(critic_loss)
+                actor_loss_seq.append(actor_loss)
                 logger.info(f"BP done.", extra=dictLogger)
 
                 update_target(
@@ -959,12 +963,12 @@ def main():
             # logger.info(f"BP ends.", extra=dictLogger)
             # ckpt.step.assign_add(1)
 
+        actor_loss_episode = np.array(actor_loss_seq).sum()
+        critic_loss_episode = np.array(critic_loss_seq).sum()
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
-            # tf.summary.scalar("loss_sum", loss_all, step=episode_count)
-            # tf.summary.scalar("loss_act", act_losses_all, step=episode_count)
-            # tf.summary.scalar("loss_entropy", entropy_losses_all, step=episode_count)
-            # tf.summary.scalar("loss_critic", critic_losses_all, step=episode_count)
+            tf.summary.scalar("actor loss", actor_loss_episode, step=episode_count)
+            tf.summary.scalar("critic loss", critic_loss_episode, step=episode_count)
             tf.summary.scalar("reward", episode_reward, step=episode_count)
             tf.summary.scalar("running reward", running_reward, step=episode_count)
             tf.summary.image(
@@ -979,31 +983,6 @@ def main():
             f"Episode {episode_count}, Episode Reward: {episode_reward}",
             extra=dictLogger,
         )
-        #
-        #   # Reset metrics every epoch
-        #   train_loss.reset_states()
-        #   test_loss.reset_states()
-        #   train_accuracy.reset_states()
-        #   test_accuracy.reset_states()
-        #   clear the loss and reward history
-        # motion_states_history.clear()
-        # vcu_action_history.clear()
-        # vcu_rewards_history.clear()
-        # mu_sigma_history.clear()
-        # vcu_critic_value_history.clear()
-        # obs = env.reset()
-
-        # log details
-        # actorcritic_network.save_weights("./checkpoints/cp-{epoch:04d}.ckpt")
-        # actorcritic_network.save("./checkpoints/cp-last.kpt")
-        # ckp_moment = datetime.datetime.now().strftime("%Y%b%d-%H%M%S")
-        # last_model_save_path = f"./checkpoints/cp-{ckp_moment}-{episode_count}.ckpt"
-        # actorcritic_network.save(last_model_save_path)
-
-        # Checkpoint manager save model
-        # save_path = manager.save()
-        # logger.info(f"Saved checkpoint for step {int(ckpt.step)}: {save_path}", extra=dictLogger)
-        # logger.info(f"loss {loss_all.numpy():.2f}".format(loss_all.numpy()), extra=dictLogger)
 
         episode_count += 1
         episode_reward = 0
@@ -1020,14 +999,11 @@ def main():
             extra=dictLogger,
         )
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
-        # if running_reward > 195:  # condition to consider the task solved
-        #     print("solved at episode {}!".format(episode_count))
-        #     break
 
     thr_observe.join()
     thr_flash.join()
 
-    # todo test restore last table
+    # TODOt  test restore last table
     logger.info(f"Save the last table!!!!", extra=dictLogger)
 
     pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
@@ -1040,12 +1016,6 @@ def main():
     )
     with open(last_table_store_path, "wb") as f:
         pds_last_table.to_csv(last_table_store_path)
-
-    # this is not needed since when initialization we get the latest table by timestamp instead of name.
-    # if args.resume:
-    #     resume_table_store_path = datafolder + "last_table.csv"
-    #     with open(resume_table_store_path, "wb") as f:
-    #         pds_last_table.to_csv(resume_table_store_path)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
