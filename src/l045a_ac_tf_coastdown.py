@@ -732,12 +732,10 @@ def main():
 
                     if args.record_table:
                         curr_table_store_path = (
-                            os.getcwd()
-                            + "/../data/scratch/instant_table"
-                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[
-                                :-3
-                            ]
-                            + str(episode_count + 1)
+                            datafolder
+                            + "/tables/instant_table"
+                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                            + str(episode_count)
                             + "-"
                             + str(step_count)
                             + ".csv"
@@ -958,7 +956,7 @@ def main():
     last_table_store_path = (
         datafolder  #  there's no slash in the end of the string
         + "/last_table"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         + ".csv"
     )
     with open(last_table_store_path, "wb") as f:
