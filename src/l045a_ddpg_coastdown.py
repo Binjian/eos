@@ -45,7 +45,9 @@ import inspect
 
 
 # resumption settings
-parser = argparse.ArgumentParser("use ddpg with tensorflow backend for VEOS with coastdown activated")
+parser = argparse.ArgumentParser(
+    "use ddpg with tensorflow backend for VEOS with coastdown activated"
+)
 parser.add_argument(
     "-r",
     "--resume",
@@ -62,7 +64,7 @@ parser.add_argument(
     "-p",
     "--path",
     type=str,
-    help="relative path to be saved, for create subfolder for different drivers"
+    help="relative path to be saved, for create subfolder for different drivers",
 )
 args = parser.parse_args()
 
@@ -79,7 +81,7 @@ formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 if args.path is None:
-    args.path = '.'
+    args.path = "."
 if args.resume:
     datafolder = "../data/" + args.path
 else:
@@ -92,9 +94,9 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-        "/l045a_ddpg-coastdown-aa-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-        + ".log"
+    "/l045a_ddpg-coastdown-aa-"
+    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+    + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -251,11 +253,21 @@ velocity_range = [0, 20.0]
 # resume last pedal map / scratch from default table
 if args.resume:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3, datafolder
+        vcu_calib_table_col,
+        pedal_range,
+        vcu_calib_table_row,
+        velocity_range,
+        3,
+        datafolder,
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2, datafolder
+        vcu_calib_table_col,
+        pedal_range,
+        vcu_calib_table_row,
+        velocity_range,
+        2,
+        datafolder,
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
@@ -298,7 +310,7 @@ critic_model = get_critic(
     sequence_len,
     num_hidden0,
     num_hidden1,
-    num_hidden
+    num_hidden,
 )
 
 
@@ -317,7 +329,7 @@ target_critic = get_critic(
     sequence_len,
     num_hidden0,
     num_hidden1,
-    num_hidden
+    num_hidden,
 )
 
 
@@ -355,12 +367,14 @@ if args.resume:
     checkpoint_critic_dir = datafolder + "/tf_ckpts-aa/l045a_ddpg_critic"
 else:
     checkpoint_actor_dir = (
-            datafolder + "/tf_ckpts-aa/l045a_ddpg_actor"
-            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+        datafolder
+        + "/tf_ckpts-aa/l045a_ddpg_actor"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
     checkpoint_critic_dir = (
-            datafolder + "/tf_ckpts-aa/l045a_ddpg_critic"
-            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+        datafolder
+        + "/tf_ckpts-aa/l045a_ddpg_critic"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
 try:
     os.makedirs(checkpoint_actor_dir)
@@ -800,8 +814,13 @@ def main():
                     vcu_calib_table1[
                         :vcu_calib_table_row_reduced, :
                     ] = vcu_calib_table_reduced.numpy()
-                    pds_curr_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
-                    logger.info(f"episode {episode_count} start record instant table: {step_count}", extra=dictLogger)
+                    pds_curr_table = pd.DataFrame(
+                        vcu_calib_table1, pd_index, pd_columns
+                    )
+                    logger.info(
+                        f"episode {episode_count} start record instant table: {step_count}",
+                        extra=dictLogger,
+                    )
 
                     if args.record_table:
                         curr_table_store_path = (
@@ -817,7 +836,10 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-                    logger.info(f"episode {episode_count} done with record instant table: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"episode {episode_count} done with record instant table: {step_count}",
+                        extra=dictLogger,
+                    )
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
@@ -873,29 +895,37 @@ def main():
                 critic_loss_seq.append(critic_loss)
                 actor_loss_seq.append(actor_loss)
                 logger.info(f"BP done.", extra=dictLogger)
-
-                update_target(
-                    target_actor.variables, actor_model.variables, tau
+                logger.info(
+                    f"Episode {episode_count} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                    extra=dictLogger,
                 )
+                update_target(target_actor.variables, actor_model.variables, tau)
                 logger.info(f"Updated target actor", extra=dictLogger)
-                update_target(
-                    target_critic.variables, critic_model.variables, tau
-                )
+                update_target(target_critic.variables, critic_model.variables, tau)
                 logger.info(f"Updated target critic.", extra=dictLogger)
 
                 # Checkpoint manager save model
                 ckpt_actor.step.assign_add(1)
                 ckpt_critic.step.assign_add(1)
-                if int(ckpt_actor.step) % 10 == 0:
+                if int(ckpt_actor.step) % 5 == 0:
                     save_path_actor = manager_actor.save()
-                    print(
-                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}"
+                    logger.info(
+                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}",
+                        extra=dictLogger,
                     )
                 if int(ckpt_critic.step) % 5 == 0:
                     save_path_critic = manager_critic.save()
-                    print(
-                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}"
+                    logger.info(
+                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}",
+                        extra=dictLogger,
                     )
+
+            actor_loss_episode = np.array(actor_loss_seq).sum()
+            critic_loss_episode = np.array(critic_loss_seq).sum()
+            logger.info(
+                f"Episode {episode_count} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
+                extra=dictLogger,
+            )
             # pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
             # tf.print("calib table:", vcu_calib_table1, output_stream=pm_output_path)
             # Create a matplotlib 3d figure, //export and save in log
@@ -963,8 +993,6 @@ def main():
             # logger.info(f"BP ends.", extra=dictLogger)
             # ckpt.step.assign_add(1)
 
-        actor_loss_episode = np.array(actor_loss_seq).sum()
-        critic_loss_episode = np.array(critic_loss_seq).sum()
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
             tf.summary.scalar("actor loss", actor_loss_episode, step=episode_count)
@@ -992,7 +1020,6 @@ def main():
                 f"running reward: {running_reward:.2f} at episode {episode_count}",
                 extra=dictLogger,
             )
-
 
         logger.info(
             f"Episode {episode_count} done, waits for next episode kicking off!",

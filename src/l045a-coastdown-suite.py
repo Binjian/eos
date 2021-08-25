@@ -25,7 +25,7 @@ parser.add_argument(
     "-p",
     "--path",
     type=str,
-    help="relative path to be saved, for create subfolder for different drivers"
+    help="relative path to be saved, for create subfolder for different drivers",
 )
 args = parser.parse_args()
 
@@ -41,7 +41,13 @@ if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
         os.execlp(
-            "python", "python", "l045a_ac_tf_coastdown.py", "--resume", "--path", args.path, "--record_table"
+            "python",
+            "python",
+            "l045a_ac_tf_coastdown.py",
+            "--resume",
+            "--path",
+            args.path,
+            "--record_table",
         )  #  run Simulation
     else:
         os.execlp("python", "python", "l045a_ac_tf_coastdown.py")  #  run Simulation

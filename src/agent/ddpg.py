@@ -71,6 +71,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 import tensorflow.keras.initializers as initializers
+
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
 We will use the `upper_bound` parameter to scale our actions later.
@@ -252,7 +253,9 @@ class Buffer:
         reward_batch = tf.cast(reward_batch, dtype=tf.float32)
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
 
-        critic_loss, actor_loss = self.update(state_batch, action_batch, reward_batch, next_state_batch)
+        critic_loss, actor_loss = self.update(
+            state_batch, action_batch, reward_batch, next_state_batch
+        )
         return critic_loss, actor_loss
 
 

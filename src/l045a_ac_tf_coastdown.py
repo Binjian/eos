@@ -56,7 +56,9 @@ import inspect
 
 
 # resumption settings
-parser = argparse.ArgumentParser("use a2c with tensorflow backend for VEOS with coastdown activated")
+parser = argparse.ArgumentParser(
+    "use a2c with tensorflow backend for VEOS with coastdown activated"
+)
 parser.add_argument(
     "-r",
     "--resume",
@@ -73,7 +75,7 @@ parser.add_argument(
     "-p",
     "--path",
     type=str,
-    help="relative path to be saved, for create subfolder for different drivers"
+    help="relative path to be saved, for create subfolder for different drivers",
 )
 args = parser.parse_args()
 
@@ -90,7 +92,7 @@ formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 if args.path is None:
-    args.path = '.'
+    args.path = "."
 if args.resume:
     datafolder = "../data/" + args.path
 else:
@@ -103,9 +105,9 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-        "/l045a_ac_tf-coastdown-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-        + ".log"
+    "/l045a_ac_tf-coastdown-"
+    + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -254,11 +256,21 @@ velocity_range = [0, 20.0]
 # resume last pedal map / scratch from default table
 if args.resume:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3, datafolder
+        vcu_calib_table_col,
+        pedal_range,
+        vcu_calib_table_row,
+        velocity_range,
+        3,
+        datafolder,
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2, datafolder
+        vcu_calib_table_col,
+        pedal_range,
+        vcu_calib_table_row,
+        velocity_range,
+        2,
+        datafolder,
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
@@ -297,8 +309,9 @@ if args.resume:
     checkpoint_dir = datafolder + "/tf_ckpts/l045a_ac_tf"
 else:
     checkpoint_dir = (
-            datafolder + "/tf_ckpts/l045a_ac_tf-"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        datafolder
+        + "/tf_ckpts/l045a_ac_tf-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
     )
 try:
     os.makedirs(checkpoint_dir)
@@ -306,9 +319,7 @@ try:
 except FileExistsError:
     logger.info("User folder exists, just resume!", extra=dictLogger)
 
-ckpt = tf.train.Checkpoint(
-    step=tf.Variable(1), optimizer=opt, net=actorcritic_network
-)
+ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=opt, net=actorcritic_network)
 manager = tf.train.CheckpointManager(ckpt, checkpoint_dir, max_to_keep=10)
 ckpt.restore(manager.latest_checkpoint)
 
@@ -728,7 +739,10 @@ def main():
                     pds_curr_table = pd.DataFrame(
                         vcu_calib_table1, pd_index, pd_columns
                     )
-                    logger.info(f"Episode {episode_count+1} Start record instant table: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} Start record instant table: {step_count}",
+                        extra=dictLogger,
+                    )
 
                     if args.record_table:
                         curr_table_store_path = (
@@ -744,7 +758,10 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-                    logger.info(f"Episode {episode_count+1} Done with record instant table: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"Episode {episode_count+1} Done with record instant table: {step_count}",
+                        extra=dictLogger,
+                    )
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)

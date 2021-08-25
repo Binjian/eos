@@ -27,7 +27,6 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
     ped = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
 
-
     if shortcut == 1:
         vel = np.linspace(
             velocity_range[0], velocity_range[1], num=nvl
@@ -35,22 +34,25 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         pdv, vlv = np.meshgrid(ped, vel, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
-        table_path = datafolder + "/init_table_coastdown.csv"  # init table is driver independent in the pardir.
+        table_path = (
+            datafolder + "/init_table_coastdown.csv"
+        )  # init table is driver independent in the pardir.
         pd_data = pd.read_csv(table_path, header=0, index_col=0)
         # table_path = datafolder + "/54_vertices_approx-regen3.csv"  # init table is driver independent in the pardir.
         # pd_data = pd.read_csv(table_path, header=0, index_col=0)
         v = pd_data.to_numpy()
     elif shortcut == 3:  # import latest pedal map that was used
-        files = glob.glob(datafolder+'/last_table*.csv')
+        files = glob.glob(datafolder + "/last_table*.csv")
         if not files:  # files is empty list []
             print("no last table is available. Get init table instead.")
-            latest_table = datafolder + "/init_table_coastdown.csv"  # init table is driver independent in the pardir.
+            latest_table = (
+                datafolder + "/init_table_coastdown.csv"
+            )  # init table is driver independent in the pardir.
         else:
             latest_table = max(files, key=os.path.getmtime)
         # latest = datafolder + "last_table.csv"  # init table is driver relevant.
         pd_data = pd.read_csv(latest_table, header=0, index_col=0)
         v = pd_data.to_numpy()
-
 
     else:
         vel = np.ones(nvl)
