@@ -44,11 +44,17 @@ import inspect
 
 
 # resumption settings
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser("use ddpg with tensorflow backend for VEOS with coastdown activated")
 parser.add_argument(
     "-r",
     "--resume",
     help="resume the last training with restored model, checkpoint and pedal map",
+    action="store_true",
+)
+parser.add_argument(
+    "-t",
+    "--record_table",
+    help="record action table during training",
     action="store_true",
 )
 args = parser.parse_args()
@@ -225,17 +231,24 @@ action_lower = 0.8
 action_upper = 1.0
 action_bias = 0.0
 
+pd_index = np.linspace(0, 100, vcu_calib_table_row)
+pd_index[1] = 7
+pd_columns = (
+        np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+)
+
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
 
 # resume last pedal map / scratch from default table
+datafolder = '../data/'
 if args.resume:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3, datafolder
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2, datafolder
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
@@ -628,6 +641,7 @@ def main():
     global states_rewards
     global vcu_step
     global motionpowerQueue
+    global pd_index, pd_columns
 
     eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
@@ -748,33 +762,6 @@ def main():
                         buffer.record(
                             (prev_motion_states, prev_action, vcu_reward, motion_states)
                         )
-                        logger.info(f"BP starts.", extra=dictLogger)
-                        buffer.learn()
-                        logger.info(f"BP done.", extra=dictLogger)
-
-                        update_target(
-                            target_actor.variables, actor_model.variables, tau
-                        )
-                        logger.info(f"Updated target actor", extra=dictLogger)
-                        update_target(
-                            target_critic.variables, critic_model.variables, tau
-                        )
-                        logger.info(f"Updated target critic.", extra=dictLogger)
-
-                        # Checkpoint manager save model
-                        ckpt_actor.step.assign_add(1)
-                        ckpt_critic.step.assign_add(1)
-                        if int(ckpt_actor.step) % 10 == 0:
-                            save_path_actor = manager_actor.save()
-                            print(
-                                f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}"
-                            )
-                        if int(ckpt_critic.step) % 10 == 0:
-                            save_path_critic = manager_critic.save()
-                            print(
-                                f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}"
-                            )
-
                     # motion_states_history.append(motion_states)
                     motion_states0 = motion_states
 
@@ -860,6 +847,24 @@ def main():
                         :vcu_calib_table_row_reduced, :
                     ] = vcu_calib_table_reduced.numpy()
                     # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
+                    pds_curr_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
+                    logger.info(f"episode {episode_count+1} start record instant table: {step_count}", extra=dictLogger)
+
+                    if args.record_table:
+                        curr_table_store_path = (
+                            datafolder
+                            + "/tables/instant_table"
+                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                            + str(episode_count)
+                            + "-"
+                            + str(step_count)
+                            + ".csv"
+                        )
+                        with open(curr_table_store_path, "wb") as f:
+                            pds_curr_table.to_csv(curr_table_store_path)
+                            # np.save(last_table_store_path, vcu_calib_table1)
+                        last_table_store_path = os.getcwd() + "/../data/last_table.csv"
+                    logger.info(f"episode {episode_count+1} done with record instant table: {step_count}", extra=dictLogger)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
@@ -907,6 +912,33 @@ def main():
                 episode_reward = 0
                 continue  # otherwise assuming the history is valid and back propagate
 
+            for k in range(6):
+                logger.info(f"BP starts.", extra=dictLogger)
+                buffer.learn()
+                logger.info(f"BP done.", extra=dictLogger)
+
+                update_target(
+                    target_actor.variables, actor_model.variables, tau
+                )
+                logger.info(f"Updated target actor", extra=dictLogger)
+                update_target(
+                    target_critic.variables, critic_model.variables, tau
+                )
+                logger.info(f"Updated target critic.", extra=dictLogger)
+
+                # Checkpoint manager save model
+                ckpt_actor.step.assign_add(1)
+                ckpt_critic.step.assign_add(1)
+                if int(ckpt_actor.step) % 10 == 0:
+                    save_path_actor = manager_actor.save()
+                    print(
+                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}"
+                    )
+                if int(ckpt_critic.step) % 5 == 0:
+                    save_path_critic = manager_critic.save()
+                    print(
+                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}"
+                    )
             # pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
             # tf.print("calib table:", vcu_calib_table1, output_stream=pm_output_path)
             # Create a matplotlib 3d figure, //export and save in log
