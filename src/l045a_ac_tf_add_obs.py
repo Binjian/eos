@@ -103,8 +103,8 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-        "/l045a_ac_tf-coastdown-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        "/l045a_ac_tf-coastdown-aa-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         + ".log"
 )
 
@@ -294,11 +294,11 @@ gamma = 0.99  # discount factor for past rewards
 opt = keras.optimizers.Adam(learning_rate=0.001)
 # add checkpoints manager
 if args.resume:
-    checkpoint_dir = datafolder + "/tf_ckpts/l045a_ac_tf"
+    checkpoint_dir = datafolder + "/tf_ckpts-aa/l045a_ac_tf_aa"
 else:
     checkpoint_dir = (
-            datafolder + "/tf_ckpts/l045a_ac_tf-"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+            datafolder + "/tf_ckpts-aa/l045a_ac_tf_aa"
+            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
 try:
     os.makedirs(checkpoint_dir)
@@ -733,12 +733,10 @@ def main():
 
                     if args.record_table:
                         curr_table_store_path = (
-                            os.getcwd()
-                            + "/../data/scratch/instant_table"
-                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[
-                                :-3
-                            ]
-                            + str(episode_count + 1)
+                            datafolder
+                            + "/tables/instant_table-aa-"
+                            + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-")
+                            + str(episode_count)
                             + "-"
                             + str(step_count)
                             + ".csv"
@@ -958,8 +956,8 @@ def main():
 
     last_table_store_path = (
         datafolder  #  there's no slash in the end of the string
-        + "/last_table"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+        + "/last_table_aa-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         + ".csv"
     )
     with open(last_table_store_path, "wb") as f:
