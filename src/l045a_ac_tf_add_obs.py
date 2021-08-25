@@ -121,7 +121,6 @@ logger.setLevel(logging.DEBUG)
 # dictLogger = {'funcName': '__self__.__func__.__name__'}
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
-import os
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 logger.info(f"Start Logging", extra=dictLogger)
@@ -574,13 +573,13 @@ def main():
 
                 if episode_end and done:
                     logger.info(
-                        f"Episode {episode_count+1} Experience Collection ends!",
+                        f"Episode {episode_count} Experience Collection ends!",
                         extra=dictLogger,
                     )
                     continue
                 elif episode_end and (not done):
                     logger.info(
-                        f"Episode {episode_count+1} Experience Collection is interrupted!",
+                        f"Episode {episode_count} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
                     continue
@@ -593,7 +592,7 @@ def main():
                     continue
 
                 logger.info(
-                    f"Episode {episode_count + 1} start step {step_count}",
+                    f"Episode {episode_count} start step {step_count}",
                     extra=dictLogger,
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
@@ -604,7 +603,7 @@ def main():
                 motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
 
                 logger.info(
-                    f"Episode {episode_count+1} tensor convert and split!",
+                    f"Episode {episode_count} tensor convert and split!",
                     extra=dictLogger,
                 )
                 # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
@@ -652,13 +651,13 @@ def main():
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
                     logger.info(
-                        f"Episode {episode_count+1} before inference!", extra=dictLogger
+                        f"Episode {episode_count} before inference!", extra=dictLogger
                     )
                     # Now with reduced action space (only low speed, 5 rows)
                     mu_sigma, critic_value = actorcritic_network(motion_states0)
 
                     logger.info(
-                        f"Episode {episode_count+1} inference done with reduced action space!",
+                        f"Episode {episode_count} inference done with reduced action space!",
                         extra=dictLogger,
                     )
                     vcu_critic_value_history.append(critic_value[0, 0])
@@ -677,7 +676,7 @@ def main():
                     mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
                     vcu_action_reduced = mvn.sample()  # 17*4 = 68 actions
                     logger.info(
-                        f"Episode {episode_count+1} Step {step_count} sampling done!",
+                        f"Episode {episode_count} Step {step_count} sampling done!",
                         extra=dictLogger,
                     )
                     vcu_action_history.append(vcu_action_reduced)
@@ -729,7 +728,7 @@ def main():
                     pds_curr_table = pd.DataFrame(
                         vcu_calib_table1, pd_index, pd_columns
                     )
-                    logger.info(f"Episode {episode_count+1} Start record instant table: {step_count}", extra=dictLogger)
+                    logger.info(f"Episode {episode_count} Start record instant table: {step_count}", extra=dictLogger)
 
                     if args.record_table:
                         curr_table_store_path = (
@@ -745,17 +744,17 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-                    logger.info(f"Episode {episode_count+1} Done with record instant table: {step_count}", extra=dictLogger)
+                    logger.info(f"Episode {episode_count} Done with record instant table: {step_count}", extra=dictLogger)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logger.info(
-                        f"Episode {episode_count+1} Action Push table: {tableQueue.qsize()}",
+                        f"Episode {episode_count} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
                     logger.info(
-                        f"Episode {episode_count+1} Step done: {step_count}",
+                        f"Episode {episode_count} Step done: {step_count}",
                         extra=dictLogger,
                     )
                 # during odd steps, old action remains effective due to learn and flash delay
@@ -768,7 +767,7 @@ def main():
                     episode_reward += vcu_reward
                     # episode_wh += wh  # if only the odd steps, then only considers the effective action results?
                     logger.info(
-                        f"Episode {episode_count+1} Step done: {step_count}",
+                        f"Episode {episode_count} Step done: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -784,7 +783,7 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logger.info(
-                    f"Episode {episode_count+1}  interrupted, waits for next episode kicking off!",
+                    f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
                     extra=dictLogger,
                 )
                 # clean up vcu_rewards_history, mu_sigma_history, episode_reward
@@ -880,7 +879,7 @@ def main():
         plt.close(fig)
 
         logger.info(
-            f"Episode {episode_count + 1}, Loss all: {loss_all}, Act loss: {act_losses_all}, Entropy loss: {entropy_losses_all}, Critic loss: {critic_losses_all}, Episode Reward: {episode_reward}",
+            f"Episode {episode_count}, Loss all: {loss_all}, Act loss: {act_losses_all}, Entropy loss: {entropy_losses_all}, Critic loss: {critic_losses_all}, Episode Reward: {episode_reward}",
             extra=dictLogger,
         )
         #
@@ -944,13 +943,6 @@ def main():
 
     # todo test restore last table
     logger.info(f"Save the last table!!!!", extra=dictLogger)
-    # cpypath = os.getcwd() + '../data/last_table.json'
-    # copyfile("/dev/shm/out.json", cpypat)
-    # pd_index = np.linspace(0, 100, vcu_calib_table_row)
-    # pd_index[1] = 7
-    # pd_columns = np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
-    # columns = np.arange(17)
-    # index = np.arrange(21)
 
     pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
 
