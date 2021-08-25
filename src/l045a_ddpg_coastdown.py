@@ -879,11 +879,6 @@ def main():
                     extra=dictLogger,
                 )
                 # clean up vcu_rewards_history, mu_sigma_history, episode_reward
-                # motion_states_history.clear()
-                # vcu_action_history.clear()
-                # vcu_rewards_history.clear()
-                # mu_sigma_history.clear()
-                # vcu_critic_value_history.clear()
                 episode_reward = 0
                 continue  # otherwise assuming the history is valid and back propagate
 
@@ -926,8 +921,6 @@ def main():
                 f"Episode {episode_count} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
                 extra=dictLogger,
             )
-            # pm_output_path = "PMap-" + logfilename + f"_{episode_count}.out"
-            # tf.print("calib table:", vcu_calib_table1, output_stream=pm_output_path)
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
                 vcu_calib_table1,
@@ -952,46 +945,6 @@ def main():
             # time.sleep(5)
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
-
-            # todo calculate return
-            # calculate expected value from rewards
-            # - at each timestep what was the total reward received after that timestep
-            # - rewards in the past are discounted by multiplying them with gamma
-            # - these are the labels for our critic
-            returns = []
-            discounted_sum = 0
-            # everytime when episode ends, number of rewards items in history is always even
-            # if action history is odd when episode ends, then the last action/mu_sigma is ignored for backpropagation
-            # thus no extra handling is required
-            # # TODO move vcu_rewards one step forward !!!
-            # vcu_rewards_history = vcu_rewards_history[1:]
-            # vcu_action_history = vcu_action_history[:-1]
-            # mu_sigma_history = mu_sigma_history[:-1]
-            # vcu_critic_value_history = vcu_critic_value_history[:-1]
-            #
-            # for r in vcu_rewards_history[::-1]:
-            #     discounted_sum = r + gamma * discounted_sum
-            #     returns.insert(0, discounted_sum)
-            # normalize
-            returns = np.array(returns)
-            returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
-            returns = returns.tolist()
-
-            # # calculating loss values to update our network
-            # history = zip(
-            #     vcu_action_history, mu_sigma_history, vcu_critic_value_history, returns
-            # )
-            #
-            # logger.info(f"BP starts.", extra=dictLogger)
-            # # back propagation
-            # (
-            #     loss_all,
-            #     act_losses_all,
-            #     entropy_losses_all,
-            #     critic_losses_all,
-            # ) = train_step(actorcritic_network, history, opt, tape)
-            # logger.info(f"BP ends.", extra=dictLogger)
-            # ckpt.step.assign_add(1)
 
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
