@@ -7,6 +7,7 @@ Last modified: 2020/03/15
 Description: Implement Advantage Actor Critic Method in Carla environment.
 """
 import sys
+import os
 import argparse
 
 """
@@ -57,6 +58,12 @@ parser.add_argument(
     help="record action table during training",
     action="store_true",
 )
+parser.add_argument(
+    "-p",
+    "--path",
+    type=str,
+    help="relative path to be saved, for create subfolder for different drivers"
+)
 args = parser.parse_args()
 
 
@@ -71,18 +78,24 @@ logger.propagate = False
 formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
+if args.path is None:
+    args.path = '.'
 if args.resume:
-    logfilename = (
-        "../data/py_logs/l045a_ddpg-coastdown-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-        + ".log"
-    )
+    datafolder = "../data/" + args.path
 else:
-    logfilename = (
-        "../data/scratch/py_logs/l045a_ddpg-coastdown-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    datafolder = "../data/scratch/" + args.path
+
+logfolder = datafolder + "/py_logs"
+try:
+    os.makedirs(logfolder)
+except FileExistsError:
+    print("User folder exists, just resume!")
+
+logfilename = logfolder + (
+        "/l045a_ddpg-coastdown-aa-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         + ".log"
-    )
+)
 
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
@@ -97,7 +110,6 @@ logger.setLevel(logging.DEBUG)
 # dictLogger = {'funcName': '__self__.__func__.__name__'}
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
-import os
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 logger.info(f"Start Logging", extra=dictLogger)
@@ -200,13 +212,9 @@ episode_count = 0
 states_rewards = []
 
 # TODO add visualization and logging
+# Create folder for ckpts loggings.
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-if args.resume:
-    train_log_dir = "../data/tf_logs/ddpg/gradient_tape/" + current_time + "/train"
-else:
-    train_log_dir = (
-        "../data/scratch/tf_logs/ddpg/gradient_tape/" + current_time + "/train"
-    )
+train_log_dir = datafolder + "/tf_logs/ddpg/gradient_tape/" + current_time + "/train"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -234,14 +242,13 @@ action_bias = 0.0
 pd_index = np.linspace(0, 100, vcu_calib_table_row)
 pd_index[1] = 7
 pd_columns = (
-        np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
+    np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
 )
 
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
 
 # resume last pedal map / scratch from default table
-datafolder = '../data/'
 if args.resume:
     vcu_calib_table0 = generate_vcu_calibration(
         vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3, datafolder
@@ -344,88 +351,60 @@ buffer = Buffer(
 
 # add checkpoints manager
 if args.resume:
-    checkpoint_actor_dir = "../tf_ckpts/ddpg-actor"
-    ckpt_actor = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=actor_optimizer, net=actor_model
-    )
-    manager_actor = tf.train.CheckpointManager(
-        ckpt_actor, checkpoint_actor_dir, max_to_keep=10
-    )
-    ckpt_actor.restore(manager_actor.latest_checkpoint)
-    if manager_actor.latest_checkpoint:
-        logger.info(
-            f"Actor Restored from {manager_actor.latest_checkpoint}", extra=dictLogger
-        )
-    else:
-        logger.info(f"Actor Initializing from scratch", extra=dictLogger)
-
-    checkpoint_critic_dir = "../tf_ckpts/ddpg-critic"
-    ckpt_critic = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=critic_optimizer, net=critic_model
-    )
-    manager_critic = tf.train.CheckpointManager(
-        ckpt_critic, checkpoint_critic_dir, max_to_keep=10
-    )
-    ckpt_critic.restore(manager_critic.latest_checkpoint)
-    if manager_critic.latest_checkpoint:
-        logger.info(
-            f"Critic Restored from {manager_critic.latest_checkpoint}", extra=dictLogger
-        )
-    else:
-        logger.info("Critic Initializing from scratch", extra=dictLogger)
-
-    # Making the weights equal initially after checkpoints load
-    target_actor.set_weights(actor_model.get_weights())
-    target_critic.set_weights(critic_model.get_weights())
-
+    checkpoint_actor_dir = datafolder + "/tf_ckpts-aa/l045a_ddpg_actor"
+    checkpoint_critic_dir = datafolder + "/tf_ckpts-aa/l045a_ddpg_critic"
 else:
-    tf_chp_path = (
-        "../data/scratch/tf_ckpts/l045a_ddpg-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
+    checkpoint_actor_dir = (
+            datafolder + "/tf_ckpts-aa/l045a_ddpg_actor"
+            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
-    checkpoint_actor_dir = tf_chp_path + "ddpg-actor"
-    os.mkdir(checkpoint_actor_dir)
-    logger.info(
-        f"Temporary ddpg actor checkpoints created in {checkpoint_actor_dir}",
-        extra=dictLogger,
+    checkpoint_critic_dir = (
+            datafolder + "/tf_ckpts-aa/l045a_ddpg_critic"
+            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
-    ckpt_actor = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=actor_optimizer, net=actor_model
-    )
-    manager_actor = tf.train.CheckpointManager(
-        ckpt_actor, checkpoint_actor_dir, max_to_keep=10
-    )
-    ckpt_actor.restore(manager_actor.latest_checkpoint)
-    if manager_actor.latest_checkpoint:
-        logger.info(
-            f"Actor Restored from {manager_actor.latest_checkpoint}", extra=dictLogger
-        )
-    else:
-        logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+try:
+    os.makedirs(checkpoint_actor_dir)
+    logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
+except FileExistsError:
+    logger.info("Actor folder exists, just resume!", extra=dictLogger)
+try:
+    os.makedirs(checkpoint_critic_dir)
+    logger.info("User folder doesn't exist. Created!", extra=dictLogger)
+except FileExistsError:
+    logger.info("User folder exists, just resume!", extra=dictLogger)
 
-    checkpoint_critic_dir = tf_chp_path + "ddpg-critic"
-    os.mkdir(checkpoint_critic_dir)
+ckpt_actor = tf.train.Checkpoint(
+    step=tf.Variable(1), optimizer=actor_optimizer, net=actor_model
+)
+manager_actor = tf.train.CheckpointManager(
+    ckpt_actor, checkpoint_actor_dir, max_to_keep=10
+)
+ckpt_actor.restore(manager_actor.latest_checkpoint)
+if manager_actor.latest_checkpoint:
     logger.info(
-        f"Temporary ddpg critic checkpoints created in {checkpoint_critic_dir}",
-        extra=dictLogger,
+        f"Actor Restored from {manager_actor.latest_checkpoint}", extra=dictLogger
     )
-    ckpt_critic = tf.train.Checkpoint(
-        step=tf.Variable(1), optimizer=critic_optimizer, net=critic_model
-    )
-    manager_critic = tf.train.CheckpointManager(
-        ckpt_critic, checkpoint_critic_dir, max_to_keep=10
-    )
-    ckpt_critic.restore(manager_critic.latest_checkpoint)
-    if manager_critic.latest_checkpoint:
-        logger.info(
-            f"Critic Restored from {manager_critic.latest_checkpoint}", extra=dictLogger
-        )
-    else:
-        logger.info("Critic Initializing from scratch", extra=dictLogger)
+else:
+    logger.info(f"Actor Initializing from scratch", extra=dictLogger)
 
-    # Making the weights equal initially after checkpoints load
-    target_actor.set_weights(actor_model.get_weights())
-    target_critic.set_weights(critic_model.get_weights())
+ckpt_critic = tf.train.Checkpoint(
+    step=tf.Variable(1), optimizer=critic_optimizer, net=critic_model
+)
+manager_critic = tf.train.CheckpointManager(
+    ckpt_critic, checkpoint_critic_dir, max_to_keep=10
+)
+ckpt_critic.restore(manager_critic.latest_checkpoint)
+if manager_critic.latest_checkpoint:
+    logger.info(
+        f"Critic Restored from {manager_critic.latest_checkpoint}", extra=dictLogger
+    )
+else:
+    logger.info("Critic Initializing from scratch", extra=dictLogger)
+
+# Making the weights equal initially after checkpoints load
+target_actor.set_weights(actor_model.get_weights())
+target_critic.set_weights(critic_model.get_weights())
+
 
 # todo ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
 init_motionpower = np.random.rand(sequence_len, num_observations)
@@ -656,13 +635,8 @@ def main():
     """
     ## train
     """
-    # vcu_action_history = []
-    # mu_sigma_history = []
-    # vcu_critic_value_history = []
-    # vcu_rewards_history = []
     running_reward = 0
     episode_reward = 0
-    motion_states_history = []
     th_exit = False
     done = False
     episode_end = False
@@ -692,13 +666,13 @@ def main():
 
                 if episode_end and done:
                     logger.info(
-                        f"Episode {episode_count+1} Experience Collection ends!",
+                        f"Episode {episode_count} Experience Collection ends!",
                         extra=dictLogger,
                     )
                     continue
                 elif episode_end and (not done):
                     logger.info(
-                        f"Episode {episode_count+1} Experience Collection is interrupted!",
+                        f"Episode {episode_count} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
                     continue
@@ -711,7 +685,7 @@ def main():
                     continue
 
                 logger.info(
-                    f"Episode {episode_count + 1} start step {step_count}",
+                    f"Episode {episode_count} start step {step_count}",
                     extra=dictLogger,
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
@@ -722,7 +696,7 @@ def main():
                 motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
 
                 logger.info(
-                    f"Episode {episode_count+1} tensor convert and split!",
+                    f"Episode {episode_count} tensor convert and split!",
                     extra=dictLogger,
                 )
                 # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
@@ -774,37 +748,17 @@ def main():
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
                     logger.info(
-                        f"Episode {episode_count+1} before inference!", extra=dictLogger
+                        f"Episode {episode_count} before inference!", extra=dictLogger
                     )
-                    # mu_sigma, critic_value = actorcritic_network(motion_states0)
                     vcu_action_reduced = policy(actor_model, motion_states1, ou_noise)
                     prev_motion_states = motion_states0
                     prev_action = vcu_action_reduced
 
                     logger.info(
-                        f"Episode {episode_count+1} inference done with reduced action space!",
+                        f"Episode {episode_count} inference done with reduced action space!",
                         extra=dictLogger,
                     )
-                    # vcu_critic_value_history.append(critic_value[0, 0])
-                    # mu_sigma_history.append(mu_sigma)
-                    #
-                    # logger.info(f"mu sigma appended!", extra=dictLogger)
-                    # # mu_sigma_list = tf.transpose(tf.squeeze(mu_sigma))
-                    # # mu_sigma_s = [f"{mu:.3f},{sigma:.3f}" for (mu, sigma) in mu_sigma_list]
-                    # # logger.info(
-                    # #     f"mu sigma: {mu_sigma_s}",
-                    # #     extra=dictLogger,
-                    # # )
-                    #
-                    # # sample action from action probability distribution
-                    # nn_mu, nn_sigma = tf.unstack(mu_sigma)
-                    # mvn = tfd.MultivariateNormalDiag(loc=nn_mu, scale_diag=nn_sigma)
-                    # vcu_action_reduced = mvn.sample()  # 17*4 = 68 actions
-                    # logger.info(f"Episode {episode_count+1} Step {step_count} sampling done!", extra=dictLogger)
-                    # vcu_action_history.append(vcu_action_reduced)
-                    # Here the lookup table with constrained output is part of the environment,
-                    # clip is part of the environment to be learned
-                    # action is not constrained!
+
                     vcu_calib_table_reduced = tf.reshape(
                         vcu_action_reduced,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
@@ -846,14 +800,13 @@ def main():
                     vcu_calib_table1[
                         :vcu_calib_table_row_reduced, :
                     ] = vcu_calib_table_reduced.numpy()
-                    # vcu_calib_table1[:vcu_calib_table_row_reduced+1, :] = np.zeros( vcu_calib_table0_reduced.shape)
                     pds_curr_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
-                    logger.info(f"episode {episode_count+1} start record instant table: {step_count}", extra=dictLogger)
+                    logger.info(f"episode {episode_count} start record instant table: {step_count}", extra=dictLogger)
 
                     if args.record_table:
                         curr_table_store_path = (
                             datafolder
-                            + "/tables/instant_table"
+                            + "/tables/instant_table_ddpg-"
                             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                             + str(episode_count)
                             + "-"
@@ -864,13 +817,13 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-                    logger.info(f"episode {episode_count+1} done with record instant table: {step_count}", extra=dictLogger)
+                    logger.info(f"episode {episode_count} done with record instant table: {step_count}", extra=dictLogger)
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logger.info(
-                        f"Episode {episode_count+1} Action Push table: {tableQueue.qsize()}",
+                        f"Episode {episode_count} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
                     logger.info(f"Step : {step_count}", extra=dictLogger)
@@ -884,7 +837,7 @@ def main():
                     # vcu_rewards_history.append(vcu_reward)
                     episode_reward += vcu_reward
                     logger.info(
-                        f"Episode {episode_count+1} Step done: {step_count}",
+                        f"Episode {episode_count} Step done: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -900,7 +853,7 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logger.info(
-                    f"Episode {episode_count+1}  interrupted, waits for next episode kicking off!",
+                    f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
                     extra=dictLogger,
                 )
                 # clean up vcu_rewards_history, mu_sigma_history, episode_reward
@@ -1023,7 +976,7 @@ def main():
         plt.close(fig)
 
         logger.info(
-            f"Episode {episode_count + 1}, Episode Reward: {episode_reward}",
+            f"Episode {episode_count}, Episode Reward: {episode_reward}",
             extra=dictLogger,
         )
         #
@@ -1061,11 +1014,6 @@ def main():
                 extra=dictLogger,
             )
 
-        # if entropy_losses_all < 1e-10:
-        #     logger.info(f"Policy becomes deterministic. Training ends due to local optimum.")
-        #     th_exit = True
-        #     with hmi_lock:  # wait for tester to kick off or to exit
-        #         program_exit = True  # if program_exit is false, reset to wait
 
         logger.info(
             f"Episode {episode_count} done, waits for next episode kicking off!",
@@ -1081,43 +1029,23 @@ def main():
 
     # todo test restore last table
     logger.info(f"Save the last table!!!!", extra=dictLogger)
-    # cpypath = os.getcwd() + '../data/last_table.json'
-    # copyfile("/dev/shm/out.json", cpypat)
-    pd_index = np.linspace(0, 100, vcu_calib_table_row)
-    pd_index[1] = 7
-    pd_columns = (
-        np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100])
-        / 100
-    )
-    # columns = np.arange(17)
-    # index = np.arrange(21)
 
     pds_last_table = pd.DataFrame(vcu_calib_table1, pd_index, pd_columns)
 
-    if args.resume:
-        last_table_store_path = (
-            os.getcwd()
-            + "/../data/last_table"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-            + ".csv"
-        )
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-            # np.save(last_table_store_path, vcu_calib_table1)
-        last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-            # np.save(last_table_store_path, vcu_calib_table1)
-    else:
-        last_table_store_path = (
-            os.getcwd()
-            + "/../data/scratch/last_table"
-            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-            + ".csv"
-        )
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-            # np.save(last_table_store_path, vcu_calib_table1)
+    last_table_store_path = (
+        datafolder  #  there's no slash in the end of the string
+        + "/last_table_ddpg-"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+        + ".csv"
+    )
+    with open(last_table_store_path, "wb") as f:
+        pds_last_table.to_csv(last_table_store_path)
+
+    # this is not needed since when initialization we get the latest table by timestamp instead of name.
+    # if args.resume:
+    #     resume_table_store_path = datafolder + "last_table.csv"
+    #     with open(resume_table_store_path, "wb") as f:
+    #         pds_last_table.to_csv(resume_table_store_path)
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
