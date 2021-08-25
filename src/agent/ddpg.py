@@ -217,7 +217,7 @@ class Buffer:
             critic_value = self.critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        logger.info(f"BP done.", extra=dictLogger)
+        # logger.info(f"BP done.", extra=dictLogger)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
