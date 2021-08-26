@@ -965,7 +965,6 @@ def main():
             extra=dictLogger,
         )
 
-        episode_count += 1
         episode_reward = 0
         if episode_count % 10 == 0:
             logger.info("========================", extra=dictLogger)
@@ -978,6 +977,7 @@ def main():
             f"Episode {episode_count} done, waits for next episode kicking off!",
             extra=dictLogger,
         )
+        episode_count += 1
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
 
     thr_observe.join()
