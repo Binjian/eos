@@ -36,6 +36,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     elif shortcut == 2:  # import default eco calibration table
         table_path = (
             datafolder + "/init_table_coastdown.csv"
+            # datafolder + "/init_table1.csv"
         )  # init table is driver independent in the pardir.
         pd_data = pd.read_csv(table_path, header=0, index_col=0)
         # table_path = datafolder + "/54_vertices_approx-regen3.csv"  # init table is driver independent in the pardir.
