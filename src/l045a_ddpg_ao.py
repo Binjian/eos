@@ -560,7 +560,7 @@ def get_truck_status():
                     expected_velocity = target_velocity[dt_epi_start: dt_epi_start+3]
                     diff_velocity = velocity - expected_velocity
 
-                    motion_power = [diff_velocity.tolist(), pedal, brake, current, voltage]  # 3 +2 +2 : im 7
+                    motion_power = [*(diff_velocity.tolist()), pedal, brake, current, voltage]  # 3 +2 +2 : im 7
 
                     # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
                     # send_moment = float(timestamp) / 1e06 - 28800
