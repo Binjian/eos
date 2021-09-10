@@ -230,13 +230,14 @@ pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
 
 # resume last pedal map / scratch from default table
+datafolder = "../data/"
 if args.resume:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 3, datafolder
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
-        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2
+        vcu_calib_table_col, pedal_range, vcu_calib_table_row, velocity_range, 2, datafolder
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
