@@ -916,6 +916,8 @@ def main():
                 )
                 # clean up vcu_rewards_history, mu_sigma_history, episode_reward
                 episode_reward = 0
+                vcu_reward = 0
+                wh0 = 0
                 continue  # otherwise assuming the history is valid and back propagate
 
             critic_loss_seq = []
