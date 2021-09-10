@@ -94,7 +94,7 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_ddpg-coastdown-aa-"
+    "/l045a_ddpg-ao-"
     + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     + ".log"
 )
@@ -725,6 +725,11 @@ def main():
                         f"Episode {episode_count} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
+                    # clean up episode_reward
+                    episode_reward = 0
+                    cycle_reward = 0
+                    wh0 = 0
+
                     continue
 
                 try:
@@ -763,7 +768,7 @@ def main():
                 # reward is sum of power (U*I)
                 ui_sum = tf.reduce_sum(
                     tf.reduce_prod(power_states, 1)
-                )  # vcu_reward is a scalar
+                )  # vcu reward is a scalar
                 wh = ui_sum / 3600.0 * 0.05  # negative wh
                 logger.info(
                     f"ui_sum: {ui_sum}",
@@ -777,14 +782,14 @@ def main():
                 if (
                     step_count % 2
                 ) == 0:  # only for even observation/reward take an action
-                    # k_vcu_reward = 1000  # TODO determine the ratio
-                    # vcu_reward += k_vcu_reward * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
+                    # k_cycle = 1000  # TODO determine the ratio
+                    # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
                     wh0 = wh  # add velocitoy sum as reward
                     # TODO add speed sum as positive reward
 
                     if step_count != 0:
                         buffer.record(
-                            (prev_motion_states, prev_action, vcu_reward, motion_states)
+                            (prev_motion_states, prev_action, cycle_reward, motion_states)
                         )
                     # motion_states_history.append(motion_states)
                     motion_states0 = motion_states
@@ -884,16 +889,15 @@ def main():
                         f"Episode {episode_count} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
-                    logger.info(f"Step : {step_count}", extra=dictLogger)
+                    logger.info(f"Epsisode {episode_count} Step done: {step_count}", extra=dictLogger)
 
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
                 else:
-                    vcu_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
                     # TODO add speed sum as positive reward
-                    # vcu_rewards_history.append(vcu_reward)
-                    episode_reward += vcu_reward
+                    episode_reward += cycle_reward
                     logger.info(
                         f"Episode {episode_count} Step done: {step_count}",
                         extra=dictLogger,
@@ -914,9 +918,9 @@ def main():
                     f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
                     extra=dictLogger,
                 )
-                # clean up vcu_rewards_history, mu_sigma_history, episode_reward
+                # clean up episode_reward
                 episode_reward = 0
-                vcu_reward = 0
+                cycle_reward = 0
                 wh0 = 0
                 continue  # otherwise assuming the history is valid and back propagate
 
