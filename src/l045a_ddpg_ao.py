@@ -379,7 +379,7 @@ buffer = Buffer(
     num_observations,
     sequence_len,
     num_reduced_actions,
-    buffer_capacity=2000,
+    buffer_capacity=20000,
     batch_size=4,
     gamma=0.99,
 )
@@ -1038,6 +1038,7 @@ def main():
     )
     with open(last_table_store_path, "wb") as f:
         pds_last_table.to_csv(last_table_store_path)
+    buffer.save()
 
     logger.info(f"main dies!!!!", extra=dictLogger)
 
