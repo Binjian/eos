@@ -148,9 +148,14 @@ class Buffer:
         num_observations,
         sequence_len,
         num_actions,
-        buffer_capacity=2000,
+        buffer_capacity=10000,
         batch_size=4,
         gamma=0.99,
+        load_buffer=False,
+        file_sb=None,
+        file_ab=None,
+        file_rb=None,
+        file_nsb=None,
     ):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
@@ -160,16 +165,22 @@ class Buffer:
         # Its tells us num of times record() was called.
         self.buffer_counter = 0
 
+
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
-        self.state_buffer = np.zeros(
-            (self.buffer_capacity, sequence_len, num_observations)
-        )
-        self.action_buffer = np.zeros((self.buffer_capacity, num_actions))
-        self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros(
-            (self.buffer_capacity, sequence_len, num_observations)
-        )
+        self.num_observations = num_observations
+        self.sequence_len = sequence_len
+        self.num_actions = num_actions
+        self.file_sb = file_sb
+        self.file_ab = file_ab
+        self.file_rb = file_rb
+        self.file_nsb = file_nsb
+        self.state_buffer = None
+        self.action_buffer = None
+        self.reward_buffer = None
+        self.next_state_buffer = None
+        self.load()
+
         self.actor_model = actor_model
         self.critic_model = critic_model
         self.target_actor = target_actor
@@ -190,6 +201,41 @@ class Buffer:
         self.next_state_buffer[index] = obs_tuple[3]
 
         self.buffer_counter += 1
+
+    def save(self):
+
+        np.save(self.file_sb, self.state_buffer)
+        np.save(self.file_ab, self.action_buffer)
+        np.save(self.file_rb, self.reward_buffer)
+        np.save(self.file_nsb, self.next_state_buffer)
+
+    def load_default(self):
+
+        self.file_sb = './state_buffer.npy'
+        self.file_ab = './action_buffer.npy'
+        self.file_rb = './reward_buffer.npy'
+        self.file_nsb = './next_state_buffer.npy'
+
+        self.state_buffer = np.zeros(
+            (self.buffer_capacity, self.sequence_len, self.num_observations)
+        )
+        self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
+        self.reward_buffer = np.zeros((self.buffer_capacity, 1))
+        self.next_state_buffer = np.zeros(
+            (self.buffer_capacity, self.sequence_len, self.num_observations)
+        )
+
+    def load(self):
+        if (not self.file_sb) or (not self.file_ab) or (not self.file_rb) or (not self.file_nsb):
+            self.load_default()
+        else:
+            try:
+                self.state_buffer = np.load(self.file_sb)
+                self.action_buffer = np.load(self.file_ab)
+                self.reward_buffer = np.save(self.file_rb)
+                self.next_state_buffer = np.load(self.file_nsb)
+            except IOError:
+                self.load_default()
 
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
