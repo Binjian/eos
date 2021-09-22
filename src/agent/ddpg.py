@@ -210,6 +210,7 @@ class Buffer:
         np.save(self.file_ab, self.action_buffer)
         np.save(self.file_rb, self.reward_buffer)
         np.save(self.file_nsb, self.next_state_buffer)
+        np.save(self.file_bc, self.buffer_counter)
         print(f"buffer counter: {self.buffer_counter}")
 
     def load_default(self):
