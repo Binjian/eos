@@ -156,14 +156,13 @@ class Buffer:
         file_ab=None,
         file_rb=None,
         file_nsb=None,
+        file_bc=None,
     ):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.
         self.batch_size = batch_size
 
-        # Its tells us num of times record() was called.
-        self.buffer_counter = 0
 
 
         # Instead of list of tuples as the exp.replay concept go
@@ -175,10 +174,13 @@ class Buffer:
         self.file_ab = file_ab
         self.file_rb = file_rb
         self.file_nsb = file_nsb
+        self.file_bc = file_bc
         self.state_buffer = None
         self.action_buffer = None
         self.reward_buffer = None
         self.next_state_buffer = None
+        # Its tells us num of times record() was called.
+        self.buffer_counter = 0
         self.load()
 
         self.actor_model = actor_model
@@ -208,6 +210,7 @@ class Buffer:
         np.save(self.file_ab, self.action_buffer)
         np.save(self.file_rb, self.reward_buffer)
         np.save(self.file_nsb, self.next_state_buffer)
+        print(f"buffer counter: {self.buffer_counter}")
 
     def load_default(self):
 
@@ -215,25 +218,39 @@ class Buffer:
         self.file_ab = './action_buffer.npy'
         self.file_rb = './reward_buffer.npy'
         self.file_nsb = './next_state_buffer.npy'
+        self.file_bc = './buffer_counter.npy'
 
-        self.state_buffer = np.zeros(
-            (self.buffer_capacity, self.sequence_len, self.num_observations)
-        )
-        self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
-        self.reward_buffer = np.zeros((self.buffer_capacity, 1))
-        self.next_state_buffer = np.zeros(
-            (self.buffer_capacity, self.sequence_len, self.num_observations)
-        )
+        try:
+            self.state_buffer = np.load(self.file_sb)
+            self.action_buffer = np.load(self.file_ab)
+            self.reward_buffer = np.load(self.file_rb)
+            self.next_state_buffer = np.load(self.file_nsb)
+            self.buffer_counter = np.load(self.file_bc)
+            print("load last default experience")
+            print(f"loaded buffer counter: {self.buffer_counter}")
+        except IOError:
+            self.state_buffer = np.zeros(
+                (self.buffer_capacity, self.sequence_len, self.num_observations)
+            )
+            self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
+            self.reward_buffer = np.zeros((self.buffer_capacity, 1))
+            self.next_state_buffer = np.zeros(
+                (self.buffer_capacity, self.sequence_len, self.num_observations)
+            )
+            self.buffer_counter = 0
+            print("blank experience")
 
     def load(self):
-        if (not self.file_sb) or (not self.file_ab) or (not self.file_rb) or (not self.file_nsb):
+        if (not self.file_sb) or (not self.file_ab) or (not self.file_rb) or (not self.file_nsb) or (not self.file_bc):
             self.load_default()
         else:
             try:
                 self.state_buffer = np.load(self.file_sb)
                 self.action_buffer = np.load(self.file_ab)
-                self.reward_buffer = np.save(self.file_rb)
+                self.reward_buffer = np.load(self.file_rb)
                 self.next_state_buffer = np.load(self.file_nsb)
+                self.buffer_counter = np.load(self.file_bc)
+                print("load last specified experience")
             except IOError:
                 self.load_default()
 
