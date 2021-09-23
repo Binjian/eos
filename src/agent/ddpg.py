@@ -211,7 +211,7 @@ class Buffer:
         np.save(self.file_rb, self.reward_buffer)
         np.save(self.file_nsb, self.next_state_buffer)
         np.save(self.file_bc, self.buffer_counter)
-        print(f"buffer counter: {self.buffer_counter}")
+        print(f"saved buffer counter: {self.buffer_counter}")
 
     def load_default(self):
 
@@ -228,7 +228,7 @@ class Buffer:
             self.next_state_buffer = np.load(self.file_nsb)
             self.buffer_counter = np.load(self.file_bc)
             print("load last default experience")
-            print(f"loaded buffer counter: {self.buffer_counter}")
+            print(f"loaded default buffer counter: {self.buffer_counter}")
         except IOError:
             self.state_buffer = np.zeros(
                 (self.buffer_capacity, self.sequence_len, self.num_observations)
@@ -252,6 +252,7 @@ class Buffer:
                 self.next_state_buffer = np.load(self.file_nsb)
                 self.buffer_counter = np.load(self.file_bc)
                 print("load last specified experience")
+                print(f"loaded buffer counter: {self.buffer_counter}")
             except IOError:
                 self.load_default()
 
