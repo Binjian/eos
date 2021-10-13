@@ -382,6 +382,7 @@ buffer = Buffer(
     buffer_capacity=20000,
     batch_size=4,
     gamma=0.99,
+    datafolder=datafolder,
 )
 
 

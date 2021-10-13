@@ -157,6 +157,7 @@ class Buffer:
         file_rb=None,
         file_nsb=None,
         file_bc=None,
+        datafolder='./',
     ):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
@@ -170,11 +171,12 @@ class Buffer:
         self.num_observations = num_observations
         self.sequence_len = sequence_len
         self.num_actions = num_actions
-        self.file_sb = file_sb
-        self.file_ab = file_ab
-        self.file_rb = file_rb
-        self.file_nsb = file_nsb
-        self.file_bc = file_bc
+        self.data_folder = datafolder
+        self.file_sb = self.data_folder + '/state_buffer.npy'
+        self.file_ab = self.data_folder + '/action_buffer.npy'
+        self.file_rb = self.data_folder + '/reward_buffer.npy'
+        self.file_nsb = self.data_folder + '/next_state_buffer.npy'
+        self.file_bc = self.data_folder + '/buffer_counter.npy'
         self.state_buffer = None
         self.action_buffer = None
         self.reward_buffer = None
@@ -214,12 +216,6 @@ class Buffer:
         print(f"saved buffer counter: {self.buffer_counter}")
 
     def load_default(self):
-
-        self.file_sb = './state_buffer.npy'
-        self.file_ab = './action_buffer.npy'
-        self.file_rb = './reward_buffer.npy'
-        self.file_nsb = './next_state_buffer.npy'
-        self.file_bc = './buffer_counter.npy'
 
         try:
             self.state_buffer = np.load(self.file_sb)
