@@ -380,7 +380,7 @@ buffer = Buffer(
     sequence_len,
     num_reduced_actions,
     buffer_capacity=20000,
-    batch_size=4,
+    batch_size=16,
     gamma=0.99,
     datafolder=datafolder,
 )
