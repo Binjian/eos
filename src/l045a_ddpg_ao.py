@@ -996,6 +996,7 @@ def main():
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
+        tf.summary.trace_on(graph=True, profiler=True)
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
             tf.summary.scalar("actor loss", actor_loss_episode, step=episode_count)
@@ -1008,6 +1009,10 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=episode_count
             )
+            tf.summary.trace_export(name="veos_trace",
+                                    step=episode_count,
+                                    profiler_outdir=train_log_dir)
+
         plt.close(fig)
 
         logger.info(
