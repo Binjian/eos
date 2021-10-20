@@ -734,8 +734,8 @@ def main():
                         f"Episode {episode_count} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
-                    # clean up episode_reward
-                    episode_reward = 0
+                    # add punishment to episode_reward
+                    episode_reward = -36.0
                     cycle_reward = 0
                     wh0 = 0
 
@@ -920,18 +920,18 @@ def main():
                 # step level
                 step_count += 1
 
-            if (
-                not done
-            ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
-                logger.info(
-                    f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
-                    extra=dictLogger,
-                )
-                # clean up episode_reward
-                episode_reward = 0
-                cycle_reward = 0
-                wh0 = 0
-                continue  # otherwise assuming the history is valid and back propagate
+            # if (
+            #     not done
+            # ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
+            #     logger.info(
+            #         f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
+            #         extra=dictLogger,
+            #     )
+            #     # add punishment to episode_reward
+            #     episode_reward = -36.0
+            #     cycle_reward = 0
+            #     wh0 = 0
+            #     # continue  # otherwise assuming the history is valid and back propagate
 
             critic_loss_seq = []
             actor_loss_seq = []
@@ -997,6 +997,7 @@ def main():
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
+        tf.summary.trace_on(graph=True, profiler=True)
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
             tf.summary.scalar("actor loss", actor_loss_episode, step=episode_count)
@@ -1009,6 +1010,10 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=episode_count
             )
+            tf.summary.trace_export(name="veos_trace",
+                                    step=episode_count,
+                                    profiler_outdir=train_log_dir)
+
         plt.close(fig)
 
         logger.info(
