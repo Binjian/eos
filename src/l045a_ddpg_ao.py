@@ -380,7 +380,7 @@ buffer = Buffer(
     sequence_len,
     num_reduced_actions,
     buffer_capacity=20000,
-    batch_size=16,
+    batch_size=4,
     gamma=0.99,
     datafolder=datafolder,
 )
@@ -524,9 +524,12 @@ def get_truck_status():
                         # motionpowerQueue.queue.clear()
                         logger.info(f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                                     extra=dictLogger)
+                        logger.info(f"motionpower_states has {len(get_truck_status.motionpower_states)} states remaining",
+                                    extra=dictLogger)
+                        get_truck_status.motionpower_states = []
                         while not motionpowerQueue.empty():
                             motionpowerQueue.get()
-                        logger.info(f"motionpowerQueue gets cleared!",
+                        logger.info(f"motionpower_states gets cleared!",
                                     extra=dictLogger)
                         wait_for_reset = True  # wait when episode starts
                         episode_done = False

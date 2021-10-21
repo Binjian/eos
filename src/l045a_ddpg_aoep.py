@@ -521,12 +521,14 @@ def get_truck_status():
                     elif value == "end_invalid":
                         get_truck_status.start = False
                         logger.info(f"Capture is interrupted!!!", extra=dictLogger)
-                        get_truck_status.motionpower_states = []
                         # motionpowerQueue.queue.clear()
+                        logger.info(f"motionpower_states has {len(get_truck_status.motionpower_states)} states remaining",
+                                    extra=dictLogger)
                         logger.info(f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                                     extra=dictLogger)
                         while not motionpowerQueue.empty():
                             motionpowerQueue.get()
+                        get_truck_status.motionpower_states = []
                         logger.info(f"motionpowerQueue gets cleared!",
                                     extra=dictLogger)
                         wait_for_reset = True  # wait when episode starts

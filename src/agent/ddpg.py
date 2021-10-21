@@ -149,7 +149,7 @@ class Buffer:
         sequence_len,
         num_actions,
         buffer_capacity=10000,
-        batch_size=16,
+        batch_size=4,
         gamma=0.99,
         load_buffer=False,
         file_sb=None,
