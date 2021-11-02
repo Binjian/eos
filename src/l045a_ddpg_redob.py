@@ -920,18 +920,18 @@ def main():
                 # step level
                 step_count += 1
 
-            # if (
-            #     not done
-            # ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
-            #     logger.info(
-            #         f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
-            #         extra=dictLogger,
-            #     )
-            #     # add punishment to episode_reward
-            #     episode_reward = -36.0
-            #     cycle_reward = 0
-            #     wh0 = 0
-            #     # continue  # otherwise assuming the history is valid and back propagate
+            if (
+                not done
+            ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
+                logger.info(
+                    f"Episode {episode_count}  interrupted, waits for next episode kicking off!",
+                    extra=dictLogger,
+                )
+                # add punishment to episode_reward
+                episode_reward = 0.0
+                cycle_reward = 0
+                wh0 = 0
+                continue  # otherwise assuming the history is valid and back propagate
 
             critic_loss_seq = []
             actor_loss_seq = []
