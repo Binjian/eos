@@ -734,10 +734,10 @@ def main():
                         f"Episode {episode_count} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
-                    # add punishment to episode_reward
-                    episode_reward = -36.0
-                    cycle_reward = 0
-                    wh0 = 0
+                    # # add punishment to episode_reward
+                    # episode_reward = -36.0
+                    # cycle_reward = 0
+                    # wh0 = 0
 
                     continue
 
