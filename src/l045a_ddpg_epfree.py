@@ -303,7 +303,7 @@ logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 # create actor-critic network
-num_observations = 2  # observed are throttle, brake percentage; !! acceleration not available in l045a
+num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
 sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
 num_inputs = num_observations * sequence_len  # 60 subsequent observations
 num_actions = vcu_calib_table_size  # 17*21 = 357
@@ -550,7 +550,7 @@ def get_truck_status():
 
                 if get_truck_status.start:
                     timestamp = float(value["timestamp"])
-                    # velocity = float(value["velocity"])
+                    velocity = float(value["velocity"])
                     # acceleration in invalid for l045a
                     # acceleration = float(value["acceleration"])
                     pedal = float(value["pedal"])
@@ -569,7 +569,7 @@ def get_truck_status():
                     # expected_velocity = target_velocity[dt_epi_start: dt_epi_start+3]
                     # diff_velocity = velocity - expected_velocity
 
-                    motion_power = [pedal, brake, current, voltage]  # 2 +2 : im 4
+                    motion_power = [velocity, pedal, brake, current, voltage]  # 3 +2 : im 5
 
                     # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
                     # send_moment = float(timestamp) / 1e06 - 28800
@@ -756,8 +756,8 @@ def main():
                 # reward history
                 motionpower_states = tf.convert_to_tensor(
                     motionpower
-                )  # state must have 30 (pedal, brake, current, voltage) 4 tuple
-                motion_states, power_states = tf.split(motionpower_states, [2, 2], 1)
+                )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
+                motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
 
                 logger.info(
                     f"Episode {episode_count} tensor convert and split!",
@@ -875,7 +875,7 @@ def main():
                     if args.record_table:
                         curr_table_store_path = (
                             datafolder
-                            + "/tables/instant_table_ddpg-redob"
+                            + "/tables/instant_table_ddpg-epfree"
                             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                             + str(episode_count)
                             + "-"
