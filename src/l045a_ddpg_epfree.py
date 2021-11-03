@@ -711,6 +711,7 @@ def main():
                 episode_end = False  # kick off
 
         step_count = 0
+        tf.summary.trace_on(graph=True, profiler=True)
         with tf.GradientTape() as tape:
             while (
                 not episode_end
@@ -997,7 +998,6 @@ def main():
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
-        tf.summary.trace_on(graph=True, profiler=True)
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
             tf.summary.scalar("actor loss", actor_loss_episode, step=episode_count)
