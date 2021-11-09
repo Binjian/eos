@@ -94,9 +94,7 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_ddpg-ao-"
-    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-    + ".log"
+    "/l045a_ddpg-redob-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -247,29 +245,34 @@ pd_columns = (
     np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
 )
 
-target_velocity = np.array([
-        0,
-        1.8,
-        3.6,
-        5.4,
-        7.2,
-        9,
-        10.8,
-        12.6,
-        14.4,
-        16.2,
-        14.4,
-        12.6,
-        10.8,
-        9,
-        7.2,
-        5.4,
-        3.6,
-        1.8,
-        0,
-        0,
-        0
-    ]) / 3.6  # transformed to unit: m/s
+target_velocity = (
+    np.array(
+        [
+            0,
+            1.8,
+            3.6,
+            5.4,
+            7.2,
+            9,
+            10.8,
+            12.6,
+            14.4,
+            16.2,
+            14.4,
+            12.6,
+            10.8,
+            9,
+            7.2,
+            5.4,
+            3.6,
+            1.8,
+            0,
+            0,
+            0,
+        ]
+    )
+    / 3.6
+)  # transformed to unit: m/s
 
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
@@ -504,7 +507,7 @@ def get_truck_status():
                     if value == "begin":
                         get_truck_status.start = True
                         logger.info("%s", "Capture will start!!!", extra=dictLogger)
-                        wait_for_reset = False  #  ignites the episode when tester kicks off; remains false within an episode
+                        wait_for_reset = False  #  ignites the episode when tester kicks off; remains False within an episode
                         episode_done = False
                         program_exit = False
                         th_exit = False
@@ -523,12 +526,13 @@ def get_truck_status():
                         logger.info(f"Capture is interrupted!!!", extra=dictLogger)
                         get_truck_status.motionpower_states = []
                         # motionpowerQueue.queue.clear()
-                        logger.info(f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                                    extra=dictLogger)
+                        logger.info(
+                            f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                            extra=dictLogger,
+                        )
                         while not motionpowerQueue.empty():
                             motionpowerQueue.get()
-                        logger.info(f"motionpowerQueue gets cleared!",
-                                    extra=dictLogger)
+                        logger.info(f"motionpowerQueue gets cleared!", extra=dictLogger)
                         wait_for_reset = True  # wait when episode starts
                         episode_done = False
                         program_exit = False
@@ -569,7 +573,13 @@ def get_truck_status():
                     # expected_velocity = target_velocity[dt_epi_start: dt_epi_start+3]
                     # diff_velocity = velocity - expected_velocity
 
-                    motion_power = [velocity, pedal, brake, current, voltage]  # 3 +2 : im 5
+                    motion_power = [
+                        velocity,
+                        pedal,
+                        brake,
+                        current,
+                        voltage,
+                    ]  # 3 +2 : im 5
 
                     # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
                     # send_moment = float(timestamp) / 1e06 - 28800
@@ -698,20 +708,18 @@ def main():
     episode_reward = 0
     th_exit = False
     done = False
-    episode_end = False
 
     logger.info(f"main Initialization done!", extra=dictLogger)
-    while not th_exit:  # run until solved or program exit
+    while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
-            th_exit = program_exit  # if program_exit is false, reset to wait
-            if wait_for_reset:  # if program_exit is true, reset to exit
+            th_exit = program_exit  # if program_exit is False, reset to wait
+            if wait_for_reset:  # if program_exit is True, first reset then exit
                 # logger.info(f'wait for start!', extra=dictLogger)
                 continue
-            else:
-                episode_end = False  # kick off
 
         step_count = 0
         tf.summary.trace_on(graph=True, profiler=True)
+        episode_end = False
         with tf.GradientTape() as tape:
             while (
                 not episode_end
@@ -720,17 +728,17 @@ def main():
                 # obs, r, done, info = env.step(action)
                 # episode_done = done
                 with hmi_lock:  # wait for tester to interrupt or to exit
-                    th_exit = program_exit  # if program_exit is false, reset to wait
-                    episode_end = wait_for_reset
+                    th_exit = program_exit  # if program_exit is False, reset to wait
+                    episode_end = wait_for_reset  # wait_for_reset means episode_done
                     done = episode_done
 
-                if episode_end and done:
+                if episode_end and done:  # end_valid
                     logger.info(
                         f"Episode {episode_count} Experience Collection ends!",
                         extra=dictLogger,
                     )
                     continue
-                elif episode_end and (not done):
+                elif episode_end and (not done):  # end_invalid
                     logger.info(
                         f"Episode {episode_count} Experience Collection is interrupted!",
                         extra=dictLogger,
@@ -798,7 +806,12 @@ def main():
 
                     if step_count != 0:
                         buffer.record(
-                            (prev_motion_states, prev_action, cycle_reward, motion_states)
+                            (
+                                prev_motion_states,
+                                prev_action,
+                                cycle_reward,
+                                motion_states,
+                            )
                         )
                     # motion_states_history.append(motion_states)
                     motion_states0 = motion_states
@@ -898,7 +911,10 @@ def main():
                         f"Episode {episode_count} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
-                    logger.info(f"Epsisode {episode_count} Step done: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"Epsisode {episode_count} Step done: {step_count}",
+                        extra=dictLogger,
+                    )
 
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so ust record the reward history
@@ -1009,9 +1025,9 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=episode_count
             )
-            tf.summary.trace_export(name="veos_trace",
-                                    step=episode_count,
-                                    profiler_outdir=train_log_dir)
+            tf.summary.trace_export(
+                name="veos_trace", step=episode_count, profiler_outdir=train_log_dir
+            )
 
         plt.close(fig)
 
