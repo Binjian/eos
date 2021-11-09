@@ -41,11 +41,24 @@ if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
         os.execlp(
-            "python", "python", "l045a_ddpg_coastdown.py", "--resume", "--path", args.path, "--record_table",
+            "python",
+            "python",
+            "l045a_ddpg_coastdown.py",
+            "--resume",
+            "--path",
+            args.path,
+            "--record_table",
         )  #  run Simulation
 
     else:
-        os.execlp("python", "python", "l045a_ddpg_coastdown.py", "--path", args.path, "--record_table")  #  run Simulation
+        os.execlp(
+            "python",
+            "python",
+            "l045a_ddpg_coastdown.py",
+            "--path",
+            args.path,
+            "--record_table",
+        )  #  run Simulation
         # os.execlp("python", "python", "l045a_ac_tf_coastdown.py")  #  run Simulation
 else:
     p = subprocess.Popen(

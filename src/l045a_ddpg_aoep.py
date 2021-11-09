@@ -94,9 +94,7 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_ddpg-ao-"
-    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-    + ".log"
+    "/l045a_ddpg-ao-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -247,29 +245,34 @@ pd_columns = (
     np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
 )
 
-target_velocity = np.array([
-        0,
-        1.8,
-        3.6,
-        5.4,
-        7.2,
-        9,
-        10.8,
-        12.6,
-        14.4,
-        16.2,
-        14.4,
-        12.6,
-        10.8,
-        9,
-        7.2,
-        5.4,
-        3.6,
-        1.8,
-        0,
-        0,
-        0
-    ]) / 3.6  # transformed to unit: m/s
+target_velocity = (
+    np.array(
+        [
+            0,
+            1.8,
+            3.6,
+            5.4,
+            7.2,
+            9,
+            10.8,
+            12.6,
+            14.4,
+            16.2,
+            14.4,
+            12.6,
+            10.8,
+            9,
+            7.2,
+            5.4,
+            3.6,
+            1.8,
+            0,
+            0,
+            0,
+        ]
+    )
+    / 3.6
+)  # transformed to unit: m/s
 
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
@@ -522,15 +525,18 @@ def get_truck_status():
                         get_truck_status.start = False
                         logger.info(f"Capture is interrupted!!!", extra=dictLogger)
                         # motionpowerQueue.queue.clear()
-                        logger.info(f"motionpower_states has {len(get_truck_status.motionpower_states)} states remaining",
-                                    extra=dictLogger)
-                        logger.info(f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                                    extra=dictLogger)
+                        logger.info(
+                            f"motionpower_states has {len(get_truck_status.motionpower_states)} states remaining",
+                            extra=dictLogger,
+                        )
+                        logger.info(
+                            f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                            extra=dictLogger,
+                        )
                         while not motionpowerQueue.empty():
                             motionpowerQueue.get()
                         get_truck_status.motionpower_states = []
-                        logger.info(f"motionpowerQueue gets cleared!",
-                                    extra=dictLogger)
+                        logger.info(f"motionpowerQueue gets cleared!", extra=dictLogger)
                         wait_for_reset = True  # wait when episode starts
                         episode_done = False
                         program_exit = False
@@ -568,10 +574,16 @@ def get_truck_status():
                     elif dt_epi_start > 18:
                         dt_epi_start = 18
 
-                    expected_velocity = target_velocity[dt_epi_start: dt_epi_start+3]
+                    expected_velocity = target_velocity[dt_epi_start : dt_epi_start + 3]
                     diff_velocity = velocity - expected_velocity
 
-                    motion_power = [*(diff_velocity.tolist()), pedal, brake, current, voltage]  # 3 +2 +2 : im 7
+                    motion_power = [
+                        *(diff_velocity.tolist()),
+                        pedal,
+                        brake,
+                        current,
+                        voltage,
+                    ]  # 3 +2 +2 : im 7
 
                     # step_dt_object = datetime.datetime.fromtimestamp(step_moment)
                     # send_moment = float(timestamp) / 1e06 - 28800
@@ -800,7 +812,12 @@ def main():
 
                     if step_count != 0:
                         buffer.record(
-                            (prev_motion_states, prev_action, cycle_reward, motion_states)
+                            (
+                                prev_motion_states,
+                                prev_action,
+                                cycle_reward,
+                                motion_states,
+                            )
                         )
                     # motion_states_history.append(motion_states)
                     motion_states0 = motion_states
@@ -900,7 +917,10 @@ def main():
                         f"Episode {episode_count} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
-                    logger.info(f"Epsisode {episode_count} Step done: {step_count}", extra=dictLogger)
+                    logger.info(
+                        f"Epsisode {episode_count} Step done: {step_count}",
+                        extra=dictLogger,
+                    )
 
                 # during odd steps, old action remains effective due to learn and flash delay
                 # so ust record the reward history
@@ -1012,9 +1032,9 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=episode_count
             )
-            tf.summary.trace_export(name="veos_trace",
-                                    step=episode_count,
-                                    profiler_outdir=train_log_dir)
+            tf.summary.trace_export(
+                name="veos_trace", step=episode_count, profiler_outdir=train_log_dir
+            )
 
         plt.close(fig)
 

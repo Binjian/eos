@@ -157,14 +157,12 @@ class Buffer:
         file_rb=None,
         file_nsb=None,
         file_bc=None,
-        datafolder='./',
+        datafolder="./",
     ):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.
         self.batch_size = batch_size
-
-
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
@@ -172,11 +170,11 @@ class Buffer:
         self.sequence_len = sequence_len
         self.num_actions = num_actions
         self.data_folder = datafolder
-        self.file_sb = self.data_folder + '/state_buffer.npy'
-        self.file_ab = self.data_folder + '/action_buffer.npy'
-        self.file_rb = self.data_folder + '/reward_buffer.npy'
-        self.file_nsb = self.data_folder + '/next_state_buffer.npy'
-        self.file_bc = self.data_folder + '/buffer_counter.npy'
+        self.file_sb = self.data_folder + "/state_buffer.npy"
+        self.file_ab = self.data_folder + "/action_buffer.npy"
+        self.file_rb = self.data_folder + "/reward_buffer.npy"
+        self.file_nsb = self.data_folder + "/next_state_buffer.npy"
+        self.file_bc = self.data_folder + "/buffer_counter.npy"
         self.state_buffer = None
         self.action_buffer = None
         self.reward_buffer = None
@@ -238,7 +236,13 @@ class Buffer:
             print("blank experience")
 
     def load(self):
-        if (not self.file_sb) or (not self.file_ab) or (not self.file_rb) or (not self.file_nsb) or (not self.file_bc):
+        if (
+            (not self.file_sb)
+            or (not self.file_ab)
+            or (not self.file_rb)
+            or (not self.file_nsb)
+            or (not self.file_bc)
+        ):
             self.load_default()
         else:
             try:

@@ -8,7 +8,9 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG with reduced observations (no expected velocity) Suite")
+parser = argparse.ArgumentParser(
+    "DDPG with reduced observations (no expected velocity) Suite"
+)
 parser.add_argument(
     "-r",
     "--resume",
@@ -41,11 +43,24 @@ if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
         os.execlp(
-            "python", "python", "l045a_ddpg_redob.py", "--resume", "--path", args.path, "--record_table",
+            "python",
+            "python",
+            "l045a_ddpg_redob.py",
+            "--resume",
+            "--path",
+            args.path,
+            "--record_table",
         )  #  run Simulation
 
     else:
-        os.execlp("python", "python", "l045a_ddpg_redob.py", "--path", args.path, "--record_table")  #  run Simulation
+        os.execlp(
+            "python",
+            "python",
+            "l045a_ddpg_redob.py",
+            "--path",
+            args.path,
+            "--record_table",
+        )  #  run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],

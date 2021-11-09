@@ -24,3 +24,9 @@ def send_table(table):
 def prepare_vcu_calibration_table(table):
     vcu_param_list = table.astpye("float32")
     return vcu_param_list
+
+
+def get_table_from_json(json_file):
+    with open(json_file, "r") as f:
+        table = json.load(f)
+    return table
