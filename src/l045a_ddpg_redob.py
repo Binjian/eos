@@ -94,7 +94,9 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_ddpg-redob-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
+    "/l045a_ddpg-redob-"
+    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+    + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -191,7 +193,6 @@ set_tbox_sim_path(os.getcwd() + "/comm/tbox")
 
 
 # multithreading initialization
-vcu_step_lock = Lock()
 hmi_lock = Lock()
 
 
@@ -205,11 +206,9 @@ motionpowerQueue = queue.Queue()
 
 # initial status of the switches
 wait_for_reset = True
-vcu_step = False
 program_exit = False
 episode_done = False
 episode_count = 0
-states_rewards = []
 
 # TODO add visualization and logging
 # Create folder for ckpts loggings.
@@ -507,7 +506,7 @@ def get_truck_status():
                     if value == "begin":
                         get_truck_status.start = True
                         logger.info("%s", "Capture will start!!!", extra=dictLogger)
-                        wait_for_reset = False  #  ignites the episode when tester kicks off; remains False within an episode
+                        wait_for_reset = False  # equal to get_truck_status.stop
                         episode_done = False
                         program_exit = False
                         th_exit = False
@@ -517,7 +516,7 @@ def get_truck_status():
                     ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
                         logger.info("%s", "Capture ends!!!", extra=dictLogger)
-                        wait_for_reset = True  # wait when episode starts
+                        wait_for_reset = True  # wait until episode starts
                         episode_done = True
                         program_exit = False
                         th_exit = False
@@ -533,7 +532,7 @@ def get_truck_status():
                         while not motionpowerQueue.empty():
                             motionpowerQueue.get()
                         logger.info(f"motionpowerQueue gets cleared!", extra=dictLogger)
-                        wait_for_reset = True  # wait when episode starts
+                        wait_for_reset = True  # wait until episode starts
                         episode_done = False
                         program_exit = False
                         th_exit = False
@@ -686,8 +685,6 @@ def flash_vcu(tablequeue):
 # @eye
 def main():
     global episode_done, episode_count, wait_for_reset, program_exit
-    global states_rewards
-    global vcu_step
     global motionpowerQueue
     global pd_index, pd_columns
 
@@ -1013,6 +1010,7 @@ def main():
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
+        # tf logging after episode ends
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=episode_count)
             tf.summary.scalar("actor loss", actor_loss_episode, step=episode_count)
