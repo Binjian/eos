@@ -510,7 +510,7 @@ def get_truck_status():
                 # print(candata)
                 if value == "begin":
                     get_truck_status.start = True
-                    logger.info("%s", "Capture will start!!!", extra=dictLogger)
+                    logger.info("%s", "Episode will start!!!", extra=dictLogger)
                     prog_exit = False
                     th_exit = False
                     # ts_epi_start = time.time()
@@ -525,14 +525,14 @@ def get_truck_status():
                     value == "end_valid"
                 ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
-                    logger.info("%s", "Capture ends!!!", extra=dictLogger)
+                    logger.info("%s", "Episode ends!!!", extra=dictLogger)
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
                         episode_count += 1  # valid episode increments
                 elif value == "end_invalid":
                     get_truck_status.start = False
-                    logger.info(f"Capture is interrupted!!!", extra=dictLogger)
+                    logger.info(f"Episode is interrupted!!!", extra=dictLogger)
                     get_truck_status.motionpower_states = []
                     # motionpowerQueue.queue.clear()
                     logger.info(
@@ -548,7 +548,7 @@ def get_truck_status():
                         episode_count += 1  # invalid episode increments
                 elif value == "exit":
                     get_truck_status.start = False
-                    logger.info("%s", "Capture will exit!!!", extra=dictLogger)
+                    logger.info("%s", "Program will exit!!!", extra=dictLogger)
                     prog_exit = True
                     th_exit = True
                     with hmi_lock:
@@ -593,6 +593,10 @@ def get_truck_status():
                                 velocity_sum += state[0]
                             if velocity_sum < 1.0:  # sum of velocity smaller than 1m/s
                                 get_truck_status.interlude_start = False
+                                logger.info(
+                                    "Vehicle halts. Invalid Interlude!!!",
+                                    extra=dictLogger,
+                                )
                                 #  TODO clear queue and list
                                 with hmi_lock:  # set invalid_end interlude
                                     wait_for_reset = True  # wait until interlude starts
@@ -619,17 +623,29 @@ def get_truck_status():
                                             1  # valid interlude increments
                                         )
                                     logger.info(
-                                        "%s", "interlude ends!!!", extra=dictLogger
+                                        "%s",
+                                        "Valid Interlude ends!!!",
+                                        extra=dictLogger,
                                     )
 
                             get_truck_status.motionpower_states = []
                     else:  # ** update interlude state from main thread for restart capturing
+                        logger.info(
+                            "%s",
+                            "Wait for updating Interlude states!!!",
+                            extra=dictLogger,
+                        )
                         with hmi_lock:
                             get_truck_status.interlude_start = not wait_for_reset
                             interlude_done = False
                         continue
                 else:  # if episode logic stops interlude
                     get_truck_status.interlude_start = False
+                    logger.info(
+                        "%s",
+                        "Wait for updating Episode states!!!",
+                        extra=dictLogger,
+                    )
                     with hmi_lock:
                         interlude_done = False
                         wait_for_reset = True
