@@ -230,34 +230,31 @@ pd_columns = (
     np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100]) / 100
 )
 
-target_velocity = (
-    np.array(
-        [
-            0,
-            1.8,
-            3.6,
-            5.4,
-            7.2,
-            9,
-            10.8,
-            12.6,
-            14.4,
-            16.2,
-            14.4,
-            12.6,
-            10.8,
-            9,
-            7.2,
-            5.4,
-            3.6,
-            1.8,
-            0,
-            0,
-            0,
-        ]
-    )
-    / 3.6
-)  # transformed to unit: m/s
+
+    [
+        0,
+        1.8,
+        3.6,
+        5.4,
+        7.2,
+        9,
+        10.8,
+        12.6,
+        14.4,
+        16.2,
+        14.4,
+        12.6,
+        10.8,
+        9,
+        7.2,
+        5.4,
+        3.6,
+        1.8,
+        0,
+        0,
+        0,
+    ]
+)  # unit: km/h
 
 pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
@@ -526,6 +523,9 @@ def get_truck_status():
                     value == "end_valid"
                 ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
+                    get_truck_status.motionpower_states = []
+                    while not motionpowerQueue.empty():
+                        motionpowerQueue.get()
                     logger.info("%s", "Episode ends!!!", extra=dictLogger)
                     prog_exit = False
                     th_exit = False
@@ -537,18 +537,23 @@ def get_truck_status():
                     get_truck_status.motionpower_states = []
                     # motionpowerQueue.queue.clear()
                     logger.info(
-                        f"motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                        f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         extra=dictLogger,
                     )
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
-                    logger.info(f"motionpowerQueue gets cleared!", extra=dictLogger)
+                    logger.info(
+                        f"Episode motionpowerQueue gets cleared!", extra=dictLogger
+                    )
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
                         episode_count += 1  # invalid episode increments
                 elif value == "exit":
                     get_truck_status.start = False
+                    get_truck_status.motionpower_states = []
+                    while not motionpowerQueue.empty():
+                        motionpowerQueue.get()
                     logger.info("%s", "Program will exit!!!", extra=dictLogger)
                     prog_exit = True
                     th_exit = True
@@ -592,13 +597,35 @@ def get_truck_status():
                             velocity_sum = 0.0
                             for state in get_truck_status.motionpower_states:
                                 velocity_sum += state[0]
-                            if velocity_sum < 1.0:  # sum of velocity smaller than 1m/s
+                            vel_aver = velocity_sum / len(
+                                get_truck_status.motionpower_states
+                            )
+                            logger.info(
+                                f"Average Cycle velocity: {vel_aver}!",
+                                extra=dictLogger,
+                            )
+                            if (
+                                vel_aver < 1
+                            ):  # average velocity within a 1.5s cycle smaller than 1km/h
                                 get_truck_status.interlude_start = False
+                                qobject_size = 0
                                 logger.info(
                                     "Vehicle halts. Invalid Interlude!!!",
                                     extra=dictLogger,
                                 )
-                                #  TODO clear queue and list
+
+                                # clear queue and list
+                                # motionpowerQueue.queue.clear()
+                                logger.info(
+                                    f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                                    extra=dictLogger,
+                                )
+                                while not motionpowerQueue.empty():
+                                    motionpowerQueue.get()
+                                logger.info(
+                                    f"Interlude motionpowerQueue gets cleared!",
+                                    extra=dictLogger,
+                                )
                                 with hmi_lock:  # set invalid_end interlude
                                     wait_for_reset = True  # wait until interlude starts
                                     interlude_done = False
@@ -615,6 +642,8 @@ def get_truck_status():
                                 if qobject_size >= get_truck_status.qobject_len:
                                     interlude_state = "end_valid"
                                     get_truck_status.interlude_start = False
+                                    qobject_size = 0
+
                                     with hmi_lock:  # set valid_end interlude
                                         wait_for_reset = (
                                             True  # wait until interlude starts
@@ -638,15 +667,16 @@ def get_truck_status():
                         )
                         with hmi_lock:
                             get_truck_status.interlude_start = not wait_for_reset
-                            interlude_done = False
+                            # interlude_done = False # BUG move to ***
                         continue
                 else:  # if episode logic stops interlude
                     get_truck_status.interlude_start = False
-                    logger.info(
-                        "%s",
-                        "Wait for updating Episode states!!!",
-                        extra=dictLogger,
-                    )
+                    # logger.info(
+                    #     "%s",
+                    #     "Wait for updating Episode states!!!",
+                    #     extra=dictLogger,
+                    # )
+                    qobject_size = 0
                     with hmi_lock:
                         interlude_done = False
                         wait_for_reset = True
@@ -700,7 +730,7 @@ def flash_vcu(tablequeue):
             logger.info(f"flash starts", extra=dictLogger)
             send_float_array("TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True)
             # time.sleep(1.0)
-            logger.info(f"flash count:{flash_count}", extra=dictLogger)
+            logger.info(f"flash done, count:{flash_count}", extra=dictLogger)
             flash_count += 1
             # watch(flash_count)
 
@@ -783,10 +813,15 @@ def main():
                     continue
 
                 try:
-                    logger.warning(f"Wait for an object!!!", extra=dictLogger)
+                    logger.warning(
+                        f"E{epi_cnt}I{inl_cnt} Wait for an object!!!", extra=dictLogger
+                    )
                     motionpower = motionpowerQueue.get(block=True, timeout=1.55)
                 except queue.Empty:
-                    logger.warning(f"No data in the Queue!!!", extra=dictLogger)
+                    logger.warning(
+                        f"E{epi_cnt}I{inl_cnt} No data in the Queue!!!",
+                        extra=dictLogger,
+                    )
                     continue
 
                 logger.info(
@@ -820,10 +855,10 @@ def main():
                     tf.reduce_prod(power_states, 1)
                 )  # vcu reward is a scalar
                 wh = ui_sum / 3600.0 * 0.05  # negative wh
-                logger.info(
-                    f"ui_sum: {ui_sum}",
-                    extra=dictLogger,
-                )
+                # logger.info(
+                #     f"ui_sum: {ui_sum}",
+                #     extra=dictLogger,
+                # )
                 logger.info(
                     f"wh: {wh}",
                     extra=dictLogger,
@@ -874,9 +909,9 @@ def main():
                         vcu_action_reduced,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
-                    logger.info(
-                        f"vcu action table reduced generated!", extra=dictLogger
-                    )
+                    # logger.info(
+                    #     f"vcu action table reduced generated!", extra=dictLogger
+                    # )
                     # vcu_action_table_reduced_s = [f"{col:.3f},"
                     #                               for row in vcu_calib_table_reduced
                     #                               for col in row]
@@ -914,10 +949,10 @@ def main():
                     pds_curr_table = pd.DataFrame(
                         vcu_calib_table1, pd_index, pd_columns
                     )
-                    logger.info(
-                        f"E{epi_cnt}I{inl_cnt} start record instant table: {step_count}",
-                        extra=dictLogger,
-                    )
+                    # logger.info(
+                    #     f"E{epi_cnt}I{inl_cnt} start record instant table: {step_count}",
+                    #     extra=dictLogger,
+                    # )
 
                     if args.record_table:
                         curr_table_store_path = (
@@ -948,7 +983,7 @@ def main():
                         extra=dictLogger,
                     )
                     logger.info(
-                        f"Eps {epi_cnt} Inl {inl_cnt} Step done: {step_count}",
+                        f"Eps {epi_cnt} Inl {inl_cnt} Finish Step: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1092,6 +1127,7 @@ def main():
         # inform capture thread to restart interlude
         with hmi_lock:
             wait_for_reset = False
+            interlude_done = False  # *** reset interlude_done
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
 
     thr_observe.join()
