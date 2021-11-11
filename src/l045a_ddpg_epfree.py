@@ -596,7 +596,7 @@ def get_truck_status():
                             # validity check: invalid if standing still
                             velocity_sum = 0.0
                             for state in get_truck_status.motionpower_states:
-                                velocity_sum += state[0]
+                                velocity_sum += abs(state[0])
                             vel_aver = velocity_sum / len(
                                 get_truck_status.motionpower_states
                             )
@@ -605,7 +605,7 @@ def get_truck_status():
                                 extra=dictLogger,
                             )
                             if (
-                                vel_aver < 1
+                                vel_aver < 0.001
                             ):  # average velocity within a 1.5s cycle smaller than 1km/h
                                 get_truck_status.interlude_start = False
                                 qobject_size = 0
@@ -624,6 +624,11 @@ def get_truck_status():
                                     motionpowerQueue.get()
                                 logger.info(
                                     f"Interlude motionpowerQueue gets cleared!",
+                                    extra=dictLogger,
+                                )
+                                logger.info(
+                                    "%s",
+                                    "Wait for main thread to update Interlude states!!!",
                                     extra=dictLogger,
                                 )
                                 with hmi_lock:  # set invalid_end interlude
@@ -657,14 +662,14 @@ def get_truck_status():
                                         "Valid Interlude ends!!!",
                                         extra=dictLogger,
                                     )
+                                    logger.info(
+                                        "%s",
+                                        "Wait for BP to end and updating Interlude states!!!",
+                                        extra=dictLogger,
+                                    )
 
                             get_truck_status.motionpower_states = []
                     else:  # ** update interlude state from main thread for restart capturing
-                        logger.info(
-                            "%s",
-                            "Wait for updating Interlude states!!!",
-                            extra=dictLogger,
-                        )
                         with hmi_lock:
                             get_truck_status.interlude_start = not wait_for_reset
                             # interlude_done = False # BUG move to ***
@@ -778,7 +783,9 @@ def main():
 
         step_count = 0
         tf.summary.trace_on(graph=True, profiler=True)
+
         interlude_end = False
+
         logger.info("----------------------", extra=dictLogger)
         logger.info(
             f"E{epi_cnt}I{inl_cnt} starts!",
@@ -1022,6 +1029,7 @@ def main():
                 # inform capture thread to restart interlude
                 with hmi_lock:
                     wait_for_reset = False
+                    # interlude_done = False  #  not necessary since the out while loop will reset at interlude start
                 continue  # otherwise assuming the history is valid and back propagate
             # else:
 

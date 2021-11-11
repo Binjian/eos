@@ -8,7 +8,7 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG episodefree without training Suite")
+parser = argparse.ArgumentParser("DDPG episode free without training Suite")
 parser.add_argument(
     "-r",
     "--resume",
