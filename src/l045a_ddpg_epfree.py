@@ -488,6 +488,7 @@ def get_truck_status():
     last_moment = time.time()
     logger.info(f"Initialization Done!", extra=dictLogger)
     qobject_size = 0
+    prog_exit = False
 
     while not th_exit:  # th_exit is local; program_exit is global
         with hmi_lock:  # wait for tester to kick off or to exit
