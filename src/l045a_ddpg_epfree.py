@@ -367,7 +367,7 @@ buffer = Buffer(
     num_observations,
     sequence_len,
     num_reduced_actions,
-    buffer_capacity=20000,
+    buffer_capacity=300000,
     batch_size=4,
     gamma=0.99,
     datafolder=datafolder,
