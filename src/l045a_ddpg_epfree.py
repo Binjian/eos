@@ -467,14 +467,13 @@ motionpowerQueue = queue.Queue()
 # initial status of the switches
 wait_for_reset = True
 program_exit = False
-episode_done = False
 interlude_done = False
 episode_count = 0
 interlude_count = 0
 
 
 def get_truck_status():
-    global episode_done, interlude_done, wait_for_reset, program_exit
+    global interlude_done, wait_for_reset, program_exit
     global motionpowerQueue, sequence_len
     global episode_count, interlude_count
 
@@ -489,7 +488,6 @@ def get_truck_status():
     last_moment = time.time()
     logger.info(f"Initialization Done!", extra=dictLogger)
     qobject_size = 0
-    episode_end = False
 
     while not th_exit:  # th_exit is local; program_exit is global
         with hmi_lock:  # wait for tester to kick off or to exit
@@ -513,11 +511,9 @@ def get_truck_status():
                 if value == "begin":
                     get_truck_status.start = True
                     logger.info("%s", "Capture will start!!!", extra=dictLogger)
-                    episode_end = False  # ignites the episode when tester kicks off;means episode_end
-                    episode_done = False
                     prog_exit = False
                     th_exit = False
-                    ts_epi_start = time.time()
+                    # ts_epi_start = time.time()
 
                     # for the first interlude in an episode
                     get_truck_status.interlude_start = True
@@ -530,8 +526,6 @@ def get_truck_status():
                 ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
                     logger.info("%s", "Capture ends!!!", extra=dictLogger)
-                    episode_end = True  # wait when episode starts
-                    episode_done = True
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
@@ -548,8 +542,6 @@ def get_truck_status():
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
                     logger.info(f"motionpowerQueue gets cleared!", extra=dictLogger)
-                    episode_end = True  # wait when episode starts
-                    episode_done = False
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
@@ -557,8 +549,6 @@ def get_truck_status():
                 elif value == "exit":
                     get_truck_status.start = False
                     logger.info("%s", "Capture will exit!!!", extra=dictLogger)
-                    episode_end = True  # reset main thread to recheck exit status
-                    episode_done = False
                     prog_exit = True
                     th_exit = True
                     with hmi_lock:
@@ -639,7 +629,6 @@ def get_truck_status():
                             interlude_done = False
                         continue
                 else:  # if episode logic stops interlude
-                    # if not episode_end:
                     get_truck_status.interlude_start = False
                     with hmi_lock:
                         interlude_done = False
@@ -753,8 +742,6 @@ def main():
                 not interlude_end
             ):  # end signal, either the episode ends normally or user interrupt
                 # TODO l045a define episode done (time, distance, defined end event)
-                # obs, r, done, info = env.step(action)
-                # episode_done = done
                 with hmi_lock:  # wait for tester to interrupt or to exit
                     th_exit = program_exit  # if program_exit is False, reset to wait
                     interlude_end = wait_for_reset  # interlude ends
