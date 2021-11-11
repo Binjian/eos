@@ -733,7 +733,7 @@ def main():
     logger.info(f"main Initialization done!", extra=dictLogger)
     while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
-            th_exit = program_exit  # if program_exit is False, reset to wait
+            th_exit = program_exit  # if program_exit is False, reset to wait_for_reset
             epi_cnt = episode_count  # get episode counts
             inl_cnt = interlude_count  # get interlude counts
             if wait_for_reset:  # if program_exit is True, first reset then exit
