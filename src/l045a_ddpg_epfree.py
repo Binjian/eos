@@ -466,6 +466,8 @@ motionpowerQueue = queue.Queue()
 wait_for_reset = True
 program_exit = False
 interlude_done = False
+episode_done = False
+episode_end = False
 episode_count = 0
 interlude_count = 0
 
@@ -474,6 +476,7 @@ def get_truck_status():
     global interlude_done, wait_for_reset, program_exit
     global motionpowerQueue, sequence_len
     global episode_count, interlude_count
+    global episode_done, episode_end
 
     # logger.info(f'Start Initialization!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -726,14 +729,14 @@ def get_truck_status():
                                         "Wait for BP to end and updating Interlude states!!!",
                                         extra=dictLogger,
                                     )
-
+                            # clearing the list
                             get_truck_status.motionpower_states = []
                     else:  # ** update interlude state from main thread for restart capturing
                         with hmi_lock:
                             get_truck_status.interlude_start = not wait_for_reset
                             # interlude_done = False # BUG move to ***
                         continue
-                else:  # if episode logic stops interlude
+                else:  # if episode logic stops interlude except for exit
                     get_truck_status.interlude_start = False
                     # logger.info(
                     #     "%s",
@@ -811,6 +814,7 @@ def main():
     global wait_for_reset, program_exit
     global motionpowerQueue
     global pd_index, pd_columns
+    global episode_done, episode_end
 
     eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
@@ -865,18 +869,20 @@ def main():
                         f"E{epi_cnt}I{inl_cnt} Experience Collection ends!",
                         extra=dictLogger,
                     )
+                    # interlude_end will be updated by the capture thread
                     continue
                 elif interlude_end and (not done):  # end_invalid
                     logger.info(
                         f"E{epi_cnt}I{inl_cnt} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
+                    continue
+                    # interlude_end (wait_for_reset) will be updated by the main thread below
+
                     # # add punishment to interlude_reward
                     # interlude_reward = -36.0
                     # cycle_reward = 0
                     # wh0 = 0
-
-                    continue
 
                 try:
                     logger.warning(
@@ -1087,7 +1093,10 @@ def main():
                 # ** if interlude is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart interlude
                 with hmi_lock:
-                    wait_for_reset = False
+                    if episode_end:
+                        wait_for_reset = True
+                    else:
+                        wait_for_reset = False
                     # interlude_done = False  #  not necessary since the out while loop will reset at interlude start
                 continue  # otherwise assuming the history is valid and back propagate
             # else:
