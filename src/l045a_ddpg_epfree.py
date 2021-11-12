@@ -1055,7 +1055,7 @@ def main():
                         extra=dictLogger,
                     )
                     logger.info(
-                        f"Eps {epi_cnt} Inl {inl_cnt} Finish Step: {step_count}",
+                        f"E{epi_cnt}I{inl_cnt} Finish Step: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1083,7 +1083,7 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logger.info(
-                    f"E{epi_cnt}I{inl_cnt} interrupted, waits for next episode kicking off!",
+                    f"E{epi_cnt}I{inl_cnt} interrupted, waits for next interlude to kick off!",
                     extra=dictLogger,
                 )
                 # add punishment to interlude_reward
@@ -1104,19 +1104,19 @@ def main():
             critic_loss_seq = []
             actor_loss_seq = []
             for k in range(6):
-                logger.info(f"BP starts.", extra=dictLogger)
+                logger.info(f"BP{k} starts.", extra=dictLogger)
                 (critic_loss, actor_loss) = buffer.learn()
                 critic_loss_seq.append(critic_loss)
                 actor_loss_seq.append(actor_loss)
-                logger.info(f"BP done.", extra=dictLogger)
+                logger.info(f"BP{k} done.", extra=dictLogger)
                 logger.info(
-                    f"E{epi_cnt}I{inl_cnt} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                    f"BP{k}E{epi_cnt}I{inl_cnt} critic loss: {critic_loss}; actor loss: {actor_loss}",
                     extra=dictLogger,
                 )
                 update_target(target_actor.variables, actor_model.variables, tau)
-                logger.info(f"Updated target actor", extra=dictLogger)
+                # logger.info(f"Updated target actor", extra=dictLogger)
                 update_target(target_critic.variables, critic_model.variables, tau)
-                logger.info(f"Updated target critic.", extra=dictLogger)
+                # logger.info(f"Updated target critic.", extra=dictLogger)
 
                 # Checkpoint manager save model
                 ckpt_actor.step.assign_add(1)
