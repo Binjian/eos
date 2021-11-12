@@ -833,6 +833,7 @@ def main():
     interlude_reward = 0
     th_exit = False
     done = False
+    inl_cnt_local = 0
 
     logger.info(f"main Initialization done!", extra=dictLogger)
     while not th_exit:  # run until solved or program exit; th_exit is local
@@ -1166,18 +1167,24 @@ def main():
             running_reward = 0.05 * interlude_reward + (1 - 0.05) * running_reward
 
         # tf logging after interlude ends
+        # use local interlude counter inl_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
         with train_summary_writer.as_default():
-            tf.summary.scalar("WH", -interlude_reward, step=inl_cnt)
-            tf.summary.scalar("actor loss", actor_loss_episode, step=inl_cnt)
-            tf.summary.scalar("critic loss", critic_loss_episode, step=inl_cnt)
-            tf.summary.scalar("reward", interlude_reward, step=inl_cnt)
-            tf.summary.scalar("running reward", running_reward, step=inl_cnt)
-            tf.summary.image("Calibration Table", plot_to_image(fig), step=inl_cnt)
-            tf.summary.histogram("Calibration Table Hist", vcu_act_list, step=inl_cnt)
+            tf.summary.scalar("WH", -interlude_reward, step=inl_cnt_local)
+            tf.summary.scalar("actor loss", actor_loss_episode, step=inl_cnt_local)
+            tf.summary.scalar("critic loss", critic_loss_episode, step=inl_cnt_local)
+            tf.summary.scalar("reward", interlude_reward, step=inl_cnt_local)
+            tf.summary.scalar("running reward", running_reward, step=inl_cnt_local)
+            tf.summary.image(
+                "Calibration Table", plot_to_image(fig), step=inl_cnt_local
+            )
+            tf.summary.histogram(
+                "Calibration Table Hist", vcu_act_list, step=inl_cnt_local
+            )
             tf.summary.trace_export(
-                name="veos_trace", step=inl_cnt, profiler_outdir=train_log_dir
+                name="veos_trace", step=inl_cnt_local, profiler_outdir=train_log_dir
             )
 
+        inl_cnt_local += 1
         plt.close(fig)
 
         logger.info(
