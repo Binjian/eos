@@ -38,6 +38,7 @@ from birdseye import eye
 # from viztracer import VizTracer
 from watchpoints import watch
 
+from collections import deque
 
 # Logging Service Initialization
 import logging
@@ -487,6 +488,8 @@ def get_truck_status():
     qobject_size = 0
     prog_exit = False
 
+    vel_sum_hist_dQ = deque(maxlen=6)  # accumulate 6 cycles (9s) of velocity values
+
     while not th_exit:  # th_exit is local; program_exit is global
         with hmi_lock:  # wait for tester to kick off or to exit
             if program_exit == True:  # if program_exit is True, exit thread
@@ -514,10 +517,13 @@ def get_truck_status():
                     # ts_epi_start = time.time()
 
                     # for the first interlude in an episode
+                    vel_sum_hist_dQ.clear()
                     get_truck_status.interlude_start = True
                     with hmi_lock:
                         wait_for_reset = False  # wait_for reset means interlude ends
                         interlude_done = False
+                        episode_done = False
+                        episode_end = False
 
                 elif (
                     value == "end_valid"
@@ -529,12 +535,16 @@ def get_truck_status():
                     logger.info("%s", "Episode ends!!!", extra=dictLogger)
                     prog_exit = False
                     th_exit = False
+                    vel_sum_hist_dQ.clear()
                     with hmi_lock:
                         episode_count += 1  # valid episode increments
+                        episode_done = True
+                        episode_end = True
                 elif value == "end_invalid":
                     get_truck_status.start = False
                     logger.info(f"Episode is interrupted!!!", extra=dictLogger)
                     get_truck_status.motionpower_states = []
+                    vel_sum_hist_dQ.clear()
                     # motionpowerQueue.queue.clear()
                     logger.info(
                         f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
@@ -548,17 +558,27 @@ def get_truck_status():
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
+                        episode_done = False
+                        episode_end = True
                         episode_count += 1  # invalid episode increments
                 elif value == "exit":
                     get_truck_status.start = False
                     get_truck_status.motionpower_states = []
+                    vel_sum_hist_dQ.clear()
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
                     logger.info("%s", "Program will exit!!!", extra=dictLogger)
                     prog_exit = True
                     th_exit = True
+                    # for program exit, need to set interlude states
+                    # final change to inform main thread
                     with hmi_lock:
-                        episode_count += 1  # invalid episode increments
+                        episode_done = False
+                        episode_end = False
+                        program_exit = prog_exit
+                        wait_for_reset = True
+                        interlude_done = False
+                        # episode_count += 1  # invalid episode increments
                     break
                     # time.sleep(0.1)
             elif key == "data":
@@ -597,45 +617,84 @@ def get_truck_status():
                             velocity_sum = 0.0
                             for state in get_truck_status.motionpower_states:
                                 velocity_sum += abs(state[0])
-                            vel_aver = velocity_sum / len(
-                                get_truck_status.motionpower_states
-                            )
-                            logger.info(
-                                f"Average Cycle velocity: {vel_aver}!",
-                                extra=dictLogger,
-                            )
-                            if (
-                                vel_aver < 0.001
-                            ):  # average velocity within a 1.5s cycle smaller than 1km/h
-                                get_truck_status.interlude_start = False
-                                qobject_size = 0
+                            vel_sum_hist_dQ.append(velocity_sum)
+
+                            # if a long history is available
+                            if len(vel_sum_hist_dQ) == vel_sum_hist_dQ.maxlen:
+                                vel_aver = sum(vel_sum_hist_dQ) / vel_sum_hist_dQ.maxlen
                                 logger.info(
-                                    "Vehicle halts. Invalid Interlude!!!",
+                                    f"Average Cycle velocity: {vel_aver}!",
                                     extra=dictLogger,
                                 )
 
-                                # clear queue and list
-                                # motionpowerQueue.queue.clear()
-                                logger.info(
-                                    f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                                    extra=dictLogger,
-                                )
-                                while not motionpowerQueue.empty():
-                                    motionpowerQueue.get()
-                                logger.info(
-                                    f"Interlude motionpowerQueue gets cleared!",
-                                    extra=dictLogger,
-                                )
-                                logger.info(
-                                    "%s",
-                                    "Wait for main thread to update Interlude states!!!",
-                                    extra=dictLogger,
-                                )
-                                with hmi_lock:  # set invalid_end interlude
-                                    wait_for_reset = True  # wait until interlude starts
-                                    interlude_done = False
-                                    interlude_count += 1  # invalid interlude increments
-                            else:
+                                if (
+                                    vel_aver < 3.6  # 3.6 km/h
+                                ):  # average velocity within a 1.5s cycle smaller than 1km/h
+                                    get_truck_status.interlude_start = False
+                                    qobject_size = 0
+                                    logger.info(
+                                        "Vehicle halts. Invalid Interlude!!!",
+                                        extra=dictLogger,
+                                    )
+
+                                    # clear queue and list
+                                    # motionpowerQueue.queue.clear()
+                                    logger.info(
+                                        f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                                        extra=dictLogger,
+                                    )
+                                    while not motionpowerQueue.empty():
+                                        motionpowerQueue.get()
+                                    logger.info(
+                                        f"Interlude motionpowerQueue gets cleared!",
+                                        extra=dictLogger,
+                                    )
+                                    logger.info(
+                                        "%s",
+                                        "Wait for main thread to update Interlude states!!!",
+                                        extra=dictLogger,
+                                    )
+                                    with hmi_lock:  # set invalid_end interlude
+                                        wait_for_reset = (
+                                            True  # wait until interlude starts
+                                        )
+                                        interlude_done = False
+                                        interlude_count += (
+                                            1  # invalid interlude increments
+                                        )
+                                else:
+                                    motionpowerQueue.put(
+                                        get_truck_status.motionpower_states
+                                    )
+                                    logger.info(
+                                        "Motion Power States put in Queue!!!",
+                                        extra=dictLogger,
+                                    )
+                                    qobject_size += 1
+                                    if qobject_size >= get_truck_status.qobject_len:
+                                        interlude_state = "end_valid"
+                                        get_truck_status.interlude_start = False
+                                        qobject_size = 0
+
+                                        with hmi_lock:  # set valid_end interlude
+                                            wait_for_reset = (
+                                                True  # wait until interlude starts
+                                            )
+                                            interlude_done = True
+                                            interlude_count += (
+                                                1  # valid interlude increments
+                                            )
+                                        logger.info(
+                                            "%s",
+                                            "Valid Interlude ends!!!",
+                                            extra=dictLogger,
+                                        )
+                                        logger.info(
+                                            "%s",
+                                            "Wait for BP to end and updating Interlude states!!!",
+                                            extra=dictLogger,
+                                        )
+                            else:  # if episode just starts
                                 motionpowerQueue.put(
                                     get_truck_status.motionpower_states
                                 )
