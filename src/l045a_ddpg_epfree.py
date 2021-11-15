@@ -652,11 +652,10 @@ def get_truck_status():
 
                                 continue  # finish loop, restart interlude
                         if len(get_truck_status.motionpower_states) >= sequence_len:
-                            logger.info(
+                            logger.info(  # the recent 1s average velocity
                                 f"Average Cycle velocity: {vel_aver}!",
                                 extra=dictLogger,
                             )
-
                             logger.info(
                                 f"Producer Queue has {motionpowerQueue.qsize()}!",
                                 extra=dictLogger,
@@ -1149,13 +1148,13 @@ def main():
         plt.close(fig)
 
         logger.info(
-            f"E{epi_cnt}I{inl_cnt} Episode Reward: {interlude_reward}",
+            f"E{epi_cnt}I{inl_cnt} Interlude Reward: {interlude_reward}",
             extra=dictLogger,
         )
 
         interlude_reward = 0
         logger.info(
-            f"E{epi_cnt}I{inl_cnt} done, waits for next episode kicking off!",
+            f"E{epi_cnt}I{inl_cnt} done, waits for next interlude to kick off!",
             extra=dictLogger,
         )
         logger.info("----------------------", extra=dictLogger)
