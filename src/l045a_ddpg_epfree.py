@@ -844,12 +844,12 @@ def main():
                     # wh0 = 0
 
                 try:
-                    logger.warning(
+                    logger.info(
                         f"E{epi_cnt}I{inl_cnt} Wait for an object!!!", extra=dictLogger
                     )
                     motionpower = motionpowerQueue.get(block=True, timeout=1.55)
                 except queue.Empty:
-                    logger.warning(
+                    logger.info(
                         f"E{epi_cnt}I{inl_cnt} No data in the Queue!!!",
                         extra=dictLogger,
                     )
