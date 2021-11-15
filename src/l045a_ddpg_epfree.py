@@ -1166,9 +1166,16 @@ def main():
 
         # ** After BP and logging is done, now main thread is ready for inference again
         # inform capture thread to restart interlude
+        # interlude_done = False  #  not necessary since the out while loop will reset at interlude start
         with hmi_lock:
-            wait_for_reset = False
+            if (not program_exit) and episode_end:
+                wait_for_reset = True
+            elif (not program_exit) and (not episode_end):
+                wait_for_reset = False
+            else:
+                wait_for_reset = True
             interlude_done = False  # *** reset interlude_done
+        # continue  # otherwise assuming the history is valid and back propagate
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
 
     thr_observe.join()
