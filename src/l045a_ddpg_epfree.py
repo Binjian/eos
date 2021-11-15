@@ -609,16 +609,11 @@ def get_truck_status():
                         get_truck_status.motionpower_states.append(
                             motion_power
                         )  # obs_reward [speed, pedal, brake, current, voltage]
-
                         vel_hist_dQ.append(velocity)
+
                         # if a long history is available
                         if len(vel_hist_dQ) == vel_hist_dQ.maxlen:
                             vel_aver = sum(vel_hist_dQ) / vel_hist_dQ.maxlen
-                            logger.info(
-                                f"Average Cycle velocity: {vel_aver}!",
-                                extra=dictLogger,
-                            )
-
                             if (
                                 vel_aver < 1.0  # km/h
                             ):  # average velocity within 1s smaller than 1km/h
@@ -631,25 +626,25 @@ def get_truck_status():
 
                                 # clear queue and list
                                 # motionpowerQueue.queue.clear()
-                                logger.info(
-                                    f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                                    extra=dictLogger,
-                                )
+                                # logger.info(
+                                #     f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                                #     extra=dictLogger,
+                                # )
                                 while not motionpowerQueue.empty():
                                     motionpowerQueue.get()
                                 get_truck_status.motionpower_states = (
                                     []
                                 )  # list needs to be cleared!
 
-                                logger.info(
-                                    f"Interlude motionpowerQueue gets cleared!",
-                                    extra=dictLogger,
-                                )
-                                logger.info(
-                                    "%s",
-                                    "Wait for main thread to update Interlude states!!!",
-                                    extra=dictLogger,
-                                )
+                                # logger.info(
+                                #     f"Interlude motionpowerQueue gets cleared!",
+                                #     extra=dictLogger,
+                                # )
+                                # logger.info(
+                                #     "%s",
+                                #     "Wait for main thread to update Interlude states!!!",
+                                #     extra=dictLogger,
+                                # )
                                 with hmi_lock:  # set invalid_end interlude
                                     wait_for_reset = True  # wait until interlude starts
                                     interlude_done = False
@@ -657,6 +652,11 @@ def get_truck_status():
 
                                 continue  # finish loop, restart interlude
                         if len(get_truck_status.motionpower_states) >= sequence_len:
+                            logger.info(
+                                f"Average Cycle velocity: {vel_aver}!",
+                                extra=dictLogger,
+                            )
+
                             logger.info(
                                 f"Producer Queue has {motionpowerQueue.qsize()}!",
                                 extra=dictLogger,
