@@ -491,7 +491,7 @@ def get_truck_status():
     qobject_size = 0
     prog_exit = False
 
-    vel_hist_dQ = deque(maxlen=100)  # accumulate 5s of velocity values
+    vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
 
     while not th_exit:  # th_exit is local; program_exit is global
         with hmi_lock:  # wait for tester to kick off or to exit
@@ -620,11 +620,11 @@ def get_truck_status():
                             )
 
                             if (
-                                vel_aver < 1.0  # 3.6 km/h
-                            ):  # average velocity within a 1.5s cycle smaller than 1km/h
+                                vel_aver < 1.0  # km/h
+                            ):  # average velocity within 1s smaller than 1km/h
                                 get_truck_status.interlude_start = False
                                 qobject_size = 0
-                                logger.info(
+                                logger.warning(
                                     "Vehicle halts. Invalid Interlude!!!",
                                     extra=dictLogger,
                                 )
