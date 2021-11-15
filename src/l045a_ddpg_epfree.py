@@ -1052,11 +1052,14 @@ def main():
                 # ** if interlude is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart interlude
                 with hmi_lock:
-                    if episode_end:
+                    if (not program_exit) and episode_end:
                         wait_for_reset = True
-                    else:
+                    elif (not program_exit) and (not episode_end):
                         wait_for_reset = False
-                    # interlude_done = False  #  not necessary since the out while loop will reset at interlude start
+                    else:
+                        wait_for_reset = True
+
+                    # interlude_done = False  #  not necessary since the outer while loop will reset at interlude start
                 continue  # otherwise assuming the history is valid and back propagate
             # else:
 
