@@ -476,17 +476,17 @@ motionpowerQueue = queue.Queue()
 wait_for_reset = True
 program_exit = False
 episode_done = False
-season_done = False
-season_end = False
-season_count = 0
+round_done = False
+round_end = False
+round_count = 0
 episode_count = 0
 
 
 def get_truck_status():
     global episode_done, wait_for_reset, program_exit
     global motionpowerQueue, sequence_len
-    global season_count, episode_count
-    global season_done, season_end
+    global round_count, episode_count
+    global round_done, round_end
 
     # logger.info(f'Start Initialization!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -529,14 +529,14 @@ def get_truck_status():
                     th_exit = False
                     # ts_epi_start = time.time()
 
-                    # for the first episode in an season
+                    # for the first episode in an round
                     vel_hist_dQ.clear()
                     get_truck_status.episode_start = True
                     with hmi_lock:
                         wait_for_reset = False  # wait_for reset means episode ends
                         episode_done = False
-                        season_done = False
-                        season_end = False
+                        round_done = False
+                        round_end = False
 
                 elif (
                     value == "end_valid"
@@ -550,9 +550,9 @@ def get_truck_status():
                     th_exit = False
                     vel_hist_dQ.clear()
                     with hmi_lock:
-                        season_count += 1  # valid season increments
-                        season_done = True
-                        season_end = True
+                        round_count += 1  # valid round increments
+                        round_done = True
+                        round_end = True
                 elif value == "end_invalid":
                     get_truck_status.start = False
                     logc.info(f"Episode is interrupted!!!", extra=dictLogger)
@@ -571,9 +571,9 @@ def get_truck_status():
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
-                        season_done = False
-                        season_end = True
-                        season_count += 1  # invalid season increments
+                        round_done = False
+                        round_end = True
+                        round_count += 1  # invalid round increments
                 elif value == "exit":
                     get_truck_status.start = False
                     get_truck_status.motionpower_states = []
@@ -586,12 +586,12 @@ def get_truck_status():
                     # for program exit, need to set episode states
                     # final change to inform main thread
                     with hmi_lock:
-                        season_done = False
-                        season_end = False
+                        round_done = False
+                        round_end = False
                         program_exit = prog_exit
                         wait_for_reset = True
                         episode_done = False
-                        # season_count += 1  # invalid season increments
+                        # round_count += 1  # invalid round increments
                     break
                     # time.sleep(0.1)
             elif key == "data":
@@ -599,7 +599,7 @@ def get_truck_status():
                 # logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=dictLogger)
                 # TODO add logic for episode start and stop
                 # TODO add logic for episode valid and invalid
-                if get_truck_status.start:  # season logic starts episode
+                if get_truck_status.start:  # round logic starts episode
                     if get_truck_status.episode_start:
 
                         velocity = float(value["velocity"])
@@ -702,7 +702,7 @@ def get_truck_status():
                             get_truck_status.episode_start = not wait_for_reset
                             # episode_done = False # BUG move to ***
                         continue
-                else:  # if season logic stops episode except for exit
+                else:  # if round logic stops episode except for exit
                     get_truck_status.episode_start = False
                     # logger.info(
                     #     "%s",
@@ -772,11 +772,11 @@ def flash_vcu(tablequeue):
 # TODO add initialize table to EP input
 # @eye
 def main():
-    global episode_done, season_count, episode_count
+    global episode_done, round_count, episode_count
     global wait_for_reset, program_exit
     global motionpowerQueue
     global pd_index, pd_columns
-    global season_done, season_end
+    global round_done, round_end
 
     eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
@@ -801,7 +801,7 @@ def main():
     while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
             th_exit = program_exit  # if program_exit is False, reset to wait_for_reset
-            epi_cnt = season_count  # get season counts
+            epi_cnt = round_count  # get round counts
             inl_cnt = episode_count  # get episode counts
             if wait_for_reset:  # if program_exit is True, first reset then exit
                 # logger.info(f'wait for start!', extra=dictLogger)
@@ -820,8 +820,8 @@ def main():
         with tf.GradientTape() as tape:
             while (
                 not episode_end
-            ):  # end signal, either the season ends normally or user interrupt
-                # TODO l045a define season done (time, distance, defined end event)
+            ):  # end signal, either the round ends normally or user interrupt
+                # TODO l045a define round done (time, distance, defined end event)
                 with hmi_lock:  # wait for tester to interrupt or to exit
                     th_exit = program_exit  # if program_exit is False, reset to wait
                     episode_end = wait_for_reset  # episode ends
@@ -1056,9 +1056,9 @@ def main():
                 # ** if episode is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart episode
                 with hmi_lock:
-                    if (not program_exit) and season_end:
+                    if (not program_exit) and round_end:
                         wait_for_reset = True
-                    elif (not program_exit) and (not season_end):
+                    elif (not program_exit) and (not round_end):
                         wait_for_reset = False
                     else:
                         wait_for_reset = True
@@ -1175,9 +1175,9 @@ def main():
         # inform capture thread to restart episode
         # episode_done = False  #  not necessary since the out while loop will reset at episode start
         with hmi_lock:
-            if (not program_exit) and season_end:
+            if (not program_exit) and round_end:
                 wait_for_reset = True
-            elif (not program_exit) and (not season_end):
+            elif (not program_exit) and (not round_end):
                 wait_for_reset = False
             else:
                 wait_for_reset = True
