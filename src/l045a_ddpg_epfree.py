@@ -658,7 +658,7 @@ def get_truck_status():
                                 with hmi_lock:  # set invalid_end episode
                                     wait_for_reset = True  # wait until episode starts
                                     episode_done = False
-                                    episode_count += 1  # invalid episode increments
+                                    # episode_count += 1  # invalid episode increments
 
                                 continue  # finish loop, restart episode
                         if len(get_truck_status.motionpower_states) >= sequence_len:
@@ -666,16 +666,16 @@ def get_truck_status():
                                 f"Average Cycle velocity: {vel_aver}!",
                                 extra=dictLogger,
                             )
-                            logd.info(
-                                f"Producer Queue has {motionpowerQueue.qsize()}!",
-                                extra=dictLogger,
-                            )
+                            # logd.info(
+                            #     f"Producer Queue has {motionpowerQueue.qsize()}!",
+                            #     extra=dictLogger,
+                            # )
 
                             motionpowerQueue.put(get_truck_status.motionpower_states)
-                            logd.info(
-                                "Motion Power States put in Queue!!!",
-                                extra=dictLogger,
-                            )
+                            # logd.info(
+                            #     "Motion Power States put in Queue!!!",
+                            #     extra=dictLogger,
+                            # )
                             qobject_size += 1
                             if qobject_size >= get_truck_status.qobject_len:
                                 get_truck_status.episode_start = False
@@ -1056,9 +1056,9 @@ def main():
                 # ** if episode is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart episode
                 with hmi_lock:
-                    if (not program_exit) and round_end:
+                    if (not program_exit) and round_end:  # wait for UI
                         wait_for_reset = True
-                    elif (not program_exit) and (not round_end):
+                    elif (not program_exit) and (not round_end):  # no wait
                         wait_for_reset = False
                     else:
                         wait_for_reset = True
@@ -1070,13 +1070,13 @@ def main():
             critic_loss_seq = []
             actor_loss_seq = []
             for k in range(6):
-                logger.info(f"BP{k} starts.", extra=dictLogger)
+                # logger.info(f"BP{k} starts.", extra=dictLogger)
                 (critic_loss, actor_loss) = buffer.learn()
                 critic_loss_seq.append(critic_loss)
                 actor_loss_seq.append(actor_loss)
-                logd.info(f"BP{k} done.", extra=dictLogger)
+                # logd.info(f"BP{k} done.", extra=dictLogger)
                 logd.info(
-                    f"BP{k}R{rnd_cnt}E{epi_cnt} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                    f"R{rnd_cnt}E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                     extra=dictLogger,
                 )
                 update_target(target_actor.variables, actor_model.variables, tau)
