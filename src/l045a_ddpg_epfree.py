@@ -795,14 +795,14 @@ def main():
     episode_reward = 0
     th_exit = False
     done = False
-    inl_cnt_local = 0
+    epi_cnt_local = 0
 
     logger.info(f"main Initialization done!", extra=dictLogger)
     while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
             th_exit = program_exit  # if program_exit is False, reset to wait_for_reset
-            epi_cnt = round_count  # get round counts
-            inl_cnt = episode_count  # get episode counts
+            rnd_cnt = round_count  # get round counts
+            epi_cnt = episode_count  # get episode counts
             if wait_for_reset:  # if program_exit is True, first reset then exit
                 # logger.info(f'wait for start!', extra=dictLogger)
                 continue
@@ -814,7 +814,7 @@ def main():
 
         logc.info("----------------------", extra=dictLogger)
         logc.info(
-            f"E{epi_cnt}I{inl_cnt} starts!",
+            f"R{rnd_cnt}E{epi_cnt} starts!",
             extra=dictLogger,
         )
         with tf.GradientTape() as tape:
@@ -829,14 +829,14 @@ def main():
 
                 if episode_end and done:  # end_valid
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} Experience Collection ends!",
+                        f"R{rnd_cnt}E{epi_cnt} Experience Collection ends!",
                         extra=dictLogger,
                     )
                     # episode_end will be updated by the capture thread
                     continue
                 elif episode_end and (not done):  # end_invalid
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} Experience Collection is interrupted!",
+                        f"R{rnd_cnt}E{epi_cnt} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
                     continue
@@ -849,18 +849,18 @@ def main():
 
                 try:
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} Wait for an object!!!", extra=dictLogger
+                        f"R{rnd_cnt}E{epi_cnt} Wait for an object!!!", extra=dictLogger
                     )
                     motionpower = motionpowerQueue.get(block=True, timeout=1.55)
                 except queue.Empty:
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} No data in the Queue!!!",
+                        f"R{rnd_cnt}E{epi_cnt} No data in the Queue!!!",
                         extra=dictLogger,
                     )
                     continue
 
                 logc.info(
-                    f"E{epi_cnt}I{inl_cnt} start step {step_count}",
+                    f"R{rnd_cnt}E{epi_cnt} start step {step_count}",
                     extra=dictLogger,
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
@@ -871,7 +871,7 @@ def main():
                 motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
 
                 logd.info(
-                    f"E{epi_cnt}I{inl_cnt} tensor convert and split!",
+                    f"R{rnd_cnt}E{epi_cnt} tensor convert and split!",
                     extra=dictLogger,
                 )
                 # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
@@ -928,7 +928,7 @@ def main():
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} before inference!",
+                        f"R{rnd_cnt}E{epi_cnt} before inference!",
                         extra=dictLogger,
                     )
                     vcu_action_reduced = policy(actor_model, motion_states1, ou_noise)
@@ -936,7 +936,7 @@ def main():
                     prev_action = vcu_action_reduced
 
                     logd.info(
-                        f"E{epi_cnt}I{inl_cnt} inference done with reduced action space!",
+                        f"R{rnd_cnt}E{epi_cnt} inference done with reduced action space!",
                         extra=dictLogger,
                     )
 
@@ -985,7 +985,7 @@ def main():
                         vcu_calib_table1, pd_index, pd_columns
                     )
                     # logc.info(
-                    #     f"E{epi_cnt}I{inl_cnt} start record instant table: {step_count}",
+                    #     f"R{rnd_cnt}E{epi_cnt} start record instant table: {step_count}",
                     #     extra=dictLogger,
                     # )
 
@@ -994,9 +994,9 @@ def main():
                             datafolder
                             + "/tables/instant_table_ddpg-epfree"
                             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                            + str(epi_cnt)
+                            + str(rnd_cnt)
                             + "-"
-                            + str(inl_cnt)
+                            + str(epi_cnt)
                             + "-"
                             + str(step_count)
                             + ".csv"
@@ -1006,7 +1006,7 @@ def main():
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
                     logd.info(
-                        f"E{epi_cnt}I{inl_cnt} done with record instant table: {step_count}",
+                        f"R{rnd_cnt}E{epi_cnt} done with record instant table: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1014,11 +1014,11 @@ def main():
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} Action Push table: {tableQueue.qsize()}",
+                        f"R{rnd_cnt}E{epi_cnt} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} Finish Step: {step_count}",
+                        f"R{rnd_cnt}E{epi_cnt} Finish Step: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1030,7 +1030,7 @@ def main():
                     # TODO add speed sum as positive reward
                     episode_reward += cycle_reward
                     logc.info(
-                        f"E{epi_cnt}I{inl_cnt} Step done: {step_count}",
+                        f"R{rnd_cnt}E{epi_cnt} Step done: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1046,7 +1046,7 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logc.info(
-                    f"E{epi_cnt}I{inl_cnt} interrupted, waits for next episode to kick off!",
+                    f"R{rnd_cnt}E{epi_cnt} interrupted, waits for next episode to kick off!",
                     extra=dictLogger,
                 )
                 # add punishment to episode_reward
@@ -1076,7 +1076,7 @@ def main():
                 actor_loss_seq.append(actor_loss)
                 logd.info(f"BP{k} done.", extra=dictLogger)
                 logd.info(
-                    f"BP{k}E{epi_cnt}I{inl_cnt} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                    f"BP{k}R{rnd_cnt}E{epi_cnt} critic loss: {critic_loss}; actor loss: {actor_loss}",
                     extra=dictLogger,
                 )
                 update_target(target_actor.variables, actor_model.variables, tau)
@@ -1103,7 +1103,7 @@ def main():
             actor_loss_episode = np.array(actor_loss_seq).sum()
             critic_loss_episode = np.array(critic_loss_seq).sum()
             logd.info(
-                f"E{epi_cnt}I{inl_cnt} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
+                f"R{rnd_cnt}E{epi_cnt} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
                 extra=dictLogger,
             )
             # Create a matplotlib 3d figure, //export and save in log
@@ -1132,41 +1132,41 @@ def main():
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
         # tf logging after episode ends
-        # use local episode counter inl_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
+        # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
         with train_summary_writer.as_default():
-            tf.summary.scalar("WH", -episode_reward, step=inl_cnt_local)
-            tf.summary.scalar("actor loss", actor_loss_episode, step=inl_cnt_local)
-            tf.summary.scalar("critic loss", critic_loss_episode, step=inl_cnt_local)
-            tf.summary.scalar("reward", episode_reward, step=inl_cnt_local)
-            tf.summary.scalar("running reward", running_reward, step=inl_cnt_local)
+            tf.summary.scalar("WH", -episode_reward, step=epi_cnt_local)
+            tf.summary.scalar("actor loss", actor_loss_episode, step=epi_cnt_local)
+            tf.summary.scalar("critic loss", critic_loss_episode, step=epi_cnt_local)
+            tf.summary.scalar("reward", episode_reward, step=epi_cnt_local)
+            tf.summary.scalar("running reward", running_reward, step=epi_cnt_local)
             tf.summary.image(
-                "Calibration Table", plot_to_image(fig), step=inl_cnt_local
+                "Calibration Table", plot_to_image(fig), step=epi_cnt_local
             )
             tf.summary.histogram(
-                "Calibration Table Hist", vcu_act_list, step=inl_cnt_local
+                "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
             )
             tf.summary.trace_export(
-                name="veos_trace", step=inl_cnt_local, profiler_outdir=train_log_dir
+                name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
             )
 
-        inl_cnt_local += 1
+        epi_cnt_local += 1
         plt.close(fig)
 
         logd.info(
-            f"E{epi_cnt}I{inl_cnt} Interlude Reward: {episode_reward}",
+            f"R{rnd_cnt}E{epi_cnt} Interlude Reward: {episode_reward}",
             extra=dictLogger,
         )
 
         episode_reward = 0
         logc.info(
-            f"E{epi_cnt}I{inl_cnt} done, waits for next episode to kick off!",
+            f"R{rnd_cnt}E{epi_cnt} done, waits for next episode to kick off!",
             extra=dictLogger,
         )
         logc.info("----------------------", extra=dictLogger)
-        if inl_cnt % 10 == 0:
+        if epi_cnt % 10 == 0:
             logc.info("++++++++++++++++++++++++", extra=dictLogger)
             logc.info(
-                f"Running reward: {running_reward:.2f} at E{epi_cnt}I{inl_cnt}",
+                f"Running reward: {running_reward:.2f} at R{rnd_cnt}E{epi_cnt}",
                 extra=dictLogger,
             )
             logc.info("++++++++++++++++++++++++", extra=dictLogger)
