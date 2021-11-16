@@ -42,6 +42,7 @@ from collections import deque
 
 # Logging Service Initialization
 import logging
+from logging.handlers import SocketHandler
 import inspect
 
 
