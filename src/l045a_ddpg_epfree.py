@@ -475,18 +475,18 @@ motionpowerQueue = queue.Queue()
 # initial status of the switches
 wait_for_reset = True
 program_exit = False
-interlude_done = False
 episode_done = False
-episode_end = False
+season_done = False
+season_end = False
+season_count = 0
 episode_count = 0
-interlude_count = 0
 
 
 def get_truck_status():
-    global interlude_done, wait_for_reset, program_exit
+    global episode_done, wait_for_reset, program_exit
     global motionpowerQueue, sequence_len
-    global episode_count, interlude_count
-    global episode_done, episode_end
+    global season_count, episode_count
+    global season_done, season_end
 
     # logger.info(f'Start Initialization!', extra=dictLogger)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -529,14 +529,14 @@ def get_truck_status():
                     th_exit = False
                     # ts_epi_start = time.time()
 
-                    # for the first interlude in an episode
+                    # for the first episode in an season
                     vel_hist_dQ.clear()
-                    get_truck_status.interlude_start = True
+                    get_truck_status.episode_start = True
                     with hmi_lock:
-                        wait_for_reset = False  # wait_for reset means interlude ends
-                        interlude_done = False
+                        wait_for_reset = False  # wait_for reset means episode ends
                         episode_done = False
-                        episode_end = False
+                        season_done = False
+                        season_end = False
 
                 elif (
                     value == "end_valid"
@@ -550,9 +550,9 @@ def get_truck_status():
                     th_exit = False
                     vel_hist_dQ.clear()
                     with hmi_lock:
-                        episode_count += 1  # valid episode increments
-                        episode_done = True
-                        episode_end = True
+                        season_count += 1  # valid season increments
+                        season_done = True
+                        season_end = True
                 elif value == "end_invalid":
                     get_truck_status.start = False
                     logc.info(f"Episode is interrupted!!!", extra=dictLogger)
@@ -571,9 +571,9 @@ def get_truck_status():
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
-                        episode_done = False
-                        episode_end = True
-                        episode_count += 1  # invalid episode increments
+                        season_done = False
+                        season_end = True
+                        season_count += 1  # invalid season increments
                 elif value == "exit":
                     get_truck_status.start = False
                     get_truck_status.motionpower_states = []
@@ -583,24 +583,24 @@ def get_truck_status():
                     # logc.info("%s", "Program will exit!!!", extra=dictLogger)
                     prog_exit = True
                     th_exit = True
-                    # for program exit, need to set interlude states
+                    # for program exit, need to set episode states
                     # final change to inform main thread
                     with hmi_lock:
-                        episode_done = False
-                        episode_end = False
+                        season_done = False
+                        season_end = False
                         program_exit = prog_exit
                         wait_for_reset = True
-                        interlude_done = False
-                        # episode_count += 1  # invalid episode increments
+                        episode_done = False
+                        # season_count += 1  # invalid season increments
                     break
                     # time.sleep(0.1)
             elif key == "data":
                 # logger.info('Data received before Capture starting!!!', extra=dictLogger)
                 # logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=dictLogger)
-                # TODO add logic for interlude start and stop
-                # TODO add logic for interlude valid and invalid
-                if get_truck_status.start:  # episode logic starts interlude
-                    if get_truck_status.interlude_start:
+                # TODO add logic for episode start and stop
+                # TODO add logic for episode valid and invalid
+                if get_truck_status.start:  # season logic starts episode
+                    if get_truck_status.episode_start:
 
                         velocity = float(value["velocity"])
                         pedal = float(value["pedal"])
@@ -627,7 +627,7 @@ def get_truck_status():
                             if (
                                 vel_aver < 1.0  # km/h
                             ):  # average velocity within 1s smaller than 1km/h
-                                get_truck_status.interlude_start = False
+                                get_truck_status.episode_start = False
                                 qobject_size = 0
                                 logc.warning(
                                     "Vehicle halts. Invalid Interlude!!!",
@@ -655,12 +655,12 @@ def get_truck_status():
                                 #     "Wait for main thread to update Interlude states!!!",
                                 #     extra=dictLogger,
                                 # )
-                                with hmi_lock:  # set invalid_end interlude
-                                    wait_for_reset = True  # wait until interlude starts
-                                    interlude_done = False
-                                    interlude_count += 1  # invalid interlude increments
+                                with hmi_lock:  # set invalid_end episode
+                                    wait_for_reset = True  # wait until episode starts
+                                    episode_done = False
+                                    episode_count += 1  # invalid episode increments
 
-                                continue  # finish loop, restart interlude
+                                continue  # finish loop, restart episode
                         if len(get_truck_status.motionpower_states) >= sequence_len:
                             logc.info(  # the recent 1s average velocity
                                 f"Average Cycle velocity: {vel_aver}!",
@@ -678,14 +678,13 @@ def get_truck_status():
                             )
                             qobject_size += 1
                             if qobject_size >= get_truck_status.qobject_len:
-                                interlude_state = "end_valid"
-                                get_truck_status.interlude_start = False
+                                get_truck_status.episode_start = False
                                 qobject_size = 0
 
-                                with hmi_lock:  # set valid_end interlude
-                                    wait_for_reset = True  # wait until interlude starts
-                                    interlude_done = True
-                                    interlude_count += 1  # valid interlude increments
+                                with hmi_lock:  # set valid_end episode
+                                    wait_for_reset = True  # wait until episode starts
+                                    episode_done = True
+                                    episode_count += 1  # valid episode increments
                                 logd.info(
                                     "%s",
                                     "Valid Interlude ends!!!",
@@ -698,13 +697,13 @@ def get_truck_status():
                                 )
                             # clearing the list
                             get_truck_status.motionpower_states = []
-                    else:  # ** update interlude state from main thread for restart capturing
+                    else:  # ** update episode state from main thread for restart capturing
                         with hmi_lock:
-                            get_truck_status.interlude_start = not wait_for_reset
-                            # interlude_done = False # BUG move to ***
+                            get_truck_status.episode_start = not wait_for_reset
+                            # episode_done = False # BUG move to ***
                         continue
-                else:  # if episode logic stops interlude except for exit
-                    get_truck_status.interlude_start = False
+                else:  # if season logic stops episode except for exit
+                    get_truck_status.episode_start = False
                     # logger.info(
                     #     "%s",
                     #     "Wait for updating Episode states!!!",
@@ -712,10 +711,10 @@ def get_truck_status():
                     # )
                     qobject_size = 0
                     with hmi_lock:
-                        interlude_done = False
+                        episode_done = False
                         wait_for_reset = True
                         program_exit = prog_exit
-                        interlude_count = 0
+                        episode_count = 0
                         #  TODO clear queue and list
             else:
                 logc.critical("udp sending unknown signal (neither status nor data)!")
@@ -731,9 +730,7 @@ get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
 get_truck_status.qobject_len = 12  # sequence length 1.5*12s
-get_truck_status.interlude_start = False
-get_truck_status.interlude_pause = False
-get_truck_status.interlude_exit = False
+get_truck_status.episode_start = False
 
 # this is the calibration table consumer for flashing
 # @eye
@@ -775,11 +772,11 @@ def flash_vcu(tablequeue):
 # TODO add initialize table to EP input
 # @eye
 def main():
-    global interlude_done, episode_count, interlude_count
+    global episode_done, season_count, episode_count
     global wait_for_reset, program_exit
     global motionpowerQueue
     global pd_index, pd_columns
-    global episode_done, episode_end
+    global season_done, season_end
 
     eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
@@ -795,7 +792,7 @@ def main():
     ## train
     """
     running_reward = 0
-    interlude_reward = 0
+    episode_reward = 0
     th_exit = False
     done = False
     inl_cnt_local = 0
@@ -804,8 +801,8 @@ def main():
     while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
             th_exit = program_exit  # if program_exit is False, reset to wait_for_reset
-            epi_cnt = episode_count  # get episode counts
-            inl_cnt = interlude_count  # get interlude counts
+            epi_cnt = season_count  # get season counts
+            inl_cnt = episode_count  # get episode counts
             if wait_for_reset:  # if program_exit is True, first reset then exit
                 # logger.info(f'wait for start!', extra=dictLogger)
                 continue
@@ -813,7 +810,7 @@ def main():
         step_count = 0
         tf.summary.trace_on(graph=True, profiler=True)
 
-        interlude_end = False
+        episode_end = False
 
         logc.info("----------------------", extra=dictLogger)
         logc.info(
@@ -822,31 +819,31 @@ def main():
         )
         with tf.GradientTape() as tape:
             while (
-                not interlude_end
-            ):  # end signal, either the episode ends normally or user interrupt
-                # TODO l045a define episode done (time, distance, defined end event)
+                not episode_end
+            ):  # end signal, either the season ends normally or user interrupt
+                # TODO l045a define season done (time, distance, defined end event)
                 with hmi_lock:  # wait for tester to interrupt or to exit
                     th_exit = program_exit  # if program_exit is False, reset to wait
-                    interlude_end = wait_for_reset  # interlude ends
-                    done = interlude_done
+                    episode_end = wait_for_reset  # episode ends
+                    done = episode_done
 
-                if interlude_end and done:  # end_valid
+                if episode_end and done:  # end_valid
                     logc.info(
                         f"E{epi_cnt}I{inl_cnt} Experience Collection ends!",
                         extra=dictLogger,
                     )
-                    # interlude_end will be updated by the capture thread
+                    # episode_end will be updated by the capture thread
                     continue
-                elif interlude_end and (not done):  # end_invalid
+                elif episode_end and (not done):  # end_invalid
                     logc.info(
                         f"E{epi_cnt}I{inl_cnt} Experience Collection is interrupted!",
                         extra=dictLogger,
                     )
                     continue
-                    # interlude_end (wait_for_reset) will be updated by the main thread below
+                    # episode_end (wait_for_reset) will be updated by the main thread below
 
-                    # # add punishment to interlude_reward
-                    # interlude_reward = -36.0
+                    # # add punishment to episode_reward
+                    # episode_reward = -36.0
                     # cycle_reward = 0
                     # wh0 = 0
 
@@ -1031,7 +1028,7 @@ def main():
                 else:
                     cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
                     # TODO add speed sum as positive reward
-                    interlude_reward += cycle_reward
+                    episode_reward += cycle_reward
                     logc.info(
                         f"E{epi_cnt}I{inl_cnt} Step done: {step_count}",
                         extra=dictLogger,
@@ -1049,24 +1046,24 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logc.info(
-                    f"E{epi_cnt}I{inl_cnt} interrupted, waits for next interlude to kick off!",
+                    f"E{epi_cnt}I{inl_cnt} interrupted, waits for next episode to kick off!",
                     extra=dictLogger,
                 )
-                # add punishment to interlude_reward
-                interlude_reward = 0.0
+                # add punishment to episode_reward
+                episode_reward = 0.0
                 cycle_reward = 0
                 wh0 = 0
-                # ** if interlude is interrupted, main thread is at once ready for inference again
-                # inform capture thread to restart interlude
+                # ** if episode is interrupted, main thread is at once ready for inference again
+                # inform capture thread to restart episode
                 with hmi_lock:
-                    if (not program_exit) and episode_end:
+                    if (not program_exit) and season_end:
                         wait_for_reset = True
-                    elif (not program_exit) and (not episode_end):
+                    elif (not program_exit) and (not season_end):
                         wait_for_reset = False
                     else:
                         wait_for_reset = True
 
-                    # interlude_done = False  #  not necessary since the outer while loop will reset at interlude start
+                    # episode_done = False  #  not necessary since the outer while loop will reset at episode start
                 continue  # otherwise assuming the history is valid and back propagate
             # else:
 
@@ -1132,15 +1129,15 @@ def main():
             # plt.show()
             # time.sleep(5)
             # update running reward to check condition for solving
-            running_reward = 0.05 * interlude_reward + (1 - 0.05) * running_reward
+            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
-        # tf logging after interlude ends
-        # use local interlude counter inl_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
+        # tf logging after episode ends
+        # use local episode counter inl_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
         with train_summary_writer.as_default():
-            tf.summary.scalar("WH", -interlude_reward, step=inl_cnt_local)
+            tf.summary.scalar("WH", -episode_reward, step=inl_cnt_local)
             tf.summary.scalar("actor loss", actor_loss_episode, step=inl_cnt_local)
             tf.summary.scalar("critic loss", critic_loss_episode, step=inl_cnt_local)
-            tf.summary.scalar("reward", interlude_reward, step=inl_cnt_local)
+            tf.summary.scalar("reward", episode_reward, step=inl_cnt_local)
             tf.summary.scalar("running reward", running_reward, step=inl_cnt_local)
             tf.summary.image(
                 "Calibration Table", plot_to_image(fig), step=inl_cnt_local
@@ -1156,13 +1153,13 @@ def main():
         plt.close(fig)
 
         logd.info(
-            f"E{epi_cnt}I{inl_cnt} Interlude Reward: {interlude_reward}",
+            f"E{epi_cnt}I{inl_cnt} Interlude Reward: {episode_reward}",
             extra=dictLogger,
         )
 
-        interlude_reward = 0
+        episode_reward = 0
         logc.info(
-            f"E{epi_cnt}I{inl_cnt} done, waits for next interlude to kick off!",
+            f"E{epi_cnt}I{inl_cnt} done, waits for next episode to kick off!",
             extra=dictLogger,
         )
         logc.info("----------------------", extra=dictLogger)
@@ -1175,16 +1172,16 @@ def main():
             logc.info("++++++++++++++++++++++++", extra=dictLogger)
 
         # ** After BP and logging is done, now main thread is ready for inference again
-        # inform capture thread to restart interlude
-        # interlude_done = False  #  not necessary since the out while loop will reset at interlude start
+        # inform capture thread to restart episode
+        # episode_done = False  #  not necessary since the out while loop will reset at episode start
         with hmi_lock:
-            if (not program_exit) and episode_end:
+            if (not program_exit) and season_end:
                 wait_for_reset = True
-            elif (not program_exit) and (not episode_end):
+            elif (not program_exit) and (not season_end):
                 wait_for_reset = False
             else:
                 wait_for_reset = True
-            interlude_done = False  # *** reset interlude_done
+            episode_done = False  # *** reset episode_done
         # continue  # otherwise assuming the history is valid and back propagate
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
 
