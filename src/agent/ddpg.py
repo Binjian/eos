@@ -305,13 +305,13 @@ class Buffer:
 
     # We compute the loss and update parameters
     def learn(self):
-        # Get sampling range, if not enough data, batch is small,
+        # get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
         record_range = min(self.buffer_counter, self.buffer_capacity)
-        # Randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
+        # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
         batch_indices = np.random.choice(record_range, self.batch_size)
 
-        # Convert to tensors
+        # convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
         action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
         reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
@@ -319,6 +319,71 @@ class Buffer:
         next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
 
         critic_loss, actor_loss = self.update(
+            state_batch, action_batch, reward_batch, next_state_batch
+        )
+        return critic_loss, actor_loss
+
+    # we only calculate the loss
+    @tf.function
+    def noupdate(
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
+    ):
+        # Training and updating Actor & Critic networks.
+        # See Pseudo Code.
+        with tf.GradientTape() as tape:
+            target_actions = self.target_actor(next_state_batch, training=True)
+            y = reward_batch + self.gamma * self.target_critic(
+                [next_state_batch, target_actions], training=True
+            )
+            # ? need to confirm since replay buffer will take max over the actions of Q function.:with
+            # future_rewards = self.target_critic(
+            #             #     [next_state_batch, target_actions], training=True
+            #             # )
+            # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
+            # ! the question above is not necessary, since deterministic policy is the maximum!
+            critic_value = self.critic_model([state_batch, action_batch], training=True)
+            critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
+
+        # logger.info(f"BP done.", extra=dictLogger)
+
+        # critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
+        # self.critic_optimizer.apply_gradients(
+        #     zip(critic_grad, self.critic_model.trainable_variables)
+        # )
+
+        with tf.GradientTape() as tape:
+            actions = self.actor_model(state_batch, training=True)
+            critic_value = self.critic_model([state_batch, actions], training=True)
+            # Used `-value` as we want to maximize the value given
+            # by the critic for our actions
+            actor_loss = -tf.math.reduce_mean(critic_value)
+
+        # actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
+        # self.actor_optimizer.apply_gradients(
+        #     zip(actor_grad, self.actor_model.trainable_variables)
+        # )
+        return critic_loss, actor_loss
+
+    # We only compute the loss and don't update parameters
+    def nolearn(self):
+        # get sampling range, if not enough data, batch is small,
+        # batch size starting from 1, until reach buffer
+        record_range = min(self.buffer_counter, self.buffer_capacity)
+        # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
+        batch_indices = np.random.choice(record_range, self.batch_size)
+
+        # convert to tensors
+        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
+        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
+        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
+        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+
+        critic_loss, actor_loss = self.noupdate(
             state_batch, action_batch, reward_batch, next_state_batch
         )
         return critic_loss, actor_loss
