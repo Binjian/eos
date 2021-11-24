@@ -22,6 +22,12 @@ parser.add_argument(
     action="store_true",
 )
 parser.add_argument(
+    "-i",
+    "--infer",
+    help="No model update and training. Only Inference",
+    action="store_false",
+)
+parser.add_argument(
     "-p",
     "--path",
     type=str,
@@ -45,6 +51,7 @@ if pid == 0:  # copy process
             "python",
             "l045a_ddpg_epfree.py",
             "--resume",
+            args.infer,
             "--path",
             args.path,
             "--record_table",
@@ -55,6 +62,7 @@ if pid == 0:  # copy process
             "python",
             "python",
             "l045a_ddpg_epfree.py",
+            args.infer,
             "--path",
             args.path,
             "--record_table",
