@@ -8,7 +8,7 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG episode free without training Suite")
+parser = argparse.ArgumentParser("DDPG episode free shared without training Suite")
 parser.add_argument(
     "-r",
     "--resume",
@@ -22,6 +22,12 @@ parser.add_argument(
     action="store_true",
 )
 parser.add_argument(
+    "-i",
+    "--infer",
+    help="No model update and training. Only Inference",
+    action="store_false",
+)
+parser.add_argument(
     "-p",
     "--path",
     type=str,
@@ -31,7 +37,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_epfree_35kpmh-"
+    + "/../data/udp-pcap/l045a_epfree_ac_shared-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
@@ -40,25 +46,48 @@ pid = os.fork()
 if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
-        os.execlp(
-            "python",
-            "python",
-            "l045a_epfree_35kpmh.py",
-            "--resume",
-            "--path",
-            args.path,
-            "--record_table",
-        )  #  run Simulation
+        if not args.infer:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_epfree_ac_shared.py",
+                "--resume",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
+        else:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_epfree_ac_shared.py",
+                "--resume",
+                "--infer",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
 
     else:
-        os.execlp(
-            "python",
-            "python",
-            "l045a_epfree_35kpmh.py",
-            "--path",
-            args.path,
-            "--record_table",
-        )  #  run Simulation
+        if not args.infer:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_ddpg_epfree.py",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
+        else:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_ddpg_epfree.py",
+                "--infer",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],
