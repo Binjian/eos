@@ -46,27 +46,48 @@ pid = os.fork()
 if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
-        os.execlp(
-            "python",
-            "python",
-            "l045a_ddpg_epfree.py",
-            "--resume",
-            args.infer,
-            "--path",
-            args.path,
-            "--record_table",
-        )  #  run Simulation
+        if not args.infer:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_ddpg_epfree.py",
+                "--resume",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
+        else:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_ddpg_epfree.py",
+                "--resume",
+                "--infer",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
 
     else:
-        os.execlp(
-            "python",
-            "python",
-            "l045a_ddpg_epfree.py",
-            args.infer,
-            "--path",
-            args.path,
-            "--record_table",
-        )  #  run Simulation
+        if not args.infer:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_ddpg_epfree.py",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
+        else:
+            os.execlp(
+                "python",
+                "python",
+                "l045a_ddpg_epfree.py",
+                "--infer",
+                "--path",
+                args.path,
+                "--record_table",
+            )  #  run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],
