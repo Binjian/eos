@@ -56,6 +56,13 @@ parser.add_argument(
     help="resume the last training with restored model, checkpoint and pedal map",
     action="store_true",
 )
+
+parser.add_argument(
+    "-i",
+    "--infer",
+    help="No model update and training. Only Inference",
+    action="store_false",
+)
 parser.add_argument(
     "-t",
     "--record_table",
@@ -1071,7 +1078,13 @@ def main():
             actor_loss_seq = []
             for k in range(6):
                 # logger.info(f"BP{k} starts.", extra=dictLogger)
-                (critic_loss, actor_loss) = buffer.learn()
+                if not args.infer:
+                    (critic_loss, actor_loss) = buffer.learn()
+                    logd.info("Learning and updating")
+                else:
+                    (critic_loss, actor_loss) = buffer.nolearn()
+                    logd.info("No Learning, just calculating loss")
+
                 critic_loss_seq.append(critic_loss)
                 actor_loss_seq.append(actor_loss)
                 # logd.info(f"BP{k} done.", extra=dictLogger)
@@ -1079,26 +1092,28 @@ def main():
                     f"R{rnd_cnt}E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                     extra=dictLogger,
                 )
-                update_target(target_actor.variables, actor_model.variables, tau)
-                # logger.info(f"Updated target actor", extra=dictLogger)
-                update_target(target_critic.variables, critic_model.variables, tau)
-                # logger.info(f"Updated target critic.", extra=dictLogger)
 
-                # Checkpoint manager save model
-                ckpt_actor.step.assign_add(1)
-                ckpt_critic.step.assign_add(1)
-                if int(ckpt_actor.step) % 5 == 0:
-                    save_path_actor = manager_actor.save()
-                    logd.info(
-                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}",
-                        extra=dictLogger,
-                    )
-                if int(ckpt_critic.step) % 5 == 0:
-                    save_path_critic = manager_critic.save()
-                    logd.info(
-                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}",
-                        extra=dictLogger,
-                    )
+                if not args.infer:
+                    update_target(target_actor.variables, actor_model.variables, tau)
+                    # logger.info(f"Updated target actor", extra=dictLogger)
+                    update_target(target_critic.variables, critic_model.variables, tau)
+                    # logger.info(f"Updated target critic.", extra=dictLogger)
+
+                    # Checkpoint manager save model
+                    ckpt_actor.step.assign_add(1)
+                    ckpt_critic.step.assign_add(1)
+                    if int(ckpt_actor.step) % 5 == 0:
+                        save_path_actor = manager_actor.save()
+                        logd.info(
+                            f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}",
+                            extra=dictLogger,
+                        )
+                    if int(ckpt_critic.step) % 5 == 0:
+                        save_path_critic = manager_critic.save()
+                        logd.info(
+                            f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}",
+                            extra=dictLogger,
+                        )
 
             actor_loss_episode = np.array(actor_loss_seq).sum()
             critic_loss_episode = np.array(critic_loss_seq).sum()
@@ -1153,7 +1168,7 @@ def main():
         plt.close(fig)
 
         logd.info(
-            f"R{rnd_cnt}E{epi_cnt} Interlude Reward: {episode_reward}",
+            f"R{rnd_cnt}E{epi_cnt} Episode Reward: {episode_reward}",
             extra=dictLogger,
         )
 
