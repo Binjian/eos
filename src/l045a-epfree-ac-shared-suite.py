@@ -73,7 +73,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ddpg_epfree.py",
+                "l045a_epfree_ac_shared.py",
                 "--path",
                 args.path,
                 "--record_table",
@@ -82,7 +82,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ddpg_epfree.py",
+                "l045a_epfree_ac_shared.py",
                 "--infer",
                 "--path",
                 args.path,
