@@ -815,7 +815,7 @@ def main():
                 continue
 
         step_count = 0
-        tf.summary.trace_on(graph=True, profiler=True)
+        # tf.summary.trace_on(graph=True, profiler=True)
 
         episode_end = False
 
@@ -1160,9 +1160,9 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
             )
-            tf.summary.trace_export(
-                name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
-            )
+            # tf.summary.trace_export(
+            #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+            # )
 
         epi_cnt_local += 1
         plt.close(fig)
