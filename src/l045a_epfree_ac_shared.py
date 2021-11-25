@@ -600,7 +600,7 @@ def get_truck_status():
                     # final change to inform main thread
                     with hmi_lock:
                         round_done = False
-                        round_end = False
+                        round_end = True
                         program_exit = prog_exit
                         wait_for_reset = True
                         episode_done = False
@@ -1105,15 +1105,19 @@ def main():
                 wh0 = 0
                 # ** if episode is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart episode
-                with hmi_lock:
-                    if (not program_exit) and round_end:  # wait for UI
-                        wait_for_reset = True
-                    elif (not program_exit) and (not round_end):  # no wait
-                        wait_for_reset = False
-                    else:
-                        wait_for_reset = True
+                # with hmi_lock:
+                #     if (
+                #         not program_exit
+                #     ) and round_end:  # wait for UI, since round ended validly or invalidly
+                #         wait_for_reset = True
+                #     elif (not program_exit) and (
+                #         not round_end
+                #     ):  # no wait, round not ended
+                #         wait_for_reset = False
+                #     else:
+                #         wait_for_reset = True
 
-                    # episode_done = False  #  not necessary since the outer while loop will reset at episode start
+                # episode_done = False  #  not necessary since the outer while loop will reset at episode start
                 continue  # otherwise assuming the history is valid and back propagate
             # else:
 
@@ -1232,14 +1236,14 @@ def main():
         # ** After BP and logging is done, now main thread is ready for inference again
         # inform capture thread to restart episode
         # episode_done = False  #  not necessary since the out while loop will reset at episode start
-        with hmi_lock:
-            if (not program_exit) and round_end:
-                wait_for_reset = True
-            elif (not program_exit) and (not round_end):
-                wait_for_reset = False
-            else:
-                wait_for_reset = True
-            episode_done = False  # *** reset episode_done
+        # with hmi_lock:
+        #     if (not program_exit) and round_end:
+        #         wait_for_reset = True
+        #     elif (not program_exit) and (not round_end):
+        #         wait_for_reset = False
+        #     else:
+        #         wait_for_reset = True
+        #     episode_done = False  # *** reset episode_done
         # continue  # otherwise assuming the history is valid and back propagate
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
 
