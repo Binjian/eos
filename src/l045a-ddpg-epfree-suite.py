@@ -41,6 +41,7 @@ udpfileName = (
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
+
 portNum = 8002  # port number
 pid = os.fork()
 if pid == 0:  # copy process
@@ -55,7 +56,7 @@ if pid == 0:  # copy process
                 "--path",
                 args.path,
                 "--record_table",
-            )  #  run Simulation
+            )
         else:
             os.execlp(
                 "python",
@@ -66,8 +67,7 @@ if pid == 0:  # copy process
                 "--path",
                 args.path,
                 "--record_table",
-            )  #  run Simulation
-
+            )
     else:
         if not args.infer:
             os.execlp(
@@ -87,7 +87,7 @@ if pid == 0:  # copy process
                 "--path",
                 args.path,
                 "--record_table",
-            )  #  run Simulation
+            )  # run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],
