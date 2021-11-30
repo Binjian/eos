@@ -1055,16 +1055,16 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-                    logd.info(
-                        f"R{rnd_cnt}E{epi_cnt} done with record instant table: {step_count}",
-                        extra=dictLogger,
-                    )
+                        logd.info(
+                            f"R{rnd_cnt}E{epi_cnt} done with record instant table: {step_count}",
+                            extra=dictLogger,
+                        )
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
-                    logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Action Push table: {tableQueue.qsize()}",
+                    logd.info(
+                        f"R{rnd_cnt}E{epi_cnt}StartIndex{table_start} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
                     logc.info(
