@@ -40,6 +40,7 @@ from birdseye import eye
 from watchpoints import watch
 
 from collections import deque
+from pythonjsonlogger import jsonlogger
 
 # Logging Service Initialization
 import logging
@@ -90,6 +91,9 @@ logger.propagate = False
 formatter = logging.Formatter(
     "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
+json_file_formatter = jsonlogger.JsonFormatter(
+    "%(asctime)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+)
 if args.path is None:
     args.path = "."
 if args.resume:
@@ -111,7 +115,7 @@ logfilename = logfolder + (
 
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
+fh.setFormatter(json_file_formatter)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
