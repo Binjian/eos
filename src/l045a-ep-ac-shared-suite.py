@@ -8,7 +8,7 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG episode free shared without training Suite")
+parser = argparse.ArgumentParser("DDPG big episode shared model Suite")
 parser.add_argument(
     "-r",
     "--resume",
