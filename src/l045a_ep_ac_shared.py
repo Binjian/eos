@@ -34,13 +34,13 @@ as energy consumption
 # drl import
 import datetime
 import math
-
 # from birdseye import eye
 
 # from viztracer import VizTracer
 # from watchpoints import watch
 
 from collections import deque
+from pythonjsonlogger import jsonlogger
 
 # Logging Service Initialization
 import logging
@@ -89,7 +89,10 @@ mpl_logger.disabled = True
 logger = logging.getLogger("l045a")
 logger.propagate = False
 formatter = logging.Formatter(
-    "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+    "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+)
+json_file_formatter = jsonlogger.JsonFormatter(
+    "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
 )
 if args.path is None:
     args.path = "."
@@ -112,7 +115,7 @@ logfilename = logfolder + (
 
 fh = logging.FileHandler(logfilename)
 fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
+fh.setFormatter(json_file_formatter)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
@@ -751,7 +754,7 @@ def get_truck_status():
                         if round_end and round_done:
                             wait_for_reset = True  # wait until episode starts
                             episode_done = True
-                            episode_count += 1  # valid episode increments
+                            # episode_count += 1  # valid episode increments
                         elif round_end and not round_done:
                             wait_for_reset = True  # wait until episode starts
                             episode_done = False
@@ -1050,7 +1053,7 @@ def main():
                     if args.record_table:
                         curr_table_store_path = (
                             datafolder
-                            + "/tables/instant_table_ddpg-epfree"
+                            + "/tables/instant_table_ddpg-bigep"
                             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                             + str(rnd_cnt)
                             + "-"
@@ -1063,16 +1066,16 @@ def main():
                             pds_curr_table.to_csv(curr_table_store_path)
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
-                    logd.info(
-                        f"R{rnd_cnt}E{epi_cnt} done with record instant table: {step_count}",
-                        extra=dictLogger,
-                    )
+                        logd.info(
+                            f"R{rnd_cnt}E{epi_cnt} done with record instant table: {step_count}",
+                            extra=dictLogger,
+                        )
 
                     vcu_act_list = vcu_calib_table1.reshape(-1).tolist()
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
-                    logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Action Push table: {tableQueue.qsize()}",
+                    logd.info(
+                        f"R{rnd_cnt}E{epi_cnt}StartIndex{table_start} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
                     logc.info(
@@ -1116,7 +1119,7 @@ def main():
                 with hmi_lock:
                     if (not program_exit) and round_end:  # wait for UI
                         wait_for_reset = True
-                    elif (not program_exit) and (not round_end):  # no wait
+                    elif (not program_exit) and (not round_end):  # no wait; necessary for big epi?
                         wait_for_reset = False
                     else:
                         wait_for_reset = True
@@ -1243,7 +1246,7 @@ def main():
         with hmi_lock:
             if (not program_exit) and round_end:
                 wait_for_reset = True
-            elif (not program_exit) and (not round_end):
+            elif (not program_exit) and (not round_end):  # necessary for big round?
                 wait_for_reset = False
             else:
                 wait_for_reset = True

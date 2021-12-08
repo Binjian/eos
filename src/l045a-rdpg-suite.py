@@ -8,7 +8,7 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG big episode shared model Suite")
+parser = argparse.ArgumentParser("RDPG big episode shared model Suite")
 parser.add_argument(
     "-r",
     "--resume",
@@ -37,7 +37,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_ep_ac_shared-"
+    + "/../data/udp-pcap/l045a_rdpg-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
@@ -50,7 +50,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ep_ac_shared.py",
+                "l045a_rdpg.py",
                 "--resume",
                 "--path",
                 args.path,
@@ -60,7 +60,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ep_ac_shared.py",
+                "l045a_rdpg.py",
                 "--resume",
                 "--infer",
                 "--path",
@@ -73,7 +73,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ep_ac_shared.py",
+                "l045a_rdpg.py",
                 "--path",
                 args.path,
                 "--record_table",
@@ -82,7 +82,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ep_ac_shared.py",
+                "l045a_rdpg.py",
                 "--infer",
                 "--path",
                 args.path,

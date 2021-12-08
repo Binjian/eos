@@ -13,9 +13,9 @@ import argparse
 """
 ## Introduction
 
-This script shows an implementation of DDPG method on l045a truck real environment.
+This script shows an implementation of RDPG method on l045a truck real environment.
 
-### Deep Deterministic Policy Gradient (DDPG) 
+### Deep Deterministic Policy Gradient (RDPG) 
 
 ### Gym-Carla env 
 
@@ -24,7 +24,7 @@ as energy consumption
 
 ### References
 
-- [DDPG ](https://keras.io/examples/rl/ddpg_pendulum/)
+- [RDPG ](https://keras.io/examples/rl/rdpg_pendulum/)
 
 """
 """
@@ -34,10 +34,10 @@ as energy consumption
 # drl import
 import datetime
 import math
-from birdseye import eye
+# from birdseye import eye
 
 # from viztracer import VizTracer
-from watchpoints import watch
+# from watchpoints import watch
 
 from collections import deque
 from pythonjsonlogger import jsonlogger
@@ -50,7 +50,7 @@ import inspect
 
 # resumption settings
 parser = argparse.ArgumentParser(
-    "use ddpg episodefree mode with tensorflow backend for VEOS with coastdown activated and expected velocity in 3 seconds"
+    "use rdpg episodefree mode with tensorflow backend for VEOS with coastdown activated and expected velocity in 3 seconds"
 )
 parser.add_argument(
     "-r",
@@ -89,10 +89,10 @@ mpl_logger.disabled = True
 logger = logging.getLogger("l045a")
 logger.propagate = False
 formatter = logging.Formatter(
-    "%(asctime)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+    "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
 )
 json_file_formatter = jsonlogger.JsonFormatter(
-    "%(asctime)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+    "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
 )
 if args.path is None:
     args.path = "."
@@ -108,7 +108,7 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_ddpg-episodefree-"
+    "/l045a_rdpg-"
     + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     + ".log"
 )
@@ -119,6 +119,7 @@ fh.setFormatter(json_file_formatter)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
+#  Cutelog socket
 sh = SocketHandler("127.0.0.1", 19996)
 sh.setFormatter(formatter)
 
@@ -196,7 +197,7 @@ from comm.vcu_calib_generator import (
 
 # from communication import carla_ros
 
-from agent.ddpg import (
+from agent.rdpg import (
     get_actor,
     get_critic,
     policy,
@@ -222,7 +223,7 @@ hmi_lock = Lock()
 # TODO add visualization and logging
 # Create folder for ckpts loggings.
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-train_log_dir = datafolder + "/tf_logs/ddpg/gradient_tape/" + current_time + "/train"
+train_log_dir = datafolder + "/tf_logs/rdpg/gradient_tape/" + current_time + "/train"
 train_summary_writer = tf.summary.create_file_writer(train_log_dir)
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -399,17 +400,17 @@ buffer = Buffer(
 
 # add checkpoints manager
 if args.resume:
-    checkpoint_actor_dir = datafolder + "/tf_ckpts-aa/l045a_ddpg_actor"
-    checkpoint_critic_dir = datafolder + "/tf_ckpts-aa/l045a_ddpg_critic"
+    checkpoint_actor_dir = datafolder + "/tf_ckpts-aa/l045a_rdpg_actor"
+    checkpoint_critic_dir = datafolder + "/tf_ckpts-aa/l045a_rdpg_critic"
 else:
     checkpoint_actor_dir = (
         datafolder
-        + "/tf_ckpts-aa/l045a_ddpg_actor"
+        + "/tf_ckpts-aa/l045a_rdpg_actor"
         + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
     checkpoint_critic_dir = (
         datafolder
-        + "/tf_ckpts-aa/l045a_ddpg_critic"
+        + "/tf_ckpts-aa/l045a_rdpg_critic"
         + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     )
 try:
@@ -514,7 +515,7 @@ def get_truck_status():
     th_exit = False
     last_moment = time.time()
     logc.info(f"Initialization Done!", extra=dictLogger)
-    qobject_size = 0
+    # qobject_size = 0
     prog_exit = False
 
     vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
@@ -639,49 +640,49 @@ def get_truck_status():
                         vel_hist_dQ.append(velocity)
                         vel_cycle_dQ.append(velocity)
 
-                        # if a long history is available
-                        if len(vel_hist_dQ) == vel_hist_dQ.maxlen:
-                            vel_aver = sum(vel_hist_dQ) / vel_hist_dQ.maxlen
-                            if (
-                                vel_aver < 1.0  # km/h
-                            ):  # average velocity within 1s smaller than 1km/h
-                                get_truck_status.episode_start = False
-                                qobject_size = 0
-                                logc.warning(
-                                    "Vehicle halts. Invalid Interlude!!!",
-                                    extra=dictLogger,
-                                )
-
-                                # clear queue and list
-                                # motionpowerQueue.queue.clear()
-                                # logc.info(
-                                #     f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                                #     extra=dictLogger,
-                                # )
-                                while not motionpowerQueue.empty():
-                                    motionpowerQueue.get()
-                                get_truck_status.motionpower_states = (
-                                    []
-                                )  # list needs to be cleared!
-
-                                # logc.info(
-                                #     f"Interlude motionpowerQueue gets cleared!",
-                                #     extra=dictLogger,
-                                # )
-                                # logc.info(
-                                #     "%s",
-                                #     "Wait for main thread to update Interlude states!!!",
-                                #     extra=dictLogger,
-                                # )
-                                with hmi_lock:  # set invalid_end episode
-                                    wait_for_reset = True  # wait until episode starts
-                                    episode_done = False
-                                    # episode_count += 1  # invalid episode increments
-
-                                continue  # finish loop, restart episode
+                        #  # if a long history is available
+                        # if len(vel_hist_dQ) == vel_hist_dQ.maxlen:
+                        #     vel_aver = sum(vel_hist_dQ) / vel_hist_dQ.maxlen
+                        #     if (
+                        #         vel_aver < 1.0  # km/h
+                        #     ):  # average velocity within 1s smaller than 1km/h
+                        #         get_truck_status.episode_start = False
+                        #         qobject_size = 0
+                        #         logc.warning(
+                        #             "Vehicle halts. Invalid Interlude!!!",
+                        #             extra=dictLogger,
+                        #         )
+                        #
+                        #         # clear queue and list
+                        #         # motionpowerQueue.queue.clear()
+                        #         # logc.info(
+                        #         #     f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                        #         #     extra=dictLogger,
+                        #         # )
+                        #         while not motionpowerQueue.empty():
+                        #             motionpowerQueue.get()
+                        #         get_truck_status.motionpower_states = (
+                        #             []
+                        #         )  # list needs to be cleared!
+                        #
+                        #         # logc.info(
+                        #         #     f"Interlude motionpowerQueue gets cleared!",
+                        #         #     extra=dictLogger,
+                        #         # )
+                        #         # logc.info(
+                        #         #     "%s",
+                        #         #     "Wait for main thread to update Interlude states!!!",
+                        #         #     extra=dictLogger,
+                        #         # )
+                        #         with hmi_lock:  # set invalid_end episode
+                        #             wait_for_reset = True  # wait until episode starts
+                        #             episode_done = False
+                        #             # episode_count += 1  # invalid episode increments
+                        #
+                        #         continue  # finish loop, restart episode
                         if len(get_truck_status.motionpower_states) >= sequence_len:
                             if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
-                                logc.warning(  # the recent 1s average velocity
+                                logc.warning(  # the recent 1.5s average velocity
                                     f"cycle deque is inconsistent!",
                                     extra=dictLogger,
                                 )
@@ -722,46 +723,53 @@ def get_truck_status():
                             #     "Motion Power States put in Queue!!!",
                             #     extra=dictLogger,
                             # )
-                            qobject_size += 1
-                            if qobject_size >= get_truck_status.qobject_len:
-                                get_truck_status.episode_start = False
-                                qobject_size = 0
-
-                                with hmi_lock:  # set valid_end episode
-                                    wait_for_reset = True  # wait until episode starts
-                                    episode_done = True
-                                    episode_count += 1  # valid episode increments
-                                logd.info(
-                                    "%s",
-                                    "Valid Interlude ends!!!",
-                                    extra=dictLogger,
-                                )
-                                logd.info(
-                                    "%s",
-                                    "Wait for BP to end and updating Interlude states!!!",
-                                    extra=dictLogger,
-                                )
+                            # qobject_size += 1
+                            # if qobject_size >= get_truck_status.qobject_len:
+                            #     # get_truck_status.episode_start = False
+                            #     qobject_size = 0
+                            #
+                            #     with hmi_lock:  # set valid_end episode
+                            #         wait_for_reset = True  # wait until episode starts
+                            #         episode_done = True
+                            #         episode_count += 1  # valid episode increments
+                            #     logd.info(
+                            #         "%s",
+                            #         "Valid Interlude ends!!!",
+                            #         extra=dictLogger,
+                            #     )
+                            #     logd.info(
+                            #         "%s",
+                            #         "Wait for BP to end and updating Interlude states!!!",
+                            #         extra=dictLogger,
+                            #     )
                             # clearing the list
                             get_truck_status.motionpower_states = []
-                    else:  # ** update episode state from main thread for restart capturing
-                        with hmi_lock:
-                            get_truck_status.episode_start = not wait_for_reset
-                            # episode_done = False # BUG move to ***
-                        continue
+                    # else:  # ** update episode state from main thread for restart capturing
+                    #     with hmi_lock:
+                    #         get_truck_status.episode_start = not wait_for_reset
+                    #         # episode_done = False # BUG move to ***
+                    #     continue
                 else:  # if round logic stops episode except for exit
+                    with hmi_lock:  # set valid_end episode
+                        program_exit = prog_exit
+                        if round_end and round_done:
+                            wait_for_reset = True  # wait until episode starts
+                            episode_done = True
+                            # episode_count += 1  # valid episode increments
+                        elif round_end and not round_done:
+                            wait_for_reset = True  # wait until episode starts
+                            episode_done = False
+                            # episode_count += 1  # valid episode increments
+                        else:  # round exit
+                            wait_for_reset = True  # wait until episode starts
+                            episode_done = False
+
                     get_truck_status.episode_start = False
                     # logger.info(
                     #     "%s",
                     #     "Wait for updating Episode states!!!",
                     #     extra=dictLogger,
                     # )
-                    qobject_size = 0
-                    with hmi_lock:
-                        episode_done = False
-                        wait_for_reset = True
-                        program_exit = prog_exit
-                        episode_count = 0
-                        #  TODO clear queue and list
             else:
                 logc.critical("udp sending unknown signal (neither status nor data)!")
                 break
@@ -1046,7 +1054,7 @@ def main():
                     if args.record_table:
                         curr_table_store_path = (
                             datafolder
-                            + "/tables/instant_table_ddpg-epfree"
+                            + "/tables/instant_table_rdpg-"
                             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                             + str(rnd_cnt)
                             + "-"
@@ -1109,19 +1117,15 @@ def main():
                 wh0 = 0
                 # ** if episode is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart episode
-                # with hmi_lock:
-                #     if (
-                #         not program_exit
-                #     ) and round_end:  # wait for UI, since round ended validly or invalidly
-                #         wait_for_reset = True
-                #     elif (not program_exit) and (
-                #         not round_end
-                #     ):  # no wait, round not ended
-                #         wait_for_reset = False
-                #     else:
-                #         wait_for_reset = True
+                with hmi_lock:
+                    if (not program_exit) and round_end:  # wait for UI
+                        wait_for_reset = True
+                    elif (not program_exit) and (not round_end):  # no wait; necessary for big epi?
+                        wait_for_reset = False
+                    else:
+                        wait_for_reset = True
 
-                # episode_done = False  #  not necessary since the outer while loop will reset at episode start
+                    # episode_done = False  #  not necessary since the outer while loop will reset at episode start
                 continue  # otherwise assuming the history is valid and back propagate
             # else:
 
@@ -1240,14 +1244,14 @@ def main():
         # ** After BP and logging is done, now main thread is ready for inference again
         # inform capture thread to restart episode
         # episode_done = False  #  not necessary since the out while loop will reset at episode start
-        # with hmi_lock:
-        #     if (not program_exit) and round_end:
-        #         wait_for_reset = True
-        #     elif (not program_exit) and (not round_end):
-        #         wait_for_reset = False
-        #     else:
-        #         wait_for_reset = True
-        #     episode_done = False  # *** reset episode_done
+        with hmi_lock:
+            if (not program_exit) and round_end:
+                wait_for_reset = True
+            elif (not program_exit) and (not round_end):  # necessary for big round?
+                wait_for_reset = False
+            else:
+                wait_for_reset = True
+            episode_done = False  # *** reset episode_done
         # continue  # otherwise assuming the history is valid and back propagate
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
 
@@ -1261,7 +1265,7 @@ def main():
 
     last_table_store_path = (
         datafolder  #  there's no slash in the end of the string
-        + "/last_table_ddpg-"
+        + "/last_table_rdpg-"
         + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         + ".csv"
     )
