@@ -12,7 +12,6 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-
 # file name
 if args.path:    
     # logfile = logfolder + logfilename
