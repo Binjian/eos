@@ -108,7 +108,7 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_ddpg-episodefree-"
+    "/l045a_ep_ac_shared-"
     + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
     + ".log"
 )
