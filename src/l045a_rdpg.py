@@ -560,7 +560,7 @@ def get_truck_status():
                     value == "end_valid"
                 ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
-                    get_truck_status.motionpower_states = []
+                    get_truck_status.motpow_t = []
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
                     logc.info("%s", "Episode ends!!!", extra=dictLogger)
@@ -574,7 +574,7 @@ def get_truck_status():
                 elif value == "end_invalid":
                     get_truck_status.start = False
                     logc.info(f"Episode is interrupted!!!", extra=dictLogger)
-                    get_truck_status.motionpower_states = []
+                    get_truck_status.motpow_t = []
                     vel_hist_dQ.clear()
                     # motionpowerQueue.queue.clear()
                     # logc.info(
@@ -594,7 +594,7 @@ def get_truck_status():
                         round_count += 1  # invalid round increments
                 elif value == "exit":
                     get_truck_status.start = False
-                    get_truck_status.motionpower_states = []
+                    get_truck_status.motpow_t = []
                     vel_hist_dQ.clear()
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
@@ -634,7 +634,7 @@ def get_truck_status():
                             voltage,
                         ]  # 3 +2 : im 5
 
-                        get_truck_status.motionpower_states.append(
+                        get_truck_status.motpow_t.append(
                             motion_power
                         )  # obs_reward [speed, pedal, brake, current, voltage]
                         vel_hist_dQ.append(velocity)
@@ -661,7 +661,7 @@ def get_truck_status():
                         #         # )
                         #         while not motionpowerQueue.empty():
                         #             motionpowerQueue.get()
-                        #         get_truck_status.motionpower_states = (
+                        #         get_truck_status.motpow_t = (
                         #             []
                         #         )  # list needs to be cleared!
                         #
@@ -680,7 +680,7 @@ def get_truck_status():
                         #             # episode_count += 1  # invalid episode increments
                         #
                         #         continue  # finish loop, restart episode
-                        if len(get_truck_status.motionpower_states) >= sequence_len:
+                        if len(get_truck_status.motpow_t) >= sequence_len:
                             if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                 logc.warning(  # the recent 1.5s average velocity
                                     f"cycle deque is inconsistent!",
@@ -718,7 +718,7 @@ def get_truck_status():
                             #     extra=dictLogger,
                             # )
 
-                            motionpowerQueue.put(get_truck_status.motionpower_states)
+                            motionpowerQueue.put(get_truck_status.motpow_t)
                             # logd.info(
                             #     "Motion Power States put in Queue!!!",
                             #     extra=dictLogger,
@@ -743,7 +743,7 @@ def get_truck_status():
                             #         extra=dictLogger,
                             #     )
                             # clearing the list
-                            get_truck_status.motionpower_states = []
+                            get_truck_status.motpow_t = []
                     # else:  # ** update episode state from main thread for restart capturing
                     #     with hmi_lock:
                     #         get_truck_status.episode_start = not wait_for_reset
@@ -779,7 +779,7 @@ def get_truck_status():
     s.close()
 
 
-get_truck_status.motionpower_states = []
+get_truck_status.motpow_t = []
 get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
@@ -853,6 +853,7 @@ def main():
     epi_cnt_local = 0
 
     logger.info(f"main Initialization done!", extra=dictLogger)
+    R = []
     while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
             th_exit = program_exit  # if program_exit is False, reset to wait_for_reset
@@ -900,7 +901,7 @@ def main():
 
                     # # add punishment to episode_reward
                     # episode_reward = -36.0
-                    # cycle_reward = 0
+                    # r_t = 0
                     # wh0 = 0
 
                 try:
@@ -921,29 +922,29 @@ def main():
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
-                motionpower_states = tf.convert_to_tensor(
+                motpow_t = tf.convert_to_tensor(
                     motionpower
                 )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
+                o_t, pow_t = tf.split(motpow_t, [3, 2], 1)
 
                 logd.info(
                     f"R{rnd_cnt}E{epi_cnt} tensor convert and split!",
                     extra=dictLogger,
                 )
-                # motion_states_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in motion_states]
+                # o_t_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in o_t]
                 # logger.info(
-                #     f"Motion States: {motion_states_s}",
+                #     f"Motion States: {o_t_s}",
                 #     extra=dictLogger,
                 # )
-                # power_states_s = [f"{c:.3f},{v:.3f}" for (c, v) in power_states]
+                # pow_t_s = [f"{c:.3f},{v:.3f}" for (c, v) in pow_t]
                 # logger.info(
-                #     f"Power States: {power_states_s}",
+                #     f"Power States: {pow_t_s}",
                 #     extra=dictLogger,
                 # )
                 # rewards should be a 20x2 matrix after split
                 # reward is sum of power (U*I)
                 ui_sum = tf.reduce_sum(
-                    tf.reduce_prod(power_states, 1)
+                    tf.reduce_prod(pow_t, 1)
                 )  # vcu reward is a scalar
                 wh = ui_sum / 3600.0 * 0.05  # negative wh
                 # logger.info(
@@ -959,24 +960,28 @@ def main():
                     step_count % 2
                 ) == 0:  # only for even observation/reward take an action
                     # k_cycle = 1000  # TODO determine the ratio
-                    # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
+                    # r_t += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
                     wh0 = wh  # add velocitoy sum as reward
                     # TODO add speed sum as positive reward
 
                     if step_count != 0:
+                        if step_count == 2:
+                            h_t = np.hstack([prev_o_t, a_t_1, r_t])
+                        else:
+                            h_t = np.append(h_t, np.hstack([prev_o_t, a_t_1, r_t]), axis=0)
                         buffer.record(
                             (
-                                prev_motion_states,
-                                prev_action,
-                                cycle_reward,
-                                motion_states,
+                                prev_o_t,
+                                a_t_1,
+                                r_t,
+                                o_t,
                             )
                         )
-                    # motion_states_history.append(motion_states)
-                    motion_states0 = motion_states
+                    # o_t_history.append(o_t)
+                    o_t0 = o_t
 
-                    motion_states1 = tf.expand_dims(
-                        motion_states0, 0
+                    o_t1 = tf.expand_dims(
+                        o_t0, 0
                     )  # motion states is 30*3 matrix
 
                     # predict action probabilities and estimated future rewards
@@ -987,9 +992,9 @@ def main():
                         f"R{rnd_cnt}E{epi_cnt} before inference!",
                         extra=dictLogger,
                     )
-                    vcu_action_reduced = policy(actor_model, motion_states1, ou_noise)
-                    prev_motion_states = motion_states0
-                    prev_action = vcu_action_reduced
+                    a_t = policy(actor_model, o_t1, ou_noise)
+                    prev_o_t = o_t0
+                    a_t_1 = a_t
 
                     logd.info(
                         f"R{rnd_cnt}E{epi_cnt} inference done with reduced action space!",
@@ -997,7 +1002,7 @@ def main():
                     )
 
                     vcu_calib_table_reduced = tf.reshape(
-                        vcu_action_reduced,
+                        a_t,
                         [vcu_calib_table_row_reduced, vcu_calib_table_col],
                     )
                     # logger.info(
@@ -1088,18 +1093,18 @@ def main():
                 # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
                 else:
-                    cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    r_t = (wh0 + wh) * (-1.0)  # odd + even indexed reward
                     # TODO add speed sum as positive reward
-                    episode_reward += cycle_reward
+                    episode_reward += r_t
                     logc.info(
                         f"R{rnd_cnt}E{epi_cnt} Step done: {step_count}",
                         extra=dictLogger,
                     )
 
-                    # motion_states = tf.stack([motion_states0, motion_states])
-                    # motion_states_history was not used for back propagation
+                    # o_t = tf.stack([o_t0, o_t])
+                    # o_t_history was not used for back propagation
                     # 60 frames, but never used again
-                    # motion_states_history.append(motion_states)
+                    # o_t_history.append(o_t)
 
                 # step level
                 step_count += 1
@@ -1113,7 +1118,7 @@ def main():
                 )
                 # add punishment to episode_reward
                 episode_reward = 0.0
-                cycle_reward = 0
+                r_t = 0
                 wh0 = 0
                 # ** if episode is interrupted, main thread is at once ready for inference again
                 # inform capture thread to restart episode
