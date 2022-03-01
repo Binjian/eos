@@ -34,6 +34,7 @@ as energy consumption
 # drl import
 import datetime
 import math
+
 # from birdseye import eye
 
 # from viztracer import VizTracer
@@ -1119,7 +1120,9 @@ def main():
                 with hmi_lock:
                     if (not program_exit) and round_end:  # wait for UI
                         wait_for_reset = True
-                    elif (not program_exit) and (not round_end):  # no wait; necessary for big epi?
+                    elif (not program_exit) and (
+                        not round_end
+                    ):  # no wait; necessary for big epi?
                         wait_for_reset = False
                     else:
                         wait_for_reset = True
@@ -1214,9 +1217,9 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
             )
-            tf.summary.trace_export(
-                name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
-            )
+            # tf.summary.trace_export(
+            #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+            # )
 
         epi_cnt_local += 1
         plt.close(fig)
@@ -1253,7 +1256,10 @@ def main():
             episode_done = False  # *** reset episode_done
         # continue  # otherwise assuming the history is valid and back propagate
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
-
+    with train_summary_writer.as_default():
+        tf.summary.trace_export(
+            name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+        )
     thr_observe.join()
     thr_flash.join()
 

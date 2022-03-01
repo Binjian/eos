@@ -445,8 +445,9 @@ def get_actor(
     # # apply lower and upper bound to the outputs,
     # # typical value is [0.8, 1.0]
     # outputs = tf.clip_by_value(outputs, action_lower, action_upper)
-    model = tf.keras.Model(inputs, out)
-    return model
+    eager_model = tf.keras.Model(inputs, out)
+    graph_model = tf.function(eager_model)
+    return graph_model
 
 
 def get_critic(
@@ -475,9 +476,10 @@ def get_critic(
     outputs = layers.Dense(1)(out)
 
     # Outputs single value for give state-action
-    model = tf.keras.Model([state_input, action_input], outputs)
+    eager_model = tf.keras.Model([state_input, action_input], outputs)
+    graph_model = tf.function(eager_model)
 
-    return model
+    return graph_model
 
 
 """
