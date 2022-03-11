@@ -712,6 +712,7 @@ def main():
                 continue
 
         step_count = 0
+        wh1 = 0  # initialize odd step wh
         tf.summary.trace_on(graph=True, profiler=True)
         episode_end = False
         with tf.GradientTape() as tape:
@@ -795,7 +796,10 @@ def main():
                 ) == 0:  # only for even observation/reward take an action
                     # k_cycle = 1000  # TODO determine the ratio
                     # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                    wh0 = wh  # add velocitoy sum as reward
+                    # wh0 = wh  # add velocitoy sum as reward
+                    cycle_reward = (wh1 + wh) * (
+                        -1.0
+                    )  # most recent odd and even indexed reward
                     # TODO add speed sum as positive reward
 
                     if step_count != 0:
@@ -914,7 +918,12 @@ def main():
                 # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
                 else:
-                    cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    # Bugfix: the reward recorded in the first even step is not causal
+                    # cycle_reward should include the most recent even wh in the even step
+                    # record the odd step wh
+                    wh1 = wh
+
                     # TODO add speed sum as positive reward
                     episode_reward += cycle_reward
                     logger.info(
