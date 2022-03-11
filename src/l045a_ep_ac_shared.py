@@ -965,6 +965,7 @@ def main():
                     cycle_reward = (wh1 + wh) * (
                         -1.0
                     )  # most recent odd and even indexed reward
+                    episode_reward += cycle_reward
                     # TODO add speed sum as positive reward
 
                     if step_count != 0:
@@ -1099,7 +1100,6 @@ def main():
                     wh1 = wh
 
                     # TODO add speed sum as positive reward
-                    episode_reward += cycle_reward
                     logc.info(
                         f"R{rnd_cnt}E{epi_cnt} Step done: {step_count}",
                         extra=dictLogger,
