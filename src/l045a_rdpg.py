@@ -34,6 +34,7 @@ as energy consumption
 # drl import
 import datetime
 import math
+
 # from birdseye import eye
 
 # from viztracer import VizTracer
@@ -108,9 +109,7 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-    "/l045a_rdpg-"
-    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-    + ".log"
+    "/l045a_rdpg-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -197,14 +196,14 @@ from comm.vcu_calib_generator import (
 
 # from communication import carla_ros
 
-from agent.rdpg import (
+from agent.rdpg.agent import (
     get_actor,
     get_critic,
     policy,
-    Buffer,
+    agent,
     update_target,
-    OUActionNoise,
 )
+from agent.utils.ou_noise import OUActionNoise
 from comm.tbox.scripts.tbox_sim import *
 
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
@@ -381,7 +380,7 @@ gamma = 0.99
 # Used to update target networks
 tau = 0.005
 
-buffer = Buffer(
+rdpg = agent(
     actor_model,
     critic_model,
     target_actor,
@@ -489,20 +488,16 @@ motionpowerQueue = queue.Queue()
 
 
 # initial status of the switches
-wait_for_reset = True
 program_exit = False
 episode_done = False
-round_done = False
-round_end = False
-round_count = 0
+episode_end = False
 episode_count = 0
 
 
 def get_truck_status():
-    global episode_done, wait_for_reset, program_exit
+    global program_exit
     global motionpowerQueue, sequence_len
-    global round_count, episode_count
-    global round_done, round_end
+    global episode_count, episode_done, episode_end
     global vcu_calib_table_row_start
 
     # logger.info(f'Start Initialization!', extra=dictLogger)
@@ -519,7 +514,10 @@ def get_truck_status():
     prog_exit = False
 
     vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
-    vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
+    # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
+    vel_cycle_dQ = deque(
+        maxlen=sequence_len
+    )  # accumulate 1.5s (one cycle) of velocity values
 
     while not th_exit:  # th_exit is local; program_exit is global
         with hmi_lock:  # wait for tester to kick off or to exit
@@ -547,14 +545,10 @@ def get_truck_status():
                     th_exit = False
                     # ts_epi_start = time.time()
 
-                    # for the first episode in an round
                     vel_hist_dQ.clear()
-                    get_truck_status.episode_start = True
                     with hmi_lock:
-                        wait_for_reset = False  # wait_for reset means episode ends
                         episode_done = False
-                        round_done = False
-                        round_end = False
+                        episode_end = False
 
                 elif (
                     value == "end_valid"
@@ -563,14 +557,14 @@ def get_truck_status():
                     get_truck_status.motpow_t = []
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
-                    logc.info("%s", "Episode ends!!!", extra=dictLogger)
+                    logc.info("%s", "Episode done!!!", extra=dictLogger)
                     prog_exit = False
                     th_exit = False
                     vel_hist_dQ.clear()
                     with hmi_lock:
-                        round_count += 1  # valid round increments
-                        round_done = True
-                        round_end = True
+                        episode_count += 1  # valid round increments
+                        episode_done = True
+                        episode_end = True
                 elif value == "end_invalid":
                     get_truck_status.start = False
                     logc.info(f"Episode is interrupted!!!", extra=dictLogger)
@@ -589,9 +583,9 @@ def get_truck_status():
                     prog_exit = False
                     th_exit = False
                     with hmi_lock:
-                        round_done = False
-                        round_end = True
-                        round_count += 1  # invalid round increments
+                        episode_done = False
+                        episode_end = True
+                        episode_count += 1  # invalid round increments
                 elif value == "exit":
                     get_truck_status.start = False
                     get_truck_status.motpow_t = []
@@ -604,12 +598,10 @@ def get_truck_status():
                     # for program exit, need to set episode states
                     # final change to inform main thread
                     with hmi_lock:
-                        round_done = False
-                        round_end = True
-                        program_exit = prog_exit
-                        wait_for_reset = True
                         episode_done = False
-                        # round_count += 1  # invalid round increments
+                        episode_end = True
+                        program_exit = prog_exit
+                        episode_count += 1
                     break
                     # time.sleep(0.1)
             elif key == "data":
@@ -617,159 +609,67 @@ def get_truck_status():
                 # logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=dictLogger)
                 # TODO add logic for episode start and stop
                 # TODO add logic for episode valid and invalid
-                if get_truck_status.start:  # round logic starts episode
-                    if get_truck_status.episode_start:
+                if get_truck_status.start:  # starts episode
 
-                        velocity = float(value["velocity"])
-                        pedal = float(value["pedal"])
-                        brake = float(value["brake_pressure"])
-                        current = float(value["A"])
-                        voltage = float(value["V"])
+                    velocity = float(value["velocity"])
+                    pedal = float(value["pedal"])
+                    brake = float(value["brake_pressure"])
+                    current = float(value["A"])
+                    voltage = float(value["V"])
 
-                        motion_power = [
-                            velocity,
-                            pedal,
-                            brake,
-                            current,
-                            voltage,
-                        ]  # 3 +2 : im 5
+                    motion_power = [
+                        velocity,
+                        pedal,
+                        brake,
+                        current,
+                        voltage,
+                    ]  # 3 +2 : im 5
 
-                        get_truck_status.motpow_t.append(
-                            motion_power
-                        )  # obs_reward [speed, pedal, brake, current, voltage]
-                        vel_hist_dQ.append(velocity)
-                        vel_cycle_dQ.append(velocity)
+                    get_truck_status.motpow_t.append(
+                        motion_power
+                    )  # obs_reward [speed, pedal, brake, current, voltage]
+                    vel_hist_dQ.append(velocity)
+                    vel_cycle_dQ.append(velocity)
 
-                        #  # if a long history is available
-                        # if len(vel_hist_dQ) == vel_hist_dQ.maxlen:
-                        #     vel_aver = sum(vel_hist_dQ) / vel_hist_dQ.maxlen
-                        #     if (
-                        #         vel_aver < 1.0  # km/h
-                        #     ):  # average velocity within 1s smaller than 1km/h
-                        #         get_truck_status.episode_start = False
-                        #         qobject_size = 0
-                        #         logc.warning(
-                        #             "Vehicle halts. Invalid Interlude!!!",
-                        #             extra=dictLogger,
-                        #         )
-                        #
-                        #         # clear queue and list
-                        #         # motionpowerQueue.queue.clear()
-                        #         # logc.info(
-                        #         #     f"Interlude motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                        #         #     extra=dictLogger,
-                        #         # )
-                        #         while not motionpowerQueue.empty():
-                        #             motionpowerQueue.get()
-                        #         get_truck_status.motpow_t = (
-                        #             []
-                        #         )  # list needs to be cleared!
-                        #
-                        #         # logc.info(
-                        #         #     f"Interlude motionpowerQueue gets cleared!",
-                        #         #     extra=dictLogger,
-                        #         # )
-                        #         # logc.info(
-                        #         #     "%s",
-                        #         #     "Wait for main thread to update Interlude states!!!",
-                        #         #     extra=dictLogger,
-                        #         # )
-                        #         with hmi_lock:  # set invalid_end episode
-                        #             wait_for_reset = True  # wait until episode starts
-                        #             episode_done = False
-                        #             # episode_count += 1  # invalid episode increments
-                        #
-                        #         continue  # finish loop, restart episode
-                        if len(get_truck_status.motpow_t) >= sequence_len:
-                            if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
-                                logc.warning(  # the recent 1.5s average velocity
-                                    f"cycle deque is inconsistent!",
-                                    extra=dictLogger,
-                                )
-
-                            vel_aver = sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
-                            vel_min = min(vel_cycle_dQ)
-                            vel_max = max(vel_cycle_dQ)
-
-                            # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
-                            # average concept
-                            # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
-                            #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                            # here upper bound rule adopted
-                            if vel_max < 20:
-                                vcu_calib_table_row_start = 0
-                            elif vel_max < 100:
-                                vcu_calib_table_row_start = (
-                                    math.floor((vel_max - 20) / 5) + 1
-                                )
-                            else:
-                                logc.warning(
-                                    f"cycle higher than 100km/h!",
-                                    extra=dictLogger,
-                                )
-                                vcu_calib_table_row_start = 16
-
-                            logd.info(
-                                f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{vcu_calib_table_row_start}!",
+                    if len(get_truck_status.motpow_t) >= sequence_len:
+                        if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
+                            logc.warning(  # the recent 1.5s average velocity
+                                f"cycle deque is inconsistent!",
                                 extra=dictLogger,
                             )
-                            # logd.info(
-                            #     f"Producer Queue has {motionpowerQueue.qsize()}!",
-                            #     extra=dictLogger,
-                            # )
 
-                            motionpowerQueue.put(get_truck_status.motpow_t)
-                            # logd.info(
-                            #     "Motion Power States put in Queue!!!",
-                            #     extra=dictLogger,
-                            # )
-                            # qobject_size += 1
-                            # if qobject_size >= get_truck_status.qobject_len:
-                            #     # get_truck_status.episode_start = False
-                            #     qobject_size = 0
-                            #
-                            #     with hmi_lock:  # set valid_end episode
-                            #         wait_for_reset = True  # wait until episode starts
-                            #         episode_done = True
-                            #         episode_count += 1  # valid episode increments
-                            #     logd.info(
-                            #         "%s",
-                            #         "Valid Interlude ends!!!",
-                            #         extra=dictLogger,
-                            #     )
-                            #     logd.info(
-                            #         "%s",
-                            #         "Wait for BP to end and updating Interlude states!!!",
-                            #         extra=dictLogger,
-                            #     )
-                            # clearing the list
-                            get_truck_status.motpow_t = []
-                    # else:  # ** update episode state from main thread for restart capturing
-                    #     with hmi_lock:
-                    #         get_truck_status.episode_start = not wait_for_reset
-                    #         # episode_done = False # BUG move to ***
-                    #     continue
-                else:  # if round logic stops episode except for exit
-                    with hmi_lock:  # set valid_end episode
-                        program_exit = prog_exit
-                        if round_end and round_done:
-                            wait_for_reset = True  # wait until episode starts
-                            episode_done = True
-                            # episode_count += 1  # valid episode increments
-                        elif round_end and not round_done:
-                            wait_for_reset = True  # wait until episode starts
-                            episode_done = False
-                            # episode_count += 1  # valid episode increments
-                        else:  # round exit
-                            wait_for_reset = True  # wait until episode starts
-                            episode_done = False
+                        vel_aver = sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
+                        vel_min = min(vel_cycle_dQ)
+                        vel_max = max(vel_cycle_dQ)
 
-                    get_truck_status.episode_start = False
-                    # logger.info(
-                    #     "%s",
-                    #     "Wait for updating Episode states!!!",
-                    #     extra=dictLogger,
-                    # )
+                        # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
+                        # average concept
+                        # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
+                        #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                        # here upper bound rule adopted
+                        if vel_max < 20:
+                            vcu_calib_table_row_start = 0
+                        elif vel_max < 100:
+                            vcu_calib_table_row_start = (
+                                math.floor((vel_max - 20) / 5) + 1
+                            )
+                        else:
+                            logc.warning(
+                                f"cycle higher than 100km/h!",
+                                extra=dictLogger,
+                            )
+                            vcu_calib_table_row_start = 16
+
+                        logd.info(
+                            f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{vcu_calib_table_row_start}!",
+                            extra=dictLogger,
+                        )
+                        # logd.info(
+                        #     f"Producer Queue has {motionpowerQueue.qsize()}!",
+                        #     extra=dictLogger,
+                        # )
+                        motionpowerQueue.put(get_truck_status.motpow_t)
+                        get_truck_status.motpow_t = []
             else:
                 logc.critical("udp sending unknown signal (neither status nor data)!")
                 break
@@ -784,7 +684,6 @@ get_truck_status.myHost = "127.0.0.1"
 get_truck_status.myPort = 8002
 get_truck_status.start = False
 get_truck_status.qobject_len = 12  # sequence length 1.5*12s
-get_truck_status.episode_start = False
 
 # this is the calibration table consumer for flashing
 # @eye
@@ -826,11 +725,11 @@ def flash_vcu(tablequeue):
 # TODO add initialize table to EP input
 # @eye
 def main():
-    global episode_done, round_count, episode_count
-    global wait_for_reset, program_exit
+    global episode_count
+    global program_exit
     global motionpowerQueue
     global pd_index, pd_columns
-    global round_done, round_end
+    global episode_done, episode_end
     global vcu_calib_table_row_start
 
     eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
@@ -853,71 +752,50 @@ def main():
     epi_cnt_local = 0
 
     logger.info(f"main Initialization done!", extra=dictLogger)
-    R = []
     while not th_exit:  # run until solved or program exit; th_exit is local
         with hmi_lock:  # wait for tester to kick off or to exit
-            th_exit = program_exit  # if program_exit is False, reset to wait_for_reset
-            rnd_cnt = round_count  # get round counts
+            th_exit = program_exit  # if program_exit is False,
             epi_cnt = episode_count  # get episode counts
-            if wait_for_reset:  # if program_exit is True, first reset then exit
-                # logger.info(f'wait for start!', extra=dictLogger)
-                continue
+            epi_end = episode_end
+        if epi_end:  # if episode_end is True, wait for start of episode
+            # logger.info(f'wait for start!', extra=dictLogger)
+            continue
 
         step_count = 0
+        wh1 = 0  # initialize odd step wh
         tf.summary.trace_on(graph=True, profiler=True)
-
-        episode_end = False
 
         logc.info("----------------------", extra=dictLogger)
         logc.info(
-            f"R{rnd_cnt}E{epi_cnt} starts!",
+            f"E{epi_cnt} starts!",
             extra=dictLogger,
         )
         with tf.GradientTape() as tape:
             while (
-                not episode_end
+                not epi_end
             ):  # end signal, either the round ends normally or user interrupt
                 # TODO l045a define round done (time, distance, defined end event)
                 with hmi_lock:  # wait for tester to interrupt or to exit
                     th_exit = program_exit  # if program_exit is False, reset to wait
-                    episode_end = wait_for_reset  # episode ends
+                    epi_end = episode_end
                     done = episode_done
                     table_start = vcu_calib_table_row_start
 
-                if episode_end and done:  # end_valid
-                    logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Experience Collection ends!",
-                        extra=dictLogger,
-                    )
-                    # episode_end will be updated by the capture thread
+                if epi_end:  # stop observing and inferring
                     continue
-                elif episode_end and (not done):  # end_invalid
-                    logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Experience Collection is interrupted!",
-                        extra=dictLogger,
-                    )
-                    continue
-                    # episode_end (wait_for_reset) will be updated by the main thread below
-
-                    # # add punishment to episode_reward
-                    # episode_reward = -36.0
-                    # r_t = 0
-                    # wh0 = 0
 
                 try:
-                    logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Wait for an object!!!", extra=dictLogger
-                    )
+                    logc.info(f"E{epi_cnt} Wait for an object!!!", extra=dictLogger)
                     motionpower = motionpowerQueue.get(block=True, timeout=1.55)
                 except queue.Empty:
                     logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} No data in the Queue!!!",
+                        f"E{epi_cnt} No data in the Queue!!!",
                         extra=dictLogger,
                     )
                     continue
 
                 logc.info(
-                    f"R{rnd_cnt}E{epi_cnt} start step {step_count}",
+                    f"E{epi_cnt} start step {step_count}",
                     extra=dictLogger,
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
@@ -928,7 +806,7 @@ def main():
                 o_t, pow_t = tf.split(motpow_t, [3, 2], 1)
 
                 logd.info(
-                    f"R{rnd_cnt}E{epi_cnt} tensor convert and split!",
+                    f"E{epi_cnt} tensor convert and split!",
                     extra=dictLogger,
                 )
                 # o_t_s = [f"{vel:.3f},{ped:.3f}" for (vel, ped) in o_t]
@@ -961,43 +839,39 @@ def main():
                 ) == 0:  # only for even observation/reward take an action
                     # k_cycle = 1000  # TODO determine the ratio
                     # r_t += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                    wh0 = wh  # add velocitoy sum as reward
+                    # wh0 = wh  # add velocitoy sum as reward
+                    r_t = (wh1 + wh) * (-1.0)  # most recent odd and even indexed reward
+                    episode_reward += r_t
                     # TODO add speed sum as positive reward
 
-                    if step_count != 0:
-                        if step_count == 2:
+                    if step_count > 0:
+                        if step_count == 1:
                             h_t = np.hstack([prev_o_t, a_t_1, r_t])
                         else:
-                            h_t = np.append(h_t, np.hstack([prev_o_t, a_t_1, r_t]), axis=0)
-                        buffer.record(
-                            (
-                                prev_o_t,
-                                a_t_1,
-                                r_t,
-                                o_t,
+                            h_t = np.append(
+                                h_t, np.hstack([prev_o_t, a_t_1, r_t]), axis=0
                             )
-                        )
-                    # o_t_history.append(o_t)
+
                     o_t0 = o_t
 
-                    o_t1 = tf.expand_dims(
-                        o_t0, 0
-                    )  # motion states is 30*3 matrix
+                    o_t1 = tf.expand_dims(o_t0, 0)  # motion states is 30*3 matrix
 
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causl rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
                     logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} before inference!",
+                        f"E{epi_cnt} before inference!",
                         extra=dictLogger,
                     )
-                    a_t = policy(actor_model, o_t1, ou_noise)
-                    prev_o_t = o_t0
-                    a_t_1 = a_t
+                    a_t = policy(
+                        actor_model, o_t1, ou_noise
+                    )  # TODO change to history data, actor is LSTM
+                    prev_o_t = np.reshape(o_t0, [1, num_observations * sequence_len])
+                    a_t_1 = np.reshape(a_t, [1, num_reduced_actions])
 
                     logd.info(
-                        f"R{rnd_cnt}E{epi_cnt} inference done with reduced action space!",
+                        f"E{epi_cnt} inference done with reduced action space!",
                         extra=dictLogger,
                     )
 
@@ -1052,7 +926,7 @@ def main():
                         vcu_calib_table1, pd_index, pd_columns
                     )
                     # logc.info(
-                    #     f"R{rnd_cnt}E{epi_cnt} start record instant table: {step_count}",
+                    #     f"E{epi_cnt} start record instant table: {step_count}",
                     #     extra=dictLogger,
                     # )
 
@@ -1061,8 +935,7 @@ def main():
                             datafolder
                             + "/tables/instant_table_rdpg-"
                             + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                            + str(rnd_cnt)
-                            + "-"
+                            + "e-"
                             + str(epi_cnt)
                             + "-"
                             + str(step_count)
@@ -1073,7 +946,7 @@ def main():
                             # np.save(last_table_store_path, vcu_calib_table1)
                         last_table_store_path = os.getcwd() + "/../data/last_table.csv"
                         logd.info(
-                            f"R{rnd_cnt}E{epi_cnt} done with record instant table: {step_count}",
+                            f"E{epi_cnt} done with record instant table: {step_count}",
                             extra=dictLogger,
                         )
 
@@ -1081,11 +954,11 @@ def main():
                     # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     tableQueue.put(vcu_act_list)
                     logd.info(
-                        f"R{rnd_cnt}E{epi_cnt}StartIndex{table_start} Action Push table: {tableQueue.qsize()}",
+                        f"E{epi_cnt}StartIndex{table_start} Action Push table: {tableQueue.qsize()}",
                         extra=dictLogger,
                     )
                     logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Finish Step: {step_count}",
+                        f"E{epi_cnt} Finish Step: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1093,11 +966,15 @@ def main():
                 # so ust record the reward history
                 # motion states (observation) are not used later for backpropagation
                 else:
-                    r_t = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    # r_t = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    # Bugfix: the reward recorded in the first even step is not causal
+                    # cycle_reward should include the most recent even wh in the even step
+                    # record the odd step wh
+                    wh1 = wh
+
                     # TODO add speed sum as positive reward
-                    episode_reward += r_t
                     logc.info(
-                        f"R{rnd_cnt}E{epi_cnt} Step done: {step_count}",
+                        f"E{epi_cnt} Step done: {step_count}",
                         extra=dictLogger,
                     )
 
@@ -1113,43 +990,32 @@ def main():
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 logc.info(
-                    f"R{rnd_cnt}E{epi_cnt} interrupted, waits for next episode to kick off!",
+                    f"E{epi_cnt} interrupted, waits for next episode to kick off!",
                     extra=dictLogger,
                 )
-                # add punishment to episode_reward
                 episode_reward = 0.0
-                r_t = 0
-                wh0 = 0
-                # ** if episode is interrupted, main thread is at once ready for inference again
-                # inform capture thread to restart episode
-                with hmi_lock:
-                    if (not program_exit) and round_end:  # wait for UI
-                        wait_for_reset = True
-                    elif (not program_exit) and (not round_end):  # no wait; necessary for big epi?
-                        wait_for_reset = False
-                    else:
-                        wait_for_reset = True
-
-                    # episode_done = False  #  not necessary since the outer while loop will reset at episode start
                 continue  # otherwise assuming the history is valid and back propagate
-            # else:
 
+            logc.info(
+                f"E{epi_cnt} Experience Collection ends!",
+                extra=dictLogger,
+            )
             critic_loss_seq = []
             actor_loss_seq = []
             for k in range(6):
                 # logger.info(f"BP{k} starts.", extra=dictLogger)
                 if not args.infer:
-                    (critic_loss, actor_loss) = buffer.learn()
+                    (critic_loss, actor_loss) = rdpg.learn()
                     logd.info("Learning and updating")
                 else:
-                    (critic_loss, actor_loss) = buffer.nolearn()
+                    (critic_loss, actor_loss) = rdpg.nolearn()
                     logd.info("No Learning, just calculating loss")
 
                 critic_loss_seq.append(critic_loss)
                 actor_loss_seq.append(actor_loss)
                 # logd.info(f"BP{k} done.", extra=dictLogger)
                 logd.info(
-                    f"R{rnd_cnt}E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                    f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                     extra=dictLogger,
                 )
 
@@ -1178,7 +1044,7 @@ def main():
             actor_loss_episode = np.array(actor_loss_seq).sum()
             critic_loss_episode = np.array(critic_loss_seq).sum()
             logd.info(
-                f"R{rnd_cnt}E{epi_cnt} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
+                f"E{epi_cnt} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
                 extra=dictLogger,
             )
             # Create a matplotlib 3d figure, //export and save in log
@@ -1220,46 +1086,37 @@ def main():
             tf.summary.histogram(
                 "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
             )
-            tf.summary.trace_export(
-                name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
-            )
+            # tf.summary.trace_export(
+            #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+            # )
 
         epi_cnt_local += 1
         plt.close(fig)
 
         logd.info(
-            f"R{rnd_cnt}E{epi_cnt} Episode Reward: {episode_reward}",
+            f"E{epi_cnt} Episode Reward: {episode_reward}",
             extra=dictLogger,
         )
 
         episode_reward = 0
         logc.info(
-            f"R{rnd_cnt}E{epi_cnt} done, waits for next episode to kick off!",
+            f"E{epi_cnt} done, waits for next episode to kick off!",
             extra=dictLogger,
         )
         logc.info("----------------------", extra=dictLogger)
         if epi_cnt % 10 == 0:
             logc.info("++++++++++++++++++++++++", extra=dictLogger)
             logc.info(
-                f"Running reward: {running_reward:.2f} at R{rnd_cnt}E{epi_cnt}",
+                f"Running reward: {running_reward:.2f} at E{epi_cnt}",
                 extra=dictLogger,
             )
             logc.info("++++++++++++++++++++++++", extra=dictLogger)
 
-        # ** After BP and logging is done, now main thread is ready for inference again
-        # inform capture thread to restart episode
-        # episode_done = False  #  not necessary since the out while loop will reset at episode start
-        with hmi_lock:
-            if (not program_exit) and round_end:
-                wait_for_reset = True
-            elif (not program_exit) and (not round_end):  # necessary for big round?
-                wait_for_reset = False
-            else:
-                wait_for_reset = True
-            episode_done = False  # *** reset episode_done
-        # continue  # otherwise assuming the history is valid and back propagate
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
-
+    with train_summary_writer.as_default():
+        tf.summary.trace_export(
+            name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+        )
     thr_observe.join()
     thr_flash.join()
 
@@ -1276,7 +1133,7 @@ def main():
     )
     with open(last_table_store_path, "wb") as f:
         pds_last_table.to_csv(last_table_store_path)
-    buffer.save()
+    rdpg.save()
 
     logc.info(f"main dies!!!!", extra=dictLogger)
 
