@@ -513,7 +513,6 @@ def get_truck_status():
     last_moment = time.time()
     logc.info(f"Initialization Done!", extra=dictLogger)
     # qobject_size = 0
-    prog_exit = False
 
     vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
     # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -543,7 +542,6 @@ def get_truck_status():
                 if value == "begin":
                     get_truck_status.start = True
                     logc.info("%s", "Episode will start!!!", extra=dictLogger)
-                    prog_exit = False
                     th_exit = False
                     # ts_epi_start = time.time()
 
@@ -560,7 +558,6 @@ def get_truck_status():
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
                     logc.info("%s", "Episode done!!!", extra=dictLogger)
-                    prog_exit = False
                     th_exit = False
                     vel_hist_dQ.clear()
                     with hmi_lock:
@@ -582,7 +579,6 @@ def get_truck_status():
                     # logc.info(
                     #     f"Episode motionpowerQueue gets cleared!", extra=dictLogger
                     # )
-                    prog_exit = False
                     th_exit = False
                     with hmi_lock:
                         episode_done = False
@@ -595,14 +591,13 @@ def get_truck_status():
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
                     # logc.info("%s", "Program will exit!!!", extra=dictLogger)
-                    prog_exit = True
                     th_exit = True
                     # for program exit, need to set episode states
                     # final change to inform main thread
                     with hmi_lock:
                         episode_done = False
                         episode_end = True
-                        program_exit = prog_exit
+                        program_exit = True
                         episode_count += 1
                     break
                     # time.sleep(0.1)
