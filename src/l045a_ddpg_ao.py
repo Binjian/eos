@@ -177,8 +177,8 @@ from agent.ddpg import (
     policy,
     Buffer,
     update_target,
-    OUActionNoise,
 )
+from agent.utils.ou_noise import OUActionNoise
 from comm.tbox.scripts.tbox_sim import *
 
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
