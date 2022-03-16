@@ -546,7 +546,7 @@ def get_truck_status():
         if len(pop_data) != 1:
             logc.critical("udp sending multiple shots!")
             break
-        epi_done = False
+        epi_delay_stop = False
         for key, value in pop_data.items():
             if key == "status":  # state machine chores
                 # print(candata)
@@ -557,7 +557,7 @@ def get_truck_status():
                     # ts_epi_start = time.time()
 
                     vel_hist_dQ.clear()
-                    epi_done = False
+                    epi_delay_stop = False
                     with hmi_lock:
                         episode_done = False
                         episode_end = False
@@ -574,7 +574,7 @@ def get_truck_status():
                     logc.info("%s", "Episode done!!!", extra=dictLogger)
                     th_exit = False
                     vel_hist_dQ.clear()
-                    epi_done = True
+                    epi_delay_stop = True
                     with hmi_lock:
                         episode_count += 1  # valid round increments
                         episode_done = True
@@ -595,7 +595,7 @@ def get_truck_status():
                     #     f"Episode motionpowerQueue gets cleared!", extra=dictLogger
                     # )
                     th_exit = False
-                    epi_done = False
+                    epi_delay_stop = False
                     with hmi_lock:
                         episode_done = False
                         episode_end = True
@@ -608,7 +608,7 @@ def get_truck_status():
                         motionpowerQueue.get()
                     # logc.info("%s", "Program will exit!!!", extra=dictLogger)
                     th_exit = True
-                    epi_done = False
+                    epi_delay_stop = False
                     # for program exit, need to set episode states
                     # final change to inform main thread
                     with hmi_lock:
@@ -622,8 +622,8 @@ def get_truck_status():
                 # logger.info('Data received before Capture starting!!!', extra=dictLogger)
                 # logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=dictLogger)
                 # DONE add logic for episode valid and invalid
-                if (not get_truck_status.start) and epi_done:
-                    signal.alarm(3)
+                if epi_delay_stop:
+                    signal.alarm(3)  # delay stop for 3 seconds
                 try:
                     if get_truck_status.start:  # starts episode
 
