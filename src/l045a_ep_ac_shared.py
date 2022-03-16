@@ -174,7 +174,8 @@ import json
 # communication import
 from threading import Lock, Thread
 import _thread as thread
-import queue, time, math
+import queue, time, math, signal
+
 
 # visualization import
 import pandas as pd
@@ -213,15 +214,15 @@ set_tbox_sim_path(os.getcwd() + "/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
-# TODO add vehicle communication interface
-# TODO add model checkpoint episodically unique
+# DONE add vehicle communication interface
+# DONE add model checkpoint episodically unique
 
 
 # multithreading initialization
 hmi_lock = Lock()
 
 
-# TODO add visualization and logging
+# DONE add visualization and logging
 # Create folder for ckpts loggings.
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 train_log_dir = datafolder + "/tf_logs/ddpg/gradient_tape/" + current_time + "/train"
@@ -496,6 +497,16 @@ episode_end = False
 episode_count = 0
 
 
+def reset_capture_handler():
+    global program_exit
+    get_truck_status.start = False
+    logger.info(f"reset_capture_handler called", extra=dictLogger)
+    raise Exception("reset capture to stop")
+
+
+signal.Signal(signal.SIGALRM, reset_capture_handler)
+
+
 def get_truck_status():
     global program_exit
     global motionpowerQueue, sequence_len
@@ -536,6 +547,7 @@ def get_truck_status():
         if len(pop_data) != 1:
             logc.critical("udp sending multiple shots!")
             break
+        epi_done = False
         for key, value in pop_data.items():
             if key == "status":  # state machine chores
                 # print(candata)
@@ -546,20 +558,24 @@ def get_truck_status():
                     # ts_epi_start = time.time()
 
                     vel_hist_dQ.clear()
+                    epi_done = False
                     with hmi_lock:
                         episode_done = False
                         episode_end = False
 
-                elif (
-                    value == "end_valid"
-                ):  # todo for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
-                    get_truck_status.start = False  # todo for the simple test case coast down is fixed. action cannot change the reward.
+                elif value == "end_valid":
+                    # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                    # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+                    get_truck_status.start = (
+                        True  # do not stopping data capture immediately
+                    )
                     get_truck_status.motpow_t = []
                     while not motionpowerQueue.empty():
                         motionpowerQueue.get()
                     logc.info("%s", "Episode done!!!", extra=dictLogger)
                     th_exit = False
                     vel_hist_dQ.clear()
+                    epi_done = True
                     with hmi_lock:
                         episode_count += 1  # valid round increments
                         episode_done = True
@@ -580,6 +596,7 @@ def get_truck_status():
                     #     f"Episode motionpowerQueue gets cleared!", extra=dictLogger
                     # )
                     th_exit = False
+                    epi_done = False
                     with hmi_lock:
                         episode_done = False
                         episode_end = True
@@ -592,6 +609,7 @@ def get_truck_status():
                         motionpowerQueue.get()
                     # logc.info("%s", "Program will exit!!!", extra=dictLogger)
                     th_exit = True
+                    epi_done = False
                     # for program exit, need to set episode states
                     # final change to inform main thread
                     with hmi_lock:
@@ -604,69 +622,76 @@ def get_truck_status():
             elif key == "data":
                 # logger.info('Data received before Capture starting!!!', extra=dictLogger)
                 # logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=dictLogger)
-                # TODO add logic for episode start and stop
-                # TODO add logic for episode valid and invalid
-                if get_truck_status.start:  # starts episode
+                # DONE add logic for episode valid and invalid
+                if (not get_truck_status.start) and epi_done:
+                    signal.alarm(3)
+                try:
+                    if get_truck_status.start:  # starts episode
 
-                    velocity = float(value["velocity"])
-                    pedal = float(value["pedal"])
-                    brake = float(value["brake_pressure"])
-                    current = float(value["A"])
-                    voltage = float(value["V"])
+                        velocity = float(value["velocity"])
+                        pedal = float(value["pedal"])
+                        brake = float(value["brake_pressure"])
+                        current = float(value["A"])
+                        voltage = float(value["V"])
 
-                    motion_power = [
-                        velocity,
-                        pedal,
-                        brake,
-                        current,
-                        voltage,
-                    ]  # 3 +2 : im 5
+                        motion_power = [
+                            velocity,
+                            pedal,
+                            brake,
+                            current,
+                            voltage,
+                        ]  # 3 +2 : im 5
 
-                    get_truck_status.motpow_t.append(
-                        motion_power
-                    )  # obs_reward [speed, pedal, brake, current, voltage]
-                    vel_hist_dQ.append(velocity)
-                    vel_cycle_dQ.append(velocity)
+                        get_truck_status.motpow_t.append(
+                            motion_power
+                        )  # obs_reward [speed, pedal, brake, current, voltage]
+                        vel_hist_dQ.append(velocity)
+                        vel_cycle_dQ.append(velocity)
 
-                    if len(get_truck_status.motpow_t) >= sequence_len:
-                        if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
-                            logc.warning(  # the recent 1.5s average velocity
-                                f"cycle deque is inconsistent!",
+                        if len(get_truck_status.motpow_t) >= sequence_len:
+                            if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
+                                logc.warning(  # the recent 1.5s average velocity
+                                    f"cycle deque is inconsistent!",
+                                    extra=dictLogger,
+                                )
+
+                            vel_aver = sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
+                            vel_min = min(vel_cycle_dQ)
+                            vel_max = max(vel_cycle_dQ)
+
+                            # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
+                            # average concept
+                            # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
+                            #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                            # here upper bound rule adopted
+                            if vel_max < 20:
+                                vcu_calib_table_row_start = 0
+                            elif vel_max < 100:
+                                vcu_calib_table_row_start = (
+                                    math.floor((vel_max - 20) / 5) + 1
+                                )
+                            else:
+                                logc.warning(
+                                    f"cycle higher than 100km/h!",
+                                    extra=dictLogger,
+                                )
+                                vcu_calib_table_row_start = 16
+
+                            logd.info(
+                                f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{vcu_calib_table_row_start}!",
                                 extra=dictLogger,
                             )
-
-                        vel_aver = sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
-                        vel_min = min(vel_cycle_dQ)
-                        vel_max = max(vel_cycle_dQ)
-
-                        # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
-                        # average concept
-                        # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
-                        #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                        # here upper bound rule adopted
-                        if vel_max < 20:
-                            vcu_calib_table_row_start = 0
-                        elif vel_max < 100:
-                            vcu_calib_table_row_start = (
-                                math.floor((vel_max - 20) / 5) + 1
-                            )
-                        else:
-                            logc.warning(
-                                f"cycle higher than 100km/h!",
-                                extra=dictLogger,
-                            )
-                            vcu_calib_table_row_start = 16
-
-                        logd.info(
-                            f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{vcu_calib_table_row_start}!",
-                            extra=dictLogger,
-                        )
-                        # logd.info(
-                        #     f"Producer Queue has {motionpowerQueue.qsize()}!",
-                        #     extra=dictLogger,
-                        # )
-                        motionpowerQueue.put(get_truck_status.motpow_t)
-                        get_truck_status.motpow_t = []
+                            # logd.info(
+                            #     f"Producer Queue has {motionpowerQueue.qsize()}!",
+                            #     extra=dictLogger,
+                            # )
+                            motionpowerQueue.put(get_truck_status.motpow_t)
+                            get_truck_status.motpow_t = []
+                except Exception:
+                    logc.info(
+                        f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                        extra=dictLogger,
+                    )
             else:
                 logc.critical("udp sending unknown signal (neither status nor data)!")
                 break
