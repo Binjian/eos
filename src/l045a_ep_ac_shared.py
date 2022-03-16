@@ -33,7 +33,6 @@ as energy consumption
 
 # drl import
 import datetime
-import math
 
 # from birdseye import eye
 
