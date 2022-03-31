@@ -437,7 +437,7 @@ def get_critic(
 
     out = layers.Dense(num_hidden2, activation="relu")(concat)
     out = layers.Dense(num_hidden2, activation="relu")(out)
-    outputs = layers.Dense(1)(out)
+    outputs = layers.Dense(1, activation=None)(out)
 
     # Outputs single value for give state-action
     eager_model = tf.keras.Model([state_input, action_input], outputs)
