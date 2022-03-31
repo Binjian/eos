@@ -5,6 +5,9 @@ an **Ornstein-Uhlenbeck process** for generating noise, as described in the pape
 It samples noise from a correlated normal distribution.
 """
 
+# third-party imports
+import numpy as np
+
 
 class OUActionNoise:
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
