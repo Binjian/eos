@@ -686,9 +686,9 @@ def get_truck_status():
                             # )
                             motionpowerQueue.put(get_truck_status.motpow_t)
                             get_truck_status.motpow_t = []
-                except Exception:
+                except Exception as X:
                     logc.info(
-                        f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                        X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                         extra=dictLogger,
                     )
             else:
