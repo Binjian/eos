@@ -92,7 +92,7 @@ the maximum predicted value as seen by the Critic, for a given state.
 """
 
 # system imports
-
+import os
 
 # third-party imports
 import numpy as np
@@ -123,6 +123,7 @@ class RDPG:
         tauAC=(0.001, 0.001),
         lrAC=(0.001, 0.002),
         datafolder="./",
+        ckpt_interval="5",
     ):
         """Initialize the RDPG agent.
 
@@ -149,13 +150,24 @@ class RDPG:
 
         self.h_t = None
 
-        # old data
-
-        # Instead of list of tuples as the exp.replay concept go
-        # We use different np.arrays for each tuple element
-        self.file_replay = self.data_folder + "/replay_buffer.npy"
-        # Its tells us num of times record() was called.
-        self.load()
+        # Actor Network (w/ Target Network)
+        # create or restore from checkpoint
+        # add checkpoints manager
+        self.ckpt_actor_dir = self.datafolder + "./checkpoints/rdpg_actor"
+        self.ckpt_interval = ckpt_interval
+        try:
+            os.makedirs(self.checkpoint_actor_dir)
+            logger.info(
+                "Created checkpoint directory for actor: %s",
+                self.checkpoint_actor_dir,
+                extra=dictLogger,
+            )
+        except FileExistsError:
+            logger.info(
+                "Actor checkpoint directory already exists: %s",
+                self.checkpoint_actor_dir,
+                extra=dictLogger,
+            )
 
         self.actor_net = ActorNet(
             self.n_obs,
@@ -168,18 +180,8 @@ class RDPG:
             gammaAC[0],
             tauAC[0],
             lrAC[0],
-        )
-        self.critic_net = CriticNet(
-            self.n_obs,
-            self.n_act,
-            self.seq_len,
-            self.batch_size,
-            hidden_unitsAC[1],
-            n_layersAC[1],
-            self.padding_value,
-            gammaAC[1],
-            tauAC[1],
-            lrAC[1],
+            self.ckpt_actor_dir,
+            self.ckpt_interval,
         )
 
         self.target_actor_net = ActorNet(
@@ -193,8 +195,44 @@ class RDPG:
             gammaAC[0],
             tauAC[0],
             lrAC[0],
+            self.ckpt_actor_dir,
+            self.ckpt_interval,
         )
+        # clone necessary for the first time training
         self.target_actor_net.clone_weights(self.actor_net)
+
+        # Critic Network (w/ Target Network)
+        # create or restore from checkpoint
+        # add checkpoints manager
+        self.ckpt_critic_dir = self.datafolder + "./checkpoints/rdpg_critic"
+        try:
+            os.makedirs(self.ckpt_critic_dir)
+            logger.info(
+                "Created checkpoint directory for critic: %s",
+                self.checkpoint_critic_dir,
+                extra=dictLogger,
+            )
+        except FileExistsError:
+            logger.info(
+                "Critic checkpoint directory already exists: %s",
+                self.checkpoint_critic_dir,
+                extra=dictLogger,
+            )
+
+        self.critic_net = CriticNet(
+            self.n_obs,
+            self.n_act,
+            self.seq_len,
+            self.batch_size,
+            hidden_unitsAC[1],
+            n_layersAC[1],
+            self.padding_value,
+            gammaAC[1],
+            tauAC[1],
+            lrAC[1],
+            self.ckpt_critic_dir,
+            self.ckpt_interval,
+        )
 
         self.target_critic_net = CriticNet(
             self.n_obs,
@@ -207,10 +245,19 @@ class RDPG:
             gammaAC[1],
             tauAC[1],
             lrAC[1],
+            self.ckpt_critic_dir,
+            self.ckpt_interval,
         )
+        # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
 
-    def evaluate_actors(self, obs, t):
+        # Instead of list of tuples as the exp.replay concept go
+        # We use different np.arrays for each tuple element
+        self.file_replay = self.data_folder + "/replay_buffer.npy"
+        # Its tells us num of times record() was called.
+        self.load_replay_buffer()
+
+    def actor_predict(self, obs, t):
         """
         Evaluate the actors given a single observations.
         Batchsize is 1.
@@ -224,6 +271,10 @@ class RDPG:
             self.obs_t[0, t, :] = obs
 
         return self.actor_net.predict(self.obs_t)
+
+    def reset_noise(self):
+        """reset noise of the moving actor network"""
+        self.actor_net.reset_noise()
 
     def add_to_replay(self, h_t):
         """Add the current h_t to the replay buffer.
@@ -309,6 +360,12 @@ class RDPG:
             logd.error("Ragged action state a_n_l1!")
 
     def train(self):
+        """
+        Train the actor and critic moving network.
+
+        return:
+            tuple: (actor_loss, critic_loss)
+        """
 
         self.sample_mini_batch()
 
@@ -327,6 +384,7 @@ class RDPG:
             # y_n_t shape (batch_size, seq_len, 1)
             self.y_n_t = self.r_n_t + self.gamma * t_q_ht_bl
 
+            # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
                 self.y_n_t - self.critic_net.evaluate_q(self.o_n_t, self.a_n_t)
             )
@@ -342,25 +400,39 @@ class RDPG:
             self.a_ht = self.actor_net.evaluate_actions(self.o_n_t)
             self.q_ht = self.critic_net.evaluate_q(self.o_n_t, self.a_ht)
 
-        critic_action_grad = tape.gradient(self.q_ht, self.a_ht) * (
-            -1.0
-        )  # del_Q_a, -1 to maixmize
+            # -1 because we want to maximize the q_ht
+            # scalar value, average over the batch and time steps
+            actor_loss = tf.math.reduce_mean(-self.q_ht)
+
+        # action_gradients = tape.gradient(self.a_ht, self.actor_net.eager_model.trainable_variables)
+        # actor_grad = tape.gradient(
+        #     actor_loss,
+        #     self.a_ht,
+        #     action_gradients  # weights for self.a_ht
+        # )
+        # TODO check if this is correct. Compare above actor_grad with below
         actor_grad = tape.gradient(
-            self.a_ht,
-            self.actor_net.eager_model.trainable_variables,
-            critic_action_grad,  # weights for self.a_ht
+            actor_loss, self.actor_net.eager_model.trainable_variables
         )
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
 
-        # update target networks with polyak averaging (soft update) need to be done after each batch?
+        return actor_loss, critic_loss
+
+    def soft_update_target(self):
+        """
+        update target networks with tiny tau value, typical value 0.001.
+        done after each batch, slowly update target by Polyak averaging.
+        """
         self.target_critic_net.soft_update(self.critic_net)
         self.target_actor_net.soft_update(self.actor_net)
 
-        return critic_loss
+    def save_ckpt(self):
+        self.actor_net.save_ckpt()
+        self.critic_net.save_ckpt()
 
-    def save(self):
+    def save_replay_buffer(self):
         replay_buffer_npy = np.array(self.R)
         np.save(self.file_replay, replay_buffer_npy)
         logd.info(
@@ -368,7 +440,7 @@ class RDPG:
             extra=dictLogger,
         )
 
-    def load(self):
+    def load_replay_buffer(self):
         try:
             replay_buffer_npy = np.load(self.file_replay)
             self.R = replay_buffer_npy.tolist()

@@ -6,9 +6,7 @@ Date created: 2021/02/12
 Last modified: 2020/03/15
 Description: Implement Advantage Actor Critic Method in Carla environment.
 """
-import sys
-import os
-import argparse
+
 
 """
 ## Introduction
@@ -32,29 +30,25 @@ as energy consumption
 """
 
 # system import
+import sys
+import os
+import argparse
+import socket
+import logging
+
 import datetime
 from collections import deque
-
-import socket
-import json
 
 # communication import
 from threading import Lock, Thread
 import queue, time, math, signal
-
-# Logging Service Initialization
-import logging
-from logging.handlers import SocketHandler
-import inspect
 
 # third party import
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.client import device_lib
-import tensorflow_probability as tfp
-
-from pythonjsonlogger import jsonlogger
+import json
 
 # from birdseye import eye
 # from viztracer import VizTracer
@@ -68,19 +62,17 @@ from visualization.visual import plot_to_image
 # application import
 from comm.vcu_calib_generator import (
     generate_vcu_calibration,
-    generate_lookup_table,
 )
 
 from agent.rdpg.rdpg import (
-    get_actor,
-    get_critic,
-    policy,
     RDPG,
-    update_target,
 )
-from agent.utils.ou_noise import OUActionNoise
+
 from comm.tbox.scripts.tbox_sim import *
 
+from utils.log import (
+    get_logger,
+)
 
 # resumption settings
 parser = argparse.ArgumentParser(
@@ -114,55 +106,24 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-# tracer = VizTracer()
-# logging.basicConfig(level=logging.DEBUG, format=fmt)
-mpl_logger = logging.getLogger("matplotlib.font_manager")
-mpl_logger.disabled = True
-
-# logging.basicConfig(format=fmt)
-logger = logging.getLogger("l045a")
-logger.propagate = False
-formatter = logging.Formatter(
-    "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
-)
-json_file_formatter = jsonlogger.JsonFormatter(
-    "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
-)
 if args.path is None:
     args.path = "."
 if args.resume:
     datafolder = "../data/" + args.path
 else:
-    datafolder = "../data/scratch/" + args.path
+    datafolder = (
+        "../data/scratch/"
+        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+        + args.path
+    )
 
 logfolder = datafolder + "/py_logs"
 try:
     os.makedirs(logfolder)
 except FileExistsError:
     print("User folder exists, just resume!")
+logger, dictLogger = get_logger(logfolder, "l045a_rdpg", logging.DEBUG)
 
-logfilename = logfolder + (
-    "/l045a_rdpg-" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
-)
-
-fh = logging.FileHandler(logfilename)
-fh.setLevel(logging.DEBUG)
-fh.setFormatter(json_file_formatter)
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(formatter)
-#  Cutelog socket
-sh = SocketHandler("127.0.0.1", 19996)
-sh.setFormatter(formatter)
-
-logger.addHandler(fh)
-logger.addHandler(ch)
-logger.addHandler(sh)
-
-logger.setLevel(logging.DEBUG)
-# dictLogger = {'funcName': '__self__.__func__.__name__'}
-# dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
-dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
 logc = logger.getChild("control flow")
 logc.propagate = True
@@ -186,9 +147,6 @@ else:
 logger.info(
     f"tensorflow device lib:\n{device_lib.list_local_devices()}\n", extra=dictLogger
 )
-
-
-tfd = tfp.distributions
 
 logger.info(f"Tensorflow Imported!", extra=dictLogger)
 
@@ -321,55 +279,18 @@ vcu_calib_table0_reduced = vcu_calib_table0[
 
 tf.keras.backend.set_floatx("float32")
 # Initialize networks
-actor_model = get_actor(
-    num_observations,
-    num_reduced_actions,
-    obs_len,
-    num_hidden,
-    action_bias,
-)
-
-critic_model = get_critic(
-    num_observations,
-    num_reduced_actions,
-    obs_len,
-    num_hidden0,
-    num_hidden1,
-    num_hidden,
-)
-
-
-# Initialize networks
-target_actor = get_actor(
-    num_observations,
-    num_reduced_actions,
-    obs_len,
-    num_hidden,
-    action_bias,
-)
-
-target_critic = get_critic(
-    num_observations,
-    num_reduced_actions,
-    obs_len,
-    num_hidden0,
-    num_hidden1,
-    num_hidden,
-)
-
-
 # Learning rate for actor-critic models
 critic_lr = 0.002
 actor_lr = 0.001
-
-critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
-actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
-
 # Discount factor for future rewards
 gamma = 0.99
 # Used to update target networks
 tau = 0.005
 seq_len = 6  # TODO  7 maximum sequence length
+
+# add checkpoints manager
+
+
 rdpg = RDPG(
     num_observations,
     obs_len,
@@ -384,67 +305,9 @@ rdpg = RDPG(
     tauAC=(0.001, 0.001),
     lrAC=(0.001, 0.002),
     datafolder=datafolder,
+    ckpt_interval=5,
 )
 # try buffer size with 1,000,000
-
-# add checkpoints manager
-if args.resume:
-    checkpoint_actor_dir = datafolder + "/tf_ckpts-aa/l045a_rdpg_actor"
-    checkpoint_critic_dir = datafolder + "/tf_ckpts-aa/l045a_rdpg_critic"
-else:
-    checkpoint_actor_dir = (
-        datafolder
-        + "/tf_ckpts-aa/l045a_rdpg_actor"
-        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-    )
-    checkpoint_critic_dir = (
-        datafolder
-        + "/tf_ckpts-aa/l045a_rdpg_critic"
-        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-    )
-try:
-    os.makedirs(checkpoint_actor_dir)
-    logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
-except FileExistsError:
-    logger.info("Actor folder exists, just resume!", extra=dictLogger)
-try:
-    os.makedirs(checkpoint_critic_dir)
-    logger.info("User folder doesn't exist. Created!", extra=dictLogger)
-except FileExistsError:
-    logger.info("User folder exists, just resume!", extra=dictLogger)
-
-ckpt_actor = tf.train.Checkpoint(
-    step=tf.Variable(1), optimizer=actor_optimizer, net=actor_model
-)
-manager_actor = tf.train.CheckpointManager(
-    ckpt_actor, checkpoint_actor_dir, max_to_keep=10
-)
-ckpt_actor.restore(manager_actor.latest_checkpoint)
-if manager_actor.latest_checkpoint:
-    logger.info(
-        f"Actor Restored from {manager_actor.latest_checkpoint}", extra=dictLogger
-    )
-else:
-    logger.info(f"Actor Initializing from scratch", extra=dictLogger)
-
-ckpt_critic = tf.train.Checkpoint(
-    step=tf.Variable(1), optimizer=critic_optimizer, net=critic_model
-)
-manager_critic = tf.train.CheckpointManager(
-    ckpt_critic, checkpoint_critic_dir, max_to_keep=10
-)
-ckpt_critic.restore(manager_critic.latest_checkpoint)
-if manager_critic.latest_checkpoint:
-    logger.info(
-        f"Critic Restored from {manager_critic.latest_checkpoint}", extra=dictLogger
-    )
-else:
-    logger.info("Critic Initializing from scratch", extra=dictLogger)
-
-# Making the weights equal initially after checkpoints load
-target_actor.set_weights(actor_model.get_weights())
-target_critic.set_weights(critic_model.get_weights())
-
 
 # todo ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
 init_motionpower = np.random.rand(obs_len, num_observations)
@@ -453,16 +316,11 @@ init_states = tf.convert_to_tensor(
 )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
 init_states = tf.expand_dims(init_states, 0)  # motion states is 30*2 matrix
 
-# noise is a row vector of num_actions dimension
-std_dev = 0.2
-ou_noise = OUActionNoise(
-    mean=np.zeros(num_reduced_actions),
-    std_deviation=float(std_dev) * np.ones(num_reduced_actions),
-)
+# action0 = policy(actor_model, init_states, ou_noise)
+action0 = rdpg.actor_predict(init_states, 0)
 
-action0 = policy(actor_model, init_states, ou_noise)
 logger.info(f"manual load tf library by calling convert_to_tensor", extra=dictLogger)
-ou_noise.reset()
+rdpg.reset_noise()
 
 # @eye
 # tracer.start()
@@ -764,7 +622,6 @@ def main():
     running_reward = 0
     episode_reward = 0
     th_exit = False
-    done = False
     epi_cnt_local = 0
 
     logger.info(f"main Initialization done!", extra=dictLogger)
@@ -877,7 +734,7 @@ def main():
                     f"E{epi_cnt} before inference!",
                     extra=dictLogger,
                 )
-                a_t = rdpg.evaluate_actors(o_t1, step_count / 2)
+                a_t = rdpg.actor_predict(o_t1, step_count / 2)
 
                 prev_o_t = np.reshape(o_t0, [1, num_observations * obs_len])
                 prev_a_t = np.reshape(a_t, [1, num_reduced_actions])
@@ -1012,80 +869,60 @@ def main():
         )
 
         rdpg.add_to_replay(h_t)
-        critic_loss_seq = []
-        for k in range(6):
-            # logger.info(f"BP{k} starts.", extra=dictLogger)
-            if not args.infer:
-                critic_loss = rdpg.train()
-                logd.info("Learning and updating")
-            else:
-                critic_loss = rdpg.nolearn()
-                logd.info("No Learning, just calculating loss")
-
-            critic_loss_seq.append(critic_loss)
-            # logd.info(f"BP{k} done.", extra=dictLogger)
-            logd.info(
-                f"E{epi_cnt}BP{k} critic loss: {critic_loss}",
-                extra=dictLogger,
-            )
-
-            if not args.infer:
-                update_target(target_actor.variables, actor_model.variables, tau)
-                # logger.info(f"Updated target actor", extra=dictLogger)
-                update_target(target_critic.variables, critic_model.variables, tau)
+        if args.infer:
+            (actor_loss, critic_loss) = rdpg.notrain()
+            logd.info("No Learning, just calculating loss")
+        else:
+            for k in range(6):
+                # logger.info(f"BP{k} starts.", extra=dictLogger)
+                actor_loss, critic_loss = rdpg.train()
+                logd.info("Learning and soft updating")
+                # logd.info(f"BP{k} done.", extra=dictLogger)
+                logd.info(
+                    f"E{epi_cnt}BP{k} critic loss: {critic_loss}",
+                    extra=dictLogger,
+                )
+                rdpg.soft_update_target()
                 # logger.info(f"Updated target critic.", extra=dictLogger)
 
-                # # Checkpoint manager save model
-                # ckpt_actor.step.assign_add(1)
-                # ckpt_critic.step.assign_add(1)
-                # if int(ckpt_actor.step) % 5 == 0:
-                #     save_path_actor = manager_actor.save()
-                #     logd.info(
-                #         f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}",
-                #         extra=dictLogger,
-                #     )
-                # if int(ckpt_critic.step) % 5 == 0:
-                #     save_path_critic = manager_critic.save()
-                #     logd.info(
-                #         f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}",
-                #         extra=dictLogger,
-                #     )
+            # Checkpoint manager save model
+            rdpg.save_ckpt()
 
-            critic_loss_episode = np.array(critic_loss_seq).sum()
-            logd.info(
-                f"E{epi_cnt} episode critic loss: {critic_loss_episode}.",
-                extra=dictLogger,
-            )
-            # Create a matplotlib 3d figure, //export and save in log
-            pd_data = pd.DataFrame(
-                vcu_calib_table1,
-                columns=np.linspace(0, 1.0, num=17),
-                index=np.linspace(0, 30, num=21),
-            )
-            df = pd_data.unstack().reset_index()
-            df.columns = ["pedal", "velocity", "throttle"]
+        logd.info(
+            f"E{epi_cnt} episode critic loss: {critic_loss}; episode actor loss: {actor_loss}.",
+            extra=dictLogger,
+        )
+        # Create a matplotlib 3d figure, //export and save in log
+        pd_data = pd.DataFrame(
+            vcu_calib_table1,
+            columns=np.linspace(0, 1.0, num=17),
+            index=np.linspace(0, 30, num=21),
+        )
+        df = pd_data.unstack().reset_index()
+        df.columns = ["pedal", "velocity", "throttle"]
 
-            fig = plt.figure()
-            ax = plt.axes(projection="3d")
-            surf = ax.plot_trisurf(
-                df["pedal"],
-                df["velocity"],
-                df["throttle"],
-                cmap=plt.cm.viridis,
-                linewidth=0.2,
-            )
-            fig.colorbar(surf, shrink=0.5, aspect=5)
-            ax.view_init(30, 135)
-            # plt.show()
-            # time.sleep(5)
-            # update running reward to check condition for solving
-            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+        fig = plt.figure()
+        ax = plt.axes(projection="3d")
+        surf = ax.plot_trisurf(
+            df["pedal"],
+            df["velocity"],
+            df["throttle"],
+            cmap=plt.cm.viridis,
+            linewidth=0.2,
+        )
+        fig.colorbar(surf, shrink=0.5, aspect=5)
+        ax.view_init(30, 135)
+        # plt.show()
+        # time.sleep(5)
+        # update running reward to check condition for solving
+        running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
         # tf logging after episode ends
         # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=epi_cnt_local)
-            tf.summary.scalar("critic loss", critic_loss_episode, step=epi_cnt_local)
+            tf.summary.scalar("actor loss", actor_loss, step=epi_cnt_local)
+            tf.summary.scalar("critic loss", critic_loss, step=epi_cnt_local)
             tf.summary.scalar("reward", episode_reward, step=epi_cnt_local)
             tf.summary.scalar("running reward", running_reward, step=epi_cnt_local)
             tf.summary.image(
@@ -1141,7 +978,7 @@ def main():
     )
     with open(last_table_store_path, "wb") as f:
         pds_last_table.to_csv(last_table_store_path)
-    rdpg.save()
+    rdpg.save_replay_buffer()
 
     logc.info(f"main dies!!!!", extra=dictLogger)
 

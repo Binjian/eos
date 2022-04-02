@@ -24,14 +24,19 @@ class ActorNet:
         gamma,
         tau,
         lr,
+        ckpt_dir,
+        ckpt_interval,
     ):
         """Initialize the actor network.
 
+        restore checkpoint from the provided directory if it exists,
+        initialize otherwise.
         Args:
             state_dim (int): Dimension of the state space.
             action_dim (int): Dimension of the action space.
             hidden_dim (int): Dimension of the hidden layer.
             lr (float): Learning rate for the network.
+            ckpt_dir (str): Directory to restore the checkpoint from.
         """
 
         self.state_dim = state_dim
@@ -81,6 +86,51 @@ class ActorNet:
             std_deviation=float(std_dev) * np.ones(action_dim),
         )
 
+        # restore the checkpoint if it exists
+        self.ckpt_dir = ckpt_dir
+        self.ckpt_interval = ckpt_interval
+        self.ckpt = tf.train.Checkpoint(
+            step=tf.Variable(1), optimizer=self.optimizer, net=self.eager_model
+        )
+        self.ckpt_manager = tf.train.CheckpointManager(
+            self.ckpt, self.ckpt_dir, max_to_keep=10
+        )
+        self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
+        if self.ckpt_manager.latest_checkpoint:
+            logger.info(
+                f"Restored actor from {self.ckpt_manager.latest_checkpoint}",
+                extra=dictLogger,
+            )
+        else:
+            logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+
+    def clone_weights(self, moving_net):
+        """Clone weights from a model to another model. only for target critic"""
+        self.eager_model.set_weights(moving_net.eager_model.get_weights())
+
+    def soft_update(self, moving_net):
+        """Update the target critic weights. only for target critic."""
+        self.eager_model.set_weights(
+            [
+                self.tau * w + (1 - self.tau) * w_t
+                for w, w_t in zip(
+                    moving_net.eager_model.get_weights(), self.eager_model.get_weights()
+                )
+            ]
+        )
+
+    def save_ckpt(self):
+        self.ckpt.step.assign_add(1)
+        if int(self.ckpt.step) % self.ckpt_interval == 0:
+            save_path = self.ckpt_manager.save()
+            logd.info(
+                f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",
+                extra=dictLogger,
+            )
+
+    def reset_noise(self):
+        self.ou_noise.reset()
+
     def predict(self, state):
         """Predict the action given the state.
         Args:
@@ -97,21 +147,6 @@ class ActorNet:
         sampled_action = last_action + self.ou_noise()  # noise object is a row vector
         # logc("ActorNet.predict")
         return sampled_action
-
-    def clone_weights(self, target):
-        """Clone weights from a model to another model. only for target critic"""
-        self.eager_model.set_weights(target.eager_model.get_weights())
-
-    def soft_update(self, target):
-        """Update the target critic weights. only for target critic."""
-        self.eager_model.set_weights(
-            [
-                self.tau * w + (1 - self.tau) * w_t
-                for w, w_t in zip(
-                    self.eager_model.get_weights(), target.eager_model.get_weights()
-                )
-            ]
-        )
 
     def evaluate_actions(self, state):
         """Evaluate the action given the state.
