@@ -245,6 +245,7 @@ class Buffer:
             # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
             # ! the question above is not necessary, since deterministic policy is the maximum!
             critic_value = self.critic_model([state_batch, action_batch], training=True)
+            # scalar value, average over the batch
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
         # logger.info(f"BP done.", extra=dictLogger)
@@ -259,9 +260,15 @@ class Buffer:
             critic_value = self.critic_model([state_batch, actions], training=True)
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions
+            # scalar value, average over the batch
             actor_loss = -tf.math.reduce_mean(critic_value)
 
+        # gradient director directly over actor model weights
         actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
+        # TODO Check if this is correct. compare above actor_grad tensor with below
+        # action_gradients= tape.gradient(actions, actor_model.trainable_variables)
+        # actor_grad = tape.gradient(actor_loss, actions, action_gradients)
+
         self.actor_optimizer.apply_gradients(
             zip(actor_grad, self.actor_model.trainable_variables)
         )

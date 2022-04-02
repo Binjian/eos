@@ -160,10 +160,6 @@ logger.info(
     f"tensorflow device lib:\n{device_lib.list_local_devices()}\n", extra=dictLogger
 )
 
-from tensorflow import keras
-import tensorflow_probability as tfp
-
-tfd = tfp.distributions
 
 logger.info(f"Tensorflow Imported!", extra=dictLogger)
 
@@ -172,7 +168,6 @@ import json
 
 # communication import
 from threading import Lock, Thread
-import _thread as thread
 import queue, time, math, signal
 
 
@@ -181,23 +176,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from visualization.visual import plot_to_image
 
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
-from mpl_toolkits.mplot3d import Axes3D
-import seaborn as sns
-import io  # needed by convert figure to png in memory
-
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
 from comm.vcu_calib_generator import (
     generate_vcu_calibration,
-    generate_lookup_table,
 )
 
 
 # from communication import carla_ros
-
 from agent.ddpg import (
     get_actor,
     get_critic,
@@ -769,7 +756,6 @@ def main():
     running_reward = 0
     episode_reward = 0
     th_exit = False
-    done = False
     epi_cnt_local = 0
 
     logger.info(f"main Initialization done!", extra=dictLogger)
@@ -1025,53 +1011,43 @@ def main():
                 f"E{epi_cnt} Experience Collection ends!",
                 extra=dictLogger,
             )
-            critic_loss_seq = []
-            actor_loss_seq = []
-            for k in range(6):
-                # logger.info(f"BP{k} starts.", extra=dictLogger)
-                if not args.infer:
+
+            if args.infer:
+                (critic_loss, actor_loss) = buffer.nolearn()
+                logd.info("No Learning, just calculating loss")
+            else:
+                for k in range(6):
+                    # logger.info(f"BP{k} starts.", extra=dictLogger)
                     (critic_loss, actor_loss) = buffer.learn()
                     logd.info("Learning and updating")
-                else:
-                    (critic_loss, actor_loss) = buffer.nolearn()
-                    logd.info("No Learning, just calculating loss")
 
-                critic_loss_seq.append(critic_loss)
-                actor_loss_seq.append(actor_loss)
-                # logd.info(f"BP{k} done.", extra=dictLogger)
-                logd.info(
-                    f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
-                    extra=dictLogger,
-                )
-
-                if not args.infer:
                     update_target(target_actor.variables, actor_model.variables, tau)
                     # logger.info(f"Updated target actor", extra=dictLogger)
                     update_target(target_critic.variables, critic_model.variables, tau)
                     # logger.info(f"Updated target critic.", extra=dictLogger)
 
-                    # Checkpoint manager save model
-                    ckpt_actor.step.assign_add(1)
-                    ckpt_critic.step.assign_add(1)
-                    if int(ckpt_actor.step) % 5 == 0:
-                        save_path_actor = manager_actor.save()
-                        logd.info(
-                            f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}",
-                            extra=dictLogger,
-                        )
-                    if int(ckpt_critic.step) % 5 == 0:
-                        save_path_critic = manager_critic.save()
-                        logd.info(
-                            f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}",
-                            extra=dictLogger,
-                        )
+                # Checkpoint manager save model
+                ckpt_actor.step.assign_add(1)
+                ckpt_critic.step.assign_add(1)
+                if int(ckpt_actor.step) % 5 == 0:
+                    save_path_actor = manager_actor.save()
+                    logd.info(
+                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_actor}",
+                        extra=dictLogger,
+                    )
+                if int(ckpt_critic.step) % 5 == 0:
+                    save_path_critic = manager_critic.save()
+                    logd.info(
+                        f"Saved checkpoint for step {int(ckpt_actor.step)}: {save_path_critic}",
+                        extra=dictLogger,
+                    )
 
-            actor_loss_episode = np.array(actor_loss_seq).sum()
-            critic_loss_episode = np.array(critic_loss_seq).sum()
+            # logd.info(f"BP{k} done.", extra=dictLogger)
             logd.info(
-                f"E{epi_cnt} episode critic loss: {critic_loss_episode}; episode actor loss: {actor_loss_episode}.",
+                f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                 extra=dictLogger,
             )
+
             # Create a matplotlib 3d figure, //export and save in log
             pd_data = pd.DataFrame(
                 vcu_calib_table1,
@@ -1101,8 +1077,8 @@ def main():
         # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
         with train_summary_writer.as_default():
             tf.summary.scalar("WH", -episode_reward, step=epi_cnt_local)
-            tf.summary.scalar("actor loss", actor_loss_episode, step=epi_cnt_local)
-            tf.summary.scalar("critic loss", critic_loss_episode, step=epi_cnt_local)
+            tf.summary.scalar("actor loss", actor_loss, step=epi_cnt_local)
+            tf.summary.scalar("critic loss", critic_loss, step=epi_cnt_local)
             tf.summary.scalar("reward", episode_reward, step=epi_cnt_local)
             tf.summary.scalar("running reward", running_reward, step=epi_cnt_local)
             tf.summary.image(
