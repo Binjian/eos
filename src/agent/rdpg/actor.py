@@ -7,7 +7,7 @@ import tensorflow.keras.initializers as initializers
 # local imports
 from ...l045a_rdpg import logger, logc, logd, dictLogger
 from ..utils.ou_noise import OUActionNoise
-
+from ...utils.exception import ReadOnlyError
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
@@ -17,11 +17,9 @@ class ActorNet:
         state_dim,
         action_dim,
         sequence_len,
-        batch_size,
         hidden_dim,
         n_layers,
         padding_value,
-        gamma,
         tau,
         lr,
         ckpt_dir,
@@ -39,21 +37,19 @@ class ActorNet:
             ckpt_dir (str): Directory to restore the checkpoint from.
         """
 
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.hidden_dim = hidden_dim
-        self.sequence_len = sequence_len
-        self.lr = lr
-        self.padding_value = padding_value
-        self.n_layers = n_layers
-        self.gamma = gamma
-        self.tau = tau
-        self.batch_size = batch_size
+        self._state_dim = state_dim
+        self._action_dim = action_dim
+        self._hidden_dim = hidden_dim
+        self._sequence_len = sequence_len
+        self._lr = lr
+        self._padding_value = padding_value
+        self._n_layers = n_layers
+        self._tau = tau
 
         inputs = layers.Input(shape=(sequence_len, state_dim))
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = layers.Masking(mask_value=self.padding_value)(
+        x = layers.Masking(mask_value=padding_value)(
             inputs
         )  # input (observation) padded with -10000.0
 
@@ -80,15 +76,15 @@ class ActorNet:
         # self.graph_model = tf.function(self.eager_model)
         self.optimizer = tf.keras.optimizers.Adam(lr)
 
-        std_dev = 0.2
+        self._std_dev = 0.2
         self.ou_noise = OUActionNoise(
             mean=np.zeros(action_dim),
-            std_deviation=float(std_dev) * np.ones(action_dim),
+            std_deviation=float(self._std_dev) * np.ones(action_dim),
         )
 
         # restore the checkpoint if it exists
         self.ckpt_dir = ckpt_dir
-        self.ckpt_interval = ckpt_interval
+        self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
             step=tf.Variable(1), optimizer=self.optimizer, net=self.eager_model
         )
@@ -112,7 +108,7 @@ class ActorNet:
         """Update the target critic weights. only for target critic."""
         self.eager_model.set_weights(
             [
-                self.tau * w + (1 - self.tau) * w_t
+                self._tau * w + (1 - self._tau) * w_t
                 for w, w_t in zip(
                     moving_net.eager_model.get_weights(), self.eager_model.get_weights()
                 )
@@ -158,3 +154,66 @@ class ActorNet:
         """
         # logc("ActorNet.evaluate_actions")
         return self.eager_model(state)
+
+    @property
+    def state_dim(self):
+        return self._state_dim
+    @state_dim.setter
+    def state_dim(self,value):
+        raise ReadOnlyError("state_dim is read-only")
+
+    @property
+    def action_dim(self):
+        return self._action_dim
+    @action_dim.setter
+    def action_dim(self,value):
+        raise ReadOnlyError("action_dim is read-only")
+
+    @property
+    def hidden_dim(self):
+        return self._hidden_dim
+    @hidden_dim.setter
+    def hidden_dim(self,value):
+        raise ReadOnlyError("hidden_dim is read-only")
+
+    @property
+    def sequence_len(self):
+        return self._sequence_len
+    @sequence_len.setter
+    def sequence_len(self,value):
+        raise ReadOnlyError("sequence_len is read-only")
+
+    @property
+    def lr(self):
+        return self._lr
+    @lr.setter
+    def lr(self,value):
+        raise ReadOnlyError("lr is read-only")
+
+    @property
+    def padding_value(self):
+        return self._padding_value
+    @padding_value.setter
+    def padding_value(self,value):
+        raise ReadOnlyError("padding_value is read-only")
+
+    @property
+    def n_layers(self):
+        return self._n_layers
+    @n_layers.setter
+    def n_layers(self,value):
+        raise ReadOnlyError("n_layers is read-only")
+
+    @property
+    def tau(self):
+        return self._tau
+    @tau.setter
+    def tau(self,value):
+        raise ReadOnlyError("tau is read-only")
+
+    @property
+    def ckpt_interval(self):
+        return self._ckpt_interval
+    @ckpt_interval.setter
+    def ckpt_interval(self,value):
+        raise ReadOnlyError("ckpt_interval is read-only")

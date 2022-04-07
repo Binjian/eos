@@ -6,7 +6,7 @@ import tensorflow.keras.initializers as initializers
 
 # local imports
 from ...l045a_rdpg import logger, logc, logd, dictLogger
-
+from ...utils.exception import ReadOnlyError
 
 class CriticNet:
     """Critic network for the RDPG algorithm."""
@@ -16,11 +16,9 @@ class CriticNet:
         state_dim,
         action_dim,
         sequence_len,
-        batch_size,
         hidden_dim,
         n_layers,
         padding_value,
-        gamma,
         tau,
         lr,
         ckpt_dir,
@@ -38,15 +36,13 @@ class CriticNet:
                     ckpt_dir (str): Directory to restore the checkpoint from.
         i"""
 
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.hidden_dim = hidden_dim
-        self.n_layers = n_layers
-        self.lr = lr
-        self.tau = tau
-        self.gamma = gamma
-        self.batch_size = batch_size
-        self.padding_value = padding_value
+        self._state_dim = state_dim
+        self._action_dim = action_dim
+        self._hidden_dim = hidden_dim
+        self._n_layers = n_layers
+        self._lr = lr
+        self._tau = tau
+        self._padding_value = padding_value
 
         inputs_state = layers.Input(shape=(sequence_len, state_dim))
         inputs_action = layers.Input(shape=(sequence_len, action_dim))
@@ -79,7 +75,7 @@ class CriticNet:
 
         # restore the checkpoint if it exists
         self.ckpt_dir = ckpt_dir
-        self.ckpt_interval = ckpt_interval
+        self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
             step=tf.Variable(1), optimizer=self.optimizer, net=self.eager_model
         )
@@ -130,3 +126,66 @@ class CriticNet:
         """
         # logc("ActorNet.evaluate_actions")
         return self.eager_model(state, action)
+
+    @property
+    def state_dim(self):
+        return self._state_dim
+    @state_dim.setter
+    def state_dim(self,value):
+        raise ReadOnlyError("state_dim is read-only")
+
+    @property
+    def action_dim(self):
+        return self._action_dim
+    @action_dim.setter
+    def action_dim(self,value):
+        raise ReadOnlyError("action_dim is read-only")
+
+    @property
+    def hidden_dim(self):
+        return self._hidden_dim
+    @hidden_dim.setter
+    def hidden_dim(self,value):
+        raise ReadOnlyError("hidden_dim is read-only")
+
+    @property
+    def sequence_len(self):
+        return self._sequence_len
+    @sequence_len.setter
+    def sequence_len(self,value):
+        raise ReadOnlyError("sequence_len is read-only")
+
+    @property
+    def lr(self):
+        return self._lr
+    @lr.setter
+    def lr(self,value):
+        raise ReadOnlyError("lr is read-only")
+
+    @property
+    def padding_value(self):
+        return self._padding_value
+    @padding_value.setter
+    def padding_value(self,value):
+        raise ReadOnlyError("padding_value is read-only")
+
+    @property
+    def n_layers(self):
+        return self._n_layers
+    @n_layers.setter
+    def n_layers(self,value):
+        raise ReadOnlyError("n_layers is read-only")
+
+    @property
+    def tau(self):
+        return self._tau
+    @tau.setter
+    def tau(self,value):
+        raise ReadOnlyError("tau is read-only")
+
+    @property
+    def ckpt_interval(self):
+        return self._ckpt_interval
+    @ckpt_interval.setter
+    def ckpt_interval(self,value):
+        raise ReadOnlyError("ckpt_interval is read-only")

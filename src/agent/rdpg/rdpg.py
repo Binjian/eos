@@ -105,7 +105,7 @@ import tensorflow.keras.initializers as initializers
 from ...l045a_rdpg import logger, logc, logd, dictLogger
 from actor import ActorNet
 from critic import CriticNet
-
+from ...utils.exception import ReadOnlyError
 
 class RDPG:
     def __init__(
@@ -119,7 +119,7 @@ class RDPG:
         hidden_unitsAC=(256, 256),
         n_layersAC=(2, 2),
         padding_value=0,
-        gammaAC=(0.99, 0.99),
+        gamma=0.99,
         tauAC=(0.001, 0.001),
         lrAC=(0.001, 0.002),
         datafolder="./",
@@ -132,20 +132,20 @@ class RDPG:
             padding_value (float): Value to pad the state with, impossible value for observation, action or re
         """
 
-        self.num_observations = num_observations
-        self.obs_len = obs_len
-        self.n_obs = num_observations * obs_len  # 3 * 30
-        self.n_act = num_actions  # reduced action 5 * 17
-        self.seq_len = seq_len
-        self.data_folder = datafolder
-        self.batch_size = batch_size
-        self.padding_value = padding_value
+        self._num_observations = num_observations
+        self._obs_len = obs_len
+        self._n_obs = num_observations * obs_len  # 3 * 30
+        self._n_act = num_actions  # reduced action 5 * 17
+        self._seq_len = seq_len
+        self._batch_size = batch_size
+        self._padding_value = padding_value
+        self._gamma = gamma
         # new data
         self.R = (
             []
         )  # list for dynamic buffer, when saving memory needs to be converted to numpy array
         # Number of "experiences" to store at max
-        self.buffer_capacity = buffer_capacity
+        self._buffer_capacity = buffer_capacity
         # Num of tuples to train on.
 
         self.h_t = None
@@ -153,7 +153,7 @@ class RDPG:
         # Actor Network (w/ Target Network)
         # create or restore from checkpoint
         # add checkpoints manager
-        self.ckpt_actor_dir = self.datafolder + "./checkpoints/rdpg_actor"
+        self.ckpt_actor_dir =datafolder + "./checkpoints/rdpg_actor"
         self.ckpt_interval = ckpt_interval
         try:
             os.makedirs(self.checkpoint_actor_dir)
@@ -170,14 +170,12 @@ class RDPG:
             )
 
         self.actor_net = ActorNet(
-            self.n_obs,
-            self.n_act,
-            self.seq_len,
-            self.batch_size,
+            self._n_obs,
+            self._n_act,
+            seq_len,
             hidden_unitsAC[0],
             n_layersAC[0],
-            self.padding_value,
-            gammaAC[0],
+            padding_value,
             tauAC[0],
             lrAC[0],
             self.ckpt_actor_dir,
@@ -185,14 +183,12 @@ class RDPG:
         )
 
         self.target_actor_net = ActorNet(
-            self.n_obs,
-            self.n_act,
-            self.seq_len,
-            self.batch_size,
+            self._n_obs,
+            self._n_act,
+            seq_len,
             hidden_unitsAC[0],
             n_layersAC[0],
-            self.padding_value,
-            gammaAC[0],
+            padding_value,
             tauAC[0],
             lrAC[0],
             self.ckpt_actor_dir,
@@ -204,7 +200,7 @@ class RDPG:
         # Critic Network (w/ Target Network)
         # create or restore from checkpoint
         # add checkpoints manager
-        self.ckpt_critic_dir = self.datafolder + "./checkpoints/rdpg_critic"
+        self.ckpt_critic_dir = datafolder + "./checkpoints/rdpg_critic"
         try:
             os.makedirs(self.ckpt_critic_dir)
             logger.info(
@@ -220,14 +216,12 @@ class RDPG:
             )
 
         self.critic_net = CriticNet(
-            self.n_obs,
-            self.n_act,
-            self.seq_len,
-            self.batch_size,
+            self._n_obs,
+            self._n_act,
+            seq_len,
             hidden_unitsAC[1],
             n_layersAC[1],
-            self.padding_value,
-            gammaAC[1],
+            padding_value,
             tauAC[1],
             lrAC[1],
             self.ckpt_critic_dir,
@@ -235,14 +229,12 @@ class RDPG:
         )
 
         self.target_critic_net = CriticNet(
-            self.n_obs,
-            self.n_act,
-            self.seq_len,
-            self.batch_size,
+            self._n_obs,
+            self._n_act,
+            seq_len,
             hidden_unitsAC[1],
             n_layersAC[1],
-            self.padding_value,
-            gammaAC[1],
+            padding_value,
             tauAC[1],
             lrAC[1],
             self.ckpt_critic_dir,
@@ -253,7 +245,7 @@ class RDPG:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
-        self.file_replay = self.data_folder + "/replay_buffer.npy"
+        self.file_replay = datafolder + "/replay_buffer.npy"
         # Its tells us num of times record() was called.
         self.load_replay_buffer()
 
@@ -265,7 +257,7 @@ class RDPG:
         # TODO add sequence padding for variable length sequences?
         if t == 0:
             # initialize with padding values
-            self.obs_t = np.ones((1, self.seq_len, self.n_obs)) * self.padding_value
+            self.obs_t = np.ones((1, self._seq_len, self._n_obs)) * self._padding_value
             self.obs_t[0, 0, :] = obs
         else:
             self.obs_t[0, t, :] = obs
@@ -284,7 +276,7 @@ class RDPG:
         """
         self.h_t = h_t
         self.R.append(h_t)
-        if len(self.R) > self.buffer_capacity:
+        if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
 
     def sample_mini_batch(self):
@@ -300,25 +292,25 @@ class RDPG:
             next state observation is
         """
         # Sample random indexes
-        record_range = min(len(self.R), self.buffer_capacity)
-        indexes = np.random.choice(record_range, self.batch_size)
+        record_range = min(len(self.R), self._buffer_capacity)
+        indexes = np.random.choice(record_range, self._batch_size)
 
         # mini-batch for Reward, Observation and Action, with keras padding
         self.r_n_t = pad_sequences(
             [self.R[i][:, -1] for i in indexes],
             padding="post",
             dtype="float32",
-            value=self.padding_value,  # impossible value for wh value; 0 would be a possible value
+            value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
         )  # return numpy array of shape (batch_size, seq_len)
         # return numpy array of shape (batch_size, seq_len, 1), for align with critic output with extra feature dimension
         self.r_n_t = np.expand_dims(self.r_n_t, axis=2)
 
         o_n_l0 = [
-            self.R[i][:, 0 : self.n_obs] for i in indexes
+            self.R[i][:, 0 : self._n_obs] for i in indexes
         ]  # list of np.array with variable observation length
         o_n_l1 = [
-            [o_n_l0[i][:, j] for i in np.arange(self.batch_size)]
-            for j in np.arange(self.n_obs)
+            [o_n_l0[i][:, j] for i in np.arange(self._batch_size)]
+            for j in np.arange(self._n_obs)
         ]  # list (batch_size) of list (n_obs) of np.array with variable observation length
 
         try:
@@ -328,7 +320,7 @@ class RDPG:
                         o_n_l1i,
                         padding="post",
                         dtype="float32",
-                        value=self.padding_value,
+                        value=self._padding_value,
                     )  # return numpy array
                     for o_n_l1i in o_n_l1
                 ]  # return numpy array list
@@ -337,11 +329,11 @@ class RDPG:
             logd.error("Ragged observation state o_n_l1!")
 
         a_n_l0 = [
-            self.R[i][:, self.n_obs : self.n_obs + self.n_act] for i in indexes
+            self.R[i][:, self._n_obs : self._n_obs + self._n_act] for i in indexes
         ]  # list of np.array with variable action length
         a_n_l1 = [
-            [a_n_l0[i][:, j] for i in np.arange(self.batch_size)]
-            for j in np.arange(self.n_act)
+            [a_n_l0[i][:, j] for i in np.arange(self._batch_size)]
+            for j in np.arange(self._n_act)
         ]  # list (batch_size) of list (n_act) of np.array with variable action length
 
         try:
@@ -351,7 +343,7 @@ class RDPG:
                         a_n_l1i,
                         padding="post",
                         dtype="float32",
-                        value=self.padding_value,
+                        value=self._padding_value,
                     )  # return numpy array
                     for a_n_l1i in a_n_l1
                 ]  # return numpy array list
@@ -380,9 +372,9 @@ class RDPG:
             # compute the target action value at h_t for the current batch
             # using fancy indexing
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-            t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self.seq_len], :], 0, axis=1)
+            t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1)
             # y_n_t shape (batch_size, seq_len, 1)
-            self.y_n_t = self.r_n_t + self.gamma * t_q_ht_bl
+            self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
@@ -450,3 +442,66 @@ class RDPG:
             )
         except IOError:
             logd.info("blank experience", extra=dictLogger)
+
+    @property
+    def num_observations(self):
+        return self._num_observations
+    @num_observations.setter
+    def num_observations(self, value):
+        raise ReadOnlyError("num_observations is read-only")
+
+    @property
+    def obs_len(self):
+        return self._obs_len
+    @obs_len.setter
+    def obs_len(self, value):
+        raise ReadOnlyError("obs_len is read-only")
+
+    @property
+    def n_obs(self):
+        return self._n_obs
+    @n_obs.setter
+    def n_obs(self,value):
+        raise ReadOnlyError("n_obs is read-only")
+
+    @property
+    def n_act(self):
+        return self._n_act
+    @n_act.setter
+    def n_act(self,value):
+        raise ReadOnlyError("n_act is read-only")
+
+    @property
+    def seq_len(self):
+        return self._seq_len
+    @seq_len.setter
+    def seq_len(self,value):
+        raise ReadOnlyError("seq_len is read-only")
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+    @batch_size.setter
+    def batch_size(self,value):
+        raise ReadOnlyError("batch_size is read-only")
+
+    @property
+    def padding_value(self):
+        return self._padding_value
+    @padding_value.setter
+    def padding_value(self,value):
+        raise ReadOnlyError("padding_value is read-only")
+
+    @property
+    def buffer_capacity(self):
+        return self._buffer_capacity
+    @buffer_capacity.setter
+    def buffer_capcity(self,value):
+        raise ReadOnlyError("buffer_capacity is read-only")
+
+    @property
+    def gamma(self):
+        return self._gamma
+    @gamma.setter
+    def gamma(self,value):
+        raise ReadOnlyError("gamma is read-only")
