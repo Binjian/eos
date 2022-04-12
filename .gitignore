@@ -34,3 +34,4 @@ data
 # Ignore IDE specific files
 #.vscode/
 *.pyc
+*.xml
