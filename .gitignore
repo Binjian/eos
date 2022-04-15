@@ -34,3 +34,4 @@ data
 #.vscode/
 *.pyc
 *.xml
+/veos.egg-info/
