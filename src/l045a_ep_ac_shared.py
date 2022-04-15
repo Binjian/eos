@@ -530,9 +530,13 @@ def get_truck_status():
         candata, addr = s.recvfrom(2048)
         # logger.info('Data received!!!', extra=dictLogger)
         pop_data = json.loads(candata)
-        if len(pop_data) != 1:
-            logc.critical("udp sending multiple shots!")
-            break
+        data_type = type(pop_data)
+        logc.info(f"Data type is {data_type}", extra=dictLogger)
+        if (not isinstance(pop_data, dict)):
+            logd.critical(f"udp sending wrong data type!", extra=dictLogger)
+            raise TypeError("udp sending wrong data type!")
+
+
         epi_delay_stop = False
         for key, value in pop_data.items():
             if key == "status":  # state machine chores
