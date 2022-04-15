@@ -10,7 +10,6 @@ logs
 *.out
 *.pcap
 *.pdf
-*.png
 *.xls
 *.xlsx
 *.xml
