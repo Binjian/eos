@@ -180,12 +180,12 @@ the next state following $`s_t`$
 
 ### $`a_t`$
 
-action at timestamp $t$
+action at timestamp $`t`$
 
--   It&rsquo;s the decision of what pedal map will be applied after observing the state $s_t$ by the agent
--   The action $a_t$ of VEOS system is the pedal map $[PM_{5\times17}]^t$ at timestamp $t$. It&rsquo;s currently 5 consecutive rows in the full pedal map corresponding to the current state $s_t$, 17 is the current discretization level of the throttle pedal percentage. Each element of the pedal map is the requested torque given the vehicle velocity and the throttle pedal position
--   The real effective time of $a_t$ could be delayed by $\Delta t$ due to transmission and flashing latency, i.e. $a_t$ will be applied at $t+\Delta t$
--   $a_t$ must precede $s'_t$, that is $t+\Delta t < t+1$ so that the next state $s'_t$ is the result of applying $a_t$
+-   It&rsquo;s the decision of what pedal map will be applied after observing the state $`s_t`$ by the agent
+-   The action $`a_t`$ of VEOS system is the pedal map $`[PM_{5\times17}]^t `$ at timestamp $`t`$. It&rsquo;s currently 5 consecutive rows in the full pedal map corresponding to the current state $`s_t`$, 17 is the current discretization level of the throttle pedal percentage. Each element of the pedal map is the requested torque given the vehicle velocity and the throttle pedal position
+-   The real effective time of $`a_t`$ could be delayed by $`\Delta t`$ due to transmission and flashing latency, i.e. $`a_t`$ will be applied at $`t+\Delta t`$
+-   $`a_t`$ must precede $`s'_t`$, that is $`t+\Delta t < t+1`$ so that the next state $`s'_t`$ is the result of applying $`a_t`$
 
 
 <a id="org10491a0"></a>
