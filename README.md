@@ -52,7 +52,7 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 # Record
 
 -   Record is the uploading unit of remote-CAN module
--   It&rsquo;s a timestamped [quadruple](#orgb566816) (a tuple of 4 elements) $(s_t, a_t, r_t, s'_t)$ with a time stamp $t$
+-   It&rsquo;s a timestamped [quadruple](#orgb566816) (a tuple of 4 elements) $`(s_t, a_t, r_t, s'_t)`$ with a time stamp $`t`$
 -   The sequence of records consist of an episode
 
 
@@ -152,33 +152,33 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 
 <a id="org6a33a23"></a>
 
-### $s_t$
+### $`s_t`$
 
-state at timestamp $t$
+state at timestamp $`t`$
 
--   $V_k$: velocity of the vehicle
--   $A_k$: acceleration pedal position in percentage
--   $B_k$: brake pedal position in percentage
--   $K$: number of frames within a single record. A record starts from timestamp $t$, contains $K$ CAN frames and ends by the end of the last frame
+-   $`V_k`$: velocity of the vehicle
+-   $`A_k`$: acceleration pedal position in percentage
+-   $`B_k`$: brake pedal position in percentage
+-   $`K`$: number of frames within a single record. A record starts from timestamp $`t`$, contains $`K`$ CAN frames and ends by the end of the last frame
     -   each line in a record is referred to as a single frame, whose information can be extracted from multiple CAN frames at the same moment
-    -   rows within a record is contiguous in time starting from the timestamp $t$
-    -   in case of frame loss, a loss token needs to be inserted as a lost frame state at the next timestamp of $t$, that is $t+1$
+    -   rows within a record is contiguous in time starting from the timestamp $`t`$
+    -   in case of frame loss, a loss token needs to be inserted as a lost frame state at the next timestamp of $`t`$, that is $`t+1`$
 
 
 <a id="org71a7f0b"></a>
 
-### $s'_t$
+### $`s'_t`$
 
-the next state following $s_t$
+the next state following $`s_t`$
 
--   The state according to which the next decsion $a_t$ will be made.
--   In case of previous assumption, this state will contain the next adjacent 30 frames of state $s_t$.
--   $s'_t$ must be contiguous in time to $s_t$
+-   The state according to which the next decsion $`a_t`$ will be made.
+-   In case of previous assumption, this state will contain the next adjacent 30 frames of state $`s_t`$.
+-   $`s'_t`$ must be contiguous in time to $`s_t`$
 
 
 <a id="orgfdc18cc"></a>
 
-### $a_t$
+### $`a_t`$
 
 action at timestamp $t$
 
@@ -190,12 +190,12 @@ action at timestamp $t$
 
 <a id="org10491a0"></a>
 
-### $r_t$
+### $`r_t`$
 
-reward at timestamp $t$
+reward at timestamp $`t`$
 
--   It&rsquo;s the electricity consumption effected by the action $a_t$
--   It&rsquo;s computed by accumlating the product of battery voltage $U_{r_k}$ and current values $I_{r_k}$ at the frames after the current action $a_t$ is applied and before the next action $a_{t+1}$ becomes effective, that is to say, the voltage and current values after the moment $r_0$  when flashing the pedal map is done and in effect, until after the last effective moment $r_K$  when the next action $a_{t+1}$ is applied (flashed and in effect)
+-   It&rsquo;s the electricity consumption effected by the action $`a_t`$
+-   It&rsquo;s computed by accumlating the product of battery voltage $`U_{r_k}`$ and current values $`I_{r_k}`$ at the frames after the current action $`a_t`$ is applied and before the next action $`a_{t+1}`$ becomes effective, that is to say, the voltage and current values after the moment $`r_0`$  when flashing the pedal map is done and in effect, until after the last effective moment $`r_K`$  when the next action $`a_{t+1}`$ is applied (flashed and in effect)
 
 
 <a id="org91ce6ce"></a>
