@@ -7,10 +7,10 @@
     2.  [Preprocessing](#org332c0a5)
 3.  [Record](#orgb63a2c3)
     1.  [The structure of the record quadruple](#org50e5e97)
-        1.  [$s_t$](#org6a33a23)
-        2.  [$s'_t$](#org71a7f0b)
-        3.  [$a_t$](#orgfdc18cc)
-        4.  [$r_t$](#org10491a0)
+        1.  [$`s_t`$](#org6a33a23)
+        2.  [$`s'_t`$](#org71a7f0b)
+        3.  [$`a_t`$](#orgfdc18cc)
+        4.  [$`r_t`$](#org10491a0)
 4.  [Pool](#org91ce6ce)
     1.  [Pool](#org0edeb0a)
     2.  [Minibatch](#org7f4f4c3)
@@ -77,38 +77,29 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 <thead>
 <tr>
 <th scope="col" class="org-left">&#xa0;</th>
-<th scope="col" class="org-left">\(s_t\)</th>
-<th scope="col" class="org-left">\(a_t\)</th>
-<th scope="col" class="org-left">\(r_t\)</th>
-<th scope="col" class="org-left">\(s'_t\)</th>
+<th scope="col" class="org-left">\(`s_t`\)</th>
+<th scope="col" class="org-left">\(`a_t`\)</th>
+<th scope="col" class="org-left">\(`r_t`\)</th>
+<th scope="col" class="org-left">\(`s'_t`\)</th>
 </tr>
 </thead>
 
 <tbody>
 <tr>
-<td class="org-left">\(t\) (timestamp)</td>
-<td class="org-left">\(V_0\), \(A_0\), \(B_0\)</td>
+<td class="org-left">\(`t`\) (timestamp)</td>
+<td class="org-left">\(`V_0`\), \(`A_0`\), \(`B_0`\)</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V'_0\), \(A'_0\), \(B'_0\)</td>
+<td class="org-left">\(`V'_0`\), \(`A'_0`\), \(`B'_0`\)</td>
 </tr>
 
 
 <tr>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V_1\), \(A_1\), \(B_1\)</td>
+<td class="org-left">\(`V_1`\), \(`A_1`\), \(`B_1`\)</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#x2026;</td>
-<td class="org-left">\(V'_1\), \(A'_1\), \(B'_1\)</td>
-</tr>
-
-
-<tr>
-<td class="org-left">&#xa0;</td>
-<td class="org-left">&#x2026;</td>
-<td class="org-left">&#xa0;</td>
-<td class="org-left">\(U_{r_0}\) , \(I_{r_0}\)</td>
-<td class="org-left">&#xa0;</td>
+<td class="org-left">\(`V'_1`\), \(`A'_1`\), \(`B'_1`\)</td>
 </tr>
 
 
@@ -116,17 +107,8 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#x2026;</td>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">&#x2026;</td>
+<td class="org-left">\(`U_{r_0}`\) , \(`I_{r_0}`\)</td>
 <td class="org-left">&#xa0;</td>
-</tr>
-
-
-<tr>
-<td class="org-left">&#xa0;</td>
-<td class="org-left">\(V_k\), \(A_k\), \(B_k\)</td>
-<td class="org-left">&#xa0;</td>
-<td class="org-left">\(U_{r_k}\) , \(I_{r_k}\)</td>
-<td class="org-left">\(V'_k\), \(A'_k\), \(B'_k\)</td>
 </tr>
 
 
@@ -135,16 +117,34 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 <td class="org-left">&#x2026;</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#x2026;</td>
+<td class="org-left">&#xa0;</td>
+</tr>
+
+
+<tr>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">\(`V_k`\), \(`A_k`\), \(`B_k`\)</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">\(`U_{r_k}`\) , \(`I_{r_k}`\)</td>
+<td class="org-left">\(`V'_k`\), \(`A'_k`\), \(`B'_k`\)</td>
+</tr>
+
+
+<tr>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#x2026;</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#x2026;</td>
 <td class="org-left">&#x2026;</td>
 </tr>
 
 
 <tr>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V_{K-1}\), \(A_{K-1}\), \(B_{K-1}\)</td>
-<td class="org-left">\([PM_{5\times17}]^t\)</td>
-<td class="org-left">\(U_{r_K}\) , \(I_{r_K}\)</td>
-<td class="org-left">\(V'_{K-1}\), \(A'_{K-1}\), \(B'_{K-1}\)</td>
+<td class="org-left">\(`V_{K-1}`\), \(`A_{K-1}`\), \(`B_{K-1}`\)</td>
+<td class="org-left">\(`[PM_{5\times17}]^t`\)</td>
+<td class="org-left">\(`U_{r_K}`\) , \(`I_{r_K}`\)</td>
+<td class="org-left">\(`V'_{K-1}`\), \(`A'_{K-1}`\), \(`B'_{K-1}`\)</td>
 </tr>
 </tbody>
 </table>
