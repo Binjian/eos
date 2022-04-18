@@ -229,25 +229,7 @@ A minibatch is a batch of [records](#orgb63a2c3) by random sampling the pool wit
 
 # Dataflow
 
-```mermaid
-graph BT
-  VBU(VBU)-->TBox(TBox)
-  TBox-->VBU
-  subgraph Cloud Interfaces
-    direction LR
-    TBox--"BW/Latency (Intest)"-->Buffer("Buffer (OSS)")
-    Buffer--"BW/Latency (Internal)"-->RemoteCAN(RemoteCAN)
-    RemoteCAN--"BW/Latency (Internal)"-->TSP(TSP Service)
-    TSP--"BW/Latency (Intest)"-->TBox
-  end
-  VEOS(VEOS)-->RemoteCAN(RemoteCAN)
-  RemoteCAN-->VEOS
-  TSP-.configure.->Buffer
-  linkStyle 1 stroke-width:3px,stroke:red
-  linkStyle 4 stroke-width:3px,stroke:red
-  linkStyle 5 stroke-width:3px,stroke:red
-  linkStyle 6 stroke-width:3px,stroke:red
-```
+![img](./img/adp_data_flow_seq_block.png "Dataflow")
 
 <a id="orgd7fa408"></a>
 
