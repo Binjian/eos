@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 install_requires = [
     "numpy",
-    "tensorflow<",
+    "tensorflow",
     "matplotlib",
     "pandas",
     "pytest",
@@ -16,7 +16,7 @@ setup(
     author_email="binjian.xin@newrizon.com",
     entrypoints={
         "console_scripts": [
-            "voes = veos.__main__:main",
+            "veos = src.l045a_rdpg.__main__:main",
         ],
     },
     description="A python package for vehicle energy optimization system",
