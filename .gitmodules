@@ -4,4 +4,4 @@
 [submodule "src/comm/remotecan"]
 	path = src/comm/remotecan
 	url = ssh://git@gitlab.newrizon.work:2222/its/ai/veos.git
-	branch = release
+	branch = subm
