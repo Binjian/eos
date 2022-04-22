@@ -7,10 +7,10 @@
     2.  [Preprocessing](#org332c0a5)
 3.  [Record](#orgb63a2c3)
     1.  [The structure of the record quadruple](#org50e5e97)
-        1.  [$s_t$](#org6a33a23)
-        2.  [$s'_t$](#org71a7f0b)
-        3.  [$a_t$](#orgfdc18cc)
-        4.  [$r_t$](#org10491a0)
+        1.  [$`s_t`$](#org6a33a23)
+        2.  [$`s'_t`$](#org71a7f0b)
+        3.  [$`a_t`$](#orgfdc18cc)
+        4.  [$`r_t`$](#org10491a0)
 4.  [Pool](#org91ce6ce)
     1.  [Pool](#org0edeb0a)
     2.  [Minibatch](#org7f4f4c3)
@@ -52,7 +52,7 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 # Record
 
 -   Record is the uploading unit of remote-CAN module
--   It&rsquo;s a timestamped [quadruple](#orgb566816) (a tuple of 4 elements) $(s_t, a_t, r_t, s'_t)$ with a time stamp $t$
+-   It&rsquo;s a timestamped [quadruple](#orgb566816) (a tuple of 4 elements) $`(s_t, a_t, r_t, s'_t)`$ with a time stamp $`t`$
 -   The sequence of records consist of an episode
 
 
@@ -77,38 +77,29 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 <thead>
 <tr>
 <th scope="col" class="org-left">&#xa0;</th>
-<th scope="col" class="org-left">\(s_t\)</th>
-<th scope="col" class="org-left">\(a_t\)</th>
-<th scope="col" class="org-left">\(r_t\)</th>
-<th scope="col" class="org-left">\(s'_t\)</th>
+<th scope="col" class="org-left">$`s_t`$</th>
+<th scope="col" class="org-left">$`a_t`$</th>
+<th scope="col" class="org-left">$`r_t`$</th>
+<th scope="col" class="org-left">$`s'_t`$</th>
 </tr>
 </thead>
 
 <tbody>
 <tr>
-<td class="org-left">\(t\) (timestamp)</td>
-<td class="org-left">\(V_0\), \(A_0\), \(B_0\)</td>
+<td class="org-left">$`t`$ (timestamp)</td>
+<td class="org-left">$`V_0`$, $`A_0`$, $`B_0`$</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V'_0\), \(A'_0\), \(B'_0\)</td>
+<td class="org-left">$`V'_0`$, $`A'_0`$, $`B'_0`$</td>
 </tr>
 
 
 <tr>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V_1\), \(A_1\), \(B_1\)</td>
+<td class="org-left">$`V_1`$, $`A_1`$, $`B_1`$</td>
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#x2026;</td>
-<td class="org-left">\(V'_1\), \(A'_1\), \(B'_1\)</td>
-</tr>
-
-
-<tr>
-<td class="org-left">&#xa0;</td>
-<td class="org-left">&#x2026;</td>
-<td class="org-left">&#xa0;</td>
-<td class="org-left">\(U_{r_0}\) , \(I_{r_0}\)</td>
-<td class="org-left">&#xa0;</td>
+<td class="org-left">$`V'_1`$, $`A'_1`$, $`B'_1`$</td>
 </tr>
 
 
@@ -116,6 +107,16 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 <td class="org-left">&#xa0;</td>
 <td class="org-left">&#x2026;</td>
 <td class="org-left">&#xa0;</td>
+<td class="org-left">$`U_{r_0}`$, $`I_{r_0}`$</td>
+<td class="org-left">&#xa0;</td>
+</tr>
+
+
+<tr>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#x2026;</td>
+<td class="org-left">&#xa0;</td>
+
 <td class="org-left">&#x2026;</td>
 <td class="org-left">&#xa0;</td>
 </tr>
@@ -123,10 +124,10 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 
 <tr>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V_k\), \(A_k\), \(B_k\)</td>
+<td class="org-left">$`V_k`$, $`A_k`$, $`B_k`$</td>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(U_{r_k}\) , \(I_{r_k}\)</td>
-<td class="org-left">\(V'_k\), \(A'_k\), \(B'_k\)</td>
+<td class="org-left">$`U_{r_k}`$, $`I_{r_k}`$</td>
+<td class="org-left">$`V'_k`$, $`A'_k`$, $`B'_k`$</td>
 </tr>
 
 
@@ -141,10 +142,10 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 
 <tr>
 <td class="org-left">&#xa0;</td>
-<td class="org-left">\(V_{K-1}\), \(A_{K-1}\), \(B_{K-1}\)</td>
-<td class="org-left">\([PM_{5\times17}]^t\)</td>
-<td class="org-left">\(U_{r_K}\) , \(I_{r_K}\)</td>
-<td class="org-left">\(V'_{K-1}\), \(A'_{K-1}\), \(B'_{K-1}\)</td>
+<td class="org-left">$`V_{K-1}`$, $`A_{K-1}`$, $`B_{K-1}`$</td>
+<td class="org-left">$`[PM_{5\times17}]^t`$</td>
+<td class="org-left">$`U_{r_K}`$, $`I_{r_K}`$</td>
+<td class="org-left">$`V'_{K-1}`$, $`A'_{K-1}`$, $`B'_{K-1}`$</td>
 </tr>
 </tbody>
 </table>
@@ -152,50 +153,50 @@ Raw streams will be transformed into time stamped [Record](#orgb63a2c3) after pr
 
 <a id="org6a33a23"></a>
 
-### $s_t$
+### $`s_t`$
 
-state at timestamp $t$
+state at timestamp $`t`$
 
--   $V_k$: velocity of the vehicle
--   $A_k$: acceleration pedal position in percentage
--   $B_k$: brake pedal position in percentage
--   $K$: number of frames within a single record. A record starts from timestamp $t$, contains $K$ CAN frames and ends by the end of the last frame
+-   $`V_k`$: velocity of the vehicle
+-   $`A_k`$: acceleration pedal position in percentage
+-   $`B_k`$: brake pedal position in percentage
+-   $`K`$: number of frames within a single record. A record starts from timestamp $`t`$, contains $`K`$ CAN frames and ends by the end of the last frame
     -   each line in a record is referred to as a single frame, whose information can be extracted from multiple CAN frames at the same moment
-    -   rows within a record is contiguous in time starting from the timestamp $t$
-    -   in case of frame loss, a loss token needs to be inserted as a lost frame state at the next timestamp of $t$, that is $t+1$
+    -   rows within a record is contiguous in time starting from the timestamp $`t`$
+    -   in case of frame loss, a loss token needs to be inserted as a lost frame state at the next timestamp of $`t`$, that is $`t+1`$
 
 
 <a id="org71a7f0b"></a>
 
-### $s'_t$
+### $`s'_t`$
 
-the next state following $s_t$
+the next state following $`s_t`$
 
--   The state according to which the next decsion $a_t$ will be made.
--   In case of previous assumption, this state will contain the next adjacent 30 frames of state $s_t$.
--   $s'_t$ must be contiguous in time to $s_t$
+-   The state according to which the next decsion $`a_t`$ will be made.
+-   In case of previous assumption, this state will contain the next adjacent 30 frames of state $`s_t`$.
+-   $`s'_t`$ must be contiguous in time to $`s_t`$
 
 
 <a id="orgfdc18cc"></a>
 
-### $a_t$
+### $`a_t`$
 
-action at timestamp $t$
+action at timestamp $`t`$
 
--   It&rsquo;s the decision of what pedal map will be applied after observing the state $s_t$ by the agent
--   The action $a_t$ of VEOS system is the pedal map $[PM_{5\times17}]^t$ at timestamp $t$. It&rsquo;s currently 5 consecutive rows in the full pedal map corresponding to the current state $s_t$, 17 is the current discretization level of the throttle pedal percentage. Each element of the pedal map is the requested torque given the vehicle velocity and the throttle pedal position
--   The real effective time of $a_t$ could be delayed by $\Delta t$ due to transmission and flashing latency, i.e. $a_t$ will be applied at $t+\Delta t$
--   $a_t$ must precede $s'_t$, that is $t+\Delta t < t+1$ so that the next state $s'_t$ is the result of applying $a_t$
+-   It&rsquo;s the decision of what pedal map will be applied after observing the state $`s_t`$ by the agent
+-   The action $`a_t`$ of VEOS system is the pedal map $`[PM_{5\times17}]^t `$ at timestamp $`t`$. It&rsquo;s currently 5 consecutive rows in the full pedal map corresponding to the current state $`s_t`$, 17 is the current discretization level of the throttle pedal percentage. Each element of the pedal map is the requested torque given the vehicle velocity and the throttle pedal position
+-   The real effective time of $`a_t`$ could be delayed by $`\Delta t`$ due to transmission and flashing latency, i.e. $`a_t`$ will be applied at $`t+\Delta t`$
+-   $`a_t`$ must precede $`s'_t`$, that is $`t+\Delta t < t+1`$ so that the next state $`s'_t`$ is the result of applying $`a_t`$
 
 
 <a id="org10491a0"></a>
 
-### $r_t$
+### $`r_t`$
 
-reward at timestamp $t$
+reward at timestamp $`t`$
 
--   It&rsquo;s the electricity consumption effected by the action $a_t$
--   It&rsquo;s computed by accumlating the product of battery voltage $U_{r_k}$ and current values $I_{r_k}$ at the frames after the current action $a_t$ is applied and before the next action $a_{t+1}$ becomes effective, that is to say, the voltage and current values after the moment $r_0$  when flashing the pedal map is done and in effect, until after the last effective moment $r_K$  when the next action $a_{t+1}$ is applied (flashed and in effect)
+-   It&rsquo;s the electricity consumption effected by the action $`a_t`$
+-   It&rsquo;s computed by accumlating the product of battery voltage $`U_{r_k}`$ and current values $`I_{r_k}`$ at the frames after the current action $`a_t`$ is applied and before the next action $`a_{t+1}`$ becomes effective, that is to say, the voltage and current values after the moment $`r_0`$  when flashing the pedal map is done and in effect, until after the last effective moment $`r_K`$  when the next action $`a_{t+1}`$ is applied (flashed and in effect)
 
 
 <a id="org91ce6ce"></a>
@@ -229,7 +230,6 @@ A minibatch is a batch of [records](#orgb63a2c3) by random sampling the pool wit
 # Dataflow
 
 ![img](./img/adp_data_flow_seq_block.png "Dataflow")
-
 
 <a id="orgd7fa408"></a>
 
