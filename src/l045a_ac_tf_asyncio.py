@@ -77,7 +77,6 @@ logger.setLevel(logging.DEBUG)
 # dictLogger = {'funcName': '__self__.__func__.__name__'}
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
-import os
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 logger.info(f"Start Logging", extra=dictLogger)
@@ -126,18 +125,12 @@ import io  # needed by convert figure to png in memory
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
-from comm.vcu_calib_generator import (
-    generate_vcu_calibration,
-    generate_lookup_table,
-)
+from comm.vcu_calib_generator import generate_vcu_calibration
 
 
 # from communication import carla_ros
-from agent.ac_gaussian import (
-    constructactorcriticnetwork,
-    train_step,
-)
-from comm.tbox.scripts.tbox_sim import *
+from agent import constructactorcriticnetwork_a2c, train_step_a2c
+from comm import set_tbox_sim_path
 
 set_tbox_sim_path("/home/is/devel/newrizon/drl-carla-manual/src/comm/tbox")
 # value = [99.0] * 21 * 17
@@ -240,7 +233,7 @@ bias_sigma = 0.55  # bias 0.55 yields sigma=1.0 with softplus activation functio
 tf.keras.backend.set_floatx("float64")
 # TODO option fix sigma, just optimize mu
 # TODO create testing scenes for gathering data
-actorcritic_network = constructactorcriticnetwork(
+actorcritic_network = constructactorcriticnetwork_a2c(
     num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
 )
 gamma = 0.99  # discount factor for past rewards
@@ -610,7 +603,8 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
 
             # normalize
             returns = np.array(returns)
-            returns = (returns - np.mean(returns)) / (np.std(returns) + eps)
+            returns = (returns - np.mean(returns)) / (np.std(returns) + epsilon)
+
             returns = returns.tolist()
 
             # calculating loss values to update our network
@@ -624,7 +618,7 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
                 act_losses_all,
                 entropy_losses_all,
                 critic_losses_all,
-            ) = train_step(actorcritic_network, history, opt, tape)
+            ) = train_step_a2c(actorcritic_network, history, opt, tape)
             ckpt.step.assign_add(1)
 
         with train_summary_writer.as_default():
@@ -706,6 +700,8 @@ async def learn(motionpowerQueue: asyncio.Queue, tableQueue: asyncio.Queue) -> N
     # thr_flash.join()
 
 
+epsilon = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
+
 # TODO replace threads by asyncio task
 # TODO mix threading and asyncio
 # TODO add a thread for send_float_array
@@ -720,8 +716,6 @@ async def main():
     # rospy.init_node("carla", anonymous=True)
     # rospy.Subscriber("/newrizon/vcu_input", VCU_Input, get_motionpower)
     # rospy.Subscriber("/newrizon/vcu_reward", VCU_Reward, get_reward)
-
-    eps = np.finfo(np.float64).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
     tskq_observation = asyncio.Queue()
     tskq_table = asyncio.Queue()

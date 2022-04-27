@@ -156,16 +156,13 @@ import io  # needed by convert figure to png in memory
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
-from comm.vcu_calib_generator import (
-    generate_vcu_calibration,
-    generate_lookup_table,
-)
+from comm import generate_vcu_calibration
 
 
 # from communication import carla_ros
-from agent.ac_gaussian import (
-    constructactorcriticnetwork,
-    train_step,
+from agent import (
+    constructactorcriticnetwork_a2c,
+    train_step_a2c,
 )
 from comm.tbox.scripts.tbox_sim import *
 
@@ -276,7 +273,7 @@ vcu_calib_table0_reduced = vcu_calib_table0[1 : vcu_calib_table_row_reduced + 1,
 tf.keras.backend.set_floatx("float64")
 # TODO option fix sigma, just optimize mu
 # TODO create testing scenes for gathering data
-actorcritic_network = constructactorcriticnetwork(
+actorcritic_network = constructactorcriticnetwork_a2c(
     num_observations, sequence_len, num_reduced_actions, num_hidden, bias_mu, bias_sigma
 )
 gamma = 0.99  # discount factor for past rewards
@@ -822,7 +819,7 @@ def main():
                 act_losses_all,
                 entropy_losses_all,
                 critic_losses_all,
-            ) = train_step(actorcritic_network, history, opt, tape)
+            ) = train_step_a2c(actorcritic_network, history, opt, tape)
             logger.info(f"BP ends.", extra=dictLogger)
             ckpt.step.assign_add(1)
 

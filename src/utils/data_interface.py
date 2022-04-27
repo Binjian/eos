@@ -1,6 +1,6 @@
 # system import
 import socket
-# import json
+import json
 import os, time, math
 from collections import deque
 import signal
@@ -10,8 +10,8 @@ import queue
 
 
 # local import
-from ..l045a_rdpg import logger, logc, logd, dictLogger
-from ..l045a_rdpg import (
+from src.l045a_rdpg import logger, logc, logd, dictLogger
+from src.l045a_rdpg import (
     hmi_lock,
     program_exit,
     episode_end,
@@ -21,7 +21,7 @@ from ..l045a_rdpg import (
     vcu_calib_table_row_start,
     obs_len,
 )
-from ..comm.tbox.scripts.tbox_sim import *
+from src.comm import send_float_array, set_tbox_sim_path
 
 
 def reset_capture_handler():

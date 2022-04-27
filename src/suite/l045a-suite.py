@@ -15,23 +15,11 @@ parser.add_argument(
     help="resume the last training with restored model, checkpoint and pedal map",
     action="store_true",
 )
-parser.add_argument(
-    "-t",
-    "--record_table",
-    help="record action table during training",
-    action="store_true",
-)
-parser.add_argument(
-    "-p",
-    "--path",
-    type=str,
-    help="relative path to be saved, for create subfolder for different drivers",
-)
 args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_ac_tf_coastdown-noaircond-"
+    + "/../../data/udp-pcap/l045a_ac_tf_noaircond-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
     + ".pcap"
 )
@@ -41,16 +29,10 @@ if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
         os.execlp(
-            "python",
-            "python",
-            "l045a_ac_tf_add_obs.py",
-            "--resume",
-            "--path",
-            args.path,
-            "--record_table",
+            "python", "python", "../l045a_ac_tf.py", "--resume"
         )  #  run Simulation
     else:
-        os.execlp("python", "python", "l045a_ac_tf_add_obs.py")  #  run Simulation
+        os.execlp("python", "python", "../l045a_ac_tf.py")  #  run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],

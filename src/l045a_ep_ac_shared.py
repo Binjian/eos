@@ -179,21 +179,8 @@ from visualization.visual import plot_to_image
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
-from comm.vcu_calib_generator import (
-    generate_vcu_calibration,
-)
-
-
-# from communication import carla_ros
-from agent.ddpg import (
-    get_actor,
-    get_critic,
-    policy,
-    Buffer,
-    update_target,
-)
-from agent.utils.ou_noise import OUActionNoise
-from comm.tbox.scripts.tbox_sim import *
+from comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array
+from agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
 
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
 set_tbox_sim_path(os.getcwd() + "/comm/tbox")
@@ -532,10 +519,9 @@ def get_truck_status():
         pop_data = json.loads(candata)
         data_type = type(pop_data)
         logc.info(f"Data type is {data_type}", extra=dictLogger)
-        if (not isinstance(pop_data, dict)):
+        if not isinstance(pop_data, dict):
             logd.critical(f"udp sending wrong data type!", extra=dictLogger)
             raise TypeError("udp sending wrong data type!")
-
 
         epi_delay_stop = False
         for key, value in pop_data.items():

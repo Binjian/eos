@@ -8,7 +8,9 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG with expected velocity Suite")
+parser = argparse.ArgumentParser(
+    "DDPG with reduced observations (no expected velocity) Suite"
+)
 parser.add_argument(
     "-r",
     "--resume",
@@ -31,7 +33,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_ddpg_ao-"
+    + "/../../data/udp-pcap/l045a_ddpg_redob-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
@@ -43,7 +45,7 @@ if pid == 0:  # copy process
         os.execlp(
             "python",
             "python",
-            "l045a_ddpg_ao.py",
+            "../l045a_ddpg_redob.py",
             "--resume",
             "--path",
             args.path,
@@ -54,7 +56,7 @@ if pid == 0:  # copy process
         os.execlp(
             "python",
             "python",
-            "l045a_ddpg_ao.py",
+            "../l045a_ddpg_redob.py",
             "--path",
             args.path,
             "--record_table",

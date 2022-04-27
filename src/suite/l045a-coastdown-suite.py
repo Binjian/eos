@@ -31,7 +31,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_ac_tf_coastdown-noaircond-"
+    + "/../../data/udp-pcap/l045a_ac_tf_coastdown-noaircond-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S_%f")[:-3]
     + ".pcap"
 )
@@ -43,14 +43,14 @@ if pid == 0:  # copy process
         os.execlp(
             "python",
             "python",
-            "l045a_ac_tf_coastdown.py",
+            "../l045a_ac_tf_coastdown.py",
             "--resume",
             "--path",
             args.path,
             "--record_table",
         )  #  run Simulation
     else:
-        os.execlp("python", "python", "l045a_ac_tf_coastdown.py")  #  run Simulation
+        os.execlp("python", "python", "../l045a_ac_tf_coastdown.py")  #  run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],

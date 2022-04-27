@@ -8,7 +8,7 @@ import subprocess
 import argparse
 
 # resumption settings
-parser = argparse.ArgumentParser("DDPG with expected velocity Suite")
+parser = argparse.ArgumentParser("DDPG with Coastdown Suite")
 parser.add_argument(
     "-r",
     "--resume",
@@ -31,7 +31,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_ddpg_ao-"
+    + "/../../data/udp-pcap/l045a_ddpg_coastdown-noaircond-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
@@ -43,7 +43,7 @@ if pid == 0:  # copy process
         os.execlp(
             "python",
             "python",
-            "l045a_ddpg_ao.py",
+            "../l045a_ddpg_coastdown.py",
             "--resume",
             "--path",
             args.path,
@@ -54,11 +54,12 @@ if pid == 0:  # copy process
         os.execlp(
             "python",
             "python",
-            "l045a_ddpg_ao.py",
+            "../l045a_ddpg_coastdown.py",
             "--path",
             args.path,
             "--record_table",
         )  #  run Simulation
+        # os.execlp("python", "python", "l045a_ac_tf_coastdown.py")  #  run Simulation
 else:
     p = subprocess.Popen(
         ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],

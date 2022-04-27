@@ -58,22 +58,11 @@ import matplotlib.pyplot as plt
 from visualization.visual import plot_to_image
 
 # local import
-from comm.vcu_calib_generator import (
-    generate_vcu_calibration,
-)
-
-from agent.rdpg.rdpg import (
-    RDPG,
-)
+from comm import generate_vcu_calibration, RemoteCan, send_float_array
+from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
+from agent import RDPG
 
 
-from utils.log import (
-    get_logger,
-)
-
-from comm.tbox.scripts.tbox_sim import *
-from utils.data_interface import get_truck_status, flash_vcu
-from utils.plot import plot_3d_figure
 # resumption settings
 parser = argparse.ArgumentParser(
     "use rdpg episodefree mode with tensorflow backend for VEOS with coastdown activated and expected velocity in 3 seconds"
@@ -643,7 +632,7 @@ def main():
         running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
         # generate 3d plot for ckpt
-        fig = plot_3d_figure(vcu_calib_table1,pd_columns,pd_index)
+        fig = plot_3d_figure(vcu_calib_table1, pd_columns, pd_index)
         # tf logging after episode ends
         # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple logdir and automatic switch
         with train_summary_writer.as_default():

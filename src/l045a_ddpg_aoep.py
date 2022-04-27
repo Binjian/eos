@@ -163,24 +163,8 @@ import io  # needed by convert figure to png in memory
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
-from comm.vcu_calib_generator import (
-    generate_vcu_calibration,
-    generate_lookup_table,
-)
-
-
-# from communication import carla_ros
-
-from agent.ddpg import (
-    get_actor,
-    get_critic,
-    policy,
-    Buffer,
-    update_target,
-)
-from agent.utils.ou_noise import OUActionNoise
-
-from comm.tbox.scripts.tbox_sim import *
+from comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array
+from agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
 
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
 set_tbox_sim_path(os.getcwd() + "/comm/tbox")

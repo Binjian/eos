@@ -37,7 +37,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../data/udp-pcap/l045a_ddpg_epfree-"
+    + "/../../data/udp-pcap/l045a_ddpg_epfree-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
@@ -61,7 +61,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ddpg_epfree.py",
+                "../l045a_ddpg_epfree.py",
                 "--resume",
                 "--infer",
                 "--path",
@@ -73,7 +73,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ddpg_epfree.py",
+                "../l045a_ddpg_epfree.py",
                 "--path",
                 args.path,
                 "--record_table",
@@ -82,7 +82,7 @@ if pid == 0:  # copy process
             os.execlp(
                 "python",
                 "python",
-                "l045a_ddpg_epfree.py",
+                "../l045a_ddpg_epfree.py",
                 "--infer",
                 "--path",
                 args.path,

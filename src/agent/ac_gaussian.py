@@ -1,15 +1,15 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
-import tensorflow.keras.initializers as initializers
+from keras import layers
+import keras.initializers as initializers
 import tensorflow_probability as tfp
 
 
 """ one ddpg training step to update network"""
 
 
-def train_step(net, history, optimizer, tape):
+def train_step_ddpg(net, history, optimizer, tape):
     huber_loss = keras.losses.Huber()
     act_losses = []
     entropy_losses = []
@@ -21,7 +21,7 @@ def train_step(net, history, optimizer, tape):
         # the actor must be updated so that it predicts an action that leads to
         # high rewards (compared to critic's estimate) with high probability.
         diff = ret - value
-        loss_act, loss_entropy = customlossgaussian(mu_sigma, action, diff)
+        loss_act, loss_entropy = customlossgaussian_a2c(mu_sigma, action, diff)
         act_losses.append(loss_act)
         entropy_losses.append(loss_entropy)
 
@@ -53,7 +53,7 @@ def train_step(net, history, optimizer, tape):
 """ one a2c training step to update network"""
 
 
-def train_step(net, history, optimizer, tape):
+def train_step_a2c(net, history, optimizer, tape):
     huber_loss = keras.losses.Huber()
     act_losses = []
     entropy_losses = []
@@ -66,7 +66,7 @@ def train_step(net, history, optimizer, tape):
         # high rewards (compared to critic's estimate) with high probability.
         # Xin: use ret (action value samples) might have high variance. todo replace return with TD learning target
         diff = ret - value  # return is reward (negative loss/energy consumption)
-        loss_act, loss_entropy = customlossgaussian(mu_sigma, action, diff)
+        loss_act, loss_entropy = customlossgaussian_a2c(mu_sigma, action, diff)
         act_losses.append(loss_act)
         entropy_losses.append(loss_entropy)
 
@@ -99,7 +99,7 @@ def train_step(net, history, optimizer, tape):
 # TODO add memory replay buffer
 # TODO add batch sample and ddpg
 # Actor and Critic share a backbone network (multitasking)
-def constructactorcriticnetwork(
+def constructactorcriticnetwork_a2c(
     num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
 ):
     inputs = layers.Input(
@@ -146,7 +146,7 @@ for episode calculation needs to store the history and call the function with hi
 """
 
 
-def customlossgaussian(mu_sigma, action, reward):
+def customlossgaussian_a2c(mu_sigma, action, reward):
     # obtain mu and sigma from actor network
     nn_mu, nn_sigma = tf.unstack(mu_sigma)
 

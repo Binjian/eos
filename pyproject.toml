@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "veos"
+description="A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
+version = "0.0.1"
+readme = "README.md"
+keywords = ["deep learning", "deep reinforcement learning", "veos"]
+authors= [
+    {name = "Binjian Xin", email = "binjian.xin@newrizon.com"},
+]
+maintainers= [
+    {name = "Binjian Xin", email = "binjian.xin@newrizon.com"},
+]
+license = {text = "BSD 3-Clause License"}
+classifiers = [
+    "Frameworks :: Pytest",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "tensorflow>=2.6.0",
+    "tensorflow-estimator",
+    "tensorflow-probability",
+    "tensorboard",
+    "python-json-logger",
+    "plotly",
+    "Pillow",
+    "pandas",
+    "opt-einsum",
+    "jupyterlab",
+    "keras",
+    "cuda-python",
+    "numpy",
+    "scipy",
+    "seaborn",
+    "torch",
+    "sklearn",
+    "matplotlib",
+    "tqdm",
+    "pytest",
+]
+# dynamic = ["version"]
+
+#[tool.setuptools.packages]
+#find = {}
+
+
+#[tool.setuptools.package-dir]
+#tgan = "src.tgan"
+#datautils = "src.datautils"
+
+#[tool.setuptools.packages]
+# find = {} # scan the project directory with the default parameters
+
+[tool.setuptools.packages.find]
+where = ["src"] # ["."] by default # ["src"] # ["src", "tests"] # ["src", "tests"]
+#include = ["tgan", "datautils"]
+#exclude = ["tgan.tests"]
+namespaces = false
+
+[project.scripts]
+cli-name = "tgan.__main__.main"
+# console_scripts = ["tgan = tgan.tgan_app.__main__"]
+
+#[tool.setuptools.dynamic]
+#version = {attr = "src.tgan.__version__"}

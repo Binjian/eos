@@ -8,11 +8,8 @@ from logging.handlers import SocketHandler
 import inspect
 import numpy as np
 
-from comm.tbox.scripts.tbox_sim import *
 # internal import
-from comm.vcu_calib_generator import (
-    generate_vcu_calibration,
-)
+from src.comm import generate_vcu_calibration, send_float_array, set_tbox_sim_path
 
 
 mpl_logger = logging.getLogger("matplotlib.font_manager")
@@ -28,7 +25,7 @@ json_file_formatter = jsonlogger.JsonFormatter(
     "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
 )
 
-datafolder = "../data"
+datafolder = "../../data"
 logfolder = datafolder + "/py_logs"
 try:
     os.makedirs(logfolder)
@@ -36,9 +33,9 @@ except FileExistsError:
     print("User folder exists, just resume!")
 
 logfilename = logfolder + (
-        "/l045a-transcribe-"
-        + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-        + ".log"
+    "/l045a-transcribe-"
+    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+    + ".log"
 )
 
 fh = logging.FileHandler(logfilename)
@@ -91,7 +88,8 @@ logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 udp_logfilename = (
-    datafolder + "/udp-pcap/l045a-noAI-"
+    datafolder
+    + "/udp-pcap/l045a-noAI-"
     + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
     + ".pcap"
 )
