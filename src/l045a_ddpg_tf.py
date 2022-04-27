@@ -957,10 +957,10 @@ def main():
             )
         plt.close(fig)
 
-        logger.info(
-            f"Episode {episode_count + 1}, Loss all: {loss_all}, Act loss: {act_losses_all}, Entropy loss: {entropy_losses_all}, Critic loss: {critic_losses_all}, Episode Reward: {episode_reward}",
-            extra=dictLogger,
-        )
+        # logger.info(
+        #     f"Episode {episode_count + 1}, Loss all: {loss_all}, Act loss: {act_losses_all}, Entropy loss: {entropy_losses_all}, Critic loss: {critic_losses_all}, Episode Reward: {episode_reward}",
+        #     extra=dictLogger,
+        # )
         #
         #   # Reset metrics every epoch
         #   train_loss.reset_states()
