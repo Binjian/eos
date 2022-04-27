@@ -20,9 +20,10 @@ logs
 
 
 # Ignore the build directory
-# /dist
+dist
 __pycache__/
 src/comm/tbox/
+src/comm/remotecan/
 data
 .glab-cli/
 .idea/
