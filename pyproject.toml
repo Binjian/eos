@@ -43,7 +43,6 @@ dependencies = [
     "numpy",
     "scipy",
     "seaborn",
-    "torch",
     "sklearn",
     "matplotlib",
     "tqdm",
@@ -63,7 +62,7 @@ dependencies = [
 # find = {} # scan the project directory with the default parameters
 
 [tool.setuptools.packages.find]
-where = ["src"] # ["."] by default # ["src"] # ["src", "tests"] # ["src", "tests"]
+where = ["."] # ["."] by default # ["src"] # ["src", "tests"] # ["src", "tests"]
 #include = ["tgan", "datautils"]
 #exclude = ["tgan.tests"]
 namespaces = false
