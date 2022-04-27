@@ -1,13 +1,14 @@
 # third-party imports
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
-import tensorflow.keras.initializers as initializers
+from keras import layers
+import keras.initializers as initializers
 
 # local imports
 from ...l045a_rdpg import logger, logc, logd, dictLogger
 from ..utils.ou_noise import OUActionNoise
 from ...utils.exception import ReadOnlyError
+
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
@@ -158,62 +159,71 @@ class ActorNet:
     @property
     def state_dim(self):
         return self._state_dim
+
     @state_dim.setter
-    def state_dim(self,value):
+    def state_dim(self, value):
         raise ReadOnlyError("state_dim is read-only")
 
     @property
     def action_dim(self):
         return self._action_dim
+
     @action_dim.setter
-    def action_dim(self,value):
+    def action_dim(self, value):
         raise ReadOnlyError("action_dim is read-only")
 
     @property
     def hidden_dim(self):
         return self._hidden_dim
+
     @hidden_dim.setter
-    def hidden_dim(self,value):
+    def hidden_dim(self, value):
         raise ReadOnlyError("hidden_dim is read-only")
 
     @property
     def sequence_len(self):
         return self._sequence_len
+
     @sequence_len.setter
-    def sequence_len(self,value):
+    def sequence_len(self, value):
         raise ReadOnlyError("sequence_len is read-only")
 
     @property
     def lr(self):
         return self._lr
+
     @lr.setter
-    def lr(self,value):
+    def lr(self, value):
         raise ReadOnlyError("lr is read-only")
 
     @property
     def padding_value(self):
         return self._padding_value
+
     @padding_value.setter
-    def padding_value(self,value):
+    def padding_value(self, value):
         raise ReadOnlyError("padding_value is read-only")
 
     @property
     def n_layers(self):
         return self._n_layers
+
     @n_layers.setter
-    def n_layers(self,value):
+    def n_layers(self, value):
         raise ReadOnlyError("n_layers is read-only")
 
     @property
     def tau(self):
         return self._tau
+
     @tau.setter
-    def tau(self,value):
+    def tau(self, value):
         raise ReadOnlyError("tau is read-only")
 
     @property
     def ckpt_interval(self):
         return self._ckpt_interval
+
     @ckpt_interval.setter
-    def ckpt_interval(self,value):
+    def ckpt_interval(self, value):
         raise ReadOnlyError("ckpt_interval is read-only")

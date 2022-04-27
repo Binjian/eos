@@ -97,15 +97,16 @@ import os
 # third-party imports
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras import layers
-import tensorflow.keras.initializers as initializers
+from keras.preprocessing.sequence import pad_sequences
+from keras import layers
+import keras.initializers as initializers
 
 # local imports
 from ...l045a_rdpg import logger, logc, logd, dictLogger
 from actor import ActorNet
 from critic import CriticNet
 from ...utils.exception import ReadOnlyError
+
 
 class RDPG:
     def __init__(
@@ -153,7 +154,7 @@ class RDPG:
         # Actor Network (w/ Target Network)
         # create or restore from checkpoint
         # add checkpoints manager
-        self.ckpt_actor_dir =datafolder + "./checkpoints/rdpg_actor"
+        self.ckpt_actor_dir = datafolder + "./checkpoints/rdpg_actor"
         self.ckpt_interval = ckpt_interval
         try:
             os.makedirs(self.checkpoint_actor_dir)
@@ -446,6 +447,7 @@ class RDPG:
     @property
     def num_observations(self):
         return self._num_observations
+
     @num_observations.setter
     def num_observations(self, value):
         raise ReadOnlyError("num_observations is read-only")
@@ -453,6 +455,7 @@ class RDPG:
     @property
     def obs_len(self):
         return self._obs_len
+
     @obs_len.setter
     def obs_len(self, value):
         raise ReadOnlyError("obs_len is read-only")
@@ -460,48 +463,55 @@ class RDPG:
     @property
     def n_obs(self):
         return self._n_obs
+
     @n_obs.setter
-    def n_obs(self,value):
+    def n_obs(self, value):
         raise ReadOnlyError("n_obs is read-only")
 
     @property
     def n_act(self):
         return self._n_act
+
     @n_act.setter
-    def n_act(self,value):
+    def n_act(self, value):
         raise ReadOnlyError("n_act is read-only")
 
     @property
     def seq_len(self):
         return self._seq_len
+
     @seq_len.setter
-    def seq_len(self,value):
+    def seq_len(self, value):
         raise ReadOnlyError("seq_len is read-only")
 
     @property
     def batch_size(self):
         return self._batch_size
+
     @batch_size.setter
-    def batch_size(self,value):
+    def batch_size(self, value):
         raise ReadOnlyError("batch_size is read-only")
 
     @property
     def padding_value(self):
         return self._padding_value
+
     @padding_value.setter
-    def padding_value(self,value):
+    def padding_value(self, value):
         raise ReadOnlyError("padding_value is read-only")
 
     @property
     def buffer_capacity(self):
         return self._buffer_capacity
+
     @buffer_capacity.setter
-    def buffer_capcity(self,value):
+    def buffer_capcity(self, value):
         raise ReadOnlyError("buffer_capacity is read-only")
 
     @property
     def gamma(self):
         return self._gamma
+
     @gamma.setter
-    def gamma(self,value):
+    def gamma(self, value):
         raise ReadOnlyError("gamma is read-only")

@@ -69,8 +69,8 @@ Now, let's see how is it implemented.
 """
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
-import tensorflow.keras.initializers as initializers
+from keras import layers
+import keras.initializers as initializers
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
