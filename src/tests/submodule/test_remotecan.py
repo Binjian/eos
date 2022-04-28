@@ -4,6 +4,7 @@ import unittest
 import json
 import numpy as np
 from datetime import datetime
+import os
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
@@ -15,6 +16,9 @@ from src import remote_can_client
 class TestRemoteCan(unittest.TestCase):
     """Tests for 'remote_can_client.py'."""
 
+    site = "internal"
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_proxy(self):
         proxies = {
             "http": "http://127.0.0.1:20171",
@@ -54,17 +58,17 @@ class TestRemoteCan(unittest.TestCase):
 
     def test_native(self):
         client = remote_can_client.RemoteCan(vin="987654321654321M4")
-
+        os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
         map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
         success, reson = client.send_torque_map(map2d)
         if success:
             signal_success, json_ret = client.get_signals(duration=2)
             if signal_success is True:
                 try:
-                    json_string = json.dumps(
-                        json_ret, indent=4, sort_keys=True, separators=(",", ": ")
-                    )
-                    print(f"print whole json string:{json_string}")
+                    # json_string = json.dumps(
+                    #     json_ret, indent=4, sort_keys=True, separators=(",", ": ")
+                    # )
+                    # print(f"print whole json string:{json_string}")
 
                     for key, value in json_ret.items():
                         if key == "result":
