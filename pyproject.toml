@@ -3,11 +3,11 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "veos"
-description="A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
+name = "eos"
+description="Electric Optimization System: A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
 version = "0.0.1"
 readme = "README.md"
-keywords = ["deep learning", "deep reinforcement learning", "veos"]
+keywords = ["deep learning", "deep reinforcement learning", "electric powertrain", "energy saving", "policy"]
 authors= [
     {name = "Binjian Xin", email = "binjian.xin@newrizon.com"},
 ]
@@ -63,12 +63,12 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."] # ["."] by default # ["src"] # ["src", "tests"] # ["src", "tests"]
-#include = ["tgan", "datautils"]
+include = ["*"]
 #exclude = ["tgan.tests"]
 namespaces = false
 
 [project.scripts]
-cli-name = "tgan.__main__.main"
+#cli-name = "__main__.main"
 # console_scripts = ["tgan = tgan.tgan_app.__main__"]
 
 #[tool.setuptools.dynamic]

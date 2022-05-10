@@ -464,7 +464,7 @@ def main():
 
                 # predict action probabilities and estimated future rewards
                 # from environment state
-                # for causl rl, the odd indexed observation/reward are caused by last action
+                # for causal rl, the odd indexed observation/reward are caused by last action
                 # skip the odd indexed observation/reward for policy to make it causal
                 logc.info(
                     f"E{epi_cnt} before inference!",

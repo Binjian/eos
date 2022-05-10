@@ -5,10 +5,11 @@ import json
 import numpy as np
 from datetime import datetime
 import os
+import warnings
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
-from src import remote_can_client
+from eos import remote_can_client
 
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
@@ -73,7 +74,14 @@ class TestRemoteCan(unittest.TestCase):
                     for key, value in json_ret.items():
                         if key == "result":
 
-                            current = np.array(value["list_current_1s_zoomed"])
+                            with warnings.catch_warnings(record=True) as w:
+                                warnings.simplefilter("always")
+                                current = np.array(value["list_current_1s_zoomed"])
+                                if len(w) > 0:
+                                    item_len = [len(item) for item in current]
+                                    for count, item in enumerate(current):
+                                        item[item_len[count] : item_len.max()] = None
+
                             print(f"current{current.shape}:{current}")
                             voltage = np.array(value["list_voltage_1s"])
                             print(f"voltage{voltage.shape}:{voltage}")
