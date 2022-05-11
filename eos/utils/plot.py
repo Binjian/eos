@@ -1,4 +1,3 @@
-
 # system import
 
 # third party import
@@ -7,9 +6,9 @@ import matplotlib.pyplot as plt
 
 # local import
 
+
 def plot_3d_figure(table, pd_columns, pd_index):
-    '''Create a matplotlib 3d figure, //export and save in log
-    '''
+    """Create a matplotlib 3d figure, //export and save in log"""
     pd_data = pd.DataFrame(
         table,
         columns=pd_columns,

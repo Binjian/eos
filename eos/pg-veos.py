@@ -133,7 +133,7 @@ while True:
             for k, v in list(model.items()):
                 g = grad_buffer[k]  # gradient
                 rmsprop_cache[k] = (
-                    decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g ** 2
+                    decay_rate * rmsprop_cache[k] + (1 - decay_rate) * g**2
                 )
                 model[k] += learning_rate * g / (np.sqrt(rmsprop_cache[k]) + 1e-5)
                 # reset batch gradient buffer
