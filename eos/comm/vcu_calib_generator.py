@@ -23,7 +23,7 @@ import os.path
 # TODO ask for safety bounds and real vcu to be integrated.
 # TODO generate a mask according to WLTC to reduce parameter optimization space.
 def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
-    npd, pedal_range, nvl, velocity_range, shortcut, datafolder
+    npd, pedal_range, nvl, velocity_range, shortcut, dataroot
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
     ped = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
 
@@ -34,21 +34,19 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         pdv, vlv = np.meshgrid(ped, vel, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
-        table_path = (
-            datafolder
-            + "/init_table_coastdown.csv"
-            # datafolder + "/init_table1.csv"
+        table_path = dataroot.joinpath(
+            "init_table_coastdown.csv"
         )  # init table is driver independent in the pardir.
         pd_data = pd.read_csv(table_path, header=0, index_col=0)
         # table_path = datafolder + "/54_vertices_approx-regen3.csv"  # init table is driver independent in the pardir.
         # pd_data = pd.read_csv(table_path, header=0, index_col=0)
         v = pd_data.to_numpy()
     elif shortcut == 3:  # import latest pedal map that was used
-        files = glob.glob(datafolder + "/last_table*.csv")
+        files = glob.glob(dataroot.joinpath("last_table*.csv"))
         if not files:  # files is empty list []
             print("no last table is available. Get init table instead.")
-            latest_table = (
-                datafolder + "/init_table_coastdown.csv"
+            latest_table = dataroot.joinpath(
+                "init_table_coastdown.csv"
             )  # init table is driver independent in the pardir.
         else:
             latest_table = max(files, key=os.path.getmtime)
