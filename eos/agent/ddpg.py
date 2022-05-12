@@ -418,8 +418,8 @@ def get_actor(
     # # typical value is [0.8, 1.0]
     # outputs = tf.clip_by_value(outputs, action_lower, action_upper)
     eager_model = tf.keras.Model(inputs, out)
-    graph_model = tf.function(eager_model)
-    return graph_model
+    # graph_model = tf.function(eager_model)
+    return eager_model
 
 
 def get_critic(
@@ -449,9 +449,9 @@ def get_critic(
 
     # Outputs single value for give state-action
     eager_model = tf.keras.Model([state_input, action_input], outputs)
-    graph_model = tf.function(eager_model)
+    # graph_model = tf.function(eager_model)
 
-    return graph_model
+    return eager_model
 
 
 """
