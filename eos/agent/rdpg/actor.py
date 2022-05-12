@@ -3,9 +3,9 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 import keras.initializers as initializers
+from ... import logger, dictLogger
 
 # local imports
-from ...l045a_rdpg import logger, logc, logd, dictLogger
 from ..utils.ou_noise import OUActionNoise
 from ...utils.exception import ReadOnlyError
 
@@ -120,7 +120,7 @@ class ActorNet:
         self.ckpt.step.assign_add(1)
         if int(self.ckpt.step) % self.ckpt_interval == 0:
             save_path = self.ckpt_manager.save()
-            logd.info(
+            logger.info(
                 f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",
                 extra=dictLogger,
             )

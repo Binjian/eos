@@ -72,6 +72,7 @@ import tensorflow as tf
 from keras import layers
 import keras.initializers as initializers
 
+from .. import logger, dictLogger
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
 We will use the `upper_bound` parameter to scale our actions later.
@@ -248,7 +249,7 @@ class Buffer:
             # scalar value, average over the batch
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        # logger.info(f"BP done.", extra=dictLogger)
+        logger.info(f"BP done.", extra=dictLogger)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
@@ -319,7 +320,7 @@ class Buffer:
             critic_value = self.critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        # logger.info(f"BP done.", extra=dictLogger)
+        logger.info(f"No update Calulate reward done.", extra=dictLogger)
 
         # critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         # self.critic_optimizer.apply_gradients(
