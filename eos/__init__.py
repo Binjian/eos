@@ -1,8 +1,9 @@
-import eos.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
-import eos.comm.tbox.scripts.tbox_sim as tbox_sim
-import eos.comm.vcu_calib_generator as vcu_calib_generator
+from .comm.remotecan.remote_can_client import remote_can_client
+from .comm.tbox.scripts import tbox_sim
+from .comm.vcu_calib_generator import generate_vcu_calibration
 from pathlib import Path
 import logging
+import inspect
 
 projroot = Path(__file__).parent.parent
 
@@ -16,5 +17,5 @@ mpl_logger.disabled = True
 # logging.basicConfig(format=fmt)
 logger = logging.getLogger("__name__")
 logger.propagate = False
-
-__all__ = [remote_can_client, tbox_sim, vcu_calib_generator, projroot, logger]
+dictLogger = {"user": inspect.currentframe().f_code.co_name}
+__all__ = [remote_can_client, tbox_sim, generate_vcu_calibration, projroot, logger, dictLogger]

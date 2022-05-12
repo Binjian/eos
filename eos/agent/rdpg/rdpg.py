@@ -102,9 +102,9 @@ from keras import layers
 import keras.initializers as initializers
 
 # local imports
-from ...l045a_rdpg import logger, logc, logd, dictLogger
-from actor import ActorNet
-from critic import CriticNet
+from ... import logger, dictLogger
+from .actor import ActorNet
+from .critic import CriticNet
 from ...utils.exception import ReadOnlyError
 
 
@@ -327,7 +327,7 @@ class RDPG:
                 ]  # return numpy array list
             )
         except:
-            logd.error("Ragged observation state o_n_l1!")
+            logger.error("Ragged observation state o_n_l1!")
 
         a_n_l0 = [
             self.R[i][:, self._n_obs : self._n_obs + self._n_act] for i in indexes
@@ -350,7 +350,7 @@ class RDPG:
                 ]  # return numpy array list
             )
         except:
-            logd.error("Ragged action state a_n_l1!")
+            logger.error("Ragged action state a_n_l1!")
 
     def train(self):
         """
@@ -428,7 +428,7 @@ class RDPG:
     def save_replay_buffer(self):
         replay_buffer_npy = np.array(self.R)
         np.save(self.file_replay, replay_buffer_npy)
-        logd.info(
+        logger.info(
             f"saved replay buffer with size : {len(self.R)}",
             extra=dictLogger,
         )
@@ -437,12 +437,12 @@ class RDPG:
         try:
             replay_buffer_npy = np.load(self.file_replay)
             self.R = replay_buffer_npy.tolist()
-            logd.info(
+            logger.info(
                 f"loaded last buffer with size: {len(self.R)}",
                 extra=dictLogger,
             )
         except IOError:
-            logd.info("blank experience", extra=dictLogger)
+            logger.info("blank experience", extra=dictLogger)
 
     @property
     def num_observations(self):
