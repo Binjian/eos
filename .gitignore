@@ -4,7 +4,6 @@
 # Ignore Logs
 logs
 *.log
-*.csv
 *.svg
 *.index
 *.out

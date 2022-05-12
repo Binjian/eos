@@ -238,7 +238,7 @@ class realtime_train_infer_ddpg(object):
                 self.vcu_calib_table_row,
                 self.velocity_range,
                 2,
-                self.dataroot,
+                self.projroot.joinpath("eos/config"),
             )
         self.vcu_calib_table1 = np.copy(
             self.vcu_calib_table0
