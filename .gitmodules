@@ -1,6 +1,7 @@
 [submodule "eos/comm/tbox"]
 	path = eos/comm/tbox
 	url = ssh://git@gitlab.newrizon.work:2222/its/045bdemo/tbox-simulator.git
+	branch = l045a
 [submodule "eos/comm/remotecan"]
 	path = eos/comm/remotecan
 	url = ssh://git@gitlab.newrizon.work:2222/its/ai/veos.git
