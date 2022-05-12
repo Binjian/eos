@@ -120,7 +120,7 @@ class realtime_train_infer_ddpg(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "/eos-rt-ddpg"
+            "eos-rt-ddpg"
             + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             + ".log"
         )
@@ -160,7 +160,7 @@ class realtime_train_infer_ddpg(object):
         self.train_log_dir = self.dataroot.joinpath(
             "tf_logs/ddpg/gradient_tape/" + current_time + "/train"
         )
-        self.train_summary_writer = tf.summary.create_file_writer(self.train_log_dir)
+        self.train_summary_writer = tf.summary.create_file_writer(str(self.train_log_dir))
         # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         if self.resume:
@@ -170,7 +170,7 @@ class realtime_train_infer_ddpg(object):
 
     def init_vehicle(self):
         # resume last pedal map / scratch from default table
-        set_tbox_sim_path(self.projroot.joinpath("eos/comm/tbox"))
+        set_tbox_sim_path(str(self.projroot.joinpath("eos/comm/tbox")))
 
         # initialize pedal map parameters
         self.vcu_calib_table_col = 17  # number of pedal steps, x direction
@@ -251,7 +251,7 @@ class realtime_train_infer_ddpg(object):
 
         # TQD_trqTrqSetECO_MAP_v
 
-    def build_actor_critic(self, state_size, action_size, seed):
+    def build_actor_critic(self):
         """Builds the actor-critic network.
 
         this network learns two functions:
@@ -302,12 +302,12 @@ class realtime_train_infer_ddpg(object):
         )
 
         self.critic_model = get_critic(
-            self.cum_observations,
-            self.cum_reduced_actions,
-            self.cequence_len,
-            self.cum_hidden0,
-            self.cum_hidden1,
-            self.cum_hidden,
+            self.num_observations,
+            self.num_reduced_actions,
+            self.sequence_len,
+            self.num_hidden0,
+            self.num_hidden1,
+            self.num_hidden,
         )
 
         # Initialize networks
@@ -356,7 +356,7 @@ class realtime_train_infer_ddpg(object):
             buffer_capacity=self.buffer_capacity,
             batch_size=self.batch_size,
             gamma=self.gamma,
-            datafolder=self.datafolder,
+            datafolder=str(self.dataroot),
         )
 
         # ou_noise is a row vector of num_actions dimension
@@ -369,14 +369,14 @@ class realtime_train_infer_ddpg(object):
     def init_checkpoint(self):
         # add checkpoints manager
         if self.resume:
-            checkpoint_actor_dir = self.datafolder.joinpath("tf_ckpts-aa/l045a_ddpg_actor")
-            checkpoint_critic_dir = self.datafolder.joinpath("tf_ckpts-aa/l045a_ddpg_critic")
+            checkpoint_actor_dir = self.dataroot.joinpath("tf_ckpts-aa/l045a_ddpg_actor")
+            checkpoint_critic_dir = self.dataroot.joinpath("tf_ckpts-aa/l045a_ddpg_critic")
         else:
-            checkpoint_actor_dir = self.datafolder.joinpath(
+            checkpoint_actor_dir = self.dataroot.joinpath(
                  "tf_ckpts-aa/l045a_ddpg_actor"
                 + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
-            checkpoint_critic_dir = self.datafolder.joinpath(
+            checkpoint_critic_dir = self.dataroot.joinpath(
                 "tf_ckpts-aa/l045a_ddpg_critic"
                 + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
@@ -684,7 +684,7 @@ class realtime_train_infer_ddpg(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tablequeue.get(block=False, timeout=1)  # default block = True
+                table = self.tableQueue.get(block=False, timeout=1)  # default block = True
                 # print("2 tablequeue size: {}".format(tablequeue.qsize()))
             except queue.Empty:
                 pass
