@@ -461,7 +461,7 @@ class realtime_train_infer_ddpg(object):
         self.episode_end = False
         self.episode_count = 0
 
-        signal.Signal(signal.SIGALRM, self.reset_capture_handler)
+        signal.signal(signal.SIGALRM, self.reset_capture_handler)
         self.get_truck_status_start = False
         self.get_truck_status_motpow_t = []
         self.get_truck_status_myHost = "127.0.0.1"

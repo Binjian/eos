@@ -477,7 +477,7 @@ def reset_capture_handler():
     raise Exception("reset capture to stop")
 
 
-signal.Signal(signal.SIGALRM, reset_capture_handler)
+signal.signal(signal.SIGALRM, reset_capture_handler)
 
 
 def get_truck_status():
