@@ -79,6 +79,8 @@ class realtime_train_infer_ddpg(object):
     ):
         self.projroot = projroot
         self.logger = logger
+        self.dictLogger = dictLogger
+        # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.resume = resume
         self.infer = infer
         self.record = record
@@ -146,7 +148,6 @@ class realtime_train_infer_ddpg(object):
         self.logger.setLevel(logging.DEBUG)
         # self.dictLogger = {'funcName': '__self__.__func__.__name__'}
         # self.dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
-        self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
         self.logc = logger.getChild("control flow")
         self.logc.propagate = True
