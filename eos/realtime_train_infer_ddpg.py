@@ -47,7 +47,6 @@ from tensorflow.python.client import device_lib
 ## visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
-from visualization.visual import plot_to_image
 
 ## logging
 import logging
@@ -57,9 +56,10 @@ from pythonjsonlogger import jsonlogger
 
 # local imports
 
-from comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array
-from agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
-from eos import logger, projroot
+from .visualization import plot_to_image
+from .comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array
+from .agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
+from . import logger, dictLogger, projroot
 
 # from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
