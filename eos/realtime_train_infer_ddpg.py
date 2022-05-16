@@ -903,7 +903,7 @@ class realtime_train_infer_ddpg(object):
 
                         if args.record_table:
                             curr_table_store_path = self.dataroot.joinpath(
-                                "tables/instant_table_ddpg-bigep"
+                                "tables/instant_table_ddpg-"
                                 + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                                 + "e-"
                                 + str(epi_cnt)
@@ -1104,7 +1104,7 @@ if __name__ == "__main__":
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        "use ddpg episodefree mode with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds"
+        "Use DDPG mode with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds"
     )
     parser.add_argument(
         "-r",
