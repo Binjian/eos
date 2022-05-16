@@ -1,25 +1,28 @@
 """
-Title: realtime_train_infer_ddpg
+Title: realtime_train_infer_rdpg
 Author: [Binjian Xin](https://www.newrizon.com)
-Date created: 2022/05/10
-Last modified: 2022/05/10
-Description: Implement realtime DDPG algorithm for training and inference
-
+Date created: 2022/05/16
+Last modified: 2022/05/16
+Description: Implement realtime RDPG algorithm for training and inference
+"""
+"""
 ## Introduction
 
-This script shows an implementation of DDPG method on l045a truck real environment.
+This script shows an implementation of RDPG method on l045a truck real environment.
 
-### Deep Deterministic Policy Gradient (DDPG)
+### Deep Deterministic Policy Gradient (RDPG) 
 
-### Gym-Carla env
+### Gym-Carla env 
 
 An Ego Vehicle drives through a fixed track and collect loss (negative reward) defined
-as energy consumption
+as energy consumption 
 
 ### References
 
-- [DDPG ](https://keras.io/examples/rl/ddpg_pendulum/)
 
+"""
+"""
+## Setup
 """
 
 # system imports
@@ -57,8 +60,9 @@ from pythonjsonlogger import jsonlogger
 # local imports
 
 from .visualization import plot_to_image
-from .comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array
-from .agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
+from .utils import plot_3d_figure
+from .comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array, RemoteCan
+from .agent import RDPG
 from . import logger, dictLogger, projroot
 
 # from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
@@ -67,7 +71,7 @@ from . import logger, dictLogger, projroot
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # global variables: threading, data, lock, etc.
-class realtime_train_infer_ddpg(object):
+class realtime_train_infer_rdpg(object):
     def __init__(
         self,
         resume=False,
@@ -158,7 +162,7 @@ class realtime_train_infer_ddpg(object):
         # Create folder for ckpts loggings.
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.train_log_dir = self.dataroot.joinpath(
-            "tf_logs/ddpg/gradient_tape/" + current_time + "/train"
+            "tf_logs/rdpg/gradient_tape/" + current_time + "/train"
         )
         self.train_summary_writer = tf.summary.create_file_writer(str(self.train_log_dir))
         # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -292,138 +296,42 @@ class realtime_train_infer_ddpg(object):
             :,
         ]
 
-        # Initialize networks
-        self.actor_model = get_actor(
-            self.num_observations,
-            self.num_reduced_actions,
-            self.sequence_len,
-            self.num_hidden,
-            self.action_bias,
-        )
-
-        self.critic_model = get_critic(
-            self.num_observations,
-            self.num_reduced_actions,
-            self.sequence_len,
-            self.num_hidden0,
-            self.num_hidden1,
-            self.num_hidden,
-        )
-
-        # Initialize networks
-        self.target_actor = get_actor(
-            self.num_observations,
-            self.num_reduced_actions,
-            self.sequence_len,
-            self.num_hidden,
-            self.action_bias,
-        )
-
-        self.target_critic = get_critic(
-            self.num_observations,
-            self.num_reduced_actions,
-            self.sequence_len,
-            self.num_hidden0,
-            self.num_hidden1,
-            self.num_hidden,
-        )
-
         # Learning rate for actor-critic models
         self.critic_lr = 0.002
         self.actor_lr = 0.001
-
-        self.critic_optimizer = tf.keras.optimizers.Adam(self.critic_lr)
-        self.actor_optimizer = tf.keras.optimizers.Adam(self.actor_lr)
-
         # Discount factor for future rewards
         self.gamma = 0.99
         # Used to update target networks
-        self.tau = 0.005
-        self.batch_size = 4
+        self.tauAC = (0.001, 0.001)
+        self.lrAC = (0.001, 0.002)
+        self.seq_len = 6  # TODO  7 maximum sequence length
         self.buffer_capacity = 300000
-        # try buffer size with 1,000,000
+        self.batch_size = 4
+        # number of hidden units in the actor and critic networks
+        self.hidden_unitsAC = (256, 256)
+        # number of layer in the actor-critic network
+        self.n_layerAC = (2, 2)
+        # padding value for the input, impossible value for observation, action or reward
+        self.padding_value = -10000
+        self.ckpt_interval = 5
 
-        self.buffer = Buffer(
-            self.actor_model,
-            self.critic_model,
-            self.target_actor,
-            self.target_critic,
-            self.actor_optimizer,
-            self.critic_optimizer,
+        # Initialize networks
+        self.rdpg = RDPG(
             self.num_observations,
-            self.sequence_len,
+            self.obs_len,
+            self.seq_len,
             self.num_reduced_actions,
             buffer_capacity=self.buffer_capacity,
             batch_size=self.batch_size,
+            hidden_unitsAC=self.hidden_unitsAC,
+            n_layersAC=self.n_layerAC,
+            padding_value=self.padding_value,
             gamma=self.gamma,
-            datafolder=str(self.dataroot),
+            tauAC=self.tauAC,
+            lrAC=self.lrAC,
+            datafolder=self.dataroot,
+            ckpt_interval=self.ckpt_interval,
         )
-
-        # ou_noise is a row vector of num_actions dimension
-        self.ou_noise_std_dev = 0.2
-        self.ou_noise = OUActionNoise(
-            mean=np.zeros(self.num_reduced_actions),
-            std_deviation=float(self.ou_noise_std_dev) * np.ones(self.num_reduced_actions),
-        )
-
-    def init_checkpoint(self):
-        # add checkpoints manager
-        if self.resume:
-            checkpoint_actor_dir = self.dataroot.joinpath("tf_ckpts-aa/l045a_ddpg_actor")
-            checkpoint_critic_dir = self.dataroot.joinpath("tf_ckpts-aa/l045a_ddpg_critic")
-        else:
-            checkpoint_actor_dir = self.dataroot.joinpath(
-                 "tf_ckpts-aa/l045a_ddpg_actor"
-                + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-            )
-            checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-aa/l045a_ddpg_critic"
-                + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-            )
-        try:
-            os.makedirs(checkpoint_actor_dir)
-            self.logger.info("Actor folder doesn't exist. Created!", extra=self.dictLogger)
-        except FileExistsError:
-            self.logger.info("Actor folder exists, just resume!", extra=self.dictLogger)
-        try:
-            os.makedirs(checkpoint_critic_dir)
-            self.logger.info("User folder doesn't exist. Created!", extra=self.dictLogger)
-        except FileExistsError:
-            self.logger.info("User folder exists, just resume!", extra=self.dictLogger)
-
-        self.ckpt_actor = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.actor_optimizer, net=self.actor_model
-        )
-        self.manager_actor = tf.train.CheckpointManager(
-            self.ckpt_actor, checkpoint_actor_dir, max_to_keep=10
-        )
-        self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
-        if self.manager_actor.latest_checkpoint:
-            self.logger.info(
-                f"Actor Restored from {self.manager_actor.latest_checkpoint}",
-                extra=self.dictLogger,
-            )
-        else:
-            self.logger.info(f"Actor Initializing from scratch", extra=self.dictLogger)
-
-        self.ckpt_critic = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.critic_optimizer, net=self.critic_model
-        )
-        self.manager_critic = tf.train.CheckpointManager(
-            self.ckpt_critic, checkpoint_critic_dir, max_to_keep=10
-        )
-        self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
-        if self.manager_critic.latest_checkpoint:
-            self.logger.info(
-                f"Critic Restored from {self.manager_critic.latest_checkpoint}",
-                extra=self.dictLogger,
-            )
-        else:
-            self.logger.info("Critic Initializing from scratch", extra=self.dictLogger)
-
-        # Making the weights equal initially after checkpoints load
-        self.target_actor.set_weights(self.actor_model.get_weights())
-        self.target_critic.set_weights(self.critic_model.get_weights())
 
     def flash_vcu_once(self):
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
@@ -433,12 +341,10 @@ class realtime_train_infer_ddpg(object):
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
         init_states = tf.expand_dims(init_states, 0)  # motion states is 30*2 matrix
 
-        action0 = policy(self.actor_model, init_states, self.ou_noise)
+        action0 = self.rdpg.actor_predict(init_states, 0)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor", extra=self.dictLogger
         )
-        self.ou_noise.reset()
-
     # @eye
     # tracer.start()
 
@@ -747,213 +653,210 @@ class realtime_train_infer_ddpg(object):
                 f"E{epi_cnt} starts!",
                 extra=self.dictLogger,
             )
-            with tf.GradientTape() as tape:
-                while (
-                    not epi_end
-                ):  # end signal, either the round ends normally or user interrupt
-                    # TODO l045a define round done (time, distance, defined end event)
-                    with self.hmi_lock:  # wait for tester to interrupt or to exit
-                        th_exit = self.program_exit  # if program_exit is False, reset to wait
-                        epi_end = self.episode_end
-                        done = self.episode_done
-                        table_start = self.vcu_calib_table_row_start
 
-                    if epi_end:  # stop observing and inferring
-                        continue
+            while (
+                not epi_end
+            ):  # end signal, either the round ends normally or user interrupt
+                # TODO l045a define round done (time, distance, defined end event)
+                with self.hmi_lock:  # wait for tester to interrupt or to exit
+                    th_exit = self.program_exit  # if program_exit is False, reset to wait
+                    epi_end = self.episode_end
+                    done = self.episode_done
+                    table_start = self.vcu_calib_table_row_start
 
-                    try:
-                        self.logc.info(
-                            f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
-                        )
-                        motionpower = self.motionpowerQueue.get(block=True, timeout=1.55)
-                    except queue.Empty:
-                        self.logc.info(
-                            f"E{epi_cnt} No data in the Queue!!!",
-                            extra=self.dictLogger,
-                        )
-                        continue
+                if epi_end:  # stop observing and inferring
+                    continue
 
+                try:
                     self.logc.info(
-                        f"E{epi_cnt} start step {step_count}",
-                        extra=self.dictLogger,
-                    )  # env.step(action) action is flash the vcu calibration table
-                    # watch(step_count)
-                    # reward history
-                    motionpower_states = tf.convert_to_tensor(
-                        motionpower
-                    )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
-
-                    self.logd.info(
-                        f"E{epi_cnt} tensor convert and split!",
+                        f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
+                    )
+                    motionpower = self.motionpowerQueue.get(block=True, timeout=1.55)
+                except queue.Empty:
+                    self.logc.info(
+                        f"E{epi_cnt} No data in the Queue!!!",
                         extra=self.dictLogger,
                     )
-                    ui_sum = tf.reduce_sum(
-                        tf.reduce_prod(power_states, 1)
-                    )  # vcu reward is a scalar
-                    wh = ui_sum / 3600.0 * 0.05  # negative wh
+                    continue
+
+                self.logc.info(
+                    f"E{epi_cnt} start step {step_count}",
+                    extra=self.dictLogger,
+                )  # env.step(action) action is flash the vcu calibration table
+                # watch(step_count)
+                # reward history
+                motpow_t = tf.convert_to_tensor(
+                    motionpower
+                )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
+                o_t, pow_t = tf.split(motpow_t, [3, 2], 1)
+
+                self.logd.info(
+                    f"E{epi_cnt} tensor convert and split!",
+                    extra=self.dictLogger,
+                )
+                ui_sum = tf.reduce_sum(
+                    tf.reduce_prod(pow_t, 1)
+                )  # vcu reward is a scalar
+                wh = ui_sum / 3600.0 * 0.05  # negative wh
+                # self.logger.info(
+                #     f"ui_sum: {ui_sum}",
+                #     extra=self.dictLogger,
+                # )
+                self.logd.info(
+                    f"wh: {wh}",
+                    extra=self.dictLogger,
+                )
+
+                if (
+                    step_count % 2
+                ) == 0:  # only for even observation/reward take an action
+                    # k_cycle = 1000  # TODO determine the ratio
+                    # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
+                    # wh0 = wh  # add velocitoy sum as reward
+                    prev_r_t = (wh1 + wh) * (
+                        -1.0
+                    )  # most recent odd and even indexed reward
+                    episode_reward += prev_r_t
+                    # TODO add speed sum as positive reward
+
+                    if step_count > 0:
+                        if step_count == 2:  # first even step has $r_0$
+                            h_t = np.hstack([prev_o_t, prev_a_t, prev_r_t])
+                        else:
+                            h_t = np.append(
+                                h_t, np.hstack([prev_o_t, prev_a_t, prev_r_t]), axis=0
+                            )
+
+                    o_t0 = o_t
+
+                    o_t1 = tf.expand_dims(o_t0, 0)  # motion states is 30*3 matrix
+
+                    # predict action probabilities and estimated future rewards
+                    # from environment state
+                    # for causal rl, the odd indexed observation/reward are caused by last action
+                    # skip the odd indexed observation/reward for policy to make it causal
+                    self.logc.info(
+                        f"E{epi_cnt} before inference!",
+                        extra=self.dictLogger,
+                    )
+                    a_t = self.rdpg.actor_predict(o_t1, step_count / 2)
+
+                    prev_o_t = np.reshape(o_t0, [1, self.num_observations * self.obs_len])
+                    prev_a_t = np.reshape(a_t, [1, self.num_reduced_actions])
+
+                    self.logd.info(
+                        f"E{epi_cnt} inference done with reduced action space!",
+                        extra=self.dictLogger,
+                    )
+
+                    vcu_calib_table_reduced = tf.reshape(
+                        a_t,
+                        [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
+                    )
                     # self.logger.info(
-                    #     f"ui_sum: {ui_sum}",
+                    #     f"vcu action table reduced generated!", extra=self.dictLogger
+                    # )
+                    # vcu_action_table_reduced_s = [f"{col:.3f},"
+                    #                               for row in vcu_calib_table_reduced
+                    #                               for col in row]
+                    # self.logger.info(
+                    #     f"vcu action table: {vcu_action_table_reduced_s}",
                     #     extra=self.dictLogger,
                     # )
+
+                    # get change budget : % of initial table
+                    vcu_calib_table_bound = 250
+                    vcu_calib_table_reduced = (
+                        vcu_calib_table_reduced * vcu_calib_table_bound
+                    )
+                    # vcu_calib_table_reduced = tf.math.multiply(
+                    #     vcu_calib_table_reduced * vcu_calib_table_budget,
+                    #     vcu_calib_table0_reduced,
+                    # )
+                    # add changes to the default value
+                    # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
+
+                    # dynamically change table row start index
+                    vcu_calib_table0_reduced = self.vcu_calib_table0[
+                        table_start : self.vcu_calib_table_row_reduced + table_start,
+                        :,
+                    ]
+                    vcu_calib_table_min_reduced = (
+                        vcu_calib_table0_reduced - vcu_calib_table_bound
+                    )
+                    vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+
+                    vcu_calib_table_reduced = tf.clip_by_value(
+                        vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                        clip_value_min=vcu_calib_table_min_reduced,
+                        clip_value_max=vcu_calib_table_max_reduced,
+                    )
+
+                    # create updated complete pedal map, only update the first few rows
+                    self.vcu_calib_table1[
+                        table_start : self.vcu_calib_table_row_reduced + table_start, :
+                    ] = vcu_calib_table_reduced.numpy()
+                    pds_curr_table = pd.DataFrame(
+                        self.vcu_calib_table1, self.pd_index, self.pd_columns
+                    )
+                    # self.logc.info(
+                    #     f"E{epi_cnt} start record instant table: {step_count}",
+                    #     extra=self.dictLogger,
+                    # )
+
+                    if args.record_table:
+                        curr_table_store_path = self.dataroot.joinpath(
+                            "tables/instant_table_rdpg-"
+                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                            + "e-"
+                            + str(epi_cnt)
+                            + "-"
+                            + str(step_count)
+                            + ".csv"
+                        )
+                        with open(curr_table_store_path, "wb") as f:
+                            pds_curr_table.to_csv(curr_table_store_path)
+                            # np.save(last_table_store_path, vcu_calib_table1)
+                        self.logd.info(
+                            f"E{epi_cnt} done with record instant table: {step_count}",
+                            extra=self.dictLogger,
+                        )
+
+                    vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
+                    # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
+                    self.tableQueue.put(vcu_act_list)
                     self.logd.info(
-                        f"wh: {wh}",
+                        f"E{epi_cnt}StartIndex{table_start} Action Push table: {self.tableQueue.qsize()}",
+                        extra=self.dictLogger,
+                    )
+                    self.logc.info(
+                        f"E{epi_cnt} Finish Step: {step_count}",
                         extra=self.dictLogger,
                     )
 
-                    if (
-                        step_count % 2
-                    ) == 0:  # only for even observation/reward take an action
-                        # k_cycle = 1000  # TODO determine the ratio
-                        # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                        # wh0 = wh  # add velocitoy sum as reward
-                        cycle_reward = (wh1 + wh) * (
-                            -1.0
-                        )  # most recent odd and even indexed reward
-                        episode_reward += cycle_reward
-                        # TODO add speed sum as positive reward
+                # during odd steps, old action remains effective due to learn and flash delay
+                # so ust record the reward history
+                # motion states (observation) are not used later for backpropagation
+                else:
+                    # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                    # Bugfix: the reward recorded in the first even step is not causal
+                    # cycle_reward should include the most recent even wh in the even step
+                    # record the odd step wh
+                    wh1 = wh
 
-                        if step_count != 0:
-                            self.buffer.record(
-                                (
-                                    prev_motion_states,
-                                    prev_action,
-                                    cycle_reward,
-                                    motion_states,
-                                )
-                            )
-                        # motion_states_history.append(motion_states)
-                        motion_states0 = motion_states
+                    # TODO add speed sum as positive reward
+                    self.logc.info(
+                        f"E{epi_cnt} Step done: {step_count}",
+                        extra=self.dictLogger,
+                    )
 
-                        motion_states1 = tf.expand_dims(
-                            motion_states0, 0
-                        )  # motion states is 30*3 matrix
+                    # motion_states = tf.stack([motion_states0, motion_states])
+                    # motion_states_history was not used for back propagation
+                    # 60 frames, but never used again
+                    # motion_states_history.append(motion_states)
 
-                        # predict action probabilities and estimated future rewards
-                        # from environment state
-                        # for causl rl, the odd indexed observation/reward are caused by last action
-                        # skip the odd indexed observation/reward for policy to make it causal
-                        self.logc.info(
-                            f"E{epi_cnt} before inference!",
-                            extra=self.dictLogger,
-                        )
-                        vcu_action_reduced = policy(self.actor_model, motion_states1, self.ou_noise)
-                        prev_motion_states = motion_states0
-                        prev_action = vcu_action_reduced
-
-                        self.logd.info(
-                            f"E{epi_cnt} inference done with reduced action space!",
-                            extra=self.dictLogger,
-                        )
-
-                        vcu_calib_table_reduced = tf.reshape(
-                            vcu_action_reduced,
-                            [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
-                        )
-                        # self.logger.info(
-                        #     f"vcu action table reduced generated!", extra=self.dictLogger
-                        # )
-                        # vcu_action_table_reduced_s = [f"{col:.3f},"
-                        #                               for row in vcu_calib_table_reduced
-                        #                               for col in row]
-                        # self.logger.info(
-                        #     f"vcu action table: {vcu_action_table_reduced_s}",
-                        #     extra=self.dictLogger,
-                        # )
-
-                        # get change budget : % of initial table
-                        vcu_calib_table_bound = 250
-                        vcu_calib_table_reduced = (
-                            vcu_calib_table_reduced * vcu_calib_table_bound
-                        )
-                        # vcu_calib_table_reduced = tf.math.multiply(
-                        #     vcu_calib_table_reduced * vcu_calib_table_budget,
-                        #     vcu_calib_table0_reduced,
-                        # )
-                        # add changes to the default value
-                        # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
-
-                        # dynamically change table row start index
-                        vcu_calib_table0_reduced = self.vcu_calib_table0[
-                            table_start : self.vcu_calib_table_row_reduced + table_start,
-                            :,
-                        ]
-                        vcu_calib_table_min_reduced = (
-                            vcu_calib_table0_reduced - vcu_calib_table_bound
-                        )
-                        vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
-
-                        vcu_calib_table_reduced = tf.clip_by_value(
-                            vcu_calib_table_reduced + vcu_calib_table0_reduced,
-                            clip_value_min=vcu_calib_table_min_reduced,
-                            clip_value_max=vcu_calib_table_max_reduced,
-                        )
-
-                        # create updated complete pedal map, only update the first few rows
-                        self.vcu_calib_table1[
-                            table_start : self.vcu_calib_table_row_reduced + table_start, :
-                        ] = vcu_calib_table_reduced.numpy()
-                        pds_curr_table = pd.DataFrame(
-                            self.vcu_calib_table1, self.pd_index, self.pd_columns
-                        )
-                        # self.logc.info(
-                        #     f"E{epi_cnt} start record instant table: {step_count}",
-                        #     extra=self.dictLogger,
-                        # )
-
-                        if args.record_table:
-                            curr_table_store_path = self.dataroot.joinpath(
-                                "tables/instant_table_ddpg-bigep"
-                                + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                                + "e-"
-                                + str(epi_cnt)
-                                + "-"
-                                + str(step_count)
-                                + ".csv"
-                            )
-                            with open(curr_table_store_path, "wb") as f:
-                                pds_curr_table.to_csv(curr_table_store_path)
-                                # np.save(last_table_store_path, vcu_calib_table1)
-                            self.logd.info(
-                                f"E{epi_cnt} done with record instant table: {step_count}",
-                                extra=self.dictLogger,
-                            )
-
-                        vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                        # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                        self.tableQueue.put(vcu_act_list)
-                        self.logd.info(
-                            f"E{epi_cnt}StartIndex{table_start} Action Push table: {self.tableQueue.qsize()}",
-                            extra=self.dictLogger,
-                        )
-                        self.logc.info(
-                            f"E{epi_cnt} Finish Step: {step_count}",
-                            extra=self.dictLogger,
-                        )
-
-                    # during odd steps, old action remains effective due to learn and flash delay
-                    # so ust record the reward history
-                    # motion states (observation) are not used later for backpropagation
-                    else:
-                        # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
-                        # Bugfix: the reward recorded in the first even step is not causal
-                        # cycle_reward should include the most recent even wh in the even step
-                        # record the odd step wh
-                        wh1 = wh
-
-                        # TODO add speed sum as positive reward
-                        self.logc.info(
-                            f"E{epi_cnt} Step done: {step_count}",
-                            extra=self.dictLogger,
-                        )
-
-                        # motion_states = tf.stack([motion_states0, motion_states])
-                        # motion_states_history was not used for back propagation
-                        # 60 frames, but never used again
-                        # motion_states_history.append(motion_states)
-
-                    # step level
-                    step_count += 1
+                # step level
+                step_count += 1
 
                 if (
                     not done
@@ -965,71 +868,44 @@ class realtime_train_infer_ddpg(object):
                     episode_reward = 0.0
                     continue  # otherwise assuming the history is valid and back propagate
 
-                self.logc.info(
-                    f"E{epi_cnt} Experience Collection ends!",
-                    extra=self.dictLogger,
-                )
+            self.logc.info(
+                f"E{epi_cnt} Experience Collection ends!",
+                extra=self.dictLogger,
+            )
 
-                if self.infer:
-                    (critic_loss, actor_loss) = self.buffer.nolearn()
-                    self.logd.info("No Learning, just calculating loss")
-                else:
-                    for k in range(6):
-                        # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                        (critic_loss, actor_loss) = self.buffer.learn()
-                        self.logd.info("Learning and updating")
+            # add episode history to agent replay buffer
+            self.rdpg.add_to_replay(h_t)
 
-                        update_target(self.target_actor.variables, self.actor_model.variables, self.tau)
-                        # self.logger.info(f"Updated target actor", extra=self.dictLogger)
-                        update_target(self.target_critic.variables, self.critic_model.variables, self.tau)
-                        # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+            if self.infer:
+                (actor_loss, critic_loss) = self.rdpg.notrain()
+                self.logd.info("No Learning, just calculating loss")
+            else:
+                for k in range(6):
+                    # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
+                    (actor_loss, critic_loss) = self.rdpg.train()
+                    self.logd.info("Learning and soft updating")
+                    # logd.info(f"BP{k} done.", extra=dictLogger)
+                    self.logd.info(
+                        f"E{epi_cnt}BP{k} critic loss: {critic_loss}",
+                        extra=dictLogger,
+                    )
+                    self.rdpg.soft_update_target()
+                    # logger.info(f"Updated target critic.", extra=dictLogger)
 
-                    # Checkpoint manager save model
-                    self.ckpt_actor.step.assign_add(1)
-                    self.ckpt_critic.step.assign_add(1)
-                    if int(self.ckpt_actor.step) % 5 == 0:
-                        save_path_actor = self.manager_actor.save()
-                        self.logd.info(
-                            f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
-                            extra=self.dictLogger,
-                        )
-                    if int(self.ckpt_critic.step) % 5 == 0:
-                        save_path_critic = self.manager_critic.save()
-                        self.logd.info(
-                            f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
-                            extra=self.dictLogger,
-                        )
+                # Checkpoint manager save model
+                self.rdpg.save_ckpt()
 
-                # self.logd.info(f"BP{k} done.", extra=self.dictLogger)
-                self.logd.info(
-                    f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
-                    extra=self.dictLogger,
-                )
 
-                # Create a matplotlib 3d figure, //export and save in log
-                pd_data = pd.DataFrame(
-                    self.vcu_calib_table1,
-                    columns=np.linspace(0, 1.0, num=17),
-                    index=np.linspace(0, 30, num=21),
-                )
-                df = pd_data.unstack().reset_index()
-                df.columns = ["pedal", "velocity", "throttle"]
+            self.logd.info(
+                f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                extra=self.dictLogger,
+            )
 
-                fig = plt.figure()
-                ax = plt.axes(projection="3d")
-                surf = ax.plot_trisurf(
-                    df["pedal"],
-                    df["velocity"],
-                    df["throttle"],
-                    cmap=plt.cm.viridis,
-                    linewidth=0.2,
-                )
-                fig.colorbar(surf, shrink=0.5, aspect=5)
-                ax.view_init(30, 135)
-                # plt.show()
-                # time.sleep(5)
-                # update running reward to check condition for solving
-                running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+            # update running reward to check condition for solving
+            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+
+            # Create a matplotlib 3d figure, //export and save in log
+            fig = plot_3d_figure(self.vcu_calib_table1, self.pd_columns, self.pd_index)
 
             # tf logging after episode ends
             # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple self.logdir and automatic switch
@@ -1086,15 +962,15 @@ class realtime_train_infer_ddpg(object):
 
         last_table_store_path = (
             self.dataroot.joinpath(  #  there's no slash in the end of the string
-                "last_table_ddpg-"
+                "last_table_rdpg-"
                 + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
                 + ".csv"
             )
         )
         with open(last_table_store_path, "wb") as f:
             pds_last_table.to_csv(last_table_store_path)
-        self.buffer.save()
 
+        self.rdpg.save_replay_buffer()
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 
 
@@ -1104,7 +980,7 @@ if __name__ == "__main__":
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        "use ddpg episodefree mode with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds"
+        "Use Recurrent DPG with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds"
     )
     parser.add_argument(
         "-r",
@@ -1139,7 +1015,7 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
 
-    app = realtime_train_infer_ddpg(
+    app = realtime_train_infer_rdpg(
         args.resume, args.infer, args.record_table, args.path, projroot, logger
     )
     app.run()
