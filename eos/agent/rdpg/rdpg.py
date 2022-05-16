@@ -417,6 +417,43 @@ class RDPG:
 
         return actor_loss, critic_loss
 
+    def notrain(self):
+        """
+        Purely evaluate the actor and critic networks to  return the losses without Training.
+
+        return:
+            tuple: (actor_loss, critic_loss)
+        """
+
+        # get critic loss
+        # actions at h_t+1
+        self.t_a_ht1 = self.target_actor_net.evaluate_actions(self.o_n_t)
+
+        # state action value at h_t+1
+        self.t_q_ht1 = self.target_critic_net.evaluate_q(self.o_n_t, self.t_a_ht1)
+
+        # compute the target action value at h_t for the current batch
+        # using fancy indexing
+        # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
+        t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1)
+        # y_n_t shape (batch_size, seq_len, 1)
+        self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
+
+        # scalar value, average over the batch, time steps
+        critic_loss = tf.math.reduce_mean(
+            self.y_n_t - self.critic_net.evaluate_q(self.o_n_t, self.a_n_t)
+        )
+
+        # get  actor loss
+        self.a_ht = self.actor_net.evaluate_actions(self.o_n_t)
+        self.q_ht = self.critic_net.evaluate_q(self.o_n_t, self.a_ht)
+
+        # -1 because we want to maximize the q_ht
+        # scalar value, average over the batch and time steps
+        actor_loss = tf.math.reduce_mean(-self.q_ht)
+
+        return actor_loss, critic_loss
+
     def soft_update_target(self):
         """
         update target networks with tiny tau value, typical value 0.001.
