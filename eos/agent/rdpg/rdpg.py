@@ -147,29 +147,14 @@ class RDPG:
         )  # list for dynamic buffer, when saving memory needs to be converted to numpy array
         # Number of "experiences" to store at max
         self._buffer_capacity = buffer_capacity
+        self._datafolder = datafolder
+        self._ckpt_interval = ckpt_interval
         # Num of tuples to train on.
 
         self.h_t = None
 
         # Actor Network (w/ Target Network)
-        # create or restore from checkpoint
-        # add checkpoints manager
-        self.ckpt_actor_dir = datafolder + "./checkpoints/rdpg_actor"
-        self.ckpt_interval = ckpt_interval
-        try:
-            os.makedirs(self.checkpoint_actor_dir)
-            logger.info(
-                "Created checkpoint directory for actor: %s",
-                self.checkpoint_actor_dir,
-                extra=dictLogger,
-            )
-        except FileExistsError:
-            logger.info(
-                "Actor checkpoint directory already exists: %s",
-                self.checkpoint_actor_dir,
-                extra=dictLogger,
-            )
-
+        self.init_ckpt(self._datafolder, self._ckpt_interval)
         self.actor_net = ActorNet(
             self._n_obs,
             self._n_act,
@@ -179,8 +164,8 @@ class RDPG:
             padding_value,
             tauAC[0],
             lrAC[0],
-            self.ckpt_actor_dir,
-            self.ckpt_interval,
+            self._ckpt_actor_dir,
+            self._ckpt_interval,
         )
 
         self.target_actor_net = ActorNet(
@@ -192,29 +177,13 @@ class RDPG:
             padding_value,
             tauAC[0],
             lrAC[0],
-            self.ckpt_actor_dir,
-            self.ckpt_interval,
+            self._ckpt_actor_dir,
+            self._ckpt_interval,
         )
         # clone necessary for the first time training
         self.target_actor_net.clone_weights(self.actor_net)
 
         # Critic Network (w/ Target Network)
-        # create or restore from checkpoint
-        # add checkpoints manager
-        self.ckpt_critic_dir = datafolder + "./checkpoints/rdpg_critic"
-        try:
-            os.makedirs(self.ckpt_critic_dir)
-            logger.info(
-                "Created checkpoint directory for critic: %s",
-                self.checkpoint_critic_dir,
-                extra=dictLogger,
-            )
-        except FileExistsError:
-            logger.info(
-                "Critic checkpoint directory already exists: %s",
-                self.checkpoint_critic_dir,
-                extra=dictLogger,
-            )
 
         self.critic_net = CriticNet(
             self._n_obs,
@@ -225,8 +194,8 @@ class RDPG:
             padding_value,
             tauAC[1],
             lrAC[1],
-            self.ckpt_critic_dir,
-            self.ckpt_interval,
+            self._ckpt_critic_dir,
+            self._ckpt_interval,
         )
 
         self.target_critic_net = CriticNet(
@@ -238,8 +207,8 @@ class RDPG:
             padding_value,
             tauAC[1],
             lrAC[1],
-            self.ckpt_critic_dir,
-            self.ckpt_interval,
+            self._ckpt_critic_dir,
+            self._ckpt_interval,
         )
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
@@ -249,6 +218,41 @@ class RDPG:
         self.file_replay = datafolder + "/replay_buffer.npy"
         # Its tells us num of times record() was called.
         self.load_replay_buffer()
+
+    def init_ckpt(self):
+        # Actor create or restore from checkpoint
+        # add checkpoints manager
+        self._ckpt_actor_dir = self._datafolder + "./checkpoints/rdpg_actor"
+        try:
+            os.makedirs(self._ckpt_actor_dir)
+            logger.info(
+                "Created checkpoint directory for actor: %s",
+                self._ckpt_actor_dir,
+                extra=dictLogger,
+            )
+        except FileExistsError:
+            logger.info(
+                "Actor checkpoint directory already exists: %s",
+                self._ckpt_actor_dir,
+                extra=dictLogger,
+            )
+
+        # critic create or restore from checkpoint
+        # add checkpoints manager
+        self._ckpt_critic_dir = self._datafolder + "./checkpoints/rdpg_critic"
+        try:
+            os.makedirs(self._ckpt_critic_dir)
+            logger.info(
+                "Created checkpoint directory for critic: %s",
+                self._ckpt_critic_dir,
+                extra=dictLogger,
+            )
+        except FileExistsError:
+            logger.info(
+                "Critic checkpoint directory already exists: %s",
+                self._ckpt_critic_dir,
+                extra=dictLogger,
+            )
 
     def actor_predict(self, obs, t):
         """
