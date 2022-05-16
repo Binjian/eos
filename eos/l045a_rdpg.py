@@ -855,7 +855,9 @@ def main():
             extra=dictLogger,
         )
 
+        # add episode history to agent replay buffer
         rdpg.add_to_replay(h_t)
+
         if args.infer:
             (actor_loss, critic_loss) = rdpg.notrain()
             logd.info("No Learning, just calculating loss")
