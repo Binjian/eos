@@ -111,7 +111,7 @@ class realtime_train_infer_rdpg(object):
         self.init_vehicle()
         self.build_actor_critic()
         self.init_checkpoint()
-        self.flash_vcu_once()
+        self.touch_gpu()
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
         self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
@@ -333,7 +333,7 @@ class realtime_train_infer_rdpg(object):
             ckpt_interval=self.ckpt_interval,
         )
 
-    def flash_vcu_once(self):
+    def touch_gpu(self):
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
         init_motionpower = np.random.rand(self.sequence_len, self.num_observations)
         init_states = tf.convert_to_tensor(
