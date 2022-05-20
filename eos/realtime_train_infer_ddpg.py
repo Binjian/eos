@@ -57,19 +57,23 @@ from pythonjsonlogger import jsonlogger
 # local imports
 
 from .visualization import plot_to_image
-from .comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array, RemoteCan
+from .comm import generate_vcu_calibration,kvaser_send_float_array, RemoteCan
 from .agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
 from . import logger, dictLogger, projroot
 
 # from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
-# set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
+
+# system warnings and numpy warnings handling
+warnings.filterwarnings("ignore", message='currentThread',category=DeprecationWarning)
+np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 # global variables: threading, data, lock, etc.
 class realtime_train_infer_ddpg(object):
     def __init__(
         self,
+        cloud = False,
         resume=False,
         infer=False,
         record=True,
@@ -170,7 +174,6 @@ class realtime_train_infer_ddpg(object):
 
     def init_vehicle(self):
         # resume last pedal map / scratch from default table
-        set_tbox_sim_path(str(self.projroot.joinpath("eos/comm/tbox")))
 
         # initialize pedal map parameters
         self.vcu_calib_table_col = 17  # number of pedal steps, x direction
