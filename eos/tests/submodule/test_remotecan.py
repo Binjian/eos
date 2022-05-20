@@ -43,7 +43,7 @@ class TestRemoteCan(unittest.TestCase):
             vin="987654321654321M4", proxies=self.proxies_lantern
         )
         map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
-        success, reson = self.client.send_torque_map(map2d)
+        success, response = self.client.send_torque_map(map2d)
         if success:
             signal_success, json_ret = self.client.get_signals(duration=2)
             if signal_success is True:
@@ -60,13 +60,17 @@ class TestRemoteCan(unittest.TestCase):
                 print("reson", json_ret)
         else:
             print(f"download corrupt!")
-            print("reson", reson)
+            print("response:", response)
 
     def test_native(self):
         map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
-        success, reson = self.client.send_torque_map(map2d)
+        success, response = self.client.send_torque_map(map2d)
         if success:
-            signal_success, json_ret = self.client.get_signals(duration=2)
+            signal_success, remotecan_data = self.client.get_signals(duration=2)
+            data_type = type(remotecan_data)
+            print("data type:", data_type)
+            if not isinstance(remotecan_data, dict):
+                raise TypeError("udp sending wrong data type!")
             if signal_success is True:
                 try:
                     # json_string = json.dumps(
@@ -74,7 +78,7 @@ class TestRemoteCan(unittest.TestCase):
                     # )
                     # print(f"print whole json string:{json_string}")
 
-                    for key, value in json_ret.items():
+                    for key, value in remotecan_data.items():
                         if key == "result":
                             # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
                             with np.printoptions(suppress=True, linewidth=100):
@@ -137,10 +141,10 @@ class TestRemoteCan(unittest.TestCase):
                     print(f"{X}:data corrupt!")
             else:
                 print("upload corrupt!")
-                print("reson", json_ret)
+                print("reson", remotecan_data)
         else:
             print(f"download corrupt!")
-            print("reson", reson)
+            print("response", response)
 
 
 if __name__ == "__main__":
