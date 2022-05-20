@@ -99,6 +99,11 @@ class TestRemoteCan(unittest.TestCase):
                                         item_len = [len(item) for item in voltage]
                                         for count, item in enumerate(voltage):
                                             item[item_len[count] : max(item_len)] = None
+                                    # voltage needs to be upsampled in columns since its sample rate is half of others
+                                    r_v, c_v = voltage.shape
+                                    voltage_upsampled = np.empty((r_v, 1, c_v, 2), dtype=voltage.dtype)
+                                    voltage_upsampled[...] = voltage[:, None, :, None]
+                                    voltage = voltage_upsampled.reshape(r_v, c_v * 2)
                                     print(f"voltage{voltage.shape}:{voltage}")
 
                                     thrust = np.array(value["list_pedal_1s"])
@@ -131,7 +136,22 @@ class TestRemoteCan(unittest.TestCase):
                                         item_len = [len(item) for item in gears]
                                         for count, item in enumerate(gears):
                                             item[item_len[count] : max(item_len)] = None
+                                    # upsample gears from 2Hz to 25Hz
+                                    r_v, c_v = gears.shape
+                                    gears_upsampled = np.empty((r_v, 1, c_v, 12), dtype=gears.dtype)
+                                    gears_upsampled[...] = gears[:, None, :, None]
+                                    gears = gears_upsampled.reshape(r_v, c_v * 12)
+                                    gears = np.c_[gears, gears[:,-1]] # duplicate last gear on the end
                                     print(f"gears{gears.shape}:{gears}")
+
+                                    observation = np.c_[
+                                        velocity.reshape(-1, 1),
+                                        thrust.reshape(-1, 1),
+                                        brake.reshape(-1, 1),
+                                        current.reshape(-1, 1),
+                                        voltage.reshape(-1, 1),
+                                    ]  # 3 +2 : im 5
+                                    print(f"observation{observation.shape}:{observation}")
 
                                     timestamp = np.array(value["timestamp"])
                                     print(f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}")
