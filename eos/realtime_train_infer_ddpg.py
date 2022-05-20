@@ -29,6 +29,7 @@ import datetime
 
 import socket
 import json
+import warnings
 
 from threading import Lock, Thread
 import time, queue, math, signal
@@ -81,6 +82,7 @@ class realtime_train_infer_ddpg(object):
         projroot=".",
         logger=None,
     ):
+        self.cloud = cloud
         self.projroot = projroot
         self.logger = logger
         self.dictLogger = dictLogger
@@ -91,6 +93,14 @@ class realtime_train_infer_ddpg(object):
         self.path = path
 
         self.eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
+
+        if self.cloud:
+            # reset proxy (internal site force no proxy)
+            os.environ["http_proxy"] = ""
+            self.client = RemoteCan(vin="987654321654321M4")
+            self.get_truck_status = self.cloud_get_truck_status
+        else:
+            self.get_truck_status = self.onboard_get_truck_status
 
         if resume:
             self.dataroot = projroot.joinpath("data/" + self.path)
@@ -249,7 +259,10 @@ class realtime_train_infer_ddpg(object):
         vcu_table1 = self.vcu_calib_table1.reshape(-1).tolist()
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
-        send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+        if self.cloud:
+            self.can_client.send_torque_cmd(vcu_table1)
+        else:
+            kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
         self.logger.info(f"Done flash initial table", extra=self.dictLogger)
 
         # TQD_trqTrqSetECO_MAP_v
@@ -273,7 +286,12 @@ class realtime_train_infer_ddpg(object):
 
         # create actor-critic network
         self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
-        self.sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+        if self.cloud:
+            self.sequence_len = 50  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
+            self.sample_rate = 0.04  # sample rate of the observation tuples
+        else:
+            self.sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+            self.sample_rate = 0.05  # sample rate of the observation tuples
         self.num_inputs = (
             self.num_observations * self.sequence_len
         )  # 60 subsequent observations
@@ -473,7 +491,12 @@ class realtime_train_infer_ddpg(object):
         self.get_truck_status_start = False
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
-    def get_truck_status(self):
+    def onboard_get_truck_status(self):
+        """
+        This function is used to get the truck status
+        from the onboard udp socket server of CAN capture module Kvaser
+        """
+
         # global program_exit
         # global motionpowerQueue, sequence_len
         # global episode_count, episode_done, episode_end
@@ -695,7 +718,20 @@ class realtime_train_infer_ddpg(object):
 
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                send_float_array("TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True)
+                if self.cloud:
+                    success, reson = self.client.send_torque_map(table)
+                    if not success:
+                        self.logc.error(
+                            f"send_torque_map failed: {reson}",
+                            extra=self.dictLogger,
+                        )
+                else:
+                    returncode = kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True)
+                    if returncode != 0:
+                        self.logc.error(
+                            f"kvaser_send_float_array failed: {returncode}",
+                            extra=self.dictLogger,
+                        )
                 # time.sleep(1.0)
                 self.logc.info(f"flash done, count:{flash_count}", extra=self.dictLogger)
                 flash_count += 1
@@ -703,6 +739,282 @@ class realtime_train_infer_ddpg(object):
 
         # motionpowerQueue.join()
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
+
+
+    def cloud_get_truck_status(self):
+        # global program_exit
+        # global motionpowerQueue, sequence_len
+        # global episode_count, episode_done, episode_end
+        # global vcu_calib_table_row_start
+
+        # self.logger.info(f'Start Initialization!', extra=self.dictLogger)
+        start_moment = time.time()
+        th_exit = False
+        last_moment = time.time()
+        # self.logc.info(f"Initialization Done!", extra=self.dictLogger)
+        # qobject_size = 0
+
+        vel_hist_dQ = deque(maxlen=25)  # accumulate 1s of velocity values
+        # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
+        vel_cycle_dQ = deque(
+            maxlen=self.sequence_len
+        )  # accumulate 2s (one cycle) of velocity values
+
+        duration = self.sequence_len / self.sample_rate
+        while not th_exit:  # th_exit is local; program_exit is global
+            with self.hmi_lock:  # wait for tester to kick off or to exit
+                if self.program_exit == True:  # if program_exit is True, exit thread
+                    self.logger.info(
+                        "%s",
+                        "Capture thread exit due to processing request!!!",
+                        extra=self.dictLogger,
+                    )
+                    th_exit = True
+                    continue
+            status_ok, remotecan_data = self.client.get_signals(duration=duration)
+            if not status_ok:
+                self.logc.error(
+                    f"get_signals failed: {remotecan_data}",
+                    extra=self.dictLogger,
+                )
+                continue
+            # self.logger.info('Data received!!!', extra=self.dictLogger)
+            data_type = type(remotecan_data)
+            self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
+            if not isinstance(remotecan_data, dict):
+                self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
+                raise TypeError("udp sending wrong data type!")
+
+            epi_delay_stop = False
+            try:
+                for key, value in remotecan_data.items():
+                    if key == "status":  # state machine chores
+                        # print(candata)
+                        if value == "begin":
+                            self.get_truck_status_start = True
+                            self.logc.info("%s", "Episode will start!!!", extra=self.dictLogger)
+                            th_exit = False
+                            # ts_epi_start = time.time()
+
+                            vel_hist_dQ.clear()
+                            epi_delay_stop = False
+                            with self.hmi_lock:
+                                self.episode_done = False
+                                self.episode_end = False
+
+                        elif value == "end_valid":
+                            # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                            # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+                            self.get_truck_status_start = (
+                                True  # do not stopping data capture immediately
+                            )
+                            self.get_truck_status_motpow_t = []
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
+                            self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
+                            th_exit = False
+                            vel_hist_dQ.clear()
+                            epi_delay_stop = True
+                            with self.hmi_lock:
+                                self.episode_count += 1  # valid round increments
+                                self.episode_done = True
+                                self.episode_end = True
+                        elif value == "end_invalid":
+                            self.get_truck_status_start = False
+                            self.logc.info(f"Episode is interrupted!!!", extra=self.dictLogger)
+                            self.get_truck_status_motpow_t = []
+                            vel_hist_dQ.clear()
+                            # motionpowerQueue.queue.clear()
+                            # self.logc.info(
+                            #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                            #     extra=self.dictLogger,
+                            # )
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
+                            # self.logc.info(
+                            #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
+                            # )
+                            th_exit = False
+                            epi_delay_stop = False
+                            with self.hmi_lock:
+                                self.episode_done = False
+                                self.episode_end = True
+                                self.episode_count += 1  # invalid round increments
+                        elif value == "exit":
+                            self.get_truck_status_start = False
+                            self.get_truck_status_motpow_t = []
+                            vel_hist_dQ.clear()
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
+                            # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
+                            th_exit = True
+                            epi_delay_stop = False
+                            # for program exit, need to set episode states
+                            # final change to inform main thread
+                            with self.hmi_lock:
+                                self.episode_done = False
+                                self.episode_end = True
+                                self.program_exit = True
+                                self.episode_count += 1
+                            break
+                            # time.sleep(0.1)
+
+                    elif key == "result":
+                        # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
+                        # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
+                        # DONE add logic for episode valid and invalid
+                        if epi_delay_stop:
+                            signal.alarm(3)  # delay stop for 3 seconds
+                        try:
+                            if self.get_truck_status_start:  # starts episode
+
+                                # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
+                                with np.printoptions(suppress=True, linewidth=100):
+                                    # capture warning about ragged json arrays
+                                    with np.testing.suppress_warnings() as sup:
+                                        log_warning = sup.record(np.VisibleDeprecationWarning,
+                                                                 "Creating an ndarray from ragged nested sequences")
+                                        current = np.array(value["list_current_1s"])
+                                        if len(log_warning) > 0:
+                                            log_warning.pop()
+                                            item_len = [len(item) for item in current]
+                                            for count, item in enumerate(current):
+                                                item[item_len[count]: max(item_len)] = None
+                                        self.logd.info(f"current{current.shape}:{current}", extra=self.dictLogger)
+
+                                        voltage = np.array(value["list_voltage_1s"])
+                                        if len(log_warning):
+                                            log_warning.pop()
+                                            item_len = [len(item) for item in voltage]
+                                            for count, item in enumerate(voltage):
+                                                item[item_len[count]: max(item_len)] = None
+                                        # voltage needs to be upsampled in columns since its sample rate is half of others
+                                        r_v, c_v = voltage.shape
+                                        voltage_upsampled = np.empty((r_v, 1, c_v, 2), dtype=voltage.dtype)
+                                        voltage_upsampled[...] = voltage[:, None, :, None]
+                                        voltage = voltage_upsampled.reshape(r_v, c_v * 2)
+                                        self.logd.info(f"voltage{voltage.shape}:{voltage}", extra=self.dictLogger)
+
+
+                                        thrust = np.array(value["list_pedal_1s"])
+                                        if len(log_warning) > 0:
+                                            log_warning.pop()
+                                            item_len = [len(item) for item in thrust]
+                                            for count, item in enumerate(thrust):
+                                                item[item_len[count]: max(item_len)] = None
+                                        self.logd.info(f"accl{thrust.shape}:{thrust}", extra=self.dictLogger)
+
+                                        brake = np.array(value["list_brake_pressure_1s"])
+                                        if len(log_warning) > 0:
+                                            log_warning.pop()
+                                            item_len = [len(item) for item in brake]
+                                            for count, item in enumerate(brake):
+                                                item[item_len[count]: max(item_len)] = None
+                                        self.logd.info(f"brake{brake.shape}:{brake}", extra=self.dictLogger)
+
+                                        velocity = np.array(value["list_speed_1s"])
+                                        if len(log_warning) > 0:
+                                            log_warning.pop()
+                                            item_len = [len(item) for item in velocity]
+                                            for count, item in enumerate(velocity):
+                                                item[item_len[count]: max(item_len)] = None
+                                        self.logd.info(f"velocity{velocity.shape}:{velocity}", extra=self.dictLogger)
+
+                                        gears = np.array(value["list_gears"])
+                                        if len(log_warning) > 0:
+                                            log_warning.pop()
+                                            item_len = [len(item) for item in gears]
+                                            for count, item in enumerate(gears):
+                                                item[item_len[count]: max(item_len)] = None
+                                        # upsample gears from 2Hz to 25Hz
+                                        r_v, c_v = gears.shape
+                                        gears_upsampled = np.empty((r_v, 1, c_v, 12), dtype=gears.dtype)
+                                        gears_upsampled[...] = gears[:, None, :, None]
+                                        gears = gears_upsampled.reshape(r_v, c_v * 12)
+                                        gears = np.c_[gears, gears[:, -1]]  # duplicate last gear on the end
+                                        gears = gears.reshape(-1, 1)
+                                        self.logd.info(f"gears{gears.shape}:{gears}", extra=self.dictLogger)
+
+                                        timestamp = np.array(value["timestamp"])
+                                        self.logd.info(
+                                            f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}",
+                                            extra=self.dictLogger)
+
+                                motion_power = np.c_[
+                                    velocity.reshape(-1,1),
+                                    thrust.reshape(-1,1),
+                                    brake.reshape(-1,1),
+                                    current.reshape(-1,1),
+                                    voltage.reshape(-1,1),
+                                ]  # 3 +2 : im 5
+
+                                self.get_truck_status_motpow_t.append(
+                                    motion_power
+                                )  # obs_reward [speed, pedal, brake, current, voltage]
+                                vel_hist_dQ.append(velocity)
+
+                                vel_aver = velocity.mean()
+                                vel_min = velocity.min()
+                                vel_max = velocity.max()
+
+                                # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
+                                # average concept
+                                # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
+                                #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                                # here upper bound rule adopted
+                                if vel_max < 20:
+                                    self.vcu_calib_table_row_start = 0
+                                elif vel_max < 100:
+                                    self.vcu_calib_table_row_start = (
+                                            math.floor((vel_max - 20) / 5) + 1
+                                    )
+                                else:
+                                    self.logc.warning(
+                                        f"cycle higher than 100km/h!",
+                                        extra=self.dictLogger,
+                                    )
+                                    self.vcu_calib_table_row_start = 16
+
+                                self.logd.info(
+                                    f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{self.vcu_calib_table_row_start}!",
+                                    extra=self.dictLogger,
+                                )
+                                # self.logd.info(
+                                #     f"Producer Queue has {motionpowerQueue.qsize()}!",
+                                #     extra=self.dictLogger,
+                                # )
+                                self.motionpowerQueue.put(self.get_truck_status_motpow_t)
+                                self.get_truck_status_motpow_t = []
+                        except Exception as X:
+                            self.logc.info(
+                                X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                                extra=self.dictLogger,
+                            )
+                    elif key == "reson":
+                        self.logd.info(
+                            f"reson: {value}",
+                            extra=self.dictLogger,
+                        )
+                    elif key == "success":
+                        self.logd.info(
+                            f"success: {value}",
+                            extra=self.dictLogger,
+                        )
+                    elif key == "elapsed":
+                        self.logd.info(
+                            f"elapsed: {value}",
+                            extra=self.dictLogger,
+                        )
+                    else:
+                        self.logc.critical(
+                            "udp sending unknown signal (neither status nor data)!"
+                        )
+                        break
+            except Exception as X:
+                self.logc.info(f"{X}: data corrupt!", extra=self.dictLogger)
+
+        self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+
 
 
     # @eye
@@ -784,7 +1096,7 @@ class realtime_train_infer_ddpg(object):
                     # reward history
                     motionpower_states = tf.convert_to_tensor(
                         motionpower
-                    )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
+                    )  # state must have 30/100 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
                     motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
 
                     self.logd.info(
@@ -1110,6 +1422,14 @@ if __name__ == "__main__":
         "Use DDPG mode with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds"
     )
     parser.add_argument(
+        "-c",
+        "--cloud",
+        default=False,
+        help="Use cloud mode, default is False",
+        action="store_false",
+    )
+
+    parser.add_argument(
         "-r",
         "--resume",
         default=False,
@@ -1143,6 +1463,6 @@ if __name__ == "__main__":
     # set up data folder (logging, checkpoint, table)
 
     app = realtime_train_infer_ddpg(
-        args.resume, args.infer, args.record_table, args.path, projroot, logger
+        args.cloud, args.resume, args.infer, args.record_table, args.path, projroot, logger
     )
     app.run()
