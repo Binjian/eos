@@ -287,13 +287,13 @@ class realtime_train_infer_rdpg(object):
         # create actor-critic network
         self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
         if self.cloud:
-            self.sequence_len = 50  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
+            self.observation_len = 50  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
             self.sample_rate = 0.04  # sample rate of the observation tuples
         else:
-            self.sequence_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+            self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
             self.sample_rate = 0.05  # sample rate of the observation tuples
         self.num_inputs = (
-            self.num_observations * self.sequence_len
+            self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*21 = 357
         self.vcu_calib_table_row_reduced = 5  # 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
@@ -335,7 +335,7 @@ class realtime_train_infer_rdpg(object):
         # Initialize networks
         self.rdpg = RDPG(
             self.num_observations,
-            self.obs_len,
+            self.observation_len,
             self.seq_len,
             self.num_reduced_actions,
             buffer_capacity=self.buffer_capacity,
@@ -352,7 +352,7 @@ class realtime_train_infer_rdpg(object):
 
     def touch_gpu(self):
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
-        init_motionpower = np.random.rand(self.sequence_len, self.num_observations)
+        init_motionpower = np.random.rand(self.observation_len, self.num_observations)
         init_states = tf.convert_to_tensor(
             init_motionpower
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
@@ -420,7 +420,7 @@ class realtime_train_infer_rdpg(object):
         vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
         vel_cycle_dQ = deque(
-            maxlen=self.sequence_len
+            maxlen=self.observation_len
         )  # accumulate 1.5s (one cycle) of velocity values
 
         while not th_exit:  # th_exit is local; program_exit is global
@@ -543,7 +543,7 @@ class realtime_train_infer_rdpg(object):
                             vel_hist_dQ.append(velocity)
                             vel_cycle_dQ.append(velocity)
 
-                            if len(self.get_truck_status_motpow_t) >= self.sequence_len:
+                            if len(self.get_truck_status_motpow_t) >= self.observation_len:
                                 if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                     self.logc.warning(  # the recent 1.5s average velocity
                                         f"cycle deque is inconsistent!",
@@ -660,10 +660,10 @@ class realtime_train_infer_rdpg(object):
         vel_hist_dQ = deque(maxlen=25)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
         vel_cycle_dQ = deque(
-            maxlen=self.sequence_len
+            maxlen=self.observation_len
         )  # accumulate 2s (one cycle) of velocity values
 
-        duration = self.sequence_len / self.sample_rate
+        duration = self.observation_len / self.sample_rate
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
