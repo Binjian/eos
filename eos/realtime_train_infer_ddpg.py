@@ -57,7 +57,7 @@ from pythonjsonlogger import jsonlogger
 
 # local imports
 
-from .visualization import plot_to_image
+from .visualization import plot_to_image, plot_3d_figure
 from .comm import generate_vcu_calibration,kvaser_send_float_array, RemoteCan
 from .agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
 from . import logger, dictLogger, projroot
@@ -1321,30 +1321,11 @@ class realtime_train_infer_ddpg(object):
                     extra=self.dictLogger,
                 )
 
-                # Create a matplotlib 3d figure, //export and save in log
-                pd_data = pd.DataFrame(
-                    self.vcu_calib_table1,
-                    columns=np.linspace(0, 1.0, num=17),
-                    index=np.linspace(0, 30, num=21),
-                )
-                df = pd_data.unstack().reset_index()
-                df.columns = ["pedal", "velocity", "throttle"]
+            # update running reward to check condition for solving
+            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
 
-                fig = plt.figure()
-                ax = plt.axes(projection="3d")
-                surf = ax.plot_trisurf(
-                    df["pedal"],
-                    df["velocity"],
-                    df["throttle"],
-                    cmap=plt.cm.viridis,
-                    linewidth=0.2,
-                )
-                fig.colorbar(surf, shrink=0.5, aspect=5)
-                ax.view_init(30, 135)
-                # plt.show()
-                # time.sleep(5)
-                # update running reward to check condition for solving
-                running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+            # Create a matplotlib 3d figure, //export and save in log
+            fig = plot_3d_figure(self.vcu_calib_table1, self.pd_columns, self.pd_index)
 
             # tf logging after episode ends
             # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple self.logdir and automatic switch
