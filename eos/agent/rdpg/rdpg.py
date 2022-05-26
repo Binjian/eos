@@ -97,7 +97,7 @@ import os
 # third-party imports
 import numpy as np
 import tensorflow as tf
-from keras.preprocessing.sequence import pad_sequences
+from keras.utils import pad_sequences
 from keras import layers
 import keras.initializers as initializers
 
