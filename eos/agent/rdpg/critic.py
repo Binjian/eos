@@ -16,7 +16,6 @@ class CriticNet:
         self,
         state_dim,
         action_dim,
-        sequence_len,
         hidden_dim,
         n_layers,
         padding_value,
@@ -45,8 +44,8 @@ class CriticNet:
         self._tau = tau
         self._padding_value = padding_value
 
-        inputs_state = layers.Input(shape=(sequence_len, state_dim))
-        inputs_action = layers.Input(shape=(sequence_len, action_dim))
+        inputs_state = layers.Input(shape=(None, state_dim))
+        inputs_action = layers.Input(shape=(None, action_dim))
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
         inputs_state_action = layers.concatenate(-1)([inputs_state, inputs_action])
@@ -151,14 +150,6 @@ class CriticNet:
     @hidden_dim.setter
     def hidden_dim(self, value):
         raise ReadOnlyError("hidden_dim is read-only")
-
-    @property
-    def sequence_len(self):
-        return self._sequence_len
-
-    @sequence_len.setter
-    def sequence_len(self, value):
-        raise ReadOnlyError("sequence_len is read-only")
 
     @property
     def lr(self):

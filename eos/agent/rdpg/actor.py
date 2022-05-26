@@ -17,7 +17,6 @@ class ActorNet:
         self,
         state_dim,
         action_dim,
-        sequence_len,
         hidden_dim,
         n_layers,
         padding_value,
@@ -41,13 +40,12 @@ class ActorNet:
         self._state_dim = state_dim
         self._action_dim = action_dim
         self._hidden_dim = hidden_dim
-        self._sequence_len = sequence_len
         self._lr = lr
         self._padding_value = padding_value
         self._n_layers = n_layers
         self._tau = tau
 
-        inputs = layers.Input(shape=(sequence_len, state_dim))
+        inputs = layers.Input(shape=(None, state_dim))
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=padding_value)(
@@ -179,14 +177,6 @@ class ActorNet:
     @hidden_dim.setter
     def hidden_dim(self, value):
         raise ReadOnlyError("hidden_dim is read-only")
-
-    @property
-    def sequence_len(self):
-        return self._sequence_len
-
-    @sequence_len.setter
-    def sequence_len(self, value):
-        raise ReadOnlyError("sequence_len is read-only")
 
     @property
     def lr(self):

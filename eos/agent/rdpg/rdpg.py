@@ -158,7 +158,6 @@ class RDPG:
         self.actor_net = ActorNet(
             self._n_obs,
             self._n_act,
-            seq_len,
             hidden_unitsAC[0],
             n_layersAC[0],
             padding_value,
@@ -171,7 +170,6 @@ class RDPG:
         self.target_actor_net = ActorNet(
             self._n_obs,
             self._n_act,
-            seq_len,
             hidden_unitsAC[0],
             n_layersAC[0],
             padding_value,
@@ -188,7 +186,6 @@ class RDPG:
         self.critic_net = CriticNet(
             self._n_obs,
             self._n_act,
-            seq_len,
             hidden_unitsAC[1],
             n_layersAC[1],
             padding_value,
@@ -201,7 +198,6 @@ class RDPG:
         self.target_critic_net = CriticNet(
             self._n_obs,
             self._n_act,
-            seq_len,
             hidden_unitsAC[1],
             n_layersAC[1],
             padding_value,
@@ -262,12 +258,17 @@ class RDPG:
         # TODO add sequence padding for variable length sequences?
         if t == 0:
             # initialize with padding values
-            self.obs_t = np.ones((1, self._seq_len, self._n_obs)) * self._padding_value
-            self.obs_t[0, 0, :] = obs
+            # TODO: replace the static self._seq_len with the actual length of the sequence
+            # TODO: monitor the length of the sequence so far
+            self.obs_t = [obs]
         else:
-            self.obs_t[0, t, :] = obs
+            self.obs_t.append(obs)
 
-        return self.actor_net.predict(self.obs_t)
+        # self.obs_t = np.ones((1, t + 1, self._n_obs))
+        # self.obs_t[0, 0, :] = obs
+        # expand the batch dimension and turn obs_t into a numpy array
+        input_array = np.expand_dims(np.array(self.obs_t), axis=0)
+        return self.actor_net.predict(input_array)
 
     def reset_noise(self):
         """reset noise of the moving actor network"""
@@ -279,7 +280,7 @@ class RDPG:
         Args:
             h_t (np.array): The current h_t, could be variable length
         """
-        self.h_t = h_t
+        self.h_t = np.array(h_t)
         self.R.append(h_t)
         if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
@@ -301,13 +302,14 @@ class RDPG:
         indexes = np.random.choice(record_range, self._batch_size)
 
         # mini-batch for Reward, Observation and Action, with keras padding
+        # padding automatically expands every sequence to the maximal length by pad_sequences
         self.r_n_t = pad_sequences(
             [self.R[i][:, -1] for i in indexes],
             padding="post",
             dtype="float32",
             value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
-        )  # return numpy array of shape (batch_size, seq_len)
-        # return numpy array of shape (batch_size, seq_len, 1), for align with critic output with extra feature dimension
+        )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
+        # for alignment with critic output with extra feature dimension
         self.r_n_t = np.expand_dims(self.r_n_t, axis=2)
 
         o_n_l0 = [
@@ -377,7 +379,7 @@ class RDPG:
             # compute the target action value at h_t for the current batch
             # using fancy indexing
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-            t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1)
+            t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1) #TODO: replace self._seq_len with maximal seq length
             # y_n_t shape (batch_size, seq_len, 1)
             self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
 

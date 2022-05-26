@@ -1033,15 +1033,9 @@ class realtime_train_infer_rdpg(object):
 
                     if step_count > 0:
                         if step_count == 2:  # first even step has $r_0$
-                            h_t = np.hstack([prev_o_t, prev_a_t, prev_r_t])
+                            h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
                         else:
-                            h_t = np.append(
-                                h_t, np.hstack([prev_o_t, prev_a_t, prev_r_t]), axis=0
-                            )
-
-                    o_t0 = o_t
-
-                    o_t1 = tf.expand_dims(o_t0, 0)  # motion states is 30*3 matrix
+                            h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
 
                     # predict action probabilities and estimated future rewards
                     # from environment state
@@ -1051,9 +1045,10 @@ class realtime_train_infer_rdpg(object):
                         f"E{epi_cnt} before inference!",
                         extra=self.dictLogger,
                     )
-                    a_t = self.rdpg.actor_predict(o_t1, step_count / 2)
+                    # motion states o_t is 30*3/50*3 matrix
+                    a_t = self.rdpg.actor_predict(o_t, step_count / 2)
 
-                    prev_o_t = np.reshape(o_t0, [1, self.num_observations * self.obs_len])
+                    prev_o_t = np.reshape(o_t, [1, self.num_observations * self.obs_len])
                     prev_a_t = np.reshape(a_t, [1, self.num_reduced_actions])
 
                     self.logd.info(
