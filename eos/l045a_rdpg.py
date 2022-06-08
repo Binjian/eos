@@ -60,9 +60,9 @@ import matplotlib.pyplot as plt
 
 # local import
 from .comm import generate_vcu_calibration, set_tbox_sim_path, RemoteCan, send_float_array
-from .utils import get_logger, plot_3d_figure
+from .utils import get_logger
 from .agent import RDPG
-from .visualization import plot_to_image
+from .visualization import plot_to_image, plot_3d_figure
 
 
 # resumption settings
