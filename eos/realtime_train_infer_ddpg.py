@@ -180,7 +180,7 @@ class realtime_train_infer_ddpg(object):
         # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         if self.resume:
-            self.logger.info(f"Resume last training", extra=self.self.dictLogger)
+            self.logger.info(f"Resume last training", extra=self.dictLogger)
         else:
             self.logger.info(f"Start from scratch", extra=self.dictLogger)
 
