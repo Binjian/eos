@@ -3,11 +3,12 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 import keras.initializers as initializers
-from ... import logger, dictLogger
+from eos import logger, dictLogger
+
 
 # local imports
 from ..utils.ou_noise import OUActionNoise
-from ...utils.exception import ReadOnlyError
+from eos.utils.exception import ReadOnlyError
 
 
 class ActorNet:

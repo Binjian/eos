@@ -57,10 +57,10 @@ from pythonjsonlogger import jsonlogger
 
 # local imports
 
-from .visualization import plot_to_image, plot_3d_figure
-from .comm import generate_vcu_calibration,kvaser_send_float_array, RemoteCan
-from .agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
-from . import logger, dictLogger, projroot
+from eos.visualization import plot_to_image, plot_3d_figure
+from eos.comm import generate_vcu_calibration,kvaser_send_float_array, RemoteCan
+from eos.agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
+from eos import logger, dictLogger, projroot
 
 # from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
 # value = [99.0] * 21 * 17

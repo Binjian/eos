@@ -102,10 +102,10 @@ from keras import layers
 import keras.initializers as initializers
 
 # local imports
-from ... import logger, dictLogger
+from eos import logger, dictLogger
 from .actor import ActorNet
 from .critic import CriticNet
-from ...utils.exception import ReadOnlyError
+from eos.utils.exception import ReadOnlyError
 
 
 class RDPG:

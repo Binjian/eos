@@ -9,7 +9,7 @@ import inspect
 import numpy as np
 
 # internal import
-from src.comm import generate_vcu_calibration, send_float_array, set_tbox_sim_path
+from eos.comm import generate_vcu_calibration, send_float_array, set_tbox_sim_path
 
 
 mpl_logger = logging.getLogger("matplotlib.font_manager")

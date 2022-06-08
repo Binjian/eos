@@ -5,8 +5,8 @@ from keras import layers
 import keras.initializers as initializers
 
 # local imports
-from ... import logger, dictLogger
-from ...utils.exception import ReadOnlyError
+from eos import logger, dictLogger
+from eos.utils.exception import ReadOnlyError
 
 
 class CriticNet:
