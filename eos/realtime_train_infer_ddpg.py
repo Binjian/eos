@@ -536,7 +536,7 @@ class realtime_train_infer_ddpg(object):
             # self.logger.info('Data received!!!', extra=self.dictLogger)
             pop_data = json.loads(candata)
             data_type = type(pop_data)
-            self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
+            # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
                 self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
                 raise TypeError("udp sending wrong data type!")
