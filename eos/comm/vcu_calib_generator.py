@@ -11,6 +11,7 @@ import os
 import glob
 import os.path
 
+
 # test_list = range(1, 37)
 # for i in range(36):
 #   test_list[i] = test_list[i] + 0.01
@@ -42,7 +43,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         # pd_data = pd.read_csv(table_path, header=0, index_col=0)
         v = pd_data.to_numpy()
     elif shortcut == 3:  # import latest pedal map that was used
-        files = glob.glob(dataroot.joinpath("last_table*.csv"))
+        files = glob.glob(str(dataroot) + "/last_table*.csv")
         if not files:  # files is empty list []
             print("no last table is available. Get init table instead.")
             latest_table = dataroot.joinpath(

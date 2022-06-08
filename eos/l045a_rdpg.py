@@ -38,6 +38,7 @@ import json
 
 import datetime
 from collections import deque
+from pathlib import Path
 
 # communication import
 from threading import Lock, Thread
@@ -227,7 +228,7 @@ if args.resume:
         vcu_calib_table_row,
         velocity_range,
         3,
-        datafolder,
+        Path(datafolder),
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
@@ -236,7 +237,7 @@ else:
         vcu_calib_table_row,
         velocity_range,
         2,
-        datafolder,
+        Path(datafolder),
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table

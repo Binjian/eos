@@ -160,6 +160,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
 import io  # needed by convert figure to png in memory
 
+from pathlib import Path
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
@@ -270,7 +271,7 @@ if args.resume:
         vcu_calib_table_row,
         velocity_range,
         3,
-        datafolder,
+        Path(datafolder),
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
@@ -279,7 +280,7 @@ else:
         vcu_calib_table_row,
         velocity_range,
         2,
-        datafolder,
+        Path(datafolder),
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table

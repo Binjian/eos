@@ -1,5 +1,8 @@
 import os
 import datetime
+
+from pathlib import Path
+
 from pythonjsonlogger import jsonlogger
 
 # Logging Service Initialization
@@ -68,27 +71,29 @@ pedal_range = [0, 1.0]
 velocity_range = [0, 20.0]
 
 
+datapath = Path(datafolder)
 vcu_calib_table0 = generate_vcu_calibration(
     vcu_calib_table_col,
     pedal_range,
     vcu_calib_table_row,
     velocity_range,
     2,
-    datafolder,
+    datapath,
 )
 
-set_tbox_sim_path(os.getcwd() + "/comm/tbox")
+set_tbox_sim_path(os.getcwd() + "/../comm/tbox")
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
 # time.sleep(1.0)
-send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+returncode = send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+logger.info(f"The exit code was: {returncode}", extra=dictLogger)
 logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 udp_logfilename = (
-    datafolder
+    str(datapath)
     + "/udp-pcap/l045a-noAI-"
     + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
     + ".pcap"

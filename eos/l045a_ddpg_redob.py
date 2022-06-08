@@ -34,6 +34,7 @@ as energy consumption
 # drl import
 import datetime
 from birdseye import eye
+from pathlib import Path
 
 # from viztracer import VizTracer
 from watchpoints import watch
@@ -42,7 +43,7 @@ from watchpoints import watch
 # Logging Service Initialization
 import logging
 import inspect
-
+from eos import projroot
 
 # resumption settings
 parser = argparse.ArgumentParser(
@@ -83,9 +84,9 @@ formatter = logging.Formatter(
 if args.path is None:
     args.path = "."
 if args.resume:
-    datafolder = "../data/" + args.path
+    datafolder = str(projroot.joinpath("data/" + args.path))
 else:
-    datafolder = "../data/scratch/" + args.path
+    datafolder = str(projroot.joinpath("data/scratch/" + args.path))
 
 logfolder = datafolder + "/py_logs"
 try:
@@ -162,6 +163,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
 import io  # needed by convert figure to png in memory
 
+from pathlib import Path
 logger.info(f"External Modules Imported!", extra=dictLogger)
 
 # internal import
@@ -169,7 +171,7 @@ from comm import generate_vcu_calibration, set_tbox_sim_path, send_float_array
 from agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
 
 # set_tbox_sim_path("/home/veos/devel/newrizon/drl-carla-manual/src/comm/tbox")
-set_tbox_sim_path(os.getcwd() + "/comm/tbox")
+set_tbox_sim_path(str(projroot) + "/eos/comm/tbox")
 # value = [99.0] * 21 * 17
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
@@ -266,7 +268,7 @@ if args.resume:
         vcu_calib_table_row,
         velocity_range,
         3,
-        datafolder,
+        Path(datafolder),
     )
 else:
     vcu_calib_table0 = generate_vcu_calibration(
@@ -275,7 +277,7 @@ else:
         vcu_calib_table_row,
         velocity_range,
         2,
-        datafolder,
+        Path(datafolder),
     )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
