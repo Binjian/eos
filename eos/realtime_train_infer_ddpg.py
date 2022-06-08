@@ -39,12 +39,14 @@ from collections import deque
 import numpy as np
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import tensorflow as tf
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 ## visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
