@@ -35,3 +35,7 @@ data
 *.pyc
 *.xml
 /veos.egg-info/
+/eos/comm/tbox.original/
+*.iml
+*.xml
+*.python-version
