@@ -265,8 +265,9 @@ class realtime_train_infer_ddpg(object):
         if self.cloud:
             self.can_client.send_torque_cmd(vcu_table1)
         else:
-            kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
-        self.logger.info(f"Done flash initial table", extra=self.dictLogger)
+            returncode = kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+
+        self.logger.info(f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger)
 
         # TQD_trqTrqSetECO_MAP_v
 
@@ -411,9 +412,9 @@ class realtime_train_infer_ddpg(object):
             self.logger.info("Actor folder exists, just resume!", extra=self.dictLogger)
         try:
             os.makedirs(checkpoint_critic_dir)
-            self.logger.info("User folder doesn't exist. Created!", extra=self.dictLogger)
+            self.logger.info("Critic folder doesn't exist. Created!", extra=self.dictLogger)
         except FileExistsError:
-            self.logger.info("User folder exists, just resume!", extra=self.dictLogger)
+            self.logger.info("Critic folder exists, just resume!", extra=self.dictLogger)
 
         self.ckpt_actor = tf.train.Checkpoint(
             step=tf.Variable(1), optimizer=self.actor_optimizer, net=self.actor_model
@@ -682,7 +683,7 @@ class realtime_train_infer_ddpg(object):
                                     self.vcu_calib_table_row_start = 16
 
                                 self.logd.info(
-                                    f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{self.vcu_calib_table_row_start}!",
+                                    f"Cycle velocity: Aver{vel_aver:.2f},Min{vel_min:.2f},Max{vel_max:.2f},StartIndex{self.vcu_calib_table_row_start}!",
                                     extra=self.dictLogger,
                                 )
                                 # self.logd.info(
@@ -697,8 +698,8 @@ class realtime_train_infer_ddpg(object):
                             extra=self.dictLogger,
                         )
                 else:
-                    self.logc.critical(
-                        "udp sending unknown signal (neither status nor data)!"
+                    self.logc.warning(
+                        f"udp sending message with key: {key}; value: {value}!!!"
                     )
                     break
 
@@ -1046,8 +1047,6 @@ class realtime_train_infer_ddpg(object):
         thr_observe.start()
         thr_flash.start()
 
-        # todo connect gym-carla env, collect 20 steps of data for 1 second and update vcu calib table.
-
         """
         ## train
         """
@@ -1139,7 +1138,6 @@ class realtime_train_infer_ddpg(object):
                             -1.0
                         )  # most recent odd and even indexed reward
                         episode_reward += cycle_reward
-                        # TODO add speed sum as positive reward
 
                         if step_count != 0:
                             self.buffer.record(
@@ -1251,7 +1249,7 @@ class realtime_train_infer_ddpg(object):
                         # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                         self.tableQueue.put(vcu_act_list)
                         self.logd.info(
-                            f"E{epi_cnt}StartIndex{table_start} Action Push table: {self.tableQueue.qsize()}",
+                            f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
                         )
                         self.logc.info(
@@ -1269,7 +1267,6 @@ class realtime_train_infer_ddpg(object):
                         # record the odd step wh
                         wh1 = wh
 
-                        # TODO add speed sum as positive reward
                         self.logc.info(
                             f"E{epi_cnt} Step done: {step_count}",
                             extra=self.dictLogger,
