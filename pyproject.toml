@@ -46,9 +46,8 @@ tqdm = ">=4.64"
 pytest = ">=7.1"
 reportlab = ">=3.6.9"
 pymongo = ">=4.1.1"
-python-json-logger
-pyqt5
-cutelog
+pyqt5 = ">=5.15.6"
+cutelog = ">=2.0.6"
 
 
 [tool.poetry.dev-dependencies]
