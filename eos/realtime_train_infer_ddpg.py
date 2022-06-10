@@ -29,6 +29,7 @@ import datetime
 
 import socket
 import json
+import threading
 import warnings
 
 from threading import Lock, Thread
@@ -465,10 +466,14 @@ class realtime_train_infer_ddpg(object):
     # @eye
     # tracer.start()
 
-    def reset_capture_handler(self):
-        self.get_truck_status_start = False
+    def capture_countdown_handler(self):
+        with self.hmi_lock:
+            self.episode_count += 1  # valid round increments
+            self.episode_done = True  # TODO delay episode_done to make main thread keep running
+            self.episode_end = True
+            self.get_truck_status_start = False
         self.logger.info(f"reset_capture_handler called", extra=self.dictLogger)
-        raise Exception("reset capture to stop")
+        # raise Exception("reset capture to stop")
 
     def init_threads_data(self):
         # multithreading initialization
@@ -484,13 +489,16 @@ class realtime_train_infer_ddpg(object):
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
+        self.capture_countdown = 3  # extend capture time after valid episode temrination
 
-        signal.signal(signal.SIGALRM, self.reset_capture_handler)
+        # use timer object
+        self.timer_capture_countdown = threading.Timer(self.capture_countdown, self.capture_countdown_handler)
+        # signal.signal(signal.SIGALRM, self.reset_capture_handler)
         self.get_truck_status_start = False
+        self.epi_countdown = False
         self.get_truck_status_motpow_t = []
         self.get_truck_status_myHost = "127.0.0.1"
         self.get_truck_status_myPort = 8002
-        self.get_truck_status_start = False
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
     def onboard_get_truck_status(self):
@@ -498,7 +506,6 @@ class realtime_train_infer_ddpg(object):
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
         """
-
         # global program_exit
         # global motionpowerQueue, sequence_len
         # global episode_count, episode_done, episode_end
@@ -541,7 +548,6 @@ class realtime_train_infer_ddpg(object):
                 self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
                 raise TypeError("udp sending wrong data type!")
 
-            epi_delay_stop = False
             for key, value in pop_data.items():
                 if key == "status":  # state machine chores
                     # print(candata)
@@ -552,11 +558,10 @@ class realtime_train_infer_ddpg(object):
                         # ts_epi_start = time.time()
 
                         vel_hist_dQ.clear()
-                        epi_delay_stop = False
+                        self.epi_countdown = False
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
-
                     elif value == "end_valid":
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
@@ -569,11 +574,12 @@ class realtime_train_infer_ddpg(object):
                         self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
                         th_exit = False
                         vel_hist_dQ.clear()
-                        epi_delay_stop = True
+                        self.epi_countdown = True  # TODO check!
+                        self.logc.info(f"Make epi_countdown true:  {self.epi_countdown}!")
                         with self.hmi_lock:
-                            self.episode_count += 1  # valid round increments
-                            self.episode_done = True
-                            self.episode_end = True
+                            # self.episode_count += 1  # valid round increments
+                            self.episode_done = False  # TODO delay episode_done to make main thread keep running
+                            self.episode_end = False
                     elif value == "end_invalid":
                         self.get_truck_status_start = False
                         self.logc.info(f"Episode is interrupted!!!", extra=self.dictLogger)
@@ -590,7 +596,7 @@ class realtime_train_infer_ddpg(object):
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
                         th_exit = False
-                        epi_delay_stop = False
+                        self.epi_countdown = False
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = True
@@ -603,7 +609,7 @@ class realtime_train_infer_ddpg(object):
                             self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
-                        epi_delay_stop = False
+                        self.epi_countdown = False
                         # for program exit, need to set episode states
                         # final change to inform main thread
                         with self.hmi_lock:
@@ -617,8 +623,12 @@ class realtime_train_infer_ddpg(object):
                     # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
                     # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
                     # DONE add logic for episode valid and invalid
-                    if epi_delay_stop:
-                        signal.alarm(3)  # delay stop for 3 seconds
+                    # self.logc.info(f"check flag epi_countdown is:  {self.epi_countdown}!")
+                    if self.epi_countdown: # TODO check delayed episode finish!
+                        self.logc.info(f"delay stop for 3s!")
+                        self.epi_countdown = False
+                        self.timer_capture_countdown.start() #start timer for resetting 3s later
+                        # signal.alarm(3)  # delay stop for 3 seconds
                     try:
                         if self.get_truck_status_start:  # starts episode
 
@@ -787,7 +797,7 @@ class realtime_train_infer_ddpg(object):
                 self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
                 raise TypeError("udp sending wrong data type!")
 
-            epi_delay_stop = False
+            self.epi_countdown = False
             try:
                 for key, value in remotecan_data.items():
                     if key == "status":  # state machine chores
@@ -799,7 +809,7 @@ class realtime_train_infer_ddpg(object):
                             # ts_epi_start = time.time()
 
                             vel_hist_dQ.clear()
-                            epi_delay_stop = False
+                            self.epi_countdown = False
                             with self.hmi_lock:
                                 self.episode_done = False
                                 self.episode_end = False
@@ -816,7 +826,7 @@ class realtime_train_infer_ddpg(object):
                             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
                             th_exit = False
                             vel_hist_dQ.clear()
-                            epi_delay_stop = True
+                            self.epi_countdown = True
                             with self.hmi_lock:
                                 self.episode_count += 1  # valid round increments
                                 self.episode_done = True
@@ -837,7 +847,7 @@ class realtime_train_infer_ddpg(object):
                             #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                             # )
                             th_exit = False
-                            epi_delay_stop = False
+                            self.epi_countdown = False
                             with self.hmi_lock:
                                 self.episode_done = False
                                 self.episode_end = True
@@ -850,7 +860,6 @@ class realtime_train_infer_ddpg(object):
                                 self.motionpowerQueue.get()
                             # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                             th_exit = True
-                            epi_delay_stop = False
                             # for program exit, need to set episode states
                             # final change to inform main thread
                             with self.hmi_lock:
@@ -858,6 +867,7 @@ class realtime_train_infer_ddpg(object):
                                 self.episode_end = True
                                 self.program_exit = True
                                 self.episode_count += 1
+                                self.epi_countdown = False
                             break
                             # time.sleep(0.1)
 
@@ -865,7 +875,8 @@ class realtime_train_infer_ddpg(object):
                         # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
                         # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
                         # DONE add logic for episode valid and invalid
-                        if epi_delay_stop:
+                        if self.epi_countdown:
+                            self.logc.info(f"Alarm in 3 seconds!")
                             signal.alarm(3)  # delay stop for 3 seconds
                         try:
                             if self.get_truck_status_start:  # starts episode
