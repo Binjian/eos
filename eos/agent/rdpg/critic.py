@@ -48,7 +48,7 @@ class CriticNet:
         inputs_action = layers.Input(shape=(None, action_dim))
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
-        inputs_state_action = layers.concatenate(-1)([inputs_state, inputs_action])
+        inputs_state_action = layers.Concatenate(axis=-1)([inputs_state, inputs_action])
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=self.padding_value)(
@@ -89,7 +89,7 @@ class CriticNet:
                 extra=dictLogger,
             )
         else:
-            logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+            logger.info(f"Critic Initializing from scratch", extra=dictLogger)
 
     def clone_weights(self, moving_net):
         """Clone weights from a model to another model."""
@@ -125,7 +125,7 @@ class CriticNet:
             np.array: Q-value
         """
         # logc("ActorNet.evaluate_actions")
-        return self.eager_model(state, action)
+        return self.eager_model([state, action])
 
     @property
     def state_dim(self):

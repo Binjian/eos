@@ -154,7 +154,7 @@ class RDPG:
         self.h_t = None
 
         # Actor Network (w/ Target Network)
-        self.init_ckpt(self._datafolder, self._ckpt_interval)
+        self.init_ckpt()
         self.actor_net = ActorNet(
             self._n_obs,
             self._n_act,
@@ -218,7 +218,7 @@ class RDPG:
     def init_ckpt(self):
         # Actor create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_actor_dir = self._datafolder + "./checkpoints/rdpg_actor"
+        self._ckpt_actor_dir = self._datafolder + "/checkpoints/rdpg_actor"
         try:
             os.makedirs(self._ckpt_actor_dir)
             logger.info(
@@ -235,7 +235,7 @@ class RDPG:
 
         # critic create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_critic_dir = self._datafolder + "./checkpoints/rdpg_critic"
+        self._ckpt_critic_dir = self._datafolder + "/checkpoints/rdpg_critic"
         try:
             os.makedirs(self._ckpt_critic_dir)
             logger.info(
@@ -299,25 +299,29 @@ class RDPG:
         """
         # Sample random indexes
         record_range = min(len(self.R), self._buffer_capacity)
-        indexes = np.random.choice(record_range, self._batch_size)
-
+        indexes = np.random.choice(record_range, self._batch_size).tolist()
+        # logger.info(f"R indices type: {type(indexes)}:{indexes}")
         # mini-batch for Reward, Observation and Action, with keras padding
         # padding automatically expands every sequence to the maximal length by pad_sequences
+
+        r_n_t = [self.R[i][:, -1] for i in indexes]
+        logger.info(f"r_n_t.shape: {len(r_n_t)}X{len(r_n_t[-1])}")
         self.r_n_t = pad_sequences(
-            [self.R[i][:, -1] for i in indexes],
+            r_n_t,
             padding="post",
             dtype="float32",
             value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
         )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
         # for alignment with critic output with extra feature dimension
         self.r_n_t = np.expand_dims(self.r_n_t, axis=2)
+        logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
 
         o_n_l0 = [
             self.R[i][:, 0 : self._n_obs] for i in indexes
         ]  # list of np.array with variable observation length
         o_n_l1 = [
-            [o_n_l0[i][:, j] for i in np.arange(self._batch_size)]
-            for j in np.arange(self._n_obs)
+            o_n_l0[i].tolist()
+            for i in np.arange(self._batch_size)
         ]  # list (batch_size) of list (n_obs) of np.array with variable observation length
 
         try:
@@ -334,13 +338,14 @@ class RDPG:
             )
         except:
             logger.error("Ragged observation state o_n_l1!")
+        logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         a_n_l0 = [
             self.R[i][:, self._n_obs : self._n_obs + self._n_act] for i in indexes
         ]  # list of np.array with variable action length
         a_n_l1 = [
-            [a_n_l0[i][:, j] for i in np.arange(self._batch_size)]
-            for j in np.arange(self._n_act)
+            a_n_l0[i].tolist()
+            for i in np.arange(self._batch_size)
         ]  # list (batch_size) of list (n_act) of np.array with variable action length
 
         try:
@@ -374,14 +379,21 @@ class RDPG:
             self.t_a_ht1 = self.target_actor_net.evaluate_actions(self.o_n_t)
 
             # state action value at h_t+1
+            logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
+            logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             self.t_q_ht1 = self.target_critic_net.evaluate_q(self.o_n_t, self.t_a_ht1)
+            logger.info(f"t_q_ht1.shape: {self.t_q_ht1.shape}")
 
             # compute the target action value at h_t for the current batch
             # using fancy indexing
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-            t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1) #TODO: replace self._seq_len with maximal seq length
+            t_q_ht_bl = np.append(
+                self.t_q_ht1[:,1:,:], np.zeros((self._batch_size,1,1)), axis=1
+            )  # TODO: replace self._seq_len with maximal seq length
+            logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
             self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
+            logger.info(f"y_n_t.shape: {self.y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
@@ -413,6 +425,9 @@ class RDPG:
         actor_grad = tape.gradient(
             actor_loss, self.actor_net.eager_model.trainable_variables
         )
+        # logger.info(f"action_gradients: {action_gradients}")
+        # logger.info(f"actor_grad_weight: {actor_grad_weight} vs actor_grad: {actor_grad}")
+        # logger.info(f"The grad diff: {actor_grad - actor_grad_weight}")
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
