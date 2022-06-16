@@ -47,7 +47,7 @@ import tensorflow as tf
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 ## visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -61,8 +61,15 @@ from pythonjsonlogger import jsonlogger
 # local imports
 
 from eos.visualization import plot_to_image, plot_3d_figure
-from eos.comm import generate_vcu_calibration,kvaser_send_float_array, RemoteCan
-from eos.agent import get_actor, get_critic, policy, Buffer, update_target, OUActionNoise
+from eos.comm import generate_vcu_calibration, kvaser_send_float_array, RemoteCan
+from eos.agent import (
+    get_actor,
+    get_critic,
+    policy,
+    Buffer,
+    update_target,
+    OUActionNoise,
+)
 from eos import logger, dictLogger, projroot
 
 # from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
@@ -70,14 +77,14 @@ from eos import logger, dictLogger, projroot
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # system warnings and numpy warnings handling
-warnings.filterwarnings("ignore", message='currentThread',category=DeprecationWarning)
-np.warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
+np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # global variables: threading, data, lock, etc.
 class realtime_train_infer_ddpg(object):
     def __init__(
         self,
-        cloud = False,
+        cloud=False,
         resume=False,
         infer=False,
         record=True,
@@ -95,7 +102,9 @@ class realtime_train_infer_ddpg(object):
         self.record = record
         self.path = path
 
-        self.eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
+        self.eps = np.finfo(
+            np.float32
+        ).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
         if self.cloud:
             # reset proxy (internal site force no proxy)
@@ -177,7 +186,9 @@ class realtime_train_infer_ddpg(object):
         self.train_log_dir = self.dataroot.joinpath(
             "tf_logs/ddpg/gradient_tape/" + current_time + "/train"
         )
-        self.train_summary_writer = tf.summary.create_file_writer(str(self.train_log_dir))
+        self.train_summary_writer = tf.summary.create_file_writer(
+            str(self.train_log_dir)
+        )
         # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         if self.resume:
@@ -265,9 +276,13 @@ class realtime_train_infer_ddpg(object):
         if self.cloud:
             self.can_client.send_torque_cmd(vcu_table1)
         else:
-            returncode = kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+            returncode = kvaser_send_float_array(
+                "TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False
+            )
 
-        self.logger.info(f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger)
+        self.logger.info(
+            f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
+        )
 
         # TQD_trqTrqSetECO_MAP_v
 
@@ -388,17 +403,22 @@ class realtime_train_infer_ddpg(object):
         self.ou_noise_std_dev = 0.2
         self.ou_noise = OUActionNoise(
             mean=np.zeros(self.num_reduced_actions),
-            std_deviation=float(self.ou_noise_std_dev) * np.ones(self.num_reduced_actions),
+            std_deviation=float(self.ou_noise_std_dev)
+            * np.ones(self.num_reduced_actions),
         )
 
     def init_checkpoint(self):
         # add checkpoints manager
         if self.resume:
-            checkpoint_actor_dir = self.dataroot.joinpath("tf_ckpts-aa/l045a_ddpg_actor")
-            checkpoint_critic_dir = self.dataroot.joinpath("tf_ckpts-aa/l045a_ddpg_critic")
+            checkpoint_actor_dir = self.dataroot.joinpath(
+                "tf_ckpts-aa/l045a_ddpg_actor"
+            )
+            checkpoint_critic_dir = self.dataroot.joinpath(
+                "tf_ckpts-aa/l045a_ddpg_critic"
+            )
         else:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                 "tf_ckpts-aa/l045a_ddpg_actor"
+                "tf_ckpts-aa/l045a_ddpg_actor"
                 + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
@@ -407,14 +427,20 @@ class realtime_train_infer_ddpg(object):
             )
         try:
             os.makedirs(checkpoint_actor_dir)
-            self.logger.info("Actor folder doesn't exist. Created!", extra=self.dictLogger)
+            self.logger.info(
+                "Actor folder doesn't exist. Created!", extra=self.dictLogger
+            )
         except FileExistsError:
             self.logger.info("Actor folder exists, just resume!", extra=self.dictLogger)
         try:
             os.makedirs(checkpoint_critic_dir)
-            self.logger.info("Critic folder doesn't exist. Created!", extra=self.dictLogger)
+            self.logger.info(
+                "Critic folder doesn't exist. Created!", extra=self.dictLogger
+            )
         except FileExistsError:
-            self.logger.info("Critic folder exists, just resume!", extra=self.dictLogger)
+            self.logger.info(
+                "Critic folder exists, just resume!", extra=self.dictLogger
+            )
 
         self.ckpt_actor = tf.train.Checkpoint(
             step=tf.Variable(1), optimizer=self.actor_optimizer, net=self.actor_model
@@ -460,7 +486,8 @@ class realtime_train_infer_ddpg(object):
 
         action0 = policy(self.actor_model, init_states, self.ou_noise)
         self.logger.info(
-            f"manual load tf library by calling convert_to_tensor", extra=self.dictLogger
+            f"manual load tf library by calling convert_to_tensor",
+            extra=self.dictLogger,
         )
         self.ou_noise.reset()
 
@@ -470,7 +497,9 @@ class realtime_train_infer_ddpg(object):
     def capture_countdown_handler(self):
         with self.hmi_lock:
             self.episode_count += 1  # valid round increments
-            self.episode_done = True  # TODO delay episode_done to make main thread keep running
+            self.episode_done = (
+                True  # TODO delay episode_done to make main thread keep running
+            )
             self.episode_end = True
             self.get_truck_status_start = False
         self.logger.info(f"reset_capture_handler called", extra=self.dictLogger)
@@ -490,10 +519,14 @@ class realtime_train_infer_ddpg(object):
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
-        self.capture_countdown = 3  # extend capture time after valid episode temrination
+        self.capture_countdown = (
+            3  # extend capture time after valid episode temrination
+        )
 
         # use timer object
-        self.timer_capture_countdown = threading.Timer(self.capture_countdown, self.capture_countdown_handler)
+        self.timer_capture_countdown = threading.Timer(
+            self.capture_countdown, self.capture_countdown_handler
+        )
         # signal.signal(signal.SIGALRM, self.reset_capture_handler)
         self.get_truck_status_start = False
         self.epi_countdown = False
@@ -546,7 +579,9 @@ class realtime_train_infer_ddpg(object):
             data_type = type(pop_data)
             # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
-                self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
+                self.logd.critical(
+                    f"udp sending wrong data type!", extra=self.dictLogger
+                )
                 raise TypeError("udp sending wrong data type!")
 
             for key, value in pop_data.items():
@@ -554,7 +589,9 @@ class realtime_train_infer_ddpg(object):
                     # print(candata)
                     if value == "begin":
                         self.get_truck_status_start = True
-                        self.logc.info("%s", "Episode will start!!!", extra=self.dictLogger)
+                        self.logc.info(
+                            "%s", "Episode will start!!!", extra=self.dictLogger
+                        )
                         th_exit = False
                         # ts_epi_start = time.time()
 
@@ -576,14 +613,18 @@ class realtime_train_infer_ddpg(object):
                         th_exit = False
                         vel_hist_dQ.clear()
                         self.epi_countdown = True  # TODO check!
-                        self.logc.info(f"Make epi_countdown true:  {self.epi_countdown}!")
+                        self.logc.info(
+                            f"Make epi_countdown true:  {self.epi_countdown}!"
+                        )
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
                     elif value == "end_invalid":
                         self.get_truck_status_start = False
-                        self.logc.info(f"Episode is interrupted!!!", extra=self.dictLogger)
+                        self.logc.info(
+                            f"Episode is interrupted!!!", extra=self.dictLogger
+                        )
                         self.get_truck_status_motpow_t = []
                         vel_hist_dQ.clear()
                         # motionpowerQueue.queue.clear()
@@ -625,10 +666,10 @@ class realtime_train_infer_ddpg(object):
                     # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
                     # DONE add logic for episode valid and invalid
                     # self.logc.info(f"check flag epi_countdown is:  {self.epi_countdown}!")
-                    if self.epi_countdown: # TODO check delayed episode finish!
+                    if self.epi_countdown:  # TODO check delayed episode finish!
                         self.logc.info(f"delay stop for 3s!")
                         self.epi_countdown = False
-                        self.timer_capture_countdown.start() #start timer for resetting 3s later
+                        self.timer_capture_countdown.start()  # start timer for resetting 3s later
                         # signal.alarm(3)  # delay stop for 3 seconds
                     try:
                         if self.get_truck_status_start:  # starts episode
@@ -653,7 +694,10 @@ class realtime_train_infer_ddpg(object):
                             vel_hist_dQ.append(velocity)
                             vel_cycle_dQ.append(velocity)
 
-                            if len(self.get_truck_status_motpow_t) >= self.observation_len:
+                            if (
+                                len(self.get_truck_status_motpow_t)
+                                >= self.observation_len
+                            ):
                                 if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                     self.logc.warning(  # the recent 1.5s average velocity
                                         f"cycle deque is inconsistent!",
@@ -690,7 +734,9 @@ class realtime_train_infer_ddpg(object):
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!",
                                 #     extra=self.dictLogger,
                                 # )
-                                self.motionpowerQueue.put(self.get_truck_status_motpow_t)
+                                self.motionpowerQueue.put(
+                                    self.get_truck_status_motpow_t
+                                )
                                 self.get_truck_status_motpow_t = []
                     except Exception as X:
                         self.logc.info(
@@ -723,7 +769,9 @@ class realtime_train_infer_ddpg(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tableQueue.get(block=False, timeout=1)  # default block = True
+                table = self.tableQueue.get(
+                    block=False, timeout=1
+                )  # default block = True
                 # print("2 tablequeue size: {}".format(tablequeue.qsize()))
             except queue.Empty:
                 pass
@@ -739,20 +787,23 @@ class realtime_train_infer_ddpg(object):
                             extra=self.dictLogger,
                         )
                 else:
-                    returncode = kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True)
+                    returncode = kvaser_send_float_array(
+                        "TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True
+                    )
                     if returncode != 0:
                         self.logc.error(
                             f"kvaser_send_float_array failed: {returncode}",
                             extra=self.dictLogger,
                         )
                 # time.sleep(1.0)
-                self.logc.info(f"flash done, count:{flash_count}", extra=self.dictLogger)
+                self.logc.info(
+                    f"flash done, count:{flash_count}", extra=self.dictLogger
+                )
                 flash_count += 1
                 # watch(flash_count)
 
         # motionpowerQueue.join()
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
-
 
     def cloud_get_truck_status(self):
         # global program_exit
@@ -795,7 +846,9 @@ class realtime_train_infer_ddpg(object):
             data_type = type(remotecan_data)
             self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(remotecan_data, dict):
-                self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
+                self.logd.critical(
+                    f"udp sending wrong data type!", extra=self.dictLogger
+                )
                 raise TypeError("udp sending wrong data type!")
 
             self.epi_countdown = False
@@ -805,7 +858,9 @@ class realtime_train_infer_ddpg(object):
                         # print(candata)
                         if value == "begin":
                             self.get_truck_status_start = True
-                            self.logc.info("%s", "Episode will start!!!", extra=self.dictLogger)
+                            self.logc.info(
+                                "%s", "Episode will start!!!", extra=self.dictLogger
+                            )
                             th_exit = False
                             # ts_epi_start = time.time()
 
@@ -824,7 +879,9 @@ class realtime_train_infer_ddpg(object):
                             self.get_truck_status_motpow_t = []
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
-                            self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
+                            self.logc.info(
+                                "%s", "Episode done!!!", extra=self.dictLogger
+                            )
                             th_exit = False
                             vel_hist_dQ.clear()
                             self.epi_countdown = True
@@ -834,7 +891,9 @@ class realtime_train_infer_ddpg(object):
                                 self.episode_end = True
                         elif value == "end_invalid":
                             self.get_truck_status_start = False
-                            self.logc.info(f"Episode is interrupted!!!", extra=self.dictLogger)
+                            self.logc.info(
+                                f"Episode is interrupted!!!", extra=self.dictLogger
+                            )
                             self.get_truck_status_motpow_t = []
                             vel_hist_dQ.clear()
                             # motionpowerQueue.queue.clear()
@@ -886,80 +945,124 @@ class realtime_train_infer_ddpg(object):
                                 with np.printoptions(suppress=True, linewidth=100):
                                     # capture warning about ragged json arrays
                                     with np.testing.suppress_warnings() as sup:
-                                        log_warning = sup.record(np.VisibleDeprecationWarning,
-                                                                 "Creating an ndarray from ragged nested sequences")
+                                        log_warning = sup.record(
+                                            np.VisibleDeprecationWarning,
+                                            "Creating an ndarray from ragged nested sequences",
+                                        )
                                         current = np.array(value["list_current_1s"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in current]
                                             for count, item in enumerate(current):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"current{current.shape}:{current}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"current{current.shape}:{current}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         voltage = np.array(value["list_voltage_1s"])
                                         if len(log_warning):
                                             log_warning.pop()
                                             item_len = [len(item) for item in voltage]
                                             for count, item in enumerate(voltage):
-                                                item[item_len[count]: max(item_len)] = None
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
                                         # voltage needs to be upsampled in columns since its sample rate is half of others
                                         r_v, c_v = voltage.shape
-                                        voltage_upsampled = np.empty((r_v, 1, c_v, 2), dtype=voltage.dtype)
-                                        voltage_upsampled[...] = voltage[:, None, :, None]
-                                        voltage = voltage_upsampled.reshape(r_v, c_v * 2)
-                                        self.logd.info(f"voltage{voltage.shape}:{voltage}", extra=self.dictLogger)
-
+                                        voltage_upsampled = np.empty(
+                                            (r_v, 1, c_v, 2), dtype=voltage.dtype
+                                        )
+                                        voltage_upsampled[...] = voltage[
+                                            :, None, :, None
+                                        ]
+                                        voltage = voltage_upsampled.reshape(
+                                            r_v, c_v * 2
+                                        )
+                                        self.logd.info(
+                                            f"voltage{voltage.shape}:{voltage}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         thrust = np.array(value["list_pedal_1s"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in thrust]
                                             for count, item in enumerate(thrust):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"accl{thrust.shape}:{thrust}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"accl{thrust.shape}:{thrust}",
+                                            extra=self.dictLogger,
+                                        )
 
-                                        brake = np.array(value["list_brake_pressure_1s"])
+                                        brake = np.array(
+                                            value["list_brake_pressure_1s"]
+                                        )
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in brake]
                                             for count, item in enumerate(brake):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"brake{brake.shape}:{brake}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"brake{brake.shape}:{brake}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         velocity = np.array(value["list_speed_1s"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in velocity]
                                             for count, item in enumerate(velocity):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"velocity{velocity.shape}:{velocity}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"velocity{velocity.shape}:{velocity}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         gears = np.array(value["list_gears"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in gears]
                                             for count, item in enumerate(gears):
-                                                item[item_len[count]: max(item_len)] = None
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
                                         # upsample gears from 2Hz to 25Hz
                                         r_v, c_v = gears.shape
-                                        gears_upsampled = np.empty((r_v, 1, c_v, 12), dtype=gears.dtype)
+                                        gears_upsampled = np.empty(
+                                            (r_v, 1, c_v, 12), dtype=gears.dtype
+                                        )
                                         gears_upsampled[...] = gears[:, None, :, None]
                                         gears = gears_upsampled.reshape(r_v, c_v * 12)
-                                        gears = np.c_[gears, gears[:, -1]]  # duplicate last gear on the end
+                                        gears = np.c_[
+                                            gears, gears[:, -1]
+                                        ]  # duplicate last gear on the end
                                         gears = gears.reshape(-1, 1)
-                                        self.logd.info(f"gears{gears.shape}:{gears}", extra=self.dictLogger)
+                                        self.logd.info(
+                                            f"gears{gears.shape}:{gears}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         timestamp = np.array(value["timestamp"])
                                         self.logd.info(
                                             f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}",
-                                            extra=self.dictLogger)
+                                            extra=self.dictLogger,
+                                        )
 
                                 motion_power = np.c_[
-                                    velocity.reshape(-1,1),
-                                    thrust.reshape(-1,1),
-                                    brake.reshape(-1,1),
-                                    current.reshape(-1,1),
-                                    voltage.reshape(-1,1),
+                                    velocity.reshape(-1, 1),
+                                    thrust.reshape(-1, 1),
+                                    brake.reshape(-1, 1),
+                                    current.reshape(-1, 1),
+                                    voltage.reshape(-1, 1),
                                 ]  # 3 +2 : im 5
 
                                 self.get_truck_status_motpow_t.append(
@@ -980,7 +1083,7 @@ class realtime_train_infer_ddpg(object):
                                     self.vcu_calib_table_row_start = 0
                                 elif vel_max < 100:
                                     self.vcu_calib_table_row_start = (
-                                            math.floor((vel_max - 20) / 5) + 1
+                                        math.floor((vel_max - 20) / 5) + 1
                                     )
                                 else:
                                     self.logc.warning(
@@ -997,7 +1100,9 @@ class realtime_train_infer_ddpg(object):
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!",
                                 #     extra=self.dictLogger,
                                 # )
-                                self.motionpowerQueue.put(self.get_truck_status_motpow_t)
+                                self.motionpowerQueue.put(
+                                    self.get_truck_status_motpow_t
+                                )
                                 self.get_truck_status_motpow_t = []
                         except Exception as X:
                             self.logc.info(
@@ -1029,8 +1134,6 @@ class realtime_train_infer_ddpg(object):
 
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
 
-
-
     # @eye
     def run(self):
         # global episode_count
@@ -1039,7 +1142,6 @@ class realtime_train_infer_ddpg(object):
         # global pd_index, pd_columns
         # global episode_done, episode_end
         # global vcu_calib_table_row_start
-
 
         # Start thread for flashing vcu, flash first
         thr_observe = Thread(target=self.get_truck_status, name="observe", args=())
@@ -1078,9 +1180,10 @@ class realtime_train_infer_ddpg(object):
                 while (
                     not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
-                    # TODO l045a define round done (time, distance, defined end event)
                     with self.hmi_lock:  # wait for tester to interrupt or to exit
-                        th_exit = self.program_exit  # if program_exit is False, reset to wait
+                        th_exit = (
+                            self.program_exit
+                        )  # if program_exit is False, reset to wait
                         epi_end = self.episode_end
                         done = self.episode_done
                         table_start = self.vcu_calib_table_row_start
@@ -1092,7 +1195,9 @@ class realtime_train_infer_ddpg(object):
                         self.logc.info(
                             f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
                         )
-                        motionpower = self.motionpowerQueue.get(block=True, timeout=1.55)
+                        motionpower = self.motionpowerQueue.get(
+                            block=True, timeout=1.55
+                        )
                     except queue.Empty:
                         self.logc.info(
                             f"E{epi_cnt} No data in the Queue!!!",
@@ -1109,7 +1214,9 @@ class realtime_train_infer_ddpg(object):
                     motionpower_states = tf.convert_to_tensor(
                         motionpower
                     )  # state must have 30/100 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    motion_states, power_states = tf.split(motionpower_states, [3, 2], 1)
+                    motion_states, power_states = tf.split(
+                        motionpower_states, [3, 2], 1
+                    )
 
                     self.logd.info(
                         f"E{epi_cnt} tensor convert and split!",
@@ -1163,7 +1270,9 @@ class realtime_train_infer_ddpg(object):
                             f"E{epi_cnt} before inference!",
                             extra=self.dictLogger,
                         )
-                        vcu_action_reduced = policy(self.actor_model, motion_states1, self.ou_noise)
+                        vcu_action_reduced = policy(
+                            self.actor_model, motion_states1, self.ou_noise
+                        )
                         prev_motion_states = motion_states0
                         prev_action = vcu_action_reduced
 
@@ -1174,7 +1283,10 @@ class realtime_train_infer_ddpg(object):
 
                         vcu_calib_table_reduced = tf.reshape(
                             vcu_action_reduced,
-                            [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
+                            [
+                                self.vcu_calib_table_row_reduced,
+                                self.vcu_calib_table_col,
+                            ],
                         )
                         # self.logger.info(
                         #     f"vcu action table reduced generated!", extra=self.dictLogger
@@ -1201,7 +1313,8 @@ class realtime_train_infer_ddpg(object):
 
                         # dynamically change table row start index
                         vcu_calib_table0_reduced = self.vcu_calib_table0[
-                            table_start : self.vcu_calib_table_row_reduced + table_start,
+                            table_start : self.vcu_calib_table_row_reduced
+                            + table_start,
                             :,
                         ]
                         vcu_calib_table_min_reduced = (
@@ -1217,7 +1330,9 @@ class realtime_train_infer_ddpg(object):
 
                         # create updated complete pedal map, only update the first few rows
                         self.vcu_calib_table1[
-                            table_start : self.vcu_calib_table_row_reduced + table_start, :
+                            table_start : self.vcu_calib_table_row_reduced
+                            + table_start,
+                            :,
                         ] = vcu_calib_table_reduced.numpy()
                         pds_curr_table = pd.DataFrame(
                             self.vcu_calib_table1, self.pd_index, self.pd_columns
@@ -1299,14 +1414,22 @@ class realtime_train_infer_ddpg(object):
                     (critic_loss, actor_loss) = self.buffer.nolearn()
                     self.logd.info("No Learning, just calculating loss")
                 else:
+                    self.logd.info("Learning and updating 6 times!")
                     for k in range(6):
                         # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
                         (critic_loss, actor_loss) = self.buffer.learn()
-                        self.logd.info("Learning and updating")
 
-                        update_target(self.target_actor.variables, self.actor_model.variables, self.tau)
+                        update_target(
+                            self.target_actor.variables,
+                            self.actor_model.variables,
+                            self.tau,
+                        )
                         # self.logger.info(f"Updated target actor", extra=self.dictLogger)
-                        update_target(self.target_critic.variables, self.critic_model.variables, self.tau)
+                        update_target(
+                            self.target_critic.variables,
+                            self.critic_model.variables,
+                            self.tau,
+                        )
                         # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
 
                     # Checkpoint manager save model
@@ -1380,7 +1503,9 @@ class realtime_train_infer_ddpg(object):
             # TODO terminate condition to be defined: reward > limit (percentage); time too long
         with self.train_summary_writer.as_default():
             tf.summary.trace_export(
-                name="veos_trace", step=epi_cnt_local, profiler_outdir=self.train_log_dir
+                name="veos_trace",
+                step=epi_cnt_local,
+                profiler_outdir=self.train_log_dir,
             )
         thr_observe.join()
         thr_flash.join()
@@ -1388,7 +1513,9 @@ class realtime_train_infer_ddpg(object):
         # TODOt  test restore last table
         self.logc.info(f"Save the last table!!!!", extra=self.dictLogger)
 
-        pds_last_table = pd.DataFrame(self.vcu_calib_table1, self.pd_index, self.pd_columns)
+        pds_last_table = pd.DataFrame(
+            self.vcu_calib_table1, self.pd_index, self.pd_columns
+        )
 
         last_table_store_path = (
             self.dataroot.joinpath(  #  there's no slash in the end of the string
@@ -1454,6 +1581,12 @@ if __name__ == "__main__":
     # set up data folder (logging, checkpoint, table)
 
     app = realtime_train_infer_ddpg(
-        args.cloud, args.resume, args.infer, args.record_table, args.path, projroot, logger
+        args.cloud,
+        args.resume,
+        args.infer,
+        args.record_table,
+        args.path,
+        projroot,
+        logger,
     )
     app.run()
