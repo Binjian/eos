@@ -128,7 +128,6 @@ class realtime_train_infer_rdpg(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.init_checkpoint()
         self.touch_gpu()
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
@@ -340,7 +339,7 @@ class realtime_train_infer_rdpg(object):
         # Used to update target networks
         self.tauAC = (0.001, 0.001)
         self.lrAC = (0.001, 0.002)
-        self.seq_len = 6  # TODO  7 maximum sequence length
+        self.seq_len = 8  # TODO  7 maximum sequence length
         self.buffer_capacity = 300000
         self.batch_size = 4
         # number of hidden units in the actor and critic networks
@@ -365,34 +364,63 @@ class realtime_train_infer_rdpg(object):
             gamma=self.gamma,
             tauAC=self.tauAC,
             lrAC=self.lrAC,
-            datafolder=self.dataroot,
+            datafolder=str(self.dataroot),
             ckpt_interval=self.ckpt_interval,
         )
 
     def touch_gpu(self):
+
+        # tf.summary.trace_on(graph=True, profiler=True)
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
         init_motionpower = np.random.rand(self.observation_len, self.num_observations)
         init_states = tf.convert_to_tensor(
             init_motionpower
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        init_states = tf.expand_dims(init_states, 0)  # motion states is 30*2 matrix
+        input_array = tf.reshape(init_states, -1)
+        # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
 
-        action0 = self.rdpg.actor_predict(init_states, 0)
+        action0 = self.rdpg.actor_predict(input_array, 0)
         self.logger.info(
-            f"manual load tf library by calling convert_to_tensor", extra=self.dictLogger
+            f"manual load tf library by calling convert_to_tensor",
+            extra=self.dictLogger,
         )
         self.rdpg.reset_noise()
+
     # @eye
     # tracer.start()
 
-    def capture_countdown_handler(self):
-        with self.hmi_lock:
-            self.episode_count += 1  # valid round increments
-            self.episode_done = True  # TODO delay episode_done to make main thread keep running
-            self.episode_end = True
-            self.get_truck_status_start = False
-        self.logger.info(f"reset_capture_handler called", extra=self.dictLogger)
-        # raise Exception("reset capture to stop")
+    def capture_countdown_handler(self, evt_epi_done):
+
+        th_exit = False
+        while not th_exit:
+            with self.hmi_lock:
+                if self.program_exit:
+                    th_exit = True
+                    continue
+
+            self.logger.info(f"wait for countdown", extra=self.dictLogger)
+            evt_epi_done.wait()
+            evt_epi_done.clear()
+            # if episode is done, sleep for the extension time
+            time.sleep(self.epi_countdown_time)
+            # cancel wait as soon as waking up
+            self.logger.info(f"finish countdown", extra=self.dictLogger)
+
+            with self.hmi_lock:
+                self.episode_count += 1  # valid round increments
+                self.episode_done = (
+                    True  # TODO delay episode_done to make main thread keep running
+                )
+                self.episode_end = True
+                self.get_truck_status_start = False
+            # move clean up under mutex to avoid competetion.
+            self.get_truck_status_motpow_t = []
+            while not self.motionpowerQueue.empty():
+                self.motionpowerQueue.get()
+            self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
+            self.vel_hist_dQ.clear()
+            # raise Exception("reset capture to stop")
+        self.logc.info(f"Coutndown dies!!!", extra=self.dictLogger)
 
     def init_threads_data(self):
         # multithreading initialization
@@ -464,7 +492,9 @@ class realtime_train_infer_rdpg(object):
             data_type = type(pop_data)
             # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
-                self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
+                self.logd.critical(
+                    f"udp sending wrong data type!", extra=self.dictLogger
+                )
                 raise TypeError("udp sending wrong data type!")
 
             for key, value in pop_data.items():
@@ -608,17 +638,21 @@ class realtime_train_infer_rdpg(object):
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!",
                                 #     extra=self.dictLogger,
                                 # )
-                                self.motionpowerQueue.put(self.get_truck_status_motpow_t)
+                                self.motionpowerQueue.put(
+                                    self.get_truck_status_motpow_t
+                                )
                                 self.get_truck_status_motpow_t = []
                     except Exception as X:
                         self.logc.info(
                             X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                             extra=self.dictLogger,
                         )
+                        break
                 else:
                     self.logc.warning(
                         f"udp sending message with key: {key}; value: {value}!!!"
                     )
+
                     break
 
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
@@ -641,7 +675,9 @@ class realtime_train_infer_rdpg(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tableQueue.get(block=False, timeout=1)  # default block = True
+                table = self.tableQueue.get(
+                    block=False, timeout=1
+                )  # default block = True
                 # print("2 tablequeue size: {}".format(tablequeue.qsize()))
             except queue.Empty:
                 pass
@@ -657,20 +693,23 @@ class realtime_train_infer_rdpg(object):
                             extra=self.dictLogger,
                         )
                 else:
-                    returncode = kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True)
+                    returncode = kvaser_send_float_array(
+                        "TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True
+                    )
                     if returncode != 0:
                         self.logc.error(
                             f"kvaser_send_float_array failed: {returncode}",
                             extra=self.dictLogger,
                         )
                 # time.sleep(1.0)
-                self.logc.info(f"flash done, count:{flash_count}", extra=self.dictLogger)
+                self.logc.info(
+                    f"flash done, count:{flash_count}", extra=self.dictLogger
+                )
                 flash_count += 1
                 # watch(flash_count)
 
         # motionpowerQueue.join()
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
-
 
     def cloud_get_truck_status(self):
         # global program_exit
@@ -713,7 +752,9 @@ class realtime_train_infer_rdpg(object):
             data_type = type(remotecan_data)
             self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(remotecan_data, dict):
-                self.logd.critical(f"udp sending wrong data type!", extra=self.dictLogger)
+                self.logd.critical(
+                    f"udp sending wrong data type!", extra=self.dictLogger
+                )
                 raise TypeError("udp sending wrong data type!")
 
             self.epi_countdown = False
@@ -942,7 +983,7 @@ class realtime_train_infer_rdpg(object):
                                     self.vcu_calib_table_row_start = 0
                                 elif vel_max < 100:
                                     self.vcu_calib_table_row_start = (
-                                            math.floor((vel_max - 20) / 5) + 1
+                                        math.floor((vel_max - 20) / 5) + 1
                                     )
                                 else:
                                     self.logc.warning(
@@ -992,8 +1033,6 @@ class realtime_train_infer_rdpg(object):
                 self.logc.info(f"{X}: data corrupt!", extra=self.dictLogger)
 
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
-
-
 
     # @eye
     def run(self):
@@ -1073,10 +1112,12 @@ class realtime_train_infer_rdpg(object):
                 )  # env.step(action) action is flash the vcu calibration table
                 # watch(step_count)
                 # reward history
+                # with tf.device('/GPU:0'):
                 motpow_t = tf.convert_to_tensor(
                     motionpower
                 )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                o_t, pow_t = tf.split(motpow_t, [3, 2], 1)
+                o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
+                o_t = tf.reshape(o_t0, -1)
 
                 self.logd.info(
                     f"E{epi_cnt} tensor convert and split!",
@@ -1126,10 +1167,17 @@ class realtime_train_infer_rdpg(object):
                         extra=self.dictLogger,
                     )
                     # motion states o_t is 30*3/50*3 matrix
-                    a_t = self.rdpg.actor_predict(o_t, step_count / 2)
+                    # with tf.device('/GPU:0'):
+                    #     a_t = self.rdpg.actor_predict(o_t, step_count / 2)
 
-                    prev_o_t = np.reshape(o_t, [1, self.num_observations * self.obs_len])
-                    prev_a_t = np.reshape(a_t, [1, self.num_reduced_actions])
+                    a_t = self.rdpg.actor_predict(o_t, step_count / 2)
+                    self.logd.info(
+                        f"E{epi_cnt} step{step_count/2},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
+                        extra=self.dictLogger,
+                    )
+
+                    prev_o_t = o_t
+                    prev_a_t = a_t
 
                     self.logd.info(
                         f"E{epi_cnt} inference done with reduced action space!",
@@ -1245,15 +1293,15 @@ class realtime_train_infer_rdpg(object):
                 # step level
                 step_count += 1
 
-                if (
-                    not done
-                ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
-                    self.logc.info(
-                        f"E{epi_cnt} interrupted, waits for next episode to kick off!",
-                        extra=self.dictLogger,
-                    )
-                    episode_reward = 0.0
-                    continue  # otherwise assuming the history is valid and back propagate
+            if (
+                not done
+            ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
+                self.logc.info(
+                    f"E{epi_cnt} interrupted, waits for next episode to kick off!",
+                    extra=self.dictLogger,
+                )
+                episode_reward = 0.0
+                continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
                 f"E{epi_cnt} Experience Collection ends!",
@@ -1334,17 +1382,22 @@ class realtime_train_infer_rdpg(object):
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
             # TODO terminate condition to be defined: reward > limit (percentage); time too long
-        with self.train_summary_writer.as_default():
-            tf.summary.trace_export(
-                name="veos_trace", step=epi_cnt_local, profiler_outdir=self.train_log_dir
-            )
+        # with self.train_summary_writer.as_default():
+        #     tf.summary.trace_export(
+        #         name="veos_trace",
+        #         step=epi_cnt_local,
+        #         profiler_outdir=self.train_log_dir,
+        #     )
+        thr_countdown.join()
         thr_observe.join()
         thr_flash.join()
 
         # TODOt  test restore last table
         self.logc.info(f"Save the last table!!!!", extra=self.dictLogger)
 
-        pds_last_table = pd.DataFrame(self.vcu_calib_table1, self.pd_index, self.pd_columns)
+        pds_last_table = pd.DataFrame(
+            self.vcu_calib_table1, self.pd_index, self.pd_columns
+        )
 
         last_table_store_path = (
             self.dataroot.joinpath(  #  there's no slash in the end of the string
