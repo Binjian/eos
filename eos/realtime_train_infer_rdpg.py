@@ -47,7 +47,9 @@ import tensorflow as tf
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+
+# tf.debugging.set_log_device_placement(True)
 ## visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -70,14 +72,14 @@ from eos import logger, dictLogger, projroot
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # system warnings and numpy warnings handling
-warnings.filterwarnings("ignore", message='currentThread',category=DeprecationWarning)
-np.warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
+np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # global variables: threading, data, lock, etc.
 class realtime_train_infer_rdpg(object):
     def __init__(
         self,
-        cloud = False,
+        cloud=False,
         resume=False,
         infer=False,
         record=True,
@@ -95,7 +97,9 @@ class realtime_train_infer_rdpg(object):
         self.record = record
         self.path = path
 
-        self.eps = np.finfo(np.float32).eps.item()  # smallest number such that 1.0 + eps != 1.0
+        self.eps = np.finfo(
+            np.float32
+        ).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
         if self.cloud:
             # reset proxy (internal site force no proxy)
@@ -113,6 +117,7 @@ class realtime_train_infer_rdpg(object):
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
 
+        self.logc.info(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logger.info(
@@ -137,7 +142,7 @@ class realtime_train_infer_rdpg(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-ddpg"
+            "eos-rt-rdpg-"
             + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             + ".log"
         )
@@ -170,6 +175,10 @@ class realtime_train_infer_rdpg(object):
         self.logc.propagate = True
         self.logd = logger.getChild("data flow")
         self.logd.propagate = True
+        self.tflog = tf.get_logger()
+        self.tflog.addHandler(fh)
+        self.tflog.addHandler(ch)
+        self.tflog.addHandler(sh)
 
     def set_data_path(self):
         # Create folder for ckpts loggings.
@@ -177,7 +186,9 @@ class realtime_train_infer_rdpg(object):
         self.train_log_dir = self.dataroot.joinpath(
             "tf_logs/rdpg/gradient_tape/" + current_time + "/train"
         )
-        self.train_summary_writer = tf.summary.create_file_writer(str(self.train_log_dir))
+        self.train_summary_writer = tf.summary.create_file_writer(
+            str(self.train_log_dir)
+        )
         # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         if self.resume:
@@ -265,9 +276,13 @@ class realtime_train_infer_rdpg(object):
         if self.cloud:
             self.can_client.send_torque_cmd(vcu_table1)
         else:
-            returncode = kvaser_send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+            returncode = kvaser_send_float_array(
+                "TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False
+            )
 
-        self.logger.info(f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger)
+        self.logger.info(
+            f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
+        )
 
         # TQD_trqTrqSetECO_MAP_v
 
@@ -789,86 +804,130 @@ class realtime_train_infer_rdpg(object):
                                 with np.printoptions(suppress=True, linewidth=100):
                                     # capture warning about ragged json arrays
                                     with np.testing.suppress_warnings() as sup:
-                                        log_warning = sup.record(np.VisibleDeprecationWarning,
-                                                                 "Creating an ndarray from ragged nested sequences")
+                                        log_warning = sup.record(
+                                            np.VisibleDeprecationWarning,
+                                            "Creating an ndarray from ragged nested sequences",
+                                        )
                                         current = np.array(value["list_current_1s"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in current]
                                             for count, item in enumerate(current):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"current{current.shape}:{current}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"current{current.shape}:{current}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         voltage = np.array(value["list_voltage_1s"])
                                         if len(log_warning):
                                             log_warning.pop()
                                             item_len = [len(item) for item in voltage]
                                             for count, item in enumerate(voltage):
-                                                item[item_len[count]: max(item_len)] = None
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
                                         # voltage needs to be upsampled in columns since its sample rate is half of others
                                         r_v, c_v = voltage.shape
-                                        voltage_upsampled = np.empty((r_v, 1, c_v, 2), dtype=voltage.dtype)
-                                        voltage_upsampled[...] = voltage[:, None, :, None]
-                                        voltage = voltage_upsampled.reshape(r_v, c_v * 2)
-                                        self.logd.info(f"voltage{voltage.shape}:{voltage}", extra=self.dictLogger)
-
+                                        voltage_upsampled = np.empty(
+                                            (r_v, 1, c_v, 2), dtype=voltage.dtype
+                                        )
+                                        voltage_upsampled[...] = voltage[
+                                            :, None, :, None
+                                        ]
+                                        voltage = voltage_upsampled.reshape(
+                                            r_v, c_v * 2
+                                        )
+                                        self.logd.info(
+                                            f"voltage{voltage.shape}:{voltage}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         thrust = np.array(value["list_pedal_1s"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in thrust]
                                             for count, item in enumerate(thrust):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"accl{thrust.shape}:{thrust}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"accl{thrust.shape}:{thrust}",
+                                            extra=self.dictLogger,
+                                        )
 
-                                        brake = np.array(value["list_brake_pressure_1s"])
+                                        brake = np.array(
+                                            value["list_brake_pressure_1s"]
+                                        )
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in brake]
                                             for count, item in enumerate(brake):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"brake{brake.shape}:{brake}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"brake{brake.shape}:{brake}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         velocity = np.array(value["list_speed_1s"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in velocity]
                                             for count, item in enumerate(velocity):
-                                                item[item_len[count]: max(item_len)] = None
-                                        self.logd.info(f"velocity{velocity.shape}:{velocity}", extra=self.dictLogger)
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
+                                        self.logd.info(
+                                            f"velocity{velocity.shape}:{velocity}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         gears = np.array(value["list_gears"])
                                         if len(log_warning) > 0:
                                             log_warning.pop()
                                             item_len = [len(item) for item in gears]
                                             for count, item in enumerate(gears):
-                                                item[item_len[count]: max(item_len)] = None
+                                                item[
+                                                    item_len[count] : max(item_len)
+                                                ] = None
                                         # upsample gears from 2Hz to 25Hz
                                         r_v, c_v = gears.shape
-                                        gears_upsampled = np.empty((r_v, 1, c_v, 12), dtype=gears.dtype)
+                                        gears_upsampled = np.empty(
+                                            (r_v, 1, c_v, 12), dtype=gears.dtype
+                                        )
                                         gears_upsampled[...] = gears[:, None, :, None]
                                         gears = gears_upsampled.reshape(r_v, c_v * 12)
-                                        gears = np.c_[gears, gears[:, -1]]  # duplicate last gear on the end
+                                        gears = np.c_[
+                                            gears, gears[:, -1]
+                                        ]  # duplicate last gear on the end
                                         gears = gears.reshape(-1, 1)
-                                        self.logd.info(f"gears{gears.shape}:{gears}", extra=self.dictLogger)
+                                        self.logd.info(
+                                            f"gears{gears.shape}:{gears}",
+                                            extra=self.dictLogger,
+                                        )
 
                                         timestamp = np.array(value["timestamp"])
                                         self.logd.info(
                                             f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}",
-                                            extra=self.dictLogger)
+                                            extra=self.dictLogger,
+                                        )
 
                                 motion_power = np.c_[
-                                    velocity.reshape(-1,1),
-                                    thrust.reshape(-1,1),
-                                    brake.reshape(-1,1),
-                                    current.reshape(-1,1),
-                                    voltage.reshape(-1,1),
+                                    velocity.reshape(-1, 1),
+                                    thrust.reshape(-1, 1),
+                                    brake.reshape(-1, 1),
+                                    current.reshape(-1, 1),
+                                    voltage.reshape(-1, 1),
                                 ]  # 3 +2 : im 5
 
                                 self.get_truck_status_motpow_t.append(
                                     motion_power
                                 )  # obs_reward [speed, pedal, brake, current, voltage]
-                                vel_hist_dQ.append(velocity)
+                                self.vel_hist_dQ.append(velocity)
 
                                 vel_aver = velocity.mean()
                                 vel_min = velocity.min()
@@ -900,7 +959,9 @@ class realtime_train_infer_rdpg(object):
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!",
                                 #     extra=self.dictLogger,
                                 # )
-                                self.motionpowerQueue.put(self.get_truck_status_motpow_t)
+                                self.motionpowerQueue.put(
+                                    self.get_truck_status_motpow_t
+                                )
                                 self.get_truck_status_motpow_t = []
                         except Exception as X:
                             self.logc.info(
@@ -970,7 +1031,7 @@ class realtime_train_infer_rdpg(object):
 
             step_count = 0
             wh1 = 0  # initialize odd step wh
-            tf.summary.trace_on(graph=True, profiler=True)
+            # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
             self.logc.info(
@@ -978,12 +1039,15 @@ class realtime_train_infer_rdpg(object):
                 extra=self.dictLogger,
             )
 
+            # with tf.device('/GPU:0'):
             while (
                 not epi_end
             ):  # end signal, either the round ends normally or user interrupt
                 # TODO l045a define round done (time, distance, defined end event)
                 with self.hmi_lock:  # wait for tester to interrupt or to exit
-                    th_exit = self.program_exit  # if program_exit is False, reset to wait
+                    th_exit = (
+                        self.program_exit
+                    )  # if program_exit is False, reset to wait
                     epi_end = self.episode_end
                     done = self.episode_done
                     table_start = self.vcu_calib_table_row_start
@@ -1049,6 +1113,10 @@ class realtime_train_infer_rdpg(object):
                         else:
                             h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
 
+                        self.logd.info(
+                            f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, h_t shape: {len(h_t)}X{h_t[-1].shape}.",
+                            extra=self.dictLogger
+                        )
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causal rl, the odd indexed observation/reward are caused by last action
@@ -1214,7 +1282,6 @@ class realtime_train_infer_rdpg(object):
                 # Checkpoint manager save model
                 self.rdpg.save_ckpt()
 
-
             self.logd.info(
                 f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                 extra=self.dictLogger,
@@ -1241,7 +1308,7 @@ class realtime_train_infer_rdpg(object):
                     "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
                 )
                 # tf.summary.trace_export(
-                #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+                #     name="veos_trace", step=epi_cnt_local, profiler_outdir=self.train_log_dir
                 # )
 
             epi_cnt_local += 1
@@ -1343,6 +1410,12 @@ if __name__ == "__main__":
     # set up data folder (logging, checkpoint, table)
 
     app = realtime_train_infer_rdpg(
-        args.cloud, args.resume, args.infer, args.record_table, args.path, projroot, logger
+        args.cloud,
+        args.resume,
+        args.infer,
+        args.record_table,
+        args.path,
+        projroot,
+        logger,
     )
     app.run()

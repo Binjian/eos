@@ -268,7 +268,10 @@ class RDPG:
         # self.obs_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
         input_array = np.expand_dims(np.array(self.obs_t), axis=0)
-        return self.actor_net.predict(input_array)
+        logger.info(f"input_array.shape: {input_array.shape}")
+        action = self.actor_net.predict(input_array)
+        logger.info(f"action.shape: {action.shape}")
+        return action
 
     def reset_noise(self):
         """reset noise of the moving actor network"""
@@ -280,10 +283,21 @@ class RDPG:
         Args:
             h_t (np.array): The current h_t, could be variable length
         """
+        logger.info(
+            f"h_t list shape: {len(h_t)}X{h_t[-1].shape}.",
+            extra=dictLogger
+        )
         self.h_t = np.array(h_t)
-        self.R.append(h_t)
+        logger.info(
+            f"h_t np arary shape: {self.h_t.shape}.",
+            extra=dictLogger
+        )
+        self.R.append(self.h_t)
         if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
+        logger.info(
+            f"Memory length: {len(self.R)}"
+        )
 
     def sample_mini_batch(self):
         """Sample a mini batch from the replay buffer. Add post padding for masking
@@ -362,6 +376,7 @@ class RDPG:
             )
         except:
             logger.error("Ragged action state a_n_l1!")
+        logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     def train(self):
         """
@@ -410,13 +425,14 @@ class RDPG:
         with tf.GradientTape() as tape:
             self.a_ht = self.actor_net.evaluate_actions(self.o_n_t)
             self.q_ht = self.critic_net.evaluate_q(self.o_n_t, self.a_ht)
-
+            logger.info(f"a_ht.shape: {self.a_ht.shape}")
+            logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht
             # scalar value, average over the batch and time steps
             actor_loss = tf.math.reduce_mean(-self.q_ht)
 
         # action_gradients = tape.gradient(self.a_ht, self.actor_net.eager_model.trainable_variables)
-        # actor_grad = tape.gradient(
+        # actor_grad_weight = tape.gradient(
         #     actor_loss,
         #     self.a_ht,
         #     action_gradients  # weights for self.a_ht
