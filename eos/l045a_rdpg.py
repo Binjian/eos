@@ -59,7 +59,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # local import
-from .comm import generate_vcu_calibration, set_tbox_sim_path, RemoteCan, send_float_array
+from .comm import (
+    generate_vcu_calibration,
+    set_tbox_sim_path,
+    RemoteCan,
+    send_float_array,
+)
 from .utils import get_logger
 from .agent import RDPG
 from .visualization import plot_to_image, plot_3d_figure
@@ -331,6 +336,7 @@ episode_done = False
 episode_end = False
 episode_count = 0
 
+
 def reset_capture_handler():
     """
     callback function for delay capture stop
@@ -507,7 +513,7 @@ def get_truck_status():
                                 vcu_calib_table_row_start = 0
                             elif vel_max < 100:
                                 vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 20) / 5) + 1
+                                    math.floor((vel_max - 20) / 5) + 1
                                 )
                             else:
                                 logc.warning(
@@ -581,6 +587,7 @@ def flash_vcu(tablequeue):
 
     # motionpowerQueue.join()
     logc.info(f"flash_vcu dies!!!", extra=dictLogger)
+
 
 # TODO add a thread for send_float_array
 # TODO add printing calibration table
