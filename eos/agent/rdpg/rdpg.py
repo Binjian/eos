@@ -506,9 +506,14 @@ class RDPG:
     def load_replay_buffer(self):
         try:
             replay_buffer_npy = np.load(self.file_replay)
-            self.R = replay_buffer_npy.tolist()
+            # self.R = replay_buffer_npy.tolist()
+            # reload into memory as a list of np arrays for sampling
+            self.R = [
+                replay_buffer_npy[i, :, :]
+                for i in np.arange(replay_buffer_npy.shape[0])
+            ]
             logger.info(
-                f"loaded last buffer with size: {len(self.R)}",
+                f"loaded last buffer with size: {len(self.R)}, element[0] size: {self.R[0].shape}.",
                 extra=dictLogger,
             )
         except IOError:
