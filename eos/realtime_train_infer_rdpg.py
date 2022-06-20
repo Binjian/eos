@@ -47,7 +47,7 @@ import tensorflow as tf
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+# os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
 # tf.debugging.set_log_device_placement(True)
 ## visualization import
@@ -1084,220 +1084,229 @@ class realtime_train_infer_rdpg(object):
                 extra=self.dictLogger,
             )
 
-            # with tf.device('/GPU:0'):
-            while (
-                not epi_end
-            ):  # end signal, either the round ends normally or user interrupt
-                # TODO l045a define round done (time, distance, defined end event)
-                with self.hmi_lock:  # wait for tester to interrupt or to exit
-                    th_exit = (
-                        self.program_exit
-                    )  # if program_exit is False, reset to wait
-                    epi_end = self.episode_end
-                    done = self.episode_done
-                    table_start = self.vcu_calib_table_row_start
+            tf.debugging.set_log_device_placement(True)
+            with tf.device("/GPU:0"):
+                while (
+                    not epi_end
+                ):  # end signal, either the round ends normally or user interrupt
+                    # TODO l045a define round done (time, distance, defined end event)
+                    with self.hmi_lock:  # wait for tester to interrupt or to exit
+                        th_exit = (
+                            self.program_exit
+                        )  # if program_exit is False, reset to wait
+                        epi_end = self.episode_end
+                        done = self.episode_done
+                        table_start = self.vcu_calib_table_row_start
 
-                if epi_end:  # stop observing and inferring
-                    continue
+                    if epi_end:  # stop observing and inferring
+                        continue
 
-                try:
-                    self.logc.info(
-                        f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
-                    )
-                    motionpower = self.motionpowerQueue.get(block=True, timeout=1.55)
-                except queue.Empty:
-                    self.logc.info(
-                        f"E{epi_cnt} No data in the Queue!!!",
-                        extra=self.dictLogger,
-                    )
-                    continue
-
-                self.logc.info(
-                    f"E{epi_cnt} start step {step_count}",
-                    extra=self.dictLogger,
-                )  # env.step(action) action is flash the vcu calibration table
-                # watch(step_count)
-                # reward history
-                # with tf.device('/GPU:0'):
-                motpow_t = tf.convert_to_tensor(
-                    motionpower
-                )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
-                o_t = tf.reshape(o_t0, -1)
-
-                self.logd.info(
-                    f"E{epi_cnt} tensor convert and split!",
-                    extra=self.dictLogger,
-                )
-                ui_sum = tf.reduce_sum(
-                    tf.reduce_prod(pow_t, 1)
-                )  # vcu reward is a scalar
-                wh = ui_sum / 3600.0 * 0.05  # negative wh
-                # self.logger.info(
-                #     f"ui_sum: {ui_sum}",
-                #     extra=self.dictLogger,
-                # )
-                self.logd.info(
-                    f"wh: {wh}",
-                    extra=self.dictLogger,
-                )
-
-                if (
-                    step_count % 2
-                ) == 0:  # only for even observation/reward take an action
-                    # k_cycle = 1000  # TODO determine the ratio
-                    # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                    # wh0 = wh  # add velocitoy sum as reward
-                    prev_r_t = (wh1 + wh) * (
-                        -1.0
-                    )  # most recent odd and even indexed reward
-                    episode_reward += prev_r_t
-                    # TODO add speed sum as positive reward
-
-                    if step_count > 0:
-                        if step_count == 2:  # first even step has $r_0$
-                            h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
-                        else:
-                            h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
-
-                        self.logd.info(
-                            f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, h_t shape: {len(h_t)}X{h_t[-1].shape}.",
-                            extra=self.dictLogger
+                    try:
+                        self.logc.info(
+                            f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
                         )
-                    # predict action probabilities and estimated future rewards
-                    # from environment state
-                    # for causal rl, the odd indexed observation/reward are caused by last action
-                    # skip the odd indexed observation/reward for policy to make it causal
+                        motionpower = self.motionpowerQueue.get(
+                            block=True, timeout=1.55
+                        )
+                    except queue.Empty:
+                        self.logc.info(
+                            f"E{epi_cnt} No data in the Queue!!!",
+                            extra=self.dictLogger,
+                        )
+                        continue
+
                     self.logc.info(
-                        f"E{epi_cnt} before inference!",
+                        f"E{epi_cnt} start step {step_count}",
                         extra=self.dictLogger,
-                    )
-                    # motion states o_t is 30*3/50*3 matrix
+                    )  # env.step(action) action is flash the vcu calibration table
+                    # watch(step_count)
+                    # reward history
                     # with tf.device('/GPU:0'):
-                    #     a_t = self.rdpg.actor_predict(o_t, step_count / 2)
+                    motpow_t = tf.convert_to_tensor(
+                        motionpower
+                    )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
+                    o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
+                    o_t = tf.reshape(o_t0, -1)
 
-                    a_t = self.rdpg.actor_predict(o_t, step_count / 2)
                     self.logd.info(
-                        f"E{epi_cnt} step{step_count/2},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
+                        f"E{epi_cnt} tensor convert and split!",
+                        extra=self.dictLogger,
+                    )
+                    ui_sum = tf.reduce_sum(
+                        tf.reduce_prod(pow_t, 1)
+                    )  # vcu reward is a scalar
+                    wh = ui_sum / 3600.0 * 0.05  # negative wh
+                    # self.logger.info(
+                    #     f"ui_sum: {ui_sum}",
+                    #     extra=self.dictLogger,
+                    # )
+                    self.logd.info(
+                        f"wh: {wh}",
                         extra=self.dictLogger,
                     )
 
-                    prev_o_t = o_t
-                    prev_a_t = a_t
+                    if (
+                        step_count % 2
+                    ) == 0:  # only for even observation/reward take an action
+                        # k_cycle = 1000  # TODO determine the ratio
+                        # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
+                        # wh0 = wh  # add velocitoy sum as reward
+                        prev_r_t = (wh1 + wh) * (
+                            -1.0
+                        )  # most recent odd and even indexed reward
+                        episode_reward += prev_r_t
+                        # TODO add speed sum as positive reward
 
-                    self.logd.info(
-                        f"E{epi_cnt} inference done with reduced action space!",
-                        extra=self.dictLogger,
-                    )
+                        if step_count > 0:
+                            if step_count == 2:  # first even step has $r_0$
+                                h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
+                            else:
+                                h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
 
-                    vcu_calib_table_reduced = tf.reshape(
-                        a_t,
-                        [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
-                    )
-                    # self.logger.info(
-                    #     f"vcu action table reduced generated!", extra=self.dictLogger
-                    # )
-                    # vcu_action_table_reduced_s = [f"{col:.3f},"
-                    #                               for row in vcu_calib_table_reduced
-                    #                               for col in row]
-                    # self.logger.info(
-                    #     f"vcu action table: {vcu_action_table_reduced_s}",
-                    #     extra=self.dictLogger,
-                    # )
-
-                    # get change budget : % of initial table
-                    vcu_calib_table_bound = 250
-                    vcu_calib_table_reduced = (
-                        vcu_calib_table_reduced * vcu_calib_table_bound
-                    )
-                    # vcu_calib_table_reduced = tf.math.multiply(
-                    #     vcu_calib_table_reduced * vcu_calib_table_budget,
-                    #     vcu_calib_table0_reduced,
-                    # )
-                    # add changes to the default value
-                    # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
-
-                    # dynamically change table row start index
-                    vcu_calib_table0_reduced = self.vcu_calib_table0[
-                        table_start : self.vcu_calib_table_row_reduced + table_start,
-                        :,
-                    ]
-                    vcu_calib_table_min_reduced = (
-                        vcu_calib_table0_reduced - vcu_calib_table_bound
-                    )
-                    vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
-
-                    vcu_calib_table_reduced = tf.clip_by_value(
-                        vcu_calib_table_reduced + vcu_calib_table0_reduced,
-                        clip_value_min=vcu_calib_table_min_reduced,
-                        clip_value_max=vcu_calib_table_max_reduced,
-                    )
-
-                    # create updated complete pedal map, only update the first few rows
-                    self.vcu_calib_table1[
-                        table_start : self.vcu_calib_table_row_reduced + table_start, :
-                    ] = vcu_calib_table_reduced.numpy()
-                    pds_curr_table = pd.DataFrame(
-                        self.vcu_calib_table1, self.pd_index, self.pd_columns
-                    )
-                    # self.logc.info(
-                    #     f"E{epi_cnt} start record instant table: {step_count}",
-                    #     extra=self.dictLogger,
-                    # )
-
-                    if args.record_table:
-                        curr_table_store_path = self.dataroot.joinpath(
-                            "tables/instant_table_rdpg-"
-                            + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                            + "e-"
-                            + str(epi_cnt)
-                            + "-"
-                            + str(step_count)
-                            + ".csv"
+                            self.logd.info(
+                                f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, h_t shape: {len(h_t)}X{h_t[-1].shape}.",
+                                extra=self.dictLogger,
+                            )
+                        # predict action probabilities and estimated future rewards
+                        # from environment state
+                        # for causal rl, the odd indexed observation/reward are caused by last action
+                        # skip the odd indexed observation/reward for policy to make it causal
+                        self.logc.info(
+                            f"E{epi_cnt} before inference!",
+                            extra=self.dictLogger,
                         )
-                        with open(curr_table_store_path, "wb") as f:
-                            pds_curr_table.to_csv(curr_table_store_path)
-                            # np.save(last_table_store_path, vcu_calib_table1)
+                        # motion states o_t is 30*3/50*3 matrix
+                        # with tf.device('/GPU:0'):
+                        #     a_t = self.rdpg.actor_predict(o_t, step_count / 2)
+
+                        a_t = self.rdpg.actor_predict(o_t, int(step_count / 2))
+                        # self.logd.info(
+                        #     f"E{epi_cnt} step{int(step_count/2)},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
+                        #     extra=self.dictLogger,
+                        # )
+
+                        prev_o_t = o_t
+                        prev_a_t = a_t
+
                         self.logd.info(
-                            f"E{epi_cnt} done with record instant table: {step_count}",
+                            f"E{epi_cnt} inference done with reduced action space!",
                             extra=self.dictLogger,
                         )
 
-                    vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                    # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                    self.tableQueue.put(vcu_act_list)
-                    self.logd.info(
-                        f"E{epi_cnt}StartIndex{table_start} Action Push table: {self.tableQueue.qsize()}",
-                        extra=self.dictLogger,
-                    )
-                    self.logc.info(
-                        f"E{epi_cnt} Finish Step: {step_count}",
-                        extra=self.dictLogger,
-                    )
+                        vcu_calib_table_reduced = tf.reshape(
+                            a_t,
+                            [
+                                self.vcu_calib_table_row_reduced,
+                                self.vcu_calib_table_col,
+                            ],
+                        )
+                        # self.logger.info(
+                        #     f"vcu action table reduced generated!", extra=self.dictLogger
+                        # )
+                        # vcu_action_table_reduced_s = [f"{col:.3f},"
+                        #                               for row in vcu_calib_table_reduced
+                        #                               for col in row]
+                        # self.logger.info(
+                        #     f"vcu action table: {vcu_action_table_reduced_s}",
+                        #     extra=self.dictLogger,
+                        # )
 
-                # during odd steps, old action remains effective due to learn and flash delay
-                # so ust record the reward history
-                # motion states (observation) are not used later for backpropagation
-                else:
-                    # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
-                    # Bugfix: the reward recorded in the first even step is not causal
-                    # cycle_reward should include the most recent even wh in the even step
-                    # record the odd step wh
-                    wh1 = wh
+                        # get change budget : % of initial table
+                        vcu_calib_table_bound = 250
+                        vcu_calib_table_reduced = (
+                            vcu_calib_table_reduced * vcu_calib_table_bound
+                        )
+                        # vcu_calib_table_reduced = tf.math.multiply(
+                        #     vcu_calib_table_reduced * vcu_calib_table_budget,
+                        #     vcu_calib_table0_reduced,
+                        # )
+                        # add changes to the default value
+                        # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
 
-                    # TODO add speed sum as positive reward
-                    self.logc.info(
-                        f"E{epi_cnt} Step done: {step_count}",
-                        extra=self.dictLogger,
-                    )
+                        # dynamically change table row start index
+                        vcu_calib_table0_reduced = self.vcu_calib_table0[
+                            table_start : self.vcu_calib_table_row_reduced
+                            + table_start,
+                            :,
+                        ]
+                        vcu_calib_table_min_reduced = (
+                            vcu_calib_table0_reduced - vcu_calib_table_bound
+                        )
+                        vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
 
-                    # motion_states = tf.stack([motion_states0, motion_states])
-                    # motion_states_history was not used for back propagation
-                    # 60 frames, but never used again
-                    # motion_states_history.append(motion_states)
+                        vcu_calib_table_reduced = tf.clip_by_value(
+                            vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                            clip_value_min=vcu_calib_table_min_reduced,
+                            clip_value_max=vcu_calib_table_max_reduced,
+                        )
 
-                # step level
-                step_count += 1
+                        # create updated complete pedal map, only update the first few rows
+                        self.vcu_calib_table1[
+                            table_start : self.vcu_calib_table_row_reduced
+                            + table_start,
+                            :,
+                        ] = vcu_calib_table_reduced.numpy()
+                        pds_curr_table = pd.DataFrame(
+                            self.vcu_calib_table1, self.pd_index, self.pd_columns
+                        )
+                        # self.logc.info(
+                        #     f"E{epi_cnt} start record instant table: {step_count}",
+                        #     extra=self.dictLogger,
+                        # )
+
+                        if args.record_table:
+                            curr_table_store_path = self.dataroot.joinpath(
+                                "tables/instant_table_rdpg-"
+                                + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                                + "e-"
+                                + str(epi_cnt)
+                                + "-"
+                                + str(step_count)
+                                + ".csv"
+                            )
+                            with open(curr_table_store_path, "wb") as f:
+                                pds_curr_table.to_csv(curr_table_store_path)
+                                # np.save(last_table_store_path, vcu_calib_table1)
+                            self.logd.info(
+                                f"E{epi_cnt} done with record instant table: {step_count}",
+                                extra=self.dictLogger,
+                            )
+
+                        vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
+                        # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
+                        self.tableQueue.put(vcu_act_list)
+                        self.logd.info(
+                            f"E{epi_cnt}StartIndex{table_start} Action Push table: {self.tableQueue.qsize()}",
+                            extra=self.dictLogger,
+                        )
+                        self.logc.info(
+                            f"E{epi_cnt} Finish Step: {step_count}",
+                            extra=self.dictLogger,
+                        )
+
+                    # during odd steps, old action remains effective due to learn and flash delay
+                    # so ust record the reward history
+                    # motion states (observation) are not used later for backpropagation
+                    else:
+                        # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
+                        # Bugfix: the reward recorded in the first even step is not causal
+                        # cycle_reward should include the most recent even wh in the even step
+                        # record the odd step wh
+                        wh1 = wh
+
+                        # TODO add speed sum as positive reward
+                        self.logc.info(
+                            f"E{epi_cnt} Step done: {step_count}",
+                            extra=self.dictLogger,
+                        )
+
+                        # motion_states = tf.stack([motion_states0, motion_states])
+                        # motion_states_history was not used for back propagation
+                        # 60 frames, but never used again
+                        # motion_states_history.append(motion_states)
+
+                    # step level
+                    step_count += 1
 
             if (
                 not done
@@ -1321,13 +1330,14 @@ class realtime_train_infer_rdpg(object):
                 (actor_loss, critic_loss) = self.rdpg.notrain()
                 self.logd.info("No Learning, just calculating loss")
             else:
+                self.logd.info("Learning and soft updating")
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
                     (actor_loss, critic_loss) = self.rdpg.train()
-                    self.logd.info("Learning and soft updating")
+                    # self.logd.info("Learning and soft updating")
                     # logd.info(f"BP{k} done.", extra=dictLogger)
                     self.logd.info(
-                        f"E{epi_cnt}BP{k} critic loss: {critic_loss}",
+                        f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                         extra=dictLogger,
                     )
                     self.rdpg.soft_update_target()
