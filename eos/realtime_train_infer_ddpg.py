@@ -47,7 +47,9 @@ import tensorflow as tf
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+# os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+
+# tf.debugging.set_log_device_placement(True)
 ## visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -122,6 +124,9 @@ class realtime_train_infer_ddpg(object):
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
 
+        self.logc.info(
+            f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
+        )
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logger.info(
@@ -179,6 +184,10 @@ class realtime_train_infer_ddpg(object):
         self.logc.propagate = True
         self.logd = logger.getChild("data flow")
         self.logd.propagate = True
+        self.tflog = tf.get_logger()
+        self.tflog.addHandler(fh)
+        self.tflog.addHandler(ch)
+        self.tflog.addHandler(sh)
 
     def set_data_path(self):
         # Create folder for ckpts loggings.
@@ -477,6 +486,8 @@ class realtime_train_infer_ddpg(object):
         self.target_critic.set_weights(self.critic_model.get_weights())
 
     def touch_gpu(self):
+
+        # tf.summary.trace_on(graph=True, profiler=True)
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
         init_motionpower = np.random.rand(self.observation_len, self.num_observations)
         init_states = tf.convert_to_tensor(
@@ -494,16 +505,38 @@ class realtime_train_infer_ddpg(object):
     # @eye
     # tracer.start()
 
-    def capture_countdown_handler(self):
-        with self.hmi_lock:
-            self.episode_count += 1  # valid round increments
-            self.episode_done = (
-                True  # TODO delay episode_done to make main thread keep running
-            )
-            self.episode_end = True
-            self.get_truck_status_start = False
-        self.logger.info(f"reset_capture_handler called", extra=self.dictLogger)
-        # raise Exception("reset capture to stop")
+    def capture_countdown_handler(self, evt_epi_done):
+
+        th_exit = False
+        while not th_exit:
+            with self.hmi_lock:
+                if self.program_exit:
+                    th_exit = True
+                    continue
+
+            self.logger.info(f"wait for countdown", extra=self.dictLogger)
+            evt_epi_done.wait()
+            evt_epi_done.clear()
+            # if episode is done, sleep for the extension time
+            time.sleep(self.epi_countdown_time)
+            # cancel wait as soon as waking up
+            self.logger.info(f"finish countdown", extra=self.dictLogger)
+
+            with self.hmi_lock:
+                self.episode_count += 1  # valid round increments
+                self.episode_done = (
+                    True  # TODO delay episode_done to make main thread keep running
+                )
+                self.episode_end = True
+                self.get_truck_status_start = False
+            # move clean up under mutex to avoid competetion.
+            self.get_truck_status_motpow_t = []
+            while not self.motionpowerQueue.empty():
+                self.motionpowerQueue.get()
+            self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
+            self.vel_hist_dQ.clear()
+            # raise Exception("reset capture to stop")
+        self.logc.info(f"Coutndown dies!!!", extra=self.dictLogger)
 
     def init_threads_data(self):
         # multithreading initialization
@@ -519,14 +552,14 @@ class realtime_train_infer_ddpg(object):
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
-        self.capture_countdown = (
+        self.epi_countdown_time = (
             3  # extend capture time after valid episode temrination
         )
 
         # use timer object
-        self.timer_capture_countdown = threading.Timer(
-            self.capture_countdown, self.capture_countdown_handler
-        )
+        # self.timer_capture_countdown = threading.Timer(
+        #     self.capture_countdown, self.capture_countdown_handler
+        # )
         # signal.signal(signal.SIGALRM, self.reset_capture_handler)
         self.get_truck_status_start = False
         self.epi_countdown = False
@@ -535,7 +568,7 @@ class realtime_train_infer_ddpg(object):
         self.get_truck_status_myPort = 8002
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
-    def onboard_get_truck_status(self):
+    def onboard_get_truck_status(self, evt_epi_done):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
@@ -557,7 +590,7 @@ class realtime_train_infer_ddpg(object):
         self.logc.info(f"Initialization Done!", extra=self.dictLogger)
         # qobject_size = 0
 
-        vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
+        self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
         vel_cycle_dQ = deque(
             maxlen=self.observation_len
@@ -595,8 +628,7 @@ class realtime_train_infer_ddpg(object):
                         th_exit = False
                         # ts_epi_start = time.time()
 
-                        vel_hist_dQ.clear()
-                        self.epi_countdown = False
+                        self.vel_hist_dQ.clear()
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
@@ -606,18 +638,12 @@ class realtime_train_infer_ddpg(object):
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
-                        self.get_truck_status_motpow_t = []
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
-                        self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
-                        th_exit = False
-                        vel_hist_dQ.clear()
-                        self.epi_countdown = True  # TODO check!
-                        self.logc.info(
-                            f"Make epi_countdown true:  {self.epi_countdown}!"
-                        )
+
+                        # set flag for countdown thread
+                        evt_epi_done.set()
+                        self.logc.info(f"Episode end starts countdown!")
                         with self.hmi_lock:
-                            # self.episode_count += 1  # valid round increments
+                            # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
                     elif value == "end_invalid":
@@ -626,7 +652,7 @@ class realtime_train_infer_ddpg(object):
                             f"Episode is interrupted!!!", extra=self.dictLogger
                         )
                         self.get_truck_status_motpow_t = []
-                        vel_hist_dQ.clear()
+                        self.vel_hist_dQ.clear()
                         # motionpowerQueue.queue.clear()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
@@ -638,7 +664,6 @@ class realtime_train_infer_ddpg(object):
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
                         th_exit = False
-                        self.epi_countdown = False
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = True
@@ -646,12 +671,11 @@ class realtime_train_infer_ddpg(object):
                     elif value == "exit":
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
-                        vel_hist_dQ.clear()
+                        self.vel_hist_dQ.clear()
                         while not self.motionpowerQueue.empty():
                             self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
-                        self.epi_countdown = False
                         # for program exit, need to set episode states
                         # final change to inform main thread
                         with self.hmi_lock:
@@ -659,18 +683,13 @@ class realtime_train_infer_ddpg(object):
                             self.episode_end = True
                             self.program_exit = True
                             self.episode_count += 1
+                        evt_epi_done.set()
                         break
                         # time.sleep(0.1)
                 elif key == "data":
                     # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
                     # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
                     # DONE add logic for episode valid and invalid
-                    # self.logc.info(f"check flag epi_countdown is:  {self.epi_countdown}!")
-                    if self.epi_countdown:  # TODO check delayed episode finish!
-                        self.logc.info(f"delay stop for 3s!")
-                        self.epi_countdown = False
-                        self.timer_capture_countdown.start()  # start timer for resetting 3s later
-                        # signal.alarm(3)  # delay stop for 3 seconds
                     try:
                         if self.get_truck_status_start:  # starts episode
 
@@ -691,7 +710,7 @@ class realtime_train_infer_ddpg(object):
                             self.get_truck_status_motpow_t.append(
                                 motion_power
                             )  # obs_reward [speed, pedal, brake, current, voltage]
-                            vel_hist_dQ.append(velocity)
+                            self.vel_hist_dQ.append(velocity)
                             vel_cycle_dQ.append(velocity)
 
                             if (
@@ -743,10 +762,12 @@ class realtime_train_infer_ddpg(object):
                             X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                             extra=self.dictLogger,
                         )
+                        break
                 else:
                     self.logc.warning(
                         f"udp sending message with key: {key}; value: {value}!!!"
                     )
+
                     break
 
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
@@ -818,7 +839,7 @@ class realtime_train_infer_ddpg(object):
         # self.logc.info(f"Initialization Done!", extra=self.dictLogger)
         # qobject_size = 0
 
-        vel_hist_dQ = deque(maxlen=25)  # accumulate 1s of velocity values
+        self.vel_hist_dQ = deque(maxlen=25)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
         vel_cycle_dQ = deque(
             maxlen=self.observation_len
@@ -851,7 +872,6 @@ class realtime_train_infer_ddpg(object):
                 )
                 raise TypeError("udp sending wrong data type!")
 
-            self.epi_countdown = False
             try:
                 for key, value in remotecan_data.items():
                     if key == "status":  # state machine chores
@@ -864,8 +884,7 @@ class realtime_train_infer_ddpg(object):
                             th_exit = False
                             # ts_epi_start = time.time()
 
-                            vel_hist_dQ.clear()
-                            self.epi_countdown = False
+                            self.vel_hist_dQ.clear()
                             with self.hmi_lock:
                                 self.episode_done = False
                                 self.episode_end = False
@@ -883,8 +902,7 @@ class realtime_train_infer_ddpg(object):
                                 "%s", "Episode done!!!", extra=self.dictLogger
                             )
                             th_exit = False
-                            vel_hist_dQ.clear()
-                            self.epi_countdown = True
+                            self.vel_hist_dQ.clear()
                             with self.hmi_lock:
                                 self.episode_count += 1  # valid round increments
                                 self.episode_done = True
@@ -895,7 +913,7 @@ class realtime_train_infer_ddpg(object):
                                 f"Episode is interrupted!!!", extra=self.dictLogger
                             )
                             self.get_truck_status_motpow_t = []
-                            vel_hist_dQ.clear()
+                            self.vel_hist_dQ.clear()
                             # motionpowerQueue.queue.clear()
                             # self.logc.info(
                             #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
@@ -907,7 +925,6 @@ class realtime_train_infer_ddpg(object):
                             #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                             # )
                             th_exit = False
-                            self.epi_countdown = False
                             with self.hmi_lock:
                                 self.episode_done = False
                                 self.episode_end = True
@@ -915,7 +932,7 @@ class realtime_train_infer_ddpg(object):
                         elif value == "exit":
                             self.get_truck_status_start = False
                             self.get_truck_status_motpow_t = []
-                            vel_hist_dQ.clear()
+                            self.vel_hist_dQ.clear()
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                             # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
@@ -935,9 +952,6 @@ class realtime_train_infer_ddpg(object):
                         # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
                         # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
                         # DONE add logic for episode valid and invalid
-                        if self.epi_countdown:
-                            self.logc.info(f"Alarm in 3 seconds!")
-                            signal.alarm(3)  # delay stop for 3 seconds
                         try:
                             if self.get_truck_status_start:  # starts episode
 
@@ -1068,7 +1082,7 @@ class realtime_train_infer_ddpg(object):
                                 self.get_truck_status_motpow_t.append(
                                     motion_power
                                 )  # obs_reward [speed, pedal, brake, current, voltage]
-                                vel_hist_dQ.append(velocity)
+                                self.vel_hist_dQ.append(velocity)
 
                                 vel_aver = velocity.mean()
                                 vel_min = velocity.min()
@@ -1144,8 +1158,15 @@ class realtime_train_infer_ddpg(object):
         # global vcu_calib_table_row_start
 
         # Start thread for flashing vcu, flash first
-        thr_observe = Thread(target=self.get_truck_status, name="observe", args=())
+        evt_epi_done = threading.Event()
+        thr_countdown = Thread(
+            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done]
+        )
+        thr_observe = Thread(
+            target=self.get_truck_status, name="observe", args=[evt_epi_done]
+        )
         thr_flash = Thread(target=self.flash_vcu, name="flash", args=())
+        thr_countdown.start()
         thr_observe.start()
         thr_flash.start()
 
@@ -1169,14 +1190,16 @@ class realtime_train_infer_ddpg(object):
 
             step_count = 0
             wh1 = 0  # initialize odd step wh
-            tf.summary.trace_on(graph=True, profiler=True)
+            # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
             self.logc.info(
                 f"E{epi_cnt} starts!",
                 extra=self.dictLogger,
             )
-            with tf.GradientTape() as tape:
+
+            tf.debugging.set_log_device_placement(True)
+            with tf.device("/GPU:0"):
                 while (
                     not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
@@ -1264,7 +1287,7 @@ class realtime_train_infer_ddpg(object):
 
                         # predict action probabilities and estimated future rewards
                         # from environment state
-                        # for causl rl, the odd indexed observation/reward are caused by last action
+                        # for causal rl, the odd indexed observation/reward are caused by last action
                         # skip the odd indexed observation/reward for policy to make it causal
                         self.logc.info(
                             f"E{epi_cnt} before inference!",
@@ -1395,64 +1418,64 @@ class realtime_train_infer_ddpg(object):
                     # step level
                     step_count += 1
 
-                if (
-                    not done
-                ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
-                    self.logc.info(
-                        f"E{epi_cnt} interrupted, waits for next episode to kick off!",
+            if (
+                not done
+            ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
+                self.logc.info(
+                    f"E{epi_cnt} interrupted, waits for next episode to kick off!",
+                    extra=self.dictLogger,
+                )
+                episode_reward = 0.0
+                continue  # otherwise assuming the history is valid and back propagate
+
+            self.logc.info(
+                f"E{epi_cnt} Experience Collection ends!",
+                extra=self.dictLogger,
+            )
+
+            if self.infer:
+                (critic_loss, actor_loss) = self.buffer.nolearn()
+                self.logd.info("No Learning, just calculating loss")
+            else:
+                self.logd.info("Learning and updating 6 times!")
+                for k in range(6):
+                    # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
+                    (critic_loss, actor_loss) = self.buffer.learn()
+
+                    update_target(
+                        self.target_actor.variables,
+                        self.actor_model.variables,
+                        self.tau,
+                    )
+                    # self.logger.info(f"Updated target actor", extra=self.dictLogger)
+                    update_target(
+                        self.target_critic.variables,
+                        self.critic_model.variables,
+                        self.tau,
+                    )
+                    # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+
+                # Checkpoint manager save model
+                self.ckpt_actor.step.assign_add(1)
+                self.ckpt_critic.step.assign_add(1)
+                if int(self.ckpt_actor.step) % 5 == 0:
+                    save_path_actor = self.manager_actor.save()
+                    self.logd.info(
+                        f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
                         extra=self.dictLogger,
                     )
-                    episode_reward = 0.0
-                    continue  # otherwise assuming the history is valid and back propagate
+                if int(self.ckpt_critic.step) % 5 == 0:
+                    save_path_critic = self.manager_critic.save()
+                    self.logd.info(
+                        f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
+                        extra=self.dictLogger,
+                    )
 
-                self.logc.info(
-                    f"E{epi_cnt} Experience Collection ends!",
-                    extra=self.dictLogger,
-                )
-
-                if self.infer:
-                    (critic_loss, actor_loss) = self.buffer.nolearn()
-                    self.logd.info("No Learning, just calculating loss")
-                else:
-                    self.logd.info("Learning and updating 6 times!")
-                    for k in range(6):
-                        # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                        (critic_loss, actor_loss) = self.buffer.learn()
-
-                        update_target(
-                            self.target_actor.variables,
-                            self.actor_model.variables,
-                            self.tau,
-                        )
-                        # self.logger.info(f"Updated target actor", extra=self.dictLogger)
-                        update_target(
-                            self.target_critic.variables,
-                            self.critic_model.variables,
-                            self.tau,
-                        )
-                        # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
-
-                    # Checkpoint manager save model
-                    self.ckpt_actor.step.assign_add(1)
-                    self.ckpt_critic.step.assign_add(1)
-                    if int(self.ckpt_actor.step) % 5 == 0:
-                        save_path_actor = self.manager_actor.save()
-                        self.logd.info(
-                            f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
-                            extra=self.dictLogger,
-                        )
-                    if int(self.ckpt_critic.step) % 5 == 0:
-                        save_path_critic = self.manager_critic.save()
-                        self.logd.info(
-                            f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
-                            extra=self.dictLogger,
-                        )
-
-                # self.logd.info(f"BP{k} done.", extra=self.dictLogger)
-                self.logd.info(
-                    f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
-                    extra=self.dictLogger,
-                )
+            # self.logd.info(f"BP{k} done.", extra=self.dictLogger)
+            self.logd.info(
+                f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                extra=self.dictLogger,
+            )
 
             # update running reward to check condition for solving
             running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
@@ -1501,12 +1524,13 @@ class realtime_train_infer_ddpg(object):
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
             # TODO terminate condition to be defined: reward > limit (percentage); time too long
-        with self.train_summary_writer.as_default():
-            tf.summary.trace_export(
-                name="veos_trace",
-                step=epi_cnt_local,
-                profiler_outdir=self.train_log_dir,
-            )
+        # with self.train_summary_writer.as_default():
+        #     tf.summary.trace_export(
+        #         name="veos_trace",
+        #         step=epi_cnt_local,
+        #         profiler_outdir=self.train_log_dir,
+        #     )
+        thr_countdown.join()
         thr_observe.join()
         thr_flash.join()
 
