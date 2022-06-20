@@ -117,7 +117,9 @@ class realtime_train_infer_rdpg(object):
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
 
-        self.logc.info(f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}")
+        self.logc.info(
+            f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
+        )
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logger.info(
@@ -525,9 +527,7 @@ class realtime_train_infer_rdpg(object):
 
                         # set flag for countdown thread
                         evt_epi_done.set()
-                        self.logc.info(
-                            f"Episode end starts countdown!"
-                        )
+                        self.logc.info(f"Episode end starts countdown!")
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
@@ -1045,8 +1045,12 @@ class realtime_train_infer_rdpg(object):
 
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
-        thr_countdown = Thread(target=self.capture_countdown_handler, name="countdown",args=[evt_epi_done])
-        thr_observe = Thread(target=self.get_truck_status, name="observe", args=[evt_epi_done])
+        thr_countdown = Thread(
+            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done]
+        )
+        thr_observe = Thread(
+            target=self.get_truck_status, name="observe", args=[evt_epi_done]
+        )
         thr_flash = Thread(target=self.flash_vcu, name="flash", args=())
         thr_countdown.start()
         thr_observe.start()

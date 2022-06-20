@@ -12,6 +12,8 @@ import time
 
 signal_lock = threading.Lock()
 program_exit = False
+
+
 def step1(evt_main, evt_step):
     global signal_lock, program_exit
     th_terminate = False
@@ -34,6 +36,7 @@ def step1(evt_main, evt_step):
 
     print("step 1: terminate")
 
+
 # In[3]:
 
 
@@ -48,9 +51,9 @@ def step2(evt_step):
             if program_exit:
                 th_terminate = True
                 continue
-        print('Step 2: wait')
+        print("Step 2: wait")
         evt_step.wait()
-        print('Step 2: wake and clear step')
+        print("Step 2: wake and clear step")
         evt_step.clear()
 
     print("step 2: terminate")
@@ -61,27 +64,27 @@ def step2(evt_step):
 
 evt_step = threading.Event()
 evt_main = threading.Event()
-thr_step1 = threading.Thread(target=step1,args=[evt_main, evt_step])
-thr_step2 = threading.Thread(target=step2,args=[evt_step])
+thr_step1 = threading.Thread(target=step1, args=[evt_main, evt_step])
+thr_step2 = threading.Thread(target=step2, args=[evt_step])
 thr_step1.start()
 thr_step2.start()
 
 i = 0
 while i < 3:
     evt_main.set()
-    print('Main: set main and sleep')
+    print("Main: set main and sleep")
     time.sleep(5)
-    i = i+1
-    print(f'Main: wake. i={i}')
+    i = i + 1
+    print(f"Main: wake. i={i}")
 
-print('Main: Set flag program_exit')
+print("Main: Set flag program_exit")
 with signal_lock:
     program_exit = True
 
-print('Main: set main evt')
+print("Main: set main evt")
 evt_main.set()
-print('Main: thread 1 join')
+print("Main: thread 1 join")
 thr_step1.join()
-print('Main: thread 2 join')
+print("Main: thread 2 join")
 thr_step2.join()
-print('Main: terminate')
+print("Main: terminate")
