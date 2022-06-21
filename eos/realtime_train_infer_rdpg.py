@@ -34,7 +34,7 @@ import warnings
 
 from threading import Lock, Thread
 import time, queue, math, signal
-
+from pathlib import PurePosixPath
 # third party imports
 from collections import deque
 import numpy as np
@@ -157,16 +157,22 @@ class realtime_train_infer_rdpg(object):
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(json_file_formatter)
+        strfilename = PurePosixPath(logfilename).stem + ".json"
+        strh = logging.FileHandler(strfilename, mode="a")
+        strh.setLevel(logging.DEBUG)
+        strh.setFormatter(json_file_formatter)
+
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
         ch.setFormatter(formatter)
         #  Cutelog socket
-        sh = SocketHandler("127.0.0.1", 19996)
-        sh.setFormatter(formatter)
+        skh = SocketHandler("127.0.0.1", 19996)
+        skh.setFormatter(formatter)
 
         self.logger.addHandler(fh)
+        self.logger.addHandler(strh)
         self.logger.addHandler(ch)
-        self.logger.addHandler(sh)
+        self.logger.addHandler(skh)
 
         self.logger.setLevel(logging.DEBUG)
         # self.dictLogger = {'funcName': '__self__.__func__.__name__'}
@@ -179,7 +185,8 @@ class realtime_train_infer_rdpg(object):
         self.tflog = tf.get_logger()
         self.tflog.addHandler(fh)
         self.tflog.addHandler(ch)
-        self.tflog.addHandler(sh)
+        self.tflog.addHandler(skh)
+        self.tflog.addHandler(strh)
 
     def set_data_path(self):
         # Create folder for ckpts loggings.

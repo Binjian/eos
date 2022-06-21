@@ -30,10 +30,10 @@ with open(logfile) as f:
         result.append(l)
 
 # get log file name
-jsonFileName = logfile.split("log")[0]
+jsonFileName = logfile.split("\.log")[0]
 # print(jsonFileName)
 # write to json file
-jsonFile = open(jsonFileName + "json", "w")
+jsonFile = open(jsonFileName + ".json", "w")
 jsonString = json.dumps(result)
 jsonFile.write(jsonString)
 jsonFile.close()
