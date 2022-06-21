@@ -744,6 +744,7 @@ class realtime_train_infer_ddpg(object):
                                         extra=self.dictLogger,
                                     )
                                     self.vcu_calib_table_row_start = 16
+                                # get the row of the table
 
                                 self.logd.info(
                                     f"Cycle velocity: Aver{vel_aver:.2f},Min{vel_min:.2f},Max{vel_max:.2f},StartIndex{self.vcu_calib_table_row_start}!",
@@ -1478,7 +1479,7 @@ class realtime_train_infer_ddpg(object):
             )
 
             # update running reward to check condition for solving
-            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+            running_reward = 0.05 * (-episode_reward) + (1 - 0.05) * running_reward
 
             # Create a matplotlib 3d figure, //export and save in log
             fig = plot_3d_figure(self.vcu_calib_table1, self.pd_columns, self.pd_index)
