@@ -268,10 +268,10 @@ class RDPG:
         # self.obs_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
         input_array = np.expand_dims(np.array(self.obs_t), axis=0)
-        logger.info(f"input_array.shape: {input_array.shape}")
+        logger.info(f"input_array.shape: {input_array.shape}", extra=dictLogger)
         # action = self.actor_net.predict(input_arra)
         action = self.actor_predict_step(input_array)
-        logger.info(f"action.shape: {action.shape}")
+        logger.info(f"action.shape: {action.shape}", extra=dictLogger)
         return action
 
     @tf.function
@@ -280,8 +280,8 @@ class RDPG:
         Evaluate the actors given a single observations.
         Batchsize is 1.
         """
-        logger.info(f"Tracing")
-        print("Tracing!")
+        logger.info(f"Tracing", extra=dictLogger)
+        print("Tracing!", extra=dictLogger)
         action = self.actor_net.predict(obs)
         return action
 
@@ -304,7 +304,7 @@ class RDPG:
         self.R.append(self.h_t)
         if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
-        logger.info(f"Memory length: {len(self.R)}")
+        logger.info(f"Memory length: {len(self.R)}", extra=dictLogger)
 
     def sample_mini_batch(self):
         """Sample a mini batch from the replay buffer. Add post padding for masking
@@ -320,14 +320,14 @@ class RDPG:
         """
         # Sample random indexes
         record_range = min(len(self.R), self._buffer_capacity)
-        logger.info(f"record_range: {record_range}")
+        logger.info(f"record_range: {record_range}", extra=dictLogger)
         indexes = np.random.choice(record_range, self._batch_size).tolist()
-        logger.info(f"indexes: {indexes}")
+        logger.info(f"indexes: {indexes}", extra=dictLogger)
         # logger.info(f"R indices type: {type(indexes)}:{indexes}")
         # mini-batch for Reward, Observation and Action, with keras padding
         # padding automatically expands every sequence to the maximal length by pad_sequences
 
-        logger.info(f"self.R[0]: {self.R[0][:,-1]}")
+        logger.info(f"self.R[0]: {self.R[0][:,-1]}", extra=dictLogger)
         r_n_t = [self.R[i][:, -1] for i in indexes]
         # logger.info(f"r_n_t.shape: {len(r_n_t)}X{len(r_n_t[-1])}")
         self.r_n_t = pad_sequences(
@@ -360,7 +360,7 @@ class RDPG:
                 ]  # return numpy array list
             )
         except:
-            logger.error("Ragged observation state o_n_l1!")
+            logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         a_n_l0 = [
@@ -383,7 +383,7 @@ class RDPG:
                 ]  # return numpy array list
             )
         except:
-            logger.error("Ragged action state a_n_l1!")
+            logger.error("Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     @tf.function
@@ -395,7 +395,7 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
-        logger.info(f"Tracing")
+        logger.info(f"Tracing", extra=dictLogger)
         print("Tracing!")
         self.sample_mini_batch()
 
