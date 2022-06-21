@@ -267,7 +267,7 @@ class RDPG:
         # self.obs_t = np.ones((1, t + 1, self._n_obs))
         # self.obs_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
-        input_array = np.expand_dims(np.array(self.obs_t), axis=0)
+        input_array = tf.convert_to_tensor(np.expand_dims(np.array(self.obs_t), axis=0))
         logger.info(f"input_array.shape: {input_array.shape}", extra=dictLogger)
         # action = self.actor_net.predict(input_arra)
         action = self.actor_predict_step(input_array)
@@ -337,7 +337,7 @@ class RDPG:
             value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
         )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
         # for alignment with critic output with extra feature dimension
-        self.r_n_t = np.expand_dims(self.r_n_t, axis=2)
+        self.r_n_t = tf.convert_to_tensor(np.expand_dims(self.r_n_t, axis=2))
         # logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
 
         o_n_l0 = [
@@ -359,6 +359,7 @@ class RDPG:
                     for o_n_l1i in o_n_l1
                 ]  # return numpy array list
             )
+            self.o_n_t = tf.convert_to_tensor(self.o_n_t)
         except:
             logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
@@ -382,6 +383,7 @@ class RDPG:
                     for a_n_l1i in a_n_l1
                 ]  # return numpy array list
             )
+            self.a_n_t = tf.convert_to_tensor(self.a_n_t)
         except:
             logger.error("Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")

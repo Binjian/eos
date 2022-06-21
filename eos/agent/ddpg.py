@@ -126,7 +126,7 @@ class Buffer:
         datafolder="./",
     ):
         # Number of "experiences" to store at max
-        self.buffer_capacity = buffer_capacity
+        self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int32)
         # Num of tuples to train on.
         self.batch_size = batch_size
 
@@ -146,7 +146,7 @@ class Buffer:
         self.reward_buffer = None
         self.next_state_buffer = None
         # Its tells us num of times record() was called.
-        self.buffer_counter = 0
+        self.buffer_counter = tf.convert_to_tensor(0, dtype=tf.int32)
         self.load()
 
         self.actor_model = actor_model
@@ -283,9 +283,9 @@ class Buffer:
         # batch size starting from 1, until reach buffer
         logger.info(f"Tracing!", extra=dictLogger)
         print("Tracing!")
-        record_range = min(self.buffer_counter, self.buffer_capacity)
+        record_range = tf.math.minimum(self.buffer_counter, self.buffer_capacity)
         # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
-        batch_indices = np.random.choice(record_range, self.batch_size)
+        batch_indices = tf.convert_to_tensor(np.random.choice(record_range, self.batch_size))
 
         # convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])

@@ -410,10 +410,11 @@ class realtime_train_infer_ddpg(object):
 
         # ou_noise is a row vector of num_actions dimension
         self.ou_noise_std_dev = 0.2
-        self.ou_noise = OUActionNoise(
+        self.ou_noise = tf.convert_to_tensor(
+            OUActionNoise(
             mean=np.zeros(self.num_reduced_actions),
             std_deviation=float(self.ou_noise_std_dev)
-            * np.ones(self.num_reduced_actions),
+            * np.ones(self.num_reduced_actions),)
         )
 
     def init_checkpoint(self):
