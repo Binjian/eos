@@ -126,7 +126,7 @@ class Buffer:
         datafolder="./",
     ):
         # Number of "experiences" to store at max
-        self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int32)
+        self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
         # Num of tuples to train on.
         self.batch_size = batch_size
 
@@ -146,7 +146,7 @@ class Buffer:
         self.reward_buffer = None
         self.next_state_buffer = None
         # Its tells us num of times record() was called.
-        self.buffer_counter = tf.convert_to_tensor(0, dtype=tf.int32)
+        self.buffer_counter = tf.convert_to_tensor(0, dtype=tf.int64)
         self.load()
 
         self.actor_model = actor_model
@@ -277,7 +277,6 @@ class Buffer:
         return critic_loss, actor_loss
 
     # We compute the loss and update parameters
-    @tf.function
     def learn(self):
         # get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
@@ -285,7 +284,7 @@ class Buffer:
         print("Tracing!")
         record_range = tf.math.minimum(self.buffer_counter, self.buffer_capacity)
         # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
-        batch_indices = tf.convert_to_tensor(np.random.choice(record_range, self.batch_size))
+        batch_indices = np.random.choice(record_range, self.batch_size)
 
         # convert to tensors
         state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
@@ -464,21 +463,23 @@ exploration.
 """
 
 # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
-@tf.function
 def policy(actor_model, state, noise_object):
-    logger.info(f"Tracing", extra=dictLogger)
-    print("Tracing!")
-    sampled_actions = tf.squeeze(actor_model(state)).numpy()
-    noise = noise_object()  # noise object is a row vector
-    # Adding noise to action
-    sampled_actions = sampled_actions + noise
 
     # We make sure action is within bounds
     # legal_action = np.clip(sampled_actions, action_lower, action_upper)
 
+    noise = tf.convert_to_tensor( noise_object() ) # noise object is a row vector
+    sampled_actions = infer(actor_model, state, noise)
     # return np.squeeze(sampled_actions)  # ? might be unnecessary
     return sampled_actions
 
+@tf.function
+def infer(actor_model, state, noise):
+    logger.info(f"Tracing", extra=dictLogger)
+    print("Tracing!")
+    sampled_actions = tf.squeeze(actor_model(state))
+    # Adding noise to action
+    sampled_actions = sampled_actions + noise
 
 """
 ## Training hyperparameters

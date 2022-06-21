@@ -281,7 +281,7 @@ class RDPG:
         Batchsize is 1.
         """
         logger.info(f"Tracing", extra=dictLogger)
-        print("Tracing!", extra=dictLogger)
+        print("Tracing!")
         action = self.actor_net.predict(obs)
         return action
 
