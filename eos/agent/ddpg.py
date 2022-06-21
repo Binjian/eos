@@ -277,9 +277,12 @@ class Buffer:
         return critic_loss, actor_loss
 
     # We compute the loss and update parameters
+    @tf.function
     def learn(self):
         # get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
+        logger.info(f"Tracing!", extra=dictLogger)
+        print("Tracing!")
         record_range = min(self.buffer_counter, self.buffer_capacity)
         # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
         batch_indices = np.random.choice(record_range, self.batch_size)
@@ -461,7 +464,10 @@ exploration.
 """
 
 # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
+@tf.function
 def policy(actor_model, state, noise_object):
+    logger.info(f"Tracing", extra=dictLogger)
+    print("Tracing!")
     sampled_actions = tf.squeeze(actor_model(state)).numpy()
     noise = noise_object()  # noise object is a row vector
     # Adding noise to action
