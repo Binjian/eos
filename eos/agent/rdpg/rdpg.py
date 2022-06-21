@@ -269,8 +269,20 @@ class RDPG:
         # expand the batch dimension and turn obs_t into a numpy array
         input_array = np.expand_dims(np.array(self.obs_t), axis=0)
         logger.info(f"input_array.shape: {input_array.shape}")
-        action = self.actor_net.predict(input_array)
+        # action = self.actor_net.predict(input_arra)
+        action = self.actor_predict_step(input_array)
         logger.info(f"action.shape: {action.shape}")
+        return action
+
+    @tf.function
+    def actor_predict_step(self, obs):
+        """
+        Evaluate the actors given a single observations.
+        Batchsize is 1.
+        """
+        logger.info(f"Tracing")
+        print("Tracing!")
+        action = self.actor_net.predict(obs)
         return action
 
     def reset_noise(self):
@@ -374,6 +386,7 @@ class RDPG:
             logger.error("Ragged action state a_n_l1!")
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
+    @tf.function
     def train(self):
         """
         Train the actor and critic moving network.
@@ -382,6 +395,8 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
+        logger.info(f"Tracing")
+        print("Tracing!")
         self.sample_mini_batch()
 
         # train critic USING BPTT
