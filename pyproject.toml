@@ -25,6 +25,7 @@ include = ["eos/*", "*.csv" ]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
+poetry = "*"
 tensorflow = ">=2.6.0"
 tensorflow-estimator = ">=2.8.0"
 tensorflow-probability = ">=0.16.0"
