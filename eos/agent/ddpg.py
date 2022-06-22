@@ -468,7 +468,7 @@ def policy(actor_model, state, noise_object):
     # We make sure action is within bounds
     # legal_action = np.clip(sampled_actions, action_lower, action_upper)
 
-    noise = tf.convert_to_tensor( noise_object() ) # noise object is a row vector
+    noise = tf.convert_to_tensor( noise_object(), dtype=tf.float32) # noise object is a row vector
     sampled_actions = infer(actor_model, state, noise)
     # return np.squeeze(sampled_actions)  # ? might be unnecessary
     return sampled_actions
