@@ -100,6 +100,7 @@ class realtime_train_infer_rdpg(object):
         self.eps = np.finfo(
             np.float32
         ).eps.item()  # smallest number such that 1.0 + eps != 1.0
+        self.h_t = []
 
         if self.cloud:
             # reset proxy (internal site force no proxy)
@@ -1166,12 +1167,12 @@ class realtime_train_infer_rdpg(object):
 
                         if step_count > 0:
                             if step_count == 2:  # first even step has $r_0$
-                                h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
+                                self.h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
                             else:
-                                h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
+                                self.h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
 
                             self.logd.info(
-                                f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, h_t shape: {len(h_t)}X{h_t[-1].shape}.",
+                                f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
                                 extra=self.dictLogger,
                             )
                         # predict action probabilities and estimated future rewards
@@ -1331,7 +1332,7 @@ class realtime_train_infer_rdpg(object):
             )
 
             # add episode history to agent replay buffer
-            self.rdpg.add_to_replay(h_t)
+            self.rdpg.add_to_replay(self.h_t)
 
             if self.infer:
                 (actor_loss, critic_loss) = self.rdpg.notrain()
