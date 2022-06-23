@@ -235,6 +235,7 @@ class Buffer:
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
+        print("Tracing update!")
         with tf.GradientTape() as tape:
             target_actions = self.target_actor(next_state_batch, training=True)
             y = reward_batch + self.gamma * self.target_critic(
@@ -250,7 +251,7 @@ class Buffer:
             # scalar value, average over the batch
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        logger.info(f"BP done.", extra=dictLogger)
+        # logger.info(f"BP done.", extra=dictLogger)
 
         critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         self.critic_optimizer.apply_gradients(
@@ -280,8 +281,7 @@ class Buffer:
     def learn(self):
         # get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
-        logger.info(f"Tracing!", extra=dictLogger)
-        print("Tracing!")
+        # logger.info(f"Tracing!", extra=dictLogger)
         record_range = tf.math.minimum(self.buffer_counter, self.buffer_capacity)
         # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
         batch_indices = np.random.choice(record_range, self.batch_size)
@@ -468,18 +468,19 @@ def policy(actor_model, state, noise_object):
     # We make sure action is within bounds
     # legal_action = np.clip(sampled_actions, action_lower, action_upper)
 
-    noise = tf.convert_to_tensor( noise_object(), dtype=tf.float32) # noise object is a row vector
-    sampled_actions = infer(actor_model, state, noise)
+    sampled_actions = infer(actor_model, state)
     # return np.squeeze(sampled_actions)  # ? might be unnecessary
-    return sampled_actions
+    return sampled_actions + noise_object()
+
 
 @tf.function
-def infer(actor_model, state, noise):
-    logger.info(f"Tracing", extra=dictLogger)
-    print("Tracing!")
+def infer(actor_model, state):
+    # logger.info(f"Tracing", extra=dictLogger)
+    print("Tracing infer!")
     sampled_actions = tf.squeeze(actor_model(state))
     # Adding noise to action
-    sampled_actions = sampled_actions + noise
+    return sampled_actions
+
 
 """
 ## Training hyperparameters

@@ -280,7 +280,7 @@ class RDPG:
         Evaluate the actors given a single observations.
         Batchsize is 1.
         """
-        logger.info(f"Tracing", extra=dictLogger)
+        # logger.info(f"Tracing", extra=dictLogger)
         print("Tracing!")
         action = self.actor_net.predict(obs)
         return action
@@ -388,7 +388,6 @@ class RDPG:
             logger.error("Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
-    @tf.function
     def train(self):
         """
         Train the actor and critic moving network.
@@ -397,11 +396,13 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
-        logger.info(f"Tracing", extra=dictLogger)
-        print("Tracing!")
         self.sample_mini_batch()
+        self.train_step()
 
+    @tf.function
+    def train_step(self):
         # train critic USING BPTT
+        print("Tracing train_step!")
         with tf.GradientTape() as tape:
             # actions at h_t+1
             self.t_a_ht1 = self.target_actor_net.evaluate_actions(self.o_n_t)
@@ -415,7 +416,7 @@ class RDPG:
             # compute the target action value at h_t for the current batch
             # using fancy indexing
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-            t_q_ht_bl = np.append(
+            t_q_ht_bl = tf.experimental.numpy.append(
                 self.t_q_ht1[:, 1:, :], np.zeros((self._batch_size, 1, 1)), axis=1
             )  # TODO: replace self._seq_len with maximal seq length
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
@@ -481,7 +482,7 @@ class RDPG:
         # compute the target action value at h_t for the current batch
         # using fancy indexing
         # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-        t_q_ht_bl = np.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1)
+        t_q_ht_bl = tf.experimental.numpy.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1)
         # y_n_t shape (batch_size, seq_len, 1)
         self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
 
