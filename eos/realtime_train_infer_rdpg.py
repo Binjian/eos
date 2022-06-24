@@ -644,8 +644,7 @@ class realtime_train_infer_rdpg(object):
                                     extra=self.dictLogger,
                                 )
                                 # self.logd.info(
-                                #     f"Producer Queue has {motionpowerQueue.qsize()}!",
-                                #     extra=self.dictLogger,
+                                #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
                                 self.motionpowerQueue.put(
                                     self.get_truck_status_motpow_t
@@ -1103,8 +1102,15 @@ class realtime_train_infer_rdpg(object):
                             self.program_exit
                         )  # if program_exit is False, reset to wait
                         epi_end = self.episode_end
-                        done = self.episode_done
+                        done = self.episode_done  # this class member episode_done is driving action (maneuver) done
                         table_start = self.vcu_calib_table_row_start
+                    self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
+                    if epi_end and done and (self.motionpowerQueue.qsize()>2):
+                        # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
+                        self.logc.info(f"Residue in Queue is a sign of disordered sequence, interrupted!")
+                        done = False # this local done is true done with data exploitation
+                        epi_end = True
+
 
                     if epi_end:  # stop observing and inferring
                         continue
