@@ -140,7 +140,7 @@ class RDPG:
         self._seq_len = seq_len
         self._batch_size = batch_size
         self._padding_value = padding_value
-        self._gamma = gamma
+        self._gamma = tf.cast(gamma, dtype=tf.float32)
         # new data
         self.R = (
             []
