@@ -300,7 +300,7 @@ class RDPG:
         #     extra=dictLogger
         # )
         self.h_t = np.array(h_t)
-        logger.info(f"h_t np arary shape: {self.h_t.shape}.", extra=dictLogger)
+        logger.info(f"h_t np array shape: {self.h_t.shape}.", extra=dictLogger)
         self.R.append(self.h_t)
         if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
@@ -321,13 +321,13 @@ class RDPG:
         # Sample random indexes
         record_range = min(len(self.R), self._buffer_capacity)
         logger.info(f"record_range: {record_range}", extra=dictLogger)
-        indexes = np.random.choice(record_range, self._batch_size).tolist()
+        indexes = np.random.choice(record_range, self._batch_size)
         logger.info(f"indexes: {indexes}", extra=dictLogger)
         # logger.info(f"R indices type: {type(indexes)}:{indexes}")
         # mini-batch for Reward, Observation and Action, with keras padding
         # padding automatically expands every sequence to the maximal length by pad_sequences
 
-        logger.info(f"self.R[0]: {self.R[0][:,-1]}", extra=dictLogger)
+        logger.info(f"self.R[0][:,-1]: {self.R[0][:,-1]}", extra=dictLogger)
         r_n_t = [self.R[i][:, -1] for i in indexes]
         # logger.info(f"r_n_t.shape: {len(r_n_t)}X{len(r_n_t[-1])}")
         self.r_n_t = pad_sequences(
@@ -482,7 +482,9 @@ class RDPG:
         # compute the target action value at h_t for the current batch
         # using fancy indexing
         # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-        t_q_ht_bl = tf.experimental.numpy.append(self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1)
+        t_q_ht_bl = tf.experimental.numpy.append(
+            self.t_q_ht1[:, [1, self._seq_len], :], 0, axis=1
+        )
         # y_n_t shape (batch_size, seq_len, 1)
         self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
 
