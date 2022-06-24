@@ -425,8 +425,6 @@ class realtime_train_infer_rdpg(object):
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
             self.get_truck_status_motpow_t = []
-            while not self.motionpowerQueue.empty():
-                self.motionpowerQueue.get()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
             self.vel_hist_dQ.clear()
             # raise Exception("reset capture to stop")
@@ -522,6 +520,8 @@ class realtime_train_infer_rdpg(object):
                         th_exit = False
                         # ts_epi_start = time.time()
 
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
                         self.vel_hist_dQ.clear()
                         with self.hmi_lock:
                             self.episode_done = False
@@ -552,8 +552,8 @@ class realtime_train_infer_rdpg(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        # while not self.motionpowerQueue.empty():
+                        #     self.motionpowerQueue.get()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
