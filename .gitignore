@@ -40,3 +40,4 @@ data
 *.xml
 *.python-version
 *.iml
+*.json
