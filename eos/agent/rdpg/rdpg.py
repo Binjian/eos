@@ -274,7 +274,7 @@ class RDPG:
         logger.info(f"action.shape: {action.shape}", extra=dictLogger)
         return action
 
-    @tf.function
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._n_obs], dtype=tf.float32)])
     def actor_predict_step(self, obs):
         """
         Evaluate the actors given a single observations.

@@ -127,6 +127,7 @@ class ActorNet:
     def reset_noise(self):
         self.ou_noise.reset()
 
+    # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
     def predict(self, state):
         """Predict the action given the state.
         Args:
@@ -136,13 +137,29 @@ class ActorNet:
             np.array: Action
         """
         # logc("ActorNet.predict")
+
+        # get the last step action and squeeze the batch dimension
+        action = self.predict_step(state)
+        sampled_action = last_action + self.ou_noise()  # noise object is a row vector
+        # logc("ActorNet.predict")
+        return sampled_action
+
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
+    def predict_step(self, state):
+        """Predict the action given the state.
+         Args:
+             state (np.array): State, Batch dimension needs to be one.
+
+         Returns:
+             np.array: Action
+         """
+        # logc("ActorNet.predict")
         action_seq = self.eager_model(state)
 
         # get the last step action and squeeze the batch dimension
         last_action = tf.squeeze(action_seq[:, -1, :])
-        sampled_action = last_action + self.ou_noise()  # noise object is a row vector
-        # logc("ActorNet.predict")
-        return sampled_action
+        return last_action
+
 
     def evaluate_actions(self, state):
         """Evaluate the action given the state.
