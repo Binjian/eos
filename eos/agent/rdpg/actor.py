@@ -142,7 +142,7 @@ class ActorNet:
 
         # get the last step action and squeeze the batch dimension
         action = self.predict_step(state)
-        sampled_action = last_action + self.ou_noise()  # noise object is a row vector
+        sampled_action = action + self.ou_noise()  # noise object is a row vector
         # logc("ActorNet.predict")
         return sampled_action
 
