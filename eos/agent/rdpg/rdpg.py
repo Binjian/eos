@@ -107,6 +107,7 @@ from .actor import ActorNet
 from .critic import CriticNet
 from eos.utils.exception import ReadOnlyError
 
+global _n_obs
 
 class RDPG:
     def __init__(
@@ -132,10 +133,11 @@ class RDPG:
             num_observations (int): Dimension of the state space.
             padding_value (float): Value to pad the state with, impossible value for observation, action or re
         """
-
+        global _n_obs
         self._num_observations = num_observations
         self._obs_len = obs_len
         self._n_obs = num_observations * obs_len  # 3 * 30
+        _n_obs = self._n_obs
         self._n_act = num_actions  # reduced action 5 * 17
         self._seq_len = seq_len
         self._batch_size = batch_size
@@ -274,7 +276,7 @@ class RDPG:
         logger.info(f"action.shape: {action.shape}", extra=dictLogger)
         return action
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._n_obs], dtype=tf.float32)])
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
     def actor_predict_step(self, obs):
         """
         Evaluate the actors given a single observations.

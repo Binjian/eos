@@ -10,6 +10,7 @@ from eos import logger, dictLogger
 from ..utils.ou_noise import OUActionNoise
 from eos.utils.exception import ReadOnlyError
 
+global _state_dim
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
@@ -39,6 +40,7 @@ class ActorNet:
         """
 
         self._state_dim = state_dim
+        _state_dim = self._state_dim
         self._action_dim = action_dim
         self._hidden_dim = hidden_dim
         self._lr = lr
@@ -144,7 +146,7 @@ class ActorNet:
         # logc("ActorNet.predict")
         return sampled_action
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
     def predict_step(self, state):
         """Predict the action given the state.
          Args:
