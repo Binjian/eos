@@ -269,7 +269,7 @@ class RDPG:
         # self.obs_t = np.ones((1, t + 1, self._n_obs))
         # self.obs_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
-        input_array = tf.convert_to_tensor(np.expand_dims(np.array(self.obs_t), axis=0))
+        input_array = tf.convert_to_tensor(np.expand_dims(np.array(self.obs_t), axis=0), dtype=tf.float32)
         logger.info(f"input_array.shape: {input_array.shape}", extra=dictLogger)
         # action = self.actor_net.predict(input_arra)
         action = self.actor_predict_step(input_array)

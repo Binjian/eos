@@ -386,7 +386,8 @@ class realtime_train_infer_rdpg(object):
         init_states = tf.convert_to_tensor(
             init_motionpower
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        input_array = tf.reshape(init_states, -1)
+        input_array = tf.cast(tf.reshape(init_states, -1), dtype= tf.float32)
+
         # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
 
         action0 = self.rdpg.actor_predict(input_array, 0)
