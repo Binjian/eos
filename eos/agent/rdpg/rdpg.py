@@ -239,13 +239,13 @@ class RDPG:
         try:
             os.makedirs(self._ckpt_critic_dir)
             logger.info(
-                "Created checkpoint directory for critic: %s",
+                f"Created checkpoint directory for critic: %s",
                 self._ckpt_critic_dir,
                 extra=dictLogger,
             )
         except FileExistsError:
             logger.info(
-                "Critic checkpoint directory already exists: %s",
+                f"Critic checkpoint directory already exists: %s",
                 self._ckpt_critic_dir,
                 extra=dictLogger,
             )
@@ -385,7 +385,7 @@ class RDPG:
             )
             self.a_n_t = tf.convert_to_tensor(self.a_n_t)
         except:
-            logger.error("Ragged action state a_n_l1!", extra=dictLogger)
+            logger.error(f"Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     def train(self):
