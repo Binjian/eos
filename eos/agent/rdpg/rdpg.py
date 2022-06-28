@@ -400,12 +400,12 @@ class RDPG:
         """
 
         self.sample_mini_batch()
-        self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
+        actor_loss, critic_loss = self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
+        return actor_loss, critic_loss
 
-    # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
-    @tf.function(input_signature=[tf.TensorSpec(shape=[4,None,1], dtype=tf.float32),
-                                  tf.TensorSpec(shape=[4,None,90], dtype=tf.float32),
-                                  tf.TensorSpec(shape=[4,None,85], dtype=tf.float32)])
+    # @tf.function(input_signature=[tf.TensorSpec(shape=[None,None,1], dtype=tf.float32),
+    #                               tf.TensorSpec(shape=[None,None,90], dtype=tf.float32),
+    #                               tf.TensorSpec(shape=[None,None,85], dtype=tf.float32)])
     def train_step(self, r_n_t, o_n_t, a_n_t):
         # train critic USING BPTT
         print("Tracing train_step!")
@@ -417,7 +417,7 @@ class RDPG:
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
-            # logger.info(f"t_q_ht1.shape: {self.t_q_ht1.shape}")
+            logger.info(f"t_q_ht1.shape: {self.t_q_ht1.shape}")
 
             # compute the target action value at h_t for the current batch
             # using fancy indexing
@@ -431,7 +431,7 @@ class RDPG:
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
             y_n_t = r_n_t + self._gamma * t_q_ht_bl
-            # logger.info(f"y_n_t.shape: {self.y_n_t.shape}")
+            logger.info(f"y_n_t.shape: {self.y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
@@ -443,11 +443,14 @@ class RDPG:
         self.critic_net.optimizer.apply_gradients(
             zip(critic_grad, self.critic_net.eager_model.trainable_variables)
         )
+        logger.info(f"applied critic gradient", extra=dictLogger)
 
         # train actor USING BPTT
         with tf.GradientTape() as tape:
             a_ht = self.actor_net.evaluate_actions(o_n_t)
+            logger.info(f"a_ht.shape: {a_ht.shape}", extra=dictLogger)
             q_ht = self.critic_net.evaluate_q(o_n_t, a_ht)
+            logger.info(f"q_ht.shape: {q_ht.shape}", extra=dictLogger)
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
             # logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht
@@ -470,6 +473,7 @@ class RDPG:
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
+        logger.info(f"applied actor gradient", extra=dictLogger)
 
         return actor_loss, critic_loss
 

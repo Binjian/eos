@@ -163,6 +163,7 @@ class ActorNet:
         return last_action
 
 
+    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
     def evaluate_actions(self, state):
         """Evaluate the action given the state.
         Args:
