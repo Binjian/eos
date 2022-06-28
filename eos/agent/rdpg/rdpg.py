@@ -339,7 +339,7 @@ class RDPG:
             value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
         )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
         # for alignment with critic output with extra feature dimension
-        self.r_n_t = tf.convert_to_tensor(np.expand_dims(self.r_n_t, axis=2))
+        self.r_n_t = tf.convert_to_tensor(np.expand_dims(self.r_n_t, axis=2),dtype=tf.float32)
         # logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
 
         o_n_l0 = [
@@ -361,7 +361,7 @@ class RDPG:
                     for o_n_l1i in o_n_l1
                 ]  # return numpy array list
             )
-            self.o_n_t = tf.convert_to_tensor(self.o_n_t)
+            self.o_n_t = tf.convert_to_tensor(self.o_n_t, dtype=tf.float32)
         except:
             logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
@@ -385,7 +385,7 @@ class RDPG:
                     for a_n_l1i in a_n_l1
                 ]  # return numpy array list
             )
-            self.a_n_t = tf.convert_to_tensor(self.a_n_t)
+            self.a_n_t = tf.convert_to_tensor(self.a_n_t, dtype=tf.float32)
         except:
             logger.error(f"Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
@@ -401,6 +401,7 @@ class RDPG:
         self.sample_mini_batch()
         self.train_step()
 
+    # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
     @tf.function
     def train_step(self):
         # train critic USING BPTT
@@ -419,7 +420,8 @@ class RDPG:
             # using fancy indexing
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
             t_q_ht_bl = tf.experimental.numpy.append(
-                self.t_q_ht1[:, 1:, :], np.zeros((self._batch_size, 1, 1)), axis=1
+                self.t_q_ht1[:, 1:, :], np.zeros((self._batch_size, 1, 1)), axis=1,
+                dtype=tf.float32
             )  # TODO: replace self._seq_len with maximal seq length
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
