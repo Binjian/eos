@@ -107,7 +107,7 @@ from .actor import ActorNet
 from .critic import CriticNet
 from eos.utils.exception import ReadOnlyError
 
-global _n_obs
+global _n_obs, _batch_size
 
 class RDPG:
     def __init__(
@@ -133,7 +133,7 @@ class RDPG:
             num_observations (int): Dimension of the state space.
             padding_value (float): Value to pad the state with, impossible value for observation, action or re
         """
-        global _n_obs
+        global _n_obs, _batch_size
         self._num_observations = num_observations
         self._obs_len = obs_len
         self._n_obs = num_observations * obs_len  # 3 * 30
@@ -141,6 +141,7 @@ class RDPG:
         self._n_act = num_actions  # reduced action 5 * 17
         self._seq_len = seq_len
         self._batch_size = batch_size
+        _batch_size = self._batch_size
         self._padding_value = padding_value
         self._gamma = tf.cast(gamma, dtype=tf.float32)
         # new data
@@ -399,38 +400,42 @@ class RDPG:
         """
 
         self.sample_mini_batch()
-        self.train_step()
+        self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
-    @tf.function
-    def train_step(self):
+    @tf.function(input_signature=[tf.TensorSpec(shape=[4,None,1], dtype=tf.float32),
+                                  tf.TensorSpec(shape=[4,None,90], dtype=tf.float32),
+                                  tf.TensorSpec(shape=[4,None,85], dtype=tf.float32)])
+    def train_step(self, r_n_t, o_n_t, a_n_t):
         # train critic USING BPTT
         print("Tracing train_step!")
         with tf.GradientTape() as tape:
             # actions at h_t+1
-            self.t_a_ht1 = self.target_actor_net.evaluate_actions(self.o_n_t)
+            t_a_ht1 = self.target_actor_net.evaluate_actions(o_n_t)
 
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
-            self.t_q_ht1 = self.target_critic_net.evaluate_q(self.o_n_t, self.t_a_ht1)
+            t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
             # logger.info(f"t_q_ht1.shape: {self.t_q_ht1.shape}")
 
             # compute the target action value at h_t for the current batch
             # using fancy indexing
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-            t_q_ht_bl = tf.experimental.numpy.append(
-                self.t_q_ht1[:, 1:, :], np.zeros((self._batch_size, 1, 1)), axis=1,
-                dtype=tf.float32
-            )  # TODO: replace self._seq_len with maximal seq length
+            t_q_ht_bl = tf.cast(
+                tf.experimental.numpy.append(
+                    t_q_ht1[:, 1:, :], np.zeros((self._batch_size, 1, 1)), axis=1,
+                ),  # TODO: replace self._seq_len with maximal seq length
+                dtype= tf.float32
+            )
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
-            self.y_n_t = self.r_n_t + self._gamma * t_q_ht_bl
+            y_n_t = r_n_t + self._gamma * t_q_ht_bl
             # logger.info(f"y_n_t.shape: {self.y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
-                self.y_n_t - self.critic_net.evaluate_q(self.o_n_t, self.a_n_t)
+                y_n_t - self.critic_net.evaluate_q(o_n_t, a_n_t)
             )
         critic_grad = tape.gradient(
             critic_loss, self.critic_net.eager_model.trainable_variables
@@ -441,13 +446,13 @@ class RDPG:
 
         # train actor USING BPTT
         with tf.GradientTape() as tape:
-            self.a_ht = self.actor_net.evaluate_actions(self.o_n_t)
-            self.q_ht = self.critic_net.evaluate_q(self.o_n_t, self.a_ht)
+            a_ht = self.actor_net.evaluate_actions(o_n_t)
+            q_ht = self.critic_net.evaluate_q(o_n_t, a_ht)
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
             # logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht
             # scalar value, average over the batch and time steps
-            actor_loss = tf.math.reduce_mean(-self.q_ht)
+            actor_loss = tf.math.reduce_mean(-q_ht)
 
         # action_gradients = tape.gradient(self.a_ht, self.actor_net.eager_model.trainable_variables)
         # actor_grad_weight = tape.gradient(
