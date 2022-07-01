@@ -408,8 +408,9 @@ class RDPG:
     #                               tf.TensorSpec(shape=[None,None,85], dtype=tf.float32)])
     def train_step(self, r_n_t, o_n_t, a_n_t):
         # train critic USING BPTT
-        # print("Tracing train_step!")
-        logger.info(f"start train_step")
+        print("Tracing train_step!")
+        logger.info(f"start train_step with tracing")
+        # logger.info(f"start train_step")
         with tf.GradientTape() as tape:
             # actions at h_t+1
             logger.info(f"start evaluate_actions")
