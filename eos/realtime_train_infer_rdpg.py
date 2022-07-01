@@ -397,6 +397,18 @@ class realtime_train_infer_rdpg(object):
         )
         self.rdpg.reset_noise()
 
+        # warm up the GPU training Graph execution pipeline
+        if not self.infer:
+            self.logger.info(
+                f"rdpg warm up training!",
+                extra=self.dictLogger,
+            )
+            (actor_loss, critic_loss) = self.rdpg.train()
+            self.logger.info(
+                f"rdpg warm up training done!",
+                extra=self.dictLogger,
+            )
+
     # @eye
     # tracer.start()
 
