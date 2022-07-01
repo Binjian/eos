@@ -16,6 +16,8 @@ args = parser.parse_args()
 if args.path:
     # logfile = logfolder + logfilename
     logfile = args.path
+else:
+    logfile = "log.log"
 # in log file
 with open(logfile) as f:
     # line by line
