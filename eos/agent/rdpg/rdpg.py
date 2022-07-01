@@ -417,7 +417,7 @@ class RDPG:
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
-            logger.info(f"t_q_ht1.shape: {self.t_q_ht1.shape}")
+            logger.info(f"t_q_ht1.shape: {t_q_ht1.shape}")
 
             # compute the target action value at h_t for the current batch
             # using fancy indexing
@@ -431,7 +431,7 @@ class RDPG:
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
             y_n_t = r_n_t + self._gamma * t_q_ht_bl
-            logger.info(f"y_n_t.shape: {self.y_n_t.shape}")
+            logger.info(f"y_n_t.shape: {y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
