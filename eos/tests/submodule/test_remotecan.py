@@ -66,8 +66,8 @@ class TestRemoteCan(unittest.TestCase):
             print("response:", response)
 
     def test_native(self):
-        map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
-        success, response = self.client.send_torque_map(map2d)
+        map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
+        success, response = self.client.send_torque_map(map2d, True)
         if success:
             signal_success, remotecan_data = self.client.get_signals(duration=2)
             data_type = type(remotecan_data)
