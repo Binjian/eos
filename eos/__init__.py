@@ -1,4 +1,4 @@
-from .comm.remotecan.remote_can_client import remote_can_client
+from .comm.remote.remote_can_client import remote_can_client
 from .comm.tbox.scripts import tbox_sim
 from .comm.vcu_calib_generator import generate_vcu_calibration
 from pathlib import Path
