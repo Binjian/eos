@@ -29,14 +29,15 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     ped = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
 
     if shortcut == 1:
-        vel = np.linspace(
-            velocity_range[0], velocity_range[1], num=nvl
-        )  # 0 - 72kmph velocity
+        vel_ = np.linspace(
+            velocity_range[0], velocity_range[1], num=nvl-1
+        )  # 0 - 120 kmph velocity
+        vel = np.insert(vel_, 1, 7) / 3.6  # insert 7 kmph, and convert to m/s
         pdv, vlv = np.meshgrid(ped, vel, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
     elif shortcut == 2:  # import default eco calibration table
         table_path = dataroot.joinpath(
-            "init_table_coastdown.csv"
+            "vb7_init_table.csv"
         )  # init table is driver independent in the pardir.
         pd_data = pd.read_csv(table_path, header=0, index_col=0)
         # table_path = datafolder + "/54_vertices_approx-regen3.csv"  # init table is driver independent in the pardir.
@@ -47,7 +48,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         if not files:  # files is empty list []
             print("no last table is available. Get init table instead.")
             latest_table = dataroot.joinpath(
-                "init_table_coastdown.csv"
+                "vb7_init_table.csv"
             )  # init table is driver independent in the pardir.
         else:
             latest_table = max(files, key=os.path.getmtime)

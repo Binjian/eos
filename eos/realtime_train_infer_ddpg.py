@@ -218,7 +218,7 @@ class realtime_train_infer_ddpg(object):
 
         # initialize pedal map parameters
         self.vcu_calib_table_col = 17  # number of pedal steps, x direction
-        self.vcu_calib_table_row = 21  # numnber of velocity steps, y direction
+        self.vcu_calib_table_row = 14  # numnber of velocity steps, y direction
         self.vcu_calib_table_budget = (
             0.05  # interval that allows modifying the calibration table
         )
@@ -230,8 +230,9 @@ class realtime_train_infer_ddpg(object):
         self.action_upper = 1.0
         self.action_bias = 0.0
 
-        self.pd_index = np.linspace(0, 100, self.vcu_calib_table_row)
-        self.pd_index[1] = 7
+        # index of the current pedal map is speed in kmph
+        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row-1)
+        self.pd_index = np.insert(pd_ind, 1, 7) # insert 7 kmph
         self.pd_columns = (
             np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100])
             / 100
@@ -264,7 +265,7 @@ class realtime_train_infer_ddpg(object):
         )  # unit: km/h
 
         self.pedal_range = [0, 1.0]
-        self.velocity_range = [0, 20.0]
+        self.velocity_range = [0, 120.0]
 
         if self.resume:
             self.vcu_calib_table0 = generate_vcu_calibration(
@@ -332,8 +333,8 @@ class realtime_train_infer_ddpg(object):
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*21 = 357
-        self.vcu_calib_table_row_reduced = 5  # 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (
+        self.vcu_calib_table_row_reduced = 3  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
+        self.num_reduced_actions = (          # 0:3 adaptive rows correspond to low speed from  0~10, 7~20, 10~30, 20~40, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 5x17=85
         # hyperparameters for DRL
