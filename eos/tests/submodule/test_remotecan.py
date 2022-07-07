@@ -167,9 +167,9 @@ class TestRemoteCan(unittest.TestCase):
                                         f"observation{observation.shape}:{observation}"
                                     )
 
-                                    timestamp = np.array(value["timestamp"])
+                                    timestamp = value["timestamp"]
                                     print(
-                                        f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}"
+                                        f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp)}"
                                     )
                         else:
                             print(f"{key}:{value}")
