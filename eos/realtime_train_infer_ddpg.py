@@ -112,7 +112,7 @@ class realtime_train_infer_ddpg(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             os.environ["http_proxy"] = ""
-            self.client = RemoteCan(vin="987654321654321M4")
+            self.remotecan_client = RemoteCan(vin="987654321654321M4")
             self.get_truck_status = self.cloud_get_truck_status
         else:
             self.get_truck_status = self.onboard_get_truck_status
@@ -292,7 +292,8 @@ class realtime_train_infer_ddpg(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            self.can_client.send_torque_cmd(vcu_table1)
+            bSuccess, json_return = self.remotecan_client.send_torque_map(vcu_table1)
+            returncode = json_return["reson"]
         else:
             returncode = kvaser_send_float_array(
                 "TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False
