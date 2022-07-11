@@ -26,7 +26,7 @@ as energy consumption
 import os
 import argparse
 import datetime
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, Path
 
 import socket
 import json
@@ -34,7 +34,9 @@ import threading
 import warnings
 
 from threading import Lock, Thread
-import time, queue, math, signal
+import time
+import queue
+import math
 
 # third party imports
 from collections import deque
@@ -51,14 +53,13 @@ from tensorflow.python.client import device_lib
 # os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
 # tf.debugging.set_log_device_placement(True)
-## visualization import
+# visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
 
-## logging
+# logging
 import logging
 from logging.handlers import SocketHandler
-import inspect
 from pythonjsonlogger import jsonlogger
 
 # local imports
@@ -84,7 +85,9 @@ warnings.filterwarnings("ignore", message="currentThread", category=DeprecationW
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # global variables: threading, data, lock, etc.
-class realtime_train_infer_ddpg(object):
+
+
+class RealtimeDDPG(object):
     def __init__(
         self,
         cloud=False,
@@ -92,12 +95,12 @@ class realtime_train_infer_ddpg(object):
         infer=False,
         record=True,
         path=".",
-        projroot=".",
-        logger=None,
+        proj_root=Path("."),
+        vlogger=None,
     ):
         self.cloud = cloud
-        self.projroot = projroot
-        self.logger = logger
+        self.projroot = proj_root
+        self.logger = vlogger
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.resume = resume
@@ -317,9 +320,8 @@ class realtime_train_infer_ddpg(object):
         in our implementation, they share the initial layer.
 
         Args:
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
-            seed (int): Random seed
+            self.num_observation (int): Dimension of each state
+            self.num_actions (int): Dimension of each action
         """
 
         # create actor-critic network
@@ -839,10 +841,11 @@ class realtime_train_infer_ddpg(object):
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
                 if self.cloud:
-                    success, reson = self.client.send_torque_map(table)
+                    success, json_ret = self.remotecan_client.send_torque_map(table)
                     if not success:
+                        returncode = json_ret["reson"]
                         self.logc.error(
-                            f"send_torque_map failed: {reson}",
+                            f"send_torque_map failed: {returncode}",
                             extra=self.dictLogger,
                         )
                 else:
@@ -894,7 +897,7 @@ class realtime_train_infer_ddpg(object):
                     )
                     th_exit = True
                     continue
-            status_ok, remotecan_data = self.client.get_signals(duration=duration)
+            status_ok, remotecan_data = self.remotecan_client.get_signals(duration=duration)
             if not status_ok:
                 self.logc.error(
                     f"get_signals failed: {remotecan_data}",
@@ -1103,9 +1106,9 @@ class realtime_train_infer_ddpg(object):
                                             extra=self.dictLogger,
                                         )
 
-                                        timestamp = np.array(value["timestamp"])
+                                        timestamp = value["timestamp"]
                                         self.logd.info(
-                                            f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}",
+                                            f"timestamp{timestamp.shape}:{datetime.datetime.fromtimestamp(timestamp)}",
                                             extra=self.dictLogger,
                                         )
 
@@ -1123,8 +1126,8 @@ class realtime_train_infer_ddpg(object):
                                 self.vel_hist_dQ.append(velocity)
 
                                 vel_aver = velocity.mean()
-                                vel_min = velocity.min()
-                                vel_max = velocity.max()
+                                vel_min = velocity.min(initial=300)
+                                vel_max = velocity.max(initial=-100)
 
                                 # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
                                 # average concept
@@ -1471,6 +1474,8 @@ class realtime_train_infer_ddpg(object):
                 extra=self.dictLogger,
             )
 
+            critic_loss = 0
+            actor_loss = 0
             if self.infer:
                 (critic_loss, actor_loss) = self.buffer.nolearn()
                 self.logd.info("No Learning, just calculating loss")
@@ -1511,7 +1516,7 @@ class realtime_train_infer_ddpg(object):
 
             # self.logd.info(f"BP{k} done.", extra=self.dictLogger)
             self.logd.info(
-                f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
+                f"E{epi_cnt}BP 6 times critic loss: {critic_loss}; actor loss: {actor_loss}",
                 extra=self.dictLogger,
             )
 
@@ -1642,7 +1647,7 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
 
-    app = realtime_train_infer_ddpg(
+    app = RealtimeDDPG(
         args.cloud,
         args.resume,
         args.infer,
