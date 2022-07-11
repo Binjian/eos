@@ -26,6 +26,7 @@ as energy consumption
 import os
 import argparse
 import datetime
+from pathlib import PurePosixPath, Path
 
 import socket
 import json
@@ -33,8 +34,10 @@ import threading
 import warnings
 
 from threading import Lock, Thread
-import time, queue, math, signal
-from pathlib import PurePosixPath
+import time
+import queue
+import math
+
 # third party imports
 from collections import deque
 import numpy as np
@@ -50,14 +53,13 @@ from tensorflow.python.client import device_lib
 # os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
 # tf.debugging.set_log_device_placement(True)
-## visualization import
+# visualization import
 import pandas as pd
 import matplotlib.pyplot as plt
 
-## logging
+# logging
 import logging
 from logging.handlers import SocketHandler
-import inspect
 from pythonjsonlogger import jsonlogger
 
 # local imports
@@ -84,12 +86,12 @@ class realtime_train_infer_rdpg(object):
         infer=False,
         record=True,
         path=".",
-        projroot=".",
-        logger=None,
+        proj_root=Path("."),
+        vlogger=None,
     ):
         self.cloud = cloud
-        self.projroot = projroot
-        self.logger = logger
+        self.projroot = proj_root
+        self.logger = vlogger
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.resume = resume
@@ -105,7 +107,7 @@ class realtime_train_infer_rdpg(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             os.environ["http_proxy"] = ""
-            self.client = RemoteCan(vin="987654321654321M4")
+            self.remotecan_client = RemoteCan(vin="987654321654321M4")
             self.get_truck_status = self.cloud_get_truck_status
         else:
             self.get_truck_status = self.onboard_get_truck_status
@@ -283,7 +285,8 @@ class realtime_train_infer_rdpg(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            self.can_client.send_torque_cmd(vcu_table1)
+            bSuccess, json_return = self.remotecan_client.send_torque_map(vcu_table1)
+            returncode = json_return["reson"]
         else:
             returncode = kvaser_send_float_array(
                 "TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False
@@ -307,9 +310,8 @@ class realtime_train_infer_rdpg(object):
         in our implementation, they share the initial layer.
 
         Args:
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
-            seed (int): Random seed
+            self.num_observation (int): Dimension of each state
+            self.num_actions (int): Dimension of each action
         """
 
         # create actor-critic network
@@ -438,6 +440,8 @@ class realtime_train_infer_rdpg(object):
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
             self.get_truck_status_motpow_t = []
+            while not self.motionpowerQueue.empty():
+                self.motionpowerQueue.get()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
             self.vel_hist_dQ.clear()
             # raise Exception("reset capture to stop")
@@ -565,8 +569,8 @@ class realtime_train_infer_rdpg(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        # while not self.motionpowerQueue.empty():
-                        #     self.motionpowerQueue.get()
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
@@ -707,15 +711,16 @@ class realtime_train_infer_rdpg(object):
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
                 if self.cloud:
-                    success, reson = self.client.send_torque_map(table)
+                    success, json_ret = self.remotecan_client.send_torque_map(table)
                     if not success:
+                        returncode = json_ret["reson"]
                         self.logc.error(
-                            f"send_torque_map failed: {reson}",
+                            f"send_torque_map failed: {returncode}",
                             extra=self.dictLogger,
                         )
                 else:
                     returncode = kvaser_send_float_array(
-                        "TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True
+                        table, sw_diff=True
                     )
                     if returncode != 0:
                         self.logc.error(
@@ -762,7 +767,7 @@ class realtime_train_infer_rdpg(object):
                     )
                     th_exit = True
                     continue
-            status_ok, remotecan_data = self.client.get_signals(duration=duration)
+            status_ok, remotecan_data = self.remotecan_client.get_signals(duration=duration)
             if not status_ok:
                 self.logc.error(
                     f"get_signals failed: {remotecan_data}",
@@ -971,9 +976,9 @@ class realtime_train_infer_rdpg(object):
                                             extra=self.dictLogger,
                                         )
 
-                                        timestamp = np.array(value["timestamp"])
+                                        timestamp = value["timestamp"]
                                         self.logd.info(
-                                            f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp.tolist())}",
+                                            f"timestamp{timestamp.shape}:{datetime.datetime.fromtimestamp(timestamp)}",
                                             extra=self.dictLogger,
                                         )
 
@@ -991,8 +996,8 @@ class realtime_train_infer_rdpg(object):
                                 self.vel_hist_dQ.append(velocity)
 
                                 vel_aver = velocity.mean()
-                                vel_min = velocity.min()
-                                vel_max = velocity.max()
+                                vel_min = velocity.min(initial=300)
+                                vel_max = velocity.max(initial=-100)
 
                                 # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
                                 # average concept
@@ -1303,7 +1308,7 @@ class realtime_train_infer_rdpg(object):
                         # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                         self.tableQueue.put(vcu_act_list)
                         self.logd.info(
-                            f"E{epi_cnt}StartIndex{table_start} Action Push table: {self.tableQueue.qsize()}",
+                            f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
                         )
                         self.logc.info(
@@ -1350,6 +1355,8 @@ class realtime_train_infer_rdpg(object):
                 extra=self.dictLogger,
             )
 
+            critic_loss = 0
+            actor_loss = 0
             # add episode history to agent replay buffer
             self.rdpg.add_to_replay(self.h_t)
 
@@ -1379,7 +1386,7 @@ class realtime_train_infer_rdpg(object):
             )
 
             # update running reward to check condition for solving
-            running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+            running_reward = 0.05 * (-episode_reward) + (1 - 0.05) * running_reward
 
             # Create a matplotlib 3d figure, //export and save in log
             fig = plot_3d_figure(self.vcu_calib_table1, self.pd_columns, self.pd_index)
