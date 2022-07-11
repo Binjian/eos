@@ -667,6 +667,8 @@ class RealtimeDDPG(object):
                         th_exit = False
                         # ts_epi_start = time.time()
 
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
                         self.vel_hist_dQ.clear()
                         with self.hmi_lock:
                             self.episode_done = False
@@ -1251,6 +1253,13 @@ class RealtimeDDPG(object):
                         epi_end = self.episode_end
                         done = self.episode_done
                         table_start = self.vcu_calib_table_row_start
+                    self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
+                    if epi_end and done and (self.motionpowerQueue.qsize()>2):
+                        # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
+                        self.logc.info(f"Residue in Queue is a sign of disordered sequence, interrupted!")
+                        done = False # this local done is true done with data exploitation
+                        epi_end = True
+
 
                     if epi_end:  # stop observing and inferring
                         continue
@@ -1446,6 +1455,7 @@ class RealtimeDDPG(object):
                         # record the odd step wh
                         wh1 = wh
 
+                        # TODO add speed sum as positive reward
                         self.logc.info(
                             f"E{epi_cnt} Step done: {step_count}",
                             extra=self.dictLogger,
