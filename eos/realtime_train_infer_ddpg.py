@@ -299,7 +299,7 @@ class RealtimeDDPG(object):
             returncode = json_return["reson"]
         else:
             returncode = kvaser_send_float_array(
-                "TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False
+                vcu_table1, sw_diff=True
             )
 
         self.logger.info(
@@ -850,7 +850,7 @@ class RealtimeDDPG(object):
                         )
                 else:
                     returncode = kvaser_send_float_array(
-                        "TQD_trqTrqSetNormal_MAP_v", table, sw_diff=True
+                        table, sw_diff=True
                     )
                     if returncode != 0:
                         self.logc.error(
