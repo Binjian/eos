@@ -221,7 +221,7 @@ class RDPG:
     def init_ckpt(self):
         # Actor create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_actor_dir = self._datafolder + "/checkpoints/rdpg_actor"
+        self._ckpt_actor_dir = self._datafolder + "/vb_checkpoints/rdpg_actor"
         try:
             os.makedirs(self._ckpt_actor_dir)
             logger.info(
@@ -238,7 +238,7 @@ class RDPG:
 
         # critic create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_critic_dir = self._datafolder + "/checkpoints/rdpg_critic"
+        self._ckpt_critic_dir = self._datafolder + "/vb_checkpoints/rdpg_critic"
         try:
             os.makedirs(self._ckpt_critic_dir)
             logger.info(

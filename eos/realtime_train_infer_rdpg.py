@@ -146,7 +146,7 @@ class realtime_train_infer_rdpg(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-rdpg-"
+            "eos-rt-rdpg-vb7"
             + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             + ".log"
         )
@@ -195,7 +195,7 @@ class realtime_train_infer_rdpg(object):
         # Create folder for ckpts loggings.
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.train_log_dir = self.dataroot.joinpath(
-            "tf_logs/rdpg/gradient_tape/" + current_time + "/train"
+            "tf_logs-vb7/rdpg/gradient_tape/" + current_time + "/train"
         )
         self.train_summary_writer = tf.summary.create_file_writer(
             str(self.train_log_dir)
@@ -1288,7 +1288,7 @@ class realtime_train_infer_rdpg(object):
 
                         if args.record_table:
                             curr_table_store_path = self.dataroot.joinpath(
-                                "tables/instant_table_rdpg-"
+                                "tables/instant_table_rdpg-vb"
                                 + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                                 + "e-"
                                 + str(epi_cnt)
