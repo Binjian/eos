@@ -33,7 +33,7 @@ args = parser.parse_args()
 
 udpfileName = (
     os.getcwd()
-    + "/../../data/udp-pcap/realtime_ddpg_redob-"
+    + "/../../data/udp-pcap/realtime_ddpg_vb-"
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )

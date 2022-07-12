@@ -155,7 +155,7 @@ class RealtimeDDPG(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-ddpg-vb7"
+            "eos-rt-ddpg-vb-"
             + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             + ".log"
         )
@@ -204,7 +204,7 @@ class RealtimeDDPG(object):
         # Create folder for ckpts loggings.
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.train_log_dir = self.dataroot.joinpath(
-            "tf_logs-vb7/ddpg/gradient_tape/" + current_time + "/train"
+            "tf_logs-vb/ddpg/gradient_tape/" + current_time + "/train"
         )
         self.train_summary_writer = tf.summary.create_file_writer(
             str(self.train_log_dir)
@@ -1423,7 +1423,7 @@ class RealtimeDDPG(object):
 
                         if args.record_table:
                             curr_table_store_path = self.dataroot.joinpath(
-                                "tables/instant_table_ddpg-vb"
+                                "tables/instant_table_ddpg-vb-"
                                 + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                                 + "e-"
                                 + str(epi_cnt)
