@@ -335,11 +335,11 @@ class RealtimeDDPG(object):
         self.num_inputs = (
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
-        self.num_actions = self.vcu_calib_table_size  # 17*21 = 357
-        self.vcu_calib_table_row_reduced = 3  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (          # 0:3 adaptive rows correspond to low speed from  0~10, 7~20, 10~30, 20~40, etc  kmh  # overall action space is the whole table
+        self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
+        self.vcu_calib_table_row_reduced = 4  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
+        self.num_reduced_actions = (          # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
-        )  # 5x17=85
+        )  # 4x17= 68
         # hyperparameters for DRL
         self.num_hidden = 256
         self.num_hidden0 = 16
@@ -348,7 +348,7 @@ class RealtimeDDPG(object):
         # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
         self.vcu_calib_table_row_start = 0
         self.vcu_calib_table0_reduced = self.vcu_calib_table0[
-            self.vcu_calib_table_row_start : self.vcu_calib_table_row_reduced
+            self.vcu_calib_table_row_start: self.vcu_calib_table_row_reduced
             + self.vcu_calib_table_row_start,
             :,
         ]
@@ -768,20 +768,22 @@ class RealtimeDDPG(object):
                                 vel_min = min(vel_cycle_dQ)
                                 vel_max = max(vel_cycle_dQ)
 
-                                # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
+                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
                                 # average concept
-                                # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
+                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
                                 #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
                                 # here upper bound rule adopted
                                 if vel_max < 20:
                                     self.vcu_calib_table_row_start = 0
-                                elif vel_max < 100:
+                                elif vel_max < 30:
+                                    self.vcu_calib_table_row_start = 1
+                                elif vel_max < 120:
                                     self.vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 20) / 5) + 1
+                                        math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
                                     self.logc.warning(
-                                        f"cycle higher than 100km/h!",
+                                        f"cycle higher than 120km/h!",
                                         extra=self.dictLogger,
                                     )
                                     self.vcu_calib_table_row_start = 16
@@ -1131,20 +1133,22 @@ class RealtimeDDPG(object):
                                 vel_min = velocity.min(initial=300)
                                 vel_max = velocity.max(initial=-100)
 
-                                # 0~20km/h; 7~25km/h; 10~30km/h; 15~35km/h; ...
+                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
                                 # average concept
-                                # 10; 16; 20; 25; 30; 35; 40; 45; 50; 55; 60;
+                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
                                 #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
                                 # here upper bound rule adopted
                                 if vel_max < 20:
                                     self.vcu_calib_table_row_start = 0
-                                elif vel_max < 100:
+                                elif vel_max < 30:
+                                    self.vcu_calib_table_row_start = 1
+                                elif vel_max < 120:
                                     self.vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 20) / 5) + 1
+                                            math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
                                     self.logc.warning(
-                                        f"cycle higher than 100km/h!",
+                                        f"cycle higher than 120km/h!",
                                         extra=self.dictLogger,
                                     )
                                     self.vcu_calib_table_row_start = 16
