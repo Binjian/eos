@@ -299,7 +299,7 @@ class RealtimeDDPG(object):
             returncode = json_return["reson"]
         else:
             returncode = kvaser_send_float_array(
-                vcu_table1, sw_diff=True
+                vcu_table1, sw_diff=False
             )
 
         self.logger.info(
