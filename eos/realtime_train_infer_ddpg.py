@@ -515,29 +515,31 @@ class RealtimeDDPG(object):
         self.ou_noise.reset()
 
         # warm up gpu training graph execution pipeline
-        if not self.infer:
-            self.logger.info(
-                f"ddpg warm up training!",
-                extra=self.dictLogger,
-            )
-            (actor_loss, critic_loss) = self.buffer.learn()
-            update_target(
-                self.target_actor.variables,
-                self.actor_model.variables,
-                self.tau,
-            )
-            # self.logger.info(f"Updated target actor", extra=self.dictLogger)
-            update_target(
-                self.target_critic.variables,
-                self.critic_model.variables,
-                self.tau,
-            )
+        if self.buffer.buffer_counter != 0:
+            if not self.infer:
+                self.logger.info(
+                    f"ddpg warm up training!",
+                    extra=self.dictLogger,
+                )
 
-            # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
-            self.logger.info(
-                f"ddpg warm up training done!",
-                extra=self.dictLogger,
-            )
+                (actor_loss, critic_loss) = self.buffer.learn()
+                update_target(
+                    self.target_actor.variables,
+                    self.actor_model.variables,
+                    self.tau,
+                )
+                # self.logger.info(f"Updated target actor", extra=self.dictLogger)
+                update_target(
+                    self.target_critic.variables,
+                    self.critic_model.variables,
+                    self.tau,
+                )
+
+                # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+                self.logger.info(
+                    f"ddpg warm up training done!",
+                    extra=self.dictLogger,
+                )
 
 
 

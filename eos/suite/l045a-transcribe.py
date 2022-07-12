@@ -12,7 +12,7 @@ import inspect
 import numpy as np
 
 # internal import
-from eos.comm import generate_vcu_calibration, send_float_array, set_tbox_sim_path
+from eos.comm import generate_vcu_calibration, kvaser_send_float_array
 
 
 mpl_logger = logging.getLogger("matplotlib.font_manager")
@@ -65,10 +65,10 @@ logd = logger.getChild("data flow")
 logd.propagate = True
 
 vcu_calib_table_col = 17  # number of pedal steps, x direction
-vcu_calib_table_row = 21  # numnber of velocity steps, y direction
+vcu_calib_table_row = 14  # numnber of velocity steps, y direction
 
 pedal_range = [0, 1.0]
-velocity_range = [0, 20.0]
+velocity_range = [0, 120.0]
 
 
 datapath = Path(datafolder)
@@ -81,13 +81,11 @@ vcu_calib_table0 = generate_vcu_calibration(
     datapath,
 )
 
-set_tbox_sim_path(os.getcwd() + "/../comm/tbox")
-
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
 vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
 # time.sleep(1.0)
-returncode = send_float_array("TQD_trqTrqSetNormal_MAP_v", vcu_table1, sw_diff=False)
+returncode = kvaser_send_float_array(vcu_table1, sw_diff=False)
 logger.info(f"The exit code was: {returncode}", extra=dictLogger)
 logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
