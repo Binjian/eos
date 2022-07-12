@@ -155,7 +155,7 @@ class RealtimeDDPG(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-ddpg"
+            "eos-rt-ddpg-vb7"
             + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             + ".log"
         )
@@ -432,18 +432,18 @@ class RealtimeDDPG(object):
         # add checkpoints manager
         if self.resume:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                "tf_ckpts-aa/l045a_ddpg_actor"
+                "tf_ckpts-vb/l045a_ddpg_actor"
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-aa/l045a_ddpg_critic"
+                "tf_ckpts-vb/l045a_ddpg_critic"
             )
         else:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                "tf_ckpts-aa/l045a_ddpg_actor"
+                "tf_ckpts-vb/l045a_ddpg_actor"
                 + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-aa/l045a_ddpg_critic"
+                "tf_ckpts-vb/l045a_ddpg_critic"
                 + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
         try:
