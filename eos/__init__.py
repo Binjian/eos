@@ -20,7 +20,7 @@ logger = logging.getLogger("__name__")
 logger.propagate = False
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
 __all__ = [
-    remote_can_client,
+    RemoteCan,
     tbox_sim,
     generate_vcu_calibration,
     projroot,
