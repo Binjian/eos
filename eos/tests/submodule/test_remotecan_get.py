@@ -39,16 +39,15 @@ class TestRemoteCan_Get(unittest.TestCase):
             "https": "http://127.0.0.1:34663",
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
-        self.TruckType = namedTuple('Truck', ['Name', 'VIN', 'Plate', 'Maturity'] )
-        self.trucks = [TruckType(Name= 'VB7', VIN="HMZABAAH7MF011058", Plate="77777777", Maturity="VB"),
-                       TruckType(Name='VB6', VIN="HMZABAAH5MF011057", Plate="66666666", Maturity="VB"),
-                       TruckType(Name='HQB', VIN="NEWRIZON020220328", Plate="00000000", Maturity="VB")] # HQ Bench
-        self.client = RemoteCan(self.trucks[0].VIN)
+        self.TruckType = namedtuple('Truck', ['Name', 'VIN', 'Plate', 'Maturity'] )
+        self.trucks = [self.TruckType(Name= 'VB7', VIN="HMZABAAH7MF011058", Plate="77777777", Maturity="VB"),
+                       self.TruckType(Name='VB6', VIN="HMZABAAH5MF011057", Plate="66666666", Maturity="VB"),
+                       self.TruckType(Name='HQB', VIN="NEWRIZON020220328", Plate="00000000", Maturity="VB")]  # HQ Bench
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_proxy(self):
         self.client = RemoteCan(
-            vin="987654321654321M4", proxies=self.proxies_lantern
+            vin=self.trucks[0].VIN, proxies=self.proxies_lantern
         )
         map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
         success, response = self.client.send_torque_map(map2d)
@@ -71,121 +70,135 @@ class TestRemoteCan_Get(unittest.TestCase):
             print("response:", response)
 
     def test_native(self):
-        map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
-        success, response = self.client.send_torque_map(map2d, True)
-        if success:
-            signal_success, remotecan_data = self.client.get_signals(duration=2)
-            data_type = type(remotecan_data)
-            print("data type:", data_type)
-            if not isinstance(remotecan_data, dict):
-                raise TypeError("udp sending wrong data type!")
-            if signal_success is True:
-                try:
-                    # json_string = json.dumps(
-                    #     json_ret, indent=4, sort_keys=True, separators=(",", ": ")
-                    # )
-                    # print(f"print whole json string:{json_string}")
+        self.client = RemoteCan(vin=self.trucks[0].VIN)
 
-                    for key, value in remotecan_data.items():
-                        if key == "result":
-                            # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
-                            with np.printoptions(suppress=True, linewidth=100):
-                                # capture warning about ragged json arrays
-                                with np.testing.suppress_warnings() as sup:
-                                    log_warning = sup.record(
-                                        np.VisibleDeprecationWarning,
-                                        "Creating an ndarray from ragged nested sequences",
-                                    )
-                                    current = np.array(value["list_current_1s"])
-                                    if len(log_warning) > 0:
-                                        log_warning.pop()
-                                        item_len = [len(item) for item in current]
-                                        for count, item in enumerate(current):
-                                            item[item_len[count] : max(item_len)] = None
-                                    print(f"current{current.shape}:{current}")
+        signal_success, remotecan_data = self.client.get_signals(duration=2)
 
-                                    voltage = np.array(value["list_voltage_1s"])
-                                    if len(log_warning):
-                                        log_warning.pop()
-                                        item_len = [len(item) for item in voltage]
-                                        for count, item in enumerate(voltage):
-                                            item[item_len[count] : max(item_len)] = None
-                                    # voltage needs to be upsampled in columns since its sample rate is half of others
-                                    r_v, c_v = voltage.shape
+        data_type = type(remotecan_data)
+        print("data type:", data_type)
+        if not isinstance(remotecan_data, dict):
+            raise TypeError("udp sending wrong data type!")
+        if signal_success is True:
+            try:
+                # json_string = json.dumps(
+                #     json_ret, indent=4, sort_keys=True, separators=(",", ": ")
+                # )
+                # print(f"print whole json string:{json_string}")
+
+                for key, value in remotecan_data.items():
+                    if key == "result":
+                        # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
+                        with np.printoptions(suppress=True, linewidth=100):
+                            # capture warning about ragged json arrays
+                            with np.testing.suppress_warnings() as sup:
+                                log_warning = sup.record(
+                                    np.VisibleDeprecationWarning,
+                                    "Creating an ndarray from ragged nested sequences",
+                                )
+                                current = np.array(value["list_current_1s"])
+                                if len(log_warning) > 0:
+                                    log_warning.pop()
+                                    item_len = [len(item) for item in current]
+                                    for count, item in enumerate(current):
+                                        item[item_len[count] : max(item_len)] = None
+                                print(f"current{current.shape}:{current}")
+
+                                voltage = np.array(value["list_voltage_1s"])
+                                if len(log_warning):
+                                    log_warning.pop()
+                                    item_len = [len(item) for item in voltage]
+                                    for count, item in enumerate(voltage):
+                                        item[item_len[count] : max(item_len)] = None
+                                r_v, c_v = voltage.shape
+                                # voltage needs to be upsampled in columns if its sample rate is half of the current
+                                if c_v != current.shape[1]:
                                     voltage_upsampled = np.empty(
                                         (r_v, 1, c_v, 2), dtype=voltage.dtype
                                     )
                                     voltage_upsampled[...] = voltage[:, None, :, None]
                                     voltage = voltage_upsampled.reshape(r_v, c_v * 2)
-                                    print(f"voltage{voltage.shape}:{voltage}")
+                                print(f"voltage{voltage.shape}:{voltage}")
 
-                                    thrust = np.array(value["list_pedal_1s"])
-                                    if len(log_warning) > 0:
-                                        log_warning.pop()
-                                        item_len = [len(item) for item in thrust]
-                                        for count, item in enumerate(thrust):
-                                            item[item_len[count] : max(item_len)] = None
-                                    print(f"accl{thrust.shape}:{thrust}")
+                                thrust = np.array(value["list_pedal_1s"])
+                                if len(log_warning) > 0:
+                                    log_warning.pop()
+                                    item_len = [len(item) for item in thrust]
+                                    for count, item in enumerate(thrust):
+                                        item[item_len[count] : max(item_len)] = None
+                                print(f"accl{thrust.shape}:{thrust}")
 
-                                    brake = np.array(value["list_brake_pressure_1s"])
-                                    if len(log_warning) > 0:
-                                        log_warning.pop()
-                                        item_len = [len(item) for item in brake]
-                                        for count, item in enumerate(brake):
-                                            item[item_len[count] : max(item_len)] = None
-                                    print(f"brake{brake.shape}:{brake}")
+                                brake = np.array(value["list_brake_pressure_1s"])
+                                if len(log_warning) > 0:
+                                    log_warning.pop()
+                                    item_len = [len(item) for item in brake]
+                                    for count, item in enumerate(brake):
+                                        item[item_len[count] : max(item_len)] = None
+                                print(f"brake{brake.shape}:{brake}")
 
-                                    velocity = np.array(value["list_speed_1s"])
-                                    if len(log_warning) > 0:
-                                        log_warning.pop()
-                                        item_len = [len(item) for item in velocity]
-                                        for count, item in enumerate(velocity):
-                                            item[item_len[count] : max(item_len)] = None
-                                    print(f"velocity{velocity.shape}:{velocity}")
+                                velocity = np.array(value["list_speed_1s"])
+                                if len(log_warning) > 0:
+                                    log_warning.pop()
+                                    item_len = [len(item) for item in velocity]
+                                    for count, item in enumerate(velocity):
+                                        item[item_len[count] : max(item_len)] = None
+                                print(f"velocity{velocity.shape}:{velocity}")
 
-                                    gears = np.array(value["list_gears"])
-                                    if len(log_warning) > 0:
-                                        log_warning.pop()
-                                        item_len = [len(item) for item in gears]
-                                        for count, item in enumerate(gears):
-                                            item[item_len[count] : max(item_len)] = None
-                                    # upsample gears from 2Hz to 25Hz
-                                    r_v, c_v = gears.shape
-                                    gears_upsampled = np.empty(
-                                        (r_v, 1, c_v, 12), dtype=gears.dtype
-                                    )
-                                    gears_upsampled[...] = gears[:, None, :, None]
-                                    gears = gears_upsampled.reshape(r_v, c_v * 12)
-                                    gears = np.c_[
-                                        gears, gears[:, -1]
-                                    ]  # duplicate last gear on the end
-                                    print(f"gears{gears.shape}:{gears}")
+                                gears = np.array(value["list_gears"])
+                                if len(log_warning) > 0:
+                                    log_warning.pop()
+                                    item_len = [len(item) for item in gears]
+                                    for count, item in enumerate(gears):
+                                        item[item_len[count] : max(item_len)] = None
+                                # upsample gears from 2Hz to 25Hz
+                                r_v, c_v = gears.shape
+                                gears_upsampled = np.empty(
+                                    (r_v, 1, c_v, 25), dtype=gears.dtype
+                                )
+                                gears_upsampled[...] = gears[:, None, :, None]
+                                gears = gears_upsampled.reshape(r_v, c_v * 25)
+                                # gears = np.c_[
+                                #     gears, gears[:, -1]
+                                # ]  # duplicate last gear on the end
+                                print(f"gears{gears.shape}:{gears}")
 
-                                    observation = np.c_[
-                                        velocity.reshape(-1, 1),
-                                        thrust.reshape(-1, 1),
-                                        brake.reshape(-1, 1),
-                                        current.reshape(-1, 1),
-                                        voltage.reshape(-1, 1),
-                                    ]  # 3 +2 : im 5
-                                    print(
-                                        f"observation{observation.shape}:{observation}"
-                                    )
+                                observation = np.c_[
+                                    velocity.reshape(-1, 1),
+                                    thrust.reshape(-1, 1),
+                                    brake.reshape(-1, 1),
+                                    current.reshape(-1, 1),
+                                    voltage.reshape(-1, 1),
+                                    gears.reshape(-1, 1),
+                                ]  # 3 +2 +1 : im 5
+                                print(
+                                    f"observation{observation.shape}:{observation}"
+                                )
 
-                                    timestamp = value["timestamp"]
-                                    print(
-                                        f"timestamp{timestamp.shape}:{datetime.fromtimestamp(timestamp)}"
-                                    )
-                        else:
-                            print(f"{key}:{value}")
-                except Exception as X:
-                    print(f"{X}:data corrupt!")
-            else:
-                print("upload corrupt!")
-                print("reson", remotecan_data)
+                                timestamps =[]
+                                for ts in value["timestamps"]:
+                                    ts_iso = '20' + ts[:2] + '-' + ts[2:4] + '-' + ts[4:6] + 'T' + ts[6:8] + ':' + ts[8:10] + ':' + ts[10:12] + '.' + ts[12:14]
+                                    timestamps.append(ts_iso)
+                                timestamps = np.array(timestamps).astype('datetime64[ms]')
+
+                                print(
+                                    f"timestamp{timestamps.shape}:{timestamps.astype('datetime64[ms]')}"
+                                )
+                    else:
+                        print(f"{key}:{value}")
+            except Exception as X:
+                print(f"{X}:data corrupt!")
         else:
-            print(f"download corrupt!")
+            print("upload corrupt!")
+            print("reson", remotecan_data)
+
+        map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
+        success, response = self.client.send_torque_map(map2d)
+        if success:
+            print("torque map sent")
             print("response", response)
+        else:
+            print("torque map failed")
+            print("response:", response)
+
 
 
 if __name__ == "__main__":
