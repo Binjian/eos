@@ -55,7 +55,7 @@ cutelog = ">=2.0.6"
 pytest = ">=7.1"
 
 [tool.poetry.scripts]
-poetry = "poetry.console:run"
+my-script = "eos.eos.realtime_train_infer_ddpg:__main__"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
