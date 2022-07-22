@@ -49,7 +49,7 @@ class TestRemoteCanGet(unittest.TestCase):
                        self.TruckType(Name='HQB', VIN="NEWRIZON020220328", Plate="00000000", Maturity="VB", PedalRange=[0.0, 1.0], PedalScale=17, VelocityRange=[0.0, 120], VelocityScale=14)]  # HQ Bench
         self.truck_ind = 0  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
         self.projroot = projroot
-        self.logger = logging.getLogger("__name__")
+        self.logger = logging.getLogger("eos-test")
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.set_logger(projroot)

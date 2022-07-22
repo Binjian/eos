@@ -16,7 +16,7 @@ mpl_logger = logging.getLogger("matplotlib.font_manager")
 mpl_logger.disabled = True
 
 # logging.basicConfig(format=fmt)
-logger = logging.getLogger("__name__")
+logger = logging.getLogger("eos")
 logger.propagate = False
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
 __all__ = [
