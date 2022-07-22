@@ -420,7 +420,7 @@ class RealtimeDDPG(object):
             datafolder=str(self.dataroot),
         )
 
-        # ou_noise is a row vector of num_actions dimension
+        # ou_noise is a row vector sdfof num_actions dimension
         self.ou_noise_std_dev = 0.2
         self.ou_noise =OUActionNoise(
             mean=np.zeros(self.num_reduced_actions),

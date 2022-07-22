@@ -82,6 +82,10 @@ vcu_calib_table0 = generate_vcu_calibration(
 )
 
 vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
+# vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
+# vcu_calib_table1 = vcu_calib_table.transpose()
+# print("Transpose table!")
+
 vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
 # time.sleep(1.0)
