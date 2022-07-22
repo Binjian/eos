@@ -147,7 +147,7 @@ class realtime_train_infer_rdpg(object):
 
         logfilename = self.logroot.joinpath(
             "eos-rt-rdpg-vb7"
-            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+            + datetime.datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
         formatter = logging.Formatter(

@@ -156,7 +156,7 @@ class RealtimeDDPG(object):
 
         logfilename = self.logroot.joinpath(
             "eos-rt-ddpg-vb-"
-            + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+            + datetime.datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
         formatter = logging.Formatter(
