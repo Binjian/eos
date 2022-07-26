@@ -246,18 +246,20 @@ class TestRemoteCanGet(unittest.TestCase):
             print("reson", remotecan_data)
 
         # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
-        map2d = self.vcu_calib_table_default.reshape(-1).tolist()
-        map2d_5rows = self.vcu_calib_table_default[:5,:].reshape(-1).tolist()
-        self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        success, response = self.client.send_torque_map(map2d_5rows)
-        self.logger.info(f"finish sending torque map: success={success}, response={response}.", extra=self.dictLogger)
-        if success:
-            print("torque map sent")
-            print("response", response)
-        else:
-            print("torque map failed")
-            print("response:", response)
+        # map2d = self.vcu_calib_table_default.reshape(-1).tolist()
+        # map2d_5rows = self.vcu_calib_table_default[:5,:].reshape(-1).tolist()
 
+        # map2d = [[ 0 for j in range(17)] for i in range(5)]
+        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        # success, response = self.client.send_torque_map(map2d)
+        # self.logger.info(f"finish sending torque map: success={success}, response={response}.", extra=self.dictLogger)
+        # if success:
+        #     print("torque map sent")
+        #     print("response", response)
+        # else:
+        #     print("torque map failed")
+        #     print("response:", response)
+        #
 
 
 if __name__ == "__main__":
