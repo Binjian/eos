@@ -43,13 +43,54 @@ class TestRemoteCanGet(unittest.TestCase):
             "https": "http://127.0.0.1:34663",
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
-        self.TruckType = namedtuple('Truck', ['Name', 'VIN', 'Plate', 'Maturity', 'PedalRange', 'PedalScale', 'VelocityRange', 'VelocityScale'] )
-        self.trucks = [self.TruckType(Name='VB7', VIN="HMZABAAH7MF011058", Plate="77777777", Maturity="VB", PedalRange=[0.0, 1.0], PedalScale=17, VelocityRange=[0.0, 120], VelocityScale=14),
-                       self.TruckType(Name='VB6', VIN="HMZABAAH5MF011057", Plate="66666666", Maturity="VB", PedalRange=[0.0, 1.0], PedalScale=17, VelocityRange=[0.0, 120], VelocityScale=14),
-                       self.TruckType(Name='HQB', VIN="NEWRIZON020220328", Plate="00000000", Maturity="VB", PedalRange=[0.0, 1.0], PedalScale=17, VelocityRange=[0.0, 120], VelocityScale=14)]  # HQ Bench
+        self.TruckType = namedtuple(
+            "Truck",
+            [
+                "Name",
+                "VIN",
+                "Plate",
+                "Maturity",
+                "PedalRange",
+                "PedalScale",
+                "VelocityRange",
+                "VelocityScale",
+            ],
+        )
+        self.trucks = [
+            self.TruckType(
+                Name="VB7",
+                VIN="HMZABAAH7MF011058",
+                Plate="77777777",
+                Maturity="VB",
+                PedalRange=[0.0, 1.0],
+                PedalScale=17,
+                VelocityRange=[0.0, 120],
+                VelocityScale=14,
+            ),
+            self.TruckType(
+                Name="VB6",
+                VIN="HMZABAAH5MF011057",
+                Plate="66666666",
+                Maturity="VB",
+                PedalRange=[0.0, 1.0],
+                PedalScale=17,
+                VelocityRange=[0.0, 120],
+                VelocityScale=14,
+            ),
+            self.TruckType(
+                Name="HQB",
+                VIN="NEWRIZON020220328",
+                Plate="00000000",
+                Maturity="VB",
+                PedalRange=[0.0, 1.0],
+                PedalScale=17,
+                VelocityRange=[0.0, 120],
+                VelocityScale=14,
+            ),
+        ]  # HQ Bench
         self.truck_ind = 0  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
         self.projroot = projroot
-        self.logger = logging.getLogger("eos-test")
+        self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.set_logger(projroot)
@@ -73,7 +114,8 @@ class TestRemoteCanGet(unittest.TestCase):
             "test_remotecan_get-"
             + self.trucks[self.truck_ind].Name
             + datetime.datetime.now().isoformat().replace(":", "-")
-            + ".log")
+            + ".log"
+        )
 
         formatter = logging.Formatter(
             "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
@@ -89,7 +131,6 @@ class TestRemoteCanGet(unittest.TestCase):
         self.logger.addHandler(ch)
         self.logger.setLevel(logging.DEBUG)
 
-
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_proxy(self):
 
@@ -103,6 +144,7 @@ class TestRemoteCanGet(unittest.TestCase):
             if signal_success is True:
                 try:
                     print("print whole json string:")
+
                     json_string = json.dumps(
                         json_ret, indent=4, sort_keys=True, separators=(",", ": ")
                     )
@@ -117,12 +159,14 @@ class TestRemoteCanGet(unittest.TestCase):
             print("response:", response)
 
     def test_native(self):
-        self.logger.info("Start test_native",extra=self.dictLogger)
+        self.logger.info("Start test_native", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.trucks[self.truck_ind].VIN)
 
-        self.logger.info("Set client",extra=self.dictLogger)
+        self.logger.info("Set client", extra=self.dictLogger)
         signal_success, remotecan_data = self.client.get_signals(duration=2)
-        self.logger.info(f"get_signal(), return state:{signal_success}",extra=self.dictLogger)
+        self.logger.info(
+            f"get_signal(), return state:{signal_success}", extra=self.dictLogger
+        )
 
         data_type = type(remotecan_data)
         print("data type:", data_type)
@@ -221,33 +265,62 @@ class TestRemoteCanGet(unittest.TestCase):
                                     voltage.reshape(-1, 1),
                                     gears.reshape(-1, 1),
                                 ]  # 3 +2 +1 : im 5
-                                print(
-                                    f"observation{observation.shape}:{observation}"
-                                )
+                                print(f"observation{observation.shape}:{observation}")
 
-                                timestamps =[]
+                                timestamps = []
                                 for ts in value["timestamps"]:
-                                    ts_iso = '20' + ts[:2] + '-' + ts[2:4] + '-' + ts[4:6] + 'T' + ts[6:8] + ':' + ts[8:10] + ':' + ts[10:12] + '.' + ts[12:14]
+                                    ts_iso = (
+                                        "20"
+                                        + ts[:2]
+                                        + "-"
+                                        + ts[2:4]
+                                        + "-"
+                                        + ts[4:6]
+                                        + "T"
+                                        + ts[6:8]
+                                        + ":"
+                                        + ts[8:10]
+                                        + ":"
+                                        + ts[10:12]
+                                        + "."
+                                        + ts[12:14]
+                                    )
                                     timestamps.append(ts_iso)
-                                timestamps = np.array(timestamps).astype('datetime64[ms]')
-
-                                print(
-                                    f"timestamp{timestamps.shape}:{timestamps}"
+                                timestamps = np.array(timestamps).astype(
+                                    "datetime64[ms]"
                                 )
+
+                                print(f"timestamp{timestamps.shape}:{timestamps}")
                     else:
-                        self.logger.info(f"show status: {key}:{value}", extra=self.dictLogger)
+                        self.logger.info(
+                            f"show status: {key}:{value}", extra=self.dictLogger
+                        )
                         print(f"{key}:{value}")
             except Exception as X:
                 print(f"{X}:data corrupt!")
-                self.logger.error(f"show status: exception {X}, data corruption", extra=self.dictLogger)
+                self.logger.error(
+                    f"show status: exception {X}, data corruption",
+                    extra=self.dictLogger,
+                )
                 return
         else:
             print("upload corrupt!")
             print("reson", remotecan_data)
 
-        # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
+        # # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
         # map2d = self.vcu_calib_table_default.reshape(-1).tolist()
         # map2d_5rows = self.vcu_calib_table_default[:5,:].reshape(-1).tolist()
+
+        # map2d = [[0 for j in range(17)] for i in range(5)]
+        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        # success, response = self.client.send_torque_map(map2d)
+        # self.logger.info(f"finish sending torque map: success={success}, response={response}.", extra=self.dictLogger)
+        # if success:
+        #     print("torque map sent")
+        #     print("response", response)
+        # else:
+        #     print("torque map failed")
+        #     print("response:", response)
 
         # map2d = [[ 0 for j in range(17)] for i in range(5)]
         # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
