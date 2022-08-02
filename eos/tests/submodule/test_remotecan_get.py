@@ -1,20 +1,19 @@
 # system import
 # 3rd party import
-import unittest
-import json
-import numpy as np
-import os
 import datetime
-import logging
 import inspect
+import logging
+import os
+import unittest
 import warnings
 from collections import namedtuple
-from eos.comm import generate_vcu_calibration
-from eos import projroot
 
+import numpy as np
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
-from eos import RemoteCan
+from eos import RemoteCan, projroot
+from eos.comm import generate_vcu_calibration
+from eos.utils import ragged_nparray_list_interp
 
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
@@ -201,117 +200,59 @@ class TestRemoteCanGet(unittest.TestCase):
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
                 # timestamp_num = int(self.observe_length // duration)
+
                 for key, value in remotecan_data.items():
                     if key == "result":
                         self.logger.info("show result", extra=self.dictLogger)
-                        # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
-                        with np.printoptions(suppress=True, linewidth=100):
-                            # capture warning about ragged json arrays
-                            with np.testing.suppress_warnings() as sup:
-                                log_warning = sup.record(
-                                    np.VisibleDeprecationWarning,
-                                    "Creating an ndarray from ragged nested sequences",
-                                )
-                                current = np.array(value["list_current_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in current]
-                                    for count, item in enumerate(current):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"current{current.shape}:{current}")
+                        # current = np.array(value["list_current_1s"])
+                        current = value["list_current_1s"]
+                        current = ragged_nparray_list_interp(current, ob_num=unit_ob_num)
+                        print(f"current{current.shape}:{current}")
 
-                                voltage = np.array(value["list_voltage_1s"])
-                                if len(log_warning):
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in voltage]
-                                    for count, item in enumerate(voltage):
-                                        item[item_len[count] : max(item_len)] = None
-                                r_v, c_v = voltage.shape
-                                # voltage needs to be upsampled in columns if its sample rate is half of the current
-                                if c_v != current.shape[1]:
-                                    voltage_upsampled = np.empty(
-                                        (r_v, 1, c_v, 2), dtype=voltage.dtype
-                                    )
-                                    voltage_upsampled[...] = voltage[:, None, :, None]
-                                    voltage = voltage_upsampled.reshape(r_v, c_v * 2)
-                                print(f"voltage{voltage.shape}:{voltage}")
+                        voltage = ragged_nparray_list_interp(value["list_voltage_1s"], ob_num=unit_ob_num)
+                        r_v, c_v = voltage.shape
+                        # voltage needs to be upsampled in columns if its sample rate is half of the current
+                        if c_v == current.shape[1]//2:
+                            voltage = np.repeat(voltage, 2, axis=1)
+                        print(f"voltage{voltage.shape}:{voltage}")
 
-                                thrust = np.array(value["list_pedal_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in thrust]
-                                    for count, item in enumerate(thrust):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"accl{thrust.shape}:{thrust}")
+                        thrust = ragged_nparray_list_interp(value["list_pedal_1s"], ob_num=unit_ob_num)
+                        print(f"accl{thrust.shape}:{thrust}")
 
-                                brake = np.array(value["list_brake_pressure_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in brake]
-                                    for count, item in enumerate(brake):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"brake{brake.shape}:{brake}")
+                        brake = ragged_nparray_list_interp(value["list_brake_pressure_1s"], ob_num=unit_ob_num)
+                        print(f"brake{brake.shape}:{brake}")
 
-                                velocity = np.array(value["list_speed_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in velocity]
-                                    for count, item in enumerate(velocity):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"velocity{velocity.shape}:{velocity}")
+                        velocity = ragged_nparray_list_interp(value["list_speed_1s"], ob_num=unit_ob_num)
+                        print(f"velocity{velocity.shape}:{velocity}")
 
-                                gears = np.array(value["list_gears"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in gears]
-                                    for count, item in enumerate(gears):
-                                        item[item_len[count] : max(item_len)] = None
-                                # upsample gears from 2Hz to 25Hz
-                                r_v, c_v = gears.shape
-                                gears_upsampled = np.empty(
-                                    (r_v, 1, c_v, 25), dtype=gears.dtype
-                                )
-                                gears_upsampled[...] = gears[:, None, :, None]
-                                gears = gears_upsampled.reshape(r_v, c_v * 25)
-                                # gears = np.c_[
-                                #     gears, gears[:, -1]
-                                # ]  # duplicate last gear on the end
-                                print(f"gears{gears.shape}:{gears}")
+                        gears = ragged_nparray_list_interp(value["list_gears"], ob_num=unit_gear_num)
+                        # upsample gears from 2Hz to 50Hz
+                        gears = np.repeat(gears, (signal_freq//gear_freq), axis=1)
+                        print(f"gears{gears.shape}:{gears}")
 
-                                observation = np.c_[
-                                    velocity.reshape(-1, 1),
-                                    thrust.reshape(-1, 1),
-                                    brake.reshape(-1, 1),
-                                    current.reshape(-1, 1),
-                                    voltage.reshape(-1, 1),
-                                    gears.reshape(-1, 1),
-                                ]  # 3 +2 +1 : im 5
-                                print(f"observation{observation.shape}:{observation}")
+                        observation = np.c_[
+                            velocity.reshape(-1, 1),
+                            thrust.reshape(-1, 1),
+                            brake.reshape(-1, 1),
+                            current.reshape(-1, 1),
+                            voltage.reshape(-1, 1),
+                            gears.reshape(-1, 1),
+                        ]  # 3 +2 +1 : im 5
+                        print(f"observation{observation.shape}:{observation}")
 
-                                timestamps = []
-                                for ts in value["timestamps"]:
-                                    ts_iso = (
-                                        "20"
-                                        + ts[:2]
-                                        + "-"
-                                        + ts[2:4]
-                                        + "-"
-                                        + ts[4:6]
-                                        + "T"
-                                        + ts[6:8]
-                                        + ":"
-                                        + ts[8:10]
-                                        + ":"
-                                        + ts[10:12]
-                                        + "."
-                                        + ts[12:14]
-                                    )
-                                    timestamps.append(ts_iso)
-                                timestamps = np.array(timestamps).astype(
-                                    "datetime64[ms]"
-                                )
-
-                                print(f"timestamp{timestamps.shape}:{timestamps}")
+                        timestamps = []
+                        separators = "--T::."  # adaption separators of the raw intest string
+                        start_century = '20'
+                        for ts in value["timestamps"]:
+                            # create standard iso string datetime format
+                            ts_substrings = [ts[i: i + 2] for i in range(0, len(ts), 2)]
+                            ts_iso = start_century
+                            for i, sep in enumerate(separators):
+                                ts_iso = ts_iso + ts_substrings[i] + sep
+                            ts_iso = ts_iso + ts_substrings[-1]
+                            timestamps.append(ts_iso)
+                        timestamps = np.array(timestamps).astype('datetime64[ms]').astype('int')
+                        print(f"timestamp{timestamps.shape}:{timestamps.astype('datetime64[ms]')}")
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}", extra=self.dictLogger
