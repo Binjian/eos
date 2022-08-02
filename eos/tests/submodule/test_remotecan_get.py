@@ -50,6 +50,9 @@ class TestRemoteCanGet(unittest.TestCase):
                 "VIN",
                 "Plate",
                 "Maturity",
+                "SignalFrequency",
+                "GearFrequency",
+                "UnitDuration",
                 "PedalRange",
                 "PedalScale",
                 "VelocityRange",
@@ -62,6 +65,9 @@ class TestRemoteCanGet(unittest.TestCase):
                 VIN="HMZABAAH7MF011058",
                 Plate="77777777",
                 Maturity="VB",
+                SignalFrequency=50,
+                GearFrequency=2,
+                UnitDuration=1,
                 PedalRange=[0.0, 1.0],
                 PedalScale=17,
                 VelocityRange=[0.0, 120],
@@ -72,6 +78,9 @@ class TestRemoteCanGet(unittest.TestCase):
                 VIN="HMZABAAH5MF011057",
                 Plate="66666666",
                 Maturity="VB",
+                SignalFrequency=50,
+                GearFrequency=2,
+                UnitDuration=1,
                 PedalRange=[0.0, 1.0],
                 PedalScale=17,
                 VelocityRange=[0.0, 120],
@@ -82,6 +91,9 @@ class TestRemoteCanGet(unittest.TestCase):
                 VIN="NEWRIZON020220328",
                 Plate="00000000",
                 Maturity="VB",
+                SignalFrequency=50,
+                GearFrequency=2,
+                UnitDuration=1,
                 PedalRange=[0.0, 1.0],
                 PedalScale=17,
                 VelocityRange=[0.0, 120],
@@ -94,6 +106,7 @@ class TestRemoteCanGet(unittest.TestCase):
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.set_logger(projroot)
+        self.observe_length = 5
 
         self.vcu_calib_table_default = generate_vcu_calibration(
             self.trucks[self.truck_ind].PedalScale,
@@ -182,6 +195,12 @@ class TestRemoteCanGet(unittest.TestCase):
                 # print(f"print whole json string:{json_string}")
 
                 self.logger.info("show remotecan_data", extra=self.dictLogger)
+                signal_freq = self.trucks[self.truck_ind].SignalFrequency
+                gear_freq = self.trucks[self.truck_ind].GearFrequency
+                unit_duration = self.trucks[self.truck_ind].UnitDuration
+                unit_ob_num = unit_duration * signal_freq
+                unit_gear_num = unit_duration * gear_freq
+                # timestamp_num = int(self.observe_length // duration)
                 for key, value in remotecan_data.items():
                     if key == "result":
                         self.logger.info("show result", extra=self.dictLogger)
