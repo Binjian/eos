@@ -130,46 +130,48 @@ class TestRemoteCanGet(unittest.TestCase):
         self.logger.addHandler(fh)
         self.logger.addHandler(ch)
         self.logger.setLevel(logging.DEBUG)
+    #
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    # def test_proxy_get(self):
+    #
+    #     self.logger.info("start test_proxy", extra=self.dictLogger)
+    #     self.client = RemoteCan(
+    #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
+    #     )
+    #     self.native_get()
+    #
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    # def test_proxy_send(self):
+    #
+    #     self.logger.info("start test_proxy", extra=self.dictLogger)
+    #     self.client = RemoteCan(
+    #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
+    #     )
+    #     self.native_send()
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_proxy(self):
-
-        self.client = RemoteCan(
-            vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
-        )
-        map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
-        success, response = self.client.send_torque_map(map2d)
-        if success:
-            signal_success, json_ret = self.client.get_signals(duration=2)
-            if signal_success is True:
-                try:
-                    print("print whole json string:")
-
-                    json_string = json.dumps(
-                        json_ret, indent=4, sort_keys=True, separators=(",", ": ")
-                    )
-                    print(json_string)
-                except Exception as X:
-                    print(f"{X}:data corrupt!")
-            else:
-                print("upload corrupt!")
-                print("reson", json_ret)
-        else:
-            print(f"download corrupt!")
-            print("response:", response)
-
-    def test_native(self):
-        self.logger.info("Start test_native", extra=self.dictLogger)
+    def test_native_get(self):
+        self.logger.info("Start test_native_get", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.trucks[self.truck_ind].VIN)
-
         self.logger.info("Set client", extra=self.dictLogger)
-        signal_success, remotecan_data = self.client.get_signals(duration=2)
+        self.native_get()
+
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    # def test_native_send(self):
+    #     self.logger.info("Start test_native_send", extra=self.dictLogger)
+    #     self.client = RemoteCan(vin=self.trucks[self.truck_ind].VIN)
+    #     self.logger.info("Set client", extra=self.dictLogger)
+    #
+    #     self.native_send()
+
+    def native_get(self):
+
+        signal_success, remotecan_data = self.client.get_signals(duration=self.observe_length)
         self.logger.info(
             f"get_signal(), return state:{signal_success}", extra=self.dictLogger
         )
 
         data_type = type(remotecan_data)
-        print("data type:", data_type)
+        self.logger.info(f"data type: {data_type}")
         if not isinstance(remotecan_data, dict):
             raise TypeError("udp sending wrong data type!")
         if signal_success is True:
@@ -307,32 +309,24 @@ class TestRemoteCanGet(unittest.TestCase):
             print("upload corrupt!")
             print("reson", remotecan_data)
 
+
+    def native_send(self):
+
         # # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
-        # map2d = self.vcu_calib_table_default.reshape(-1).tolist()
-        # map2d_5rows = self.vcu_calib_table_default[:5,:].reshape(-1).tolist()
 
-        # map2d = [[0 for j in range(17)] for i in range(5)]
-        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        # success, response = self.client.send_torque_map(map2d)
-        # self.logger.info(f"finish sending torque map: success={success}, response={response}.", extra=self.dictLogger)
-        # if success:
-        #     print("torque map sent")
-        #     print("response", response)
-        # else:
-        #     print("torque map failed")
-        #     print("response:", response)
+        # flashing 5 rows of the calibration table
+        k0=0
+        N0=5
+        map2d_5rows = self.vcu_calib_table_default[k0:k0+N0,:].reshape(-1).tolist()
+        self.logger.info(f"start sending torque map: from {k0}th to the {k0+N0-1}th row.", extra=self.dictLogger)
+        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, k=k0, N=N0, abswitch=False)
+        self.logger.info(f"finish sending torque map: returncode={returncode}.", extra=self.dictLogger)
 
-        # map2d = [[ 0 for j in range(17)] for i in range(5)]
-        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        # success, response = self.client.send_torque_map(map2d)
-        # self.logger.info(f"finish sending torque map: success={success}, response={response}.", extra=self.dictLogger)
-        # if success:
-        #     print("torque map sent")
-        #     print("response", response)
-        # else:
-        #     print("torque map failed")
-        #     print("response:", response)
-        #
+        # flashing the whole calibration table
+        map2d = self.vcu_calib_table_default.reshape(-1).tolist()
+        self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        returncode = self.client.send_torque_map(pedalmap=map2d, k=0, N=14, abswitch=False)
+        self.logger.info(f"finish sending torque map: returncode={returncode}.", extra=self.dictLogger)
 
 
 if __name__ == "__main__":
