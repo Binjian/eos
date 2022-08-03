@@ -22,59 +22,64 @@ as energy consumption
 
 """
 
-# system imports
-import os
 import argparse
 import datetime
-from pathlib import PurePosixPath, Path
-
-import socket
 import json
-import threading
-import warnings
 
-from threading import Lock, Thread
-import time
-import queue
+# logging
+import logging
 import math
+
+# system imports
+import os
+import queue
+import socket
+import threading
+import time
+import warnings
 
 # third party imports
 from collections import deque
+from logging.handlers import SocketHandler
+from pathlib import Path, PurePosixPath
+from threading import Lock, Thread
+
+import matplotlib.pyplot as plt
 import numpy as np
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+# tf.debugging.set_log_device_placement(True)
+# visualization import
+import pandas as pd
 import tensorflow as tf
+from pythonjsonlogger import jsonlogger
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-# os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
-
-# tf.debugging.set_log_device_placement(True)
-# visualization import
-import pandas as pd
-import matplotlib.pyplot as plt
-
-# logging
-import logging
-from logging.handlers import SocketHandler
-from pythonjsonlogger import jsonlogger
-
-# local imports
-
-from eos.visualization import plot_to_image, plot_3d_figure
-from eos.comm import generate_vcu_calibration, kvaser_send_float_array, RemoteCan
+from eos import dictLogger, logger, projroot
 from eos.agent import (
+    Buffer,
+    OUActionNoise,
     get_actor,
     get_critic,
     policy,
-    Buffer,
     update_target,
-    OUActionNoise,
 )
-from eos import logger, dictLogger, projroot
+from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
+from eos.utils import ragged_nparray_list_interp
+from eos.visualization import plot_3d_figure, plot_to_image
+from eos.utils.exception import TruckIDError
+from eos.config import trucks, PEDAL_SCALE, VELOCITY_SCALE_VB, VELOCITY_SCALE_MULE
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+
+# os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+
+
+# local imports
+
 
 # from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
 # value = [99.0] * 21 * 17
