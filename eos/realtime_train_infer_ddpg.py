@@ -115,10 +115,20 @@ class RealtimeDDPG(object):
         self.record = record
         self.path = path
 
+        if resume:
+            self.dataroot = projroot.joinpath("data/" + self.path)
+        else:
+            self.dataroot = projroot.joinpath("data/scratch/" + self.path)
+
+        self.set_logger()
+        self.logger.info(f"Start Logging", extra=self.dictLogger)
+
         # validate truck id
         self.truck = self.trucks[self.truck_ind]
         if self.truck.TruckName != "VB7":
             raise TruckIDError("Truck is not VB7")
+        else:
+            self.logger.info(f"Truck is VB7", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -133,14 +143,6 @@ class RealtimeDDPG(object):
         else:
             self.get_truck_status = self.kvaser_get_truck_status
             self.flash_vcu = self.kvaser_flash_vcu
-
-        if resume:
-            self.dataroot = projroot.joinpath("data/" + self.path)
-        else:
-            self.dataroot = projroot.joinpath("data/scratch/" + self.path)
-
-        self.set_logger()
-        self.logger.info(f"Start Logging", extra=self.dictLogger)
 
 
         self.logc.info(
@@ -251,7 +253,6 @@ class RealtimeDDPG(object):
         pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
         self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
         self.pd_columns = np.array(PEDAL_SCALE)
-
 
         self.pedal_range = self.truck.PedalRange  # [0, 1.0]
         self.velocity_range = self.truck.VelocityRange  # [0, 120.0]
@@ -610,22 +611,14 @@ class RealtimeDDPG(object):
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
         """
-        # global program_exit
-        # global motionpowerQueue, sequence_len
-        # global episode_count, episode_done, episode_end
-        # global vcu_calib_table_row_start
 
-        # self.logger.info(f'Start Initialization!', extra=self.dictLogger)
+        th_exit = False
+
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        # datetime.datetime.now().strftime("%Y%b%d-%H%M%S")
-        start_moment = time.time()
-        th_exit = False
-        last_moment = time.time()
-        self.logc.info(f"Initialization Done!", extra=self.dictLogger)
-        # qobject_size = 0
+        self.logc.info(f"Socket Initialization Done!", extra=self.dictLogger)
 
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -848,11 +841,11 @@ class RealtimeDDPG(object):
                         f"kvaser_send_float_array failed: {returncode}",
                         extra=self.dictLogger,
                     )
-                # time.sleep(1.0)
-                self.logc.info(
-                    f"flash done, count:{flash_count}", extra=self.dictLogger
-                )
-                flash_count += 1
+                else:
+                    self.logc.info(
+                        f"flash done, count:{flash_count}", extra=self.dictLogger
+                    )
+                    flash_count += 1
                 # watch(flash_count)
 
         # motionpowerQueue.join()

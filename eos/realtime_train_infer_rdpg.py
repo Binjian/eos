@@ -214,9 +214,7 @@ class realtime_train_infer_rdpg(object):
         self.vcu_calib_table_col = 17  # number of pedal steps, x direction
         self.vcu_calib_table_row = 14  # numnber of velocity steps, y direction
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
-        self.action_budget = (
-            250  # action_budget 250 Nm
-        )
+        self.action_budget = 250  # action_budget 250 Nm
         self.action_lower = 0.8
         self.action_upper = 1.0
         self.action_bias = 0.0
