@@ -820,6 +820,7 @@ class RealtimeDDPG(object):
         while not th_exit:
             # time.sleep(0.1)
             with self.hmi_lock:
+                table_start = self.vcu_calib_table_row_start
                 if self.program_exit:
                     th_exit = True
                     continue
@@ -833,9 +834,65 @@ class RealtimeDDPG(object):
                 pass
             else:
 
+                vcu_calib_table_reduced = tf.reshape(
+                    table,
+                    [
+                        self.vcu_calib_table_row_reduced,
+                        self.vcu_calib_table_col,
+                    ],
+                )
+
+                # get change budget : % of initial table
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+
+                # dynamically change table row start index
+                vcu_calib_table0_reduced = self.vcu_calib_table0[
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    :,
+                ]
+                vcu_calib_table_min_reduced = (
+                    vcu_calib_table0_reduced - self.action_budget
+                )
+                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+
+                vcu_calib_table_reduced = tf.clip_by_value(
+                    vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                    clip_value_min=vcu_calib_table_min_reduced,
+                    clip_value_max=vcu_calib_table_max_reduced,
+                )
+
+                # create updated complete pedal map, only update the first few rows
+                self.vcu_calib_table1[
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    :,
+                ] = vcu_calib_table_reduced.numpy()
+                pds_curr_table = pd.DataFrame(
+                    self.vcu_calib_table1, self.pd_index, self.pd_columns
+                )
+
+                if args.record_table:
+                    curr_table_store_path = self.dataroot.joinpath(
+                        "tables/instant_table_ddpg-vb-"
+                        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + "e-"
+                        + str(epi_cnt)
+                        + "-"
+                        + str(step_count)
+                        + ".csv"
+                    )
+                    with open(curr_table_store_path, "wb") as f:
+                        pds_curr_table.to_csv(curr_table_store_path)
+                        # np.save(last_table_store_path, vcu_calib_table1)
+                    self.logd.info(
+                        f"E{epi_cnt} done with record instant table: {step_count}",
+                        extra=self.dictLogger,
+                    )
+
+                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                returncode = kvaser_send_float_array(table, sw_diff=True)
+                returncode = kvaser_send_float_array(vcu_act_list, sw_diff=True)
+                # time.sleep(1.0)
                 if returncode != 0:
                     self.logc.error(
                         f"kvaser_send_float_array failed: {returncode}",
@@ -848,21 +905,15 @@ class RealtimeDDPG(object):
                     flash_count += 1
                 # watch(flash_count)
 
-        # motionpowerQueue.join()
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
     def remote_get_truck_status(self):
-        # global program_exit
-        # global motionpowerQueue, sequence_len
-        # global episode_count, episode_done, episode_end
-        # global vcu_calib_table_row_start
+        """
+        This function is used to get the truck status
+        from remote can module
+        """
 
-        # self.logger.info(f'Start Initialization!', extra=self.dictLogger)
-        start_moment = time.time()
         th_exit = False
-        last_moment = time.time()
-        # self.logc.info(f"Initialization Done!", extra=self.dictLogger)
-        # qobject_size = 0
 
         self.vel_hist_dQ = deque(maxlen=25)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -1186,6 +1237,7 @@ class RealtimeDDPG(object):
         while not th_exit:
             # time.sleep(0.1)
             with self.hmi_lock:
+                table_start = self.vcu_calib_table_row_start
                 if self.program_exit:
                     th_exit = True
                     continue
@@ -1198,24 +1250,80 @@ class RealtimeDDPG(object):
             except queue.Empty:
                 pass
             else:
+                vcu_calib_table_reduced = tf.reshape(
+                    table,
+                    [
+                        self.vcu_calib_table_row_reduced,
+                        self.vcu_calib_table_col,
+                    ],
+                )
 
+                # get change budget : % of initial table
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+
+                # dynamically change table row start index
+                vcu_calib_table0_reduced = self.vcu_calib_table0[
+                                           table_start : self.vcu_calib_table_row_reduced + table_start,
+                                           :,
+                                           ]
+                vcu_calib_table_min_reduced = (
+                        vcu_calib_table0_reduced - self.action_budget
+                )
+                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+
+                vcu_calib_table_reduced = tf.clip_by_value(
+                    vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                    clip_value_min=vcu_calib_table_min_reduced,
+                    clip_value_max=vcu_calib_table_max_reduced,
+                    )
+
+                # create updated complete pedal map, only update the first few rows
+                self.vcu_calib_table1[
+                table_start : self.vcu_calib_table_row_reduced + table_start,
+                :,
+                ] = vcu_calib_table_reduced.numpy()
+                pds_curr_table = pd.DataFrame(
+                    self.vcu_calib_table1, self.pd_index, self.pd_columns
+                )
+
+                if args.record_table:
+                    curr_table_store_path = self.dataroot.joinpath(
+                        "tables/instant_table_ddpg-vb-"
+                        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + "e-"
+                        + str(epi_cnt)
+                        + "-"
+                        + str(step_count)
+                        + ".csv"
+                    )
+                    with open(curr_table_store_path, "wb") as f:
+                        pds_curr_table.to_csv(curr_table_store_path)
+                        # np.save(last_table_store_path, vcu_calib_table1)
+                    self.logd.info(
+                        f"E{epi_cnt} done with record instant table: {step_count}",
+                        extra=self.dictLogger,
+                    )
+
+                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                    returncode = self.remotecan_client.send_torque_map(
-                        pedalmap=table,
-                    )
-                    if not success:
-                        returncode = json_ret["reson"]
-                        self.logc.error(
-                            f"send_torque_map failed: {returncode}",
-                            extra=self.dictLogger,
-                        )
-
-                # time.sleep(1.0)
-                self.logc.info(
-                    f"flash done, count:{flash_count}", extra=self.dictLogger
+                returncode = self.remotecan_client.send_torque_map(
+                    pedalmap=vcu_act_list,
+                    k=table_start,
+                    N=self.vcu_calib_table_row_reduced,
+                    abswitch=False,
                 )
-                flash_count += 1
+                # time.sleep(1.0)
+                if returncode != 0:
+                    self.logc.error(
+                        f"send_torque_map failed: {returncode}",
+                        extra=self.dictLogger,
+                    )
+                else:
+                    self.logc.info(
+                        f"flash done, count:{flash_count}", extra=self.dictLogger
+                    )
+                    flash_count += 1
                 # watch(flash_count)
 
         # motionpowerQueue.join()
@@ -1389,87 +1497,8 @@ class RealtimeDDPG(object):
                             extra=self.dictLogger,
                         )
 
-                        vcu_calib_table_reduced = tf.reshape(
-                            vcu_action_reduced,
-                            [
-                                self.vcu_calib_table_row_reduced,
-                                self.vcu_calib_table_col,
-                            ],
-                        )
-                        # self.logger.info(
-                        #     f"vcu action table reduced generated!", extra=self.dictLogger
-                        # )
-                        # vcu_action_table_reduced_s = [f"{col:.3f},"
-                        #                               for row in vcu_calib_table_reduced
-                        #                               for col in row]
-                        # self.logger.info(
-                        #     f"vcu action table: {vcu_action_table_reduced_s}",
-                        #     extra=self.dictLogger,
-                        # )
-
-                        # get change budget : % of initial table
-                        vcu_calib_table_reduced = (
-                            vcu_calib_table_reduced * self.action_budget
-                        )
-                        # vcu_calib_table_reduced = tf.math.multiply(
-                        #     vcu_calib_table_reduced * vcu_calib_table_budget,
-                        #     vcu_calib_table0_reduced,
-                        # )
-                        # add changes to the default value
-                        # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
-
-                        # dynamically change table row start index
-                        vcu_calib_table0_reduced = self.vcu_calib_table0[
-                            table_start : self.vcu_calib_table_row_reduced
-                            + table_start,
-                            :,
-                        ]
-                        vcu_calib_table_min_reduced = (
-                            vcu_calib_table0_reduced - vcu_calib_table_bound
-                        )
-                        vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
-
-                        vcu_calib_table_reduced = tf.clip_by_value(
-                            vcu_calib_table_reduced + vcu_calib_table0_reduced,
-                            clip_value_min=vcu_calib_table_min_reduced,
-                            clip_value_max=vcu_calib_table_max_reduced,
-                        )
-
-                        # create updated complete pedal map, only update the first few rows
-                        self.vcu_calib_table1[
-                            table_start : self.vcu_calib_table_row_reduced
-                            + table_start,
-                            :,
-                        ] = vcu_calib_table_reduced.numpy()
-                        pds_curr_table = pd.DataFrame(
-                            self.vcu_calib_table1, self.pd_index, self.pd_columns
-                        )
-                        # self.logc.info(
-                        #     f"E{epi_cnt} start record instant table: {step_count}",
-                        #     extra=self.dictLogger,
-                        # )
-
-                        if args.record_table:
-                            curr_table_store_path = self.dataroot.joinpath(
-                                "tables/instant_table_ddpg-vb-"
-                                + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                                + "e-"
-                                + str(epi_cnt)
-                                + "-"
-                                + str(step_count)
-                                + ".csv"
-                            )
-                            with open(curr_table_store_path, "wb") as f:
-                                pds_curr_table.to_csv(curr_table_store_path)
-                                # np.save(last_table_store_path, vcu_calib_table1)
-                            self.logd.info(
-                                f"E{epi_cnt} done with record instant table: {step_count}",
-                                extra=self.dictLogger,
-                            )
-
-                        vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
                         # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                        self.tableQueue.put(vcu_act_list)
+                        self.tableQueue.put(vcu_action_reduced)
                         self.logd.info(
                             f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
