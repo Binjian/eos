@@ -4,3 +4,7 @@ class ReadOnlyError(Exception):
 
 class WriteOnlyError(Exception):
     pass
+
+
+class TruckIDError(Exception):
+    pass

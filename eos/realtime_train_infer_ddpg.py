@@ -104,6 +104,8 @@ class RealtimeDDPG(object):
         vlogger=None,
     ):
         self.cloud = cloud
+        self.trucks = trucks
+        self.truck_ind = 0  # 0: VB7, 1: VB6
         self.projroot = proj_root
         self.logger = vlogger
         self.dictLogger = dictLogger
@@ -113,6 +115,11 @@ class RealtimeDDPG(object):
         self.record = record
         self.path = path
 
+        # validate truck id
+        self.truck = self.trucks[self.truck_ind]
+        if self.truck.TruckName != "VB7":
+            raise TruckIDError("Truck is not VB7")
+
         self.eps = np.finfo(
             np.float32
         ).eps.item()  # smallest number such that 1.0 + eps != 1.0
@@ -120,10 +127,12 @@ class RealtimeDDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             os.environ["http_proxy"] = ""
-            self.remotecan_client = RemoteCan(vin="987654321654321M4")
-            self.get_truck_status = self.cloud_get_truck_status
+            self.remotecan_client = RemoteCan(vin=self.truck.VIN)
+            self.get_truck_status = self.remote_get_truck_status
+            self.flash_vcu = self.remote_flash_vcu
         else:
-            self.get_truck_status = self.onboard_get_truck_status
+            self.get_truck_status = self.kvaser_get_truck_status
+            self.flash_vcu = self.kvaser_flash_vcu
 
         if resume:
             self.dataroot = projroot.joinpath("data/" + self.path)
@@ -132,6 +141,7 @@ class RealtimeDDPG(object):
 
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
+
 
         self.logc.info(
             f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
@@ -225,11 +235,12 @@ class RealtimeDDPG(object):
         # resume last pedal map / scratch from default table
 
         # initialize pedal map parameters
-        self.vcu_calib_table_col = 17  # number of pedal steps, x direction
-        self.vcu_calib_table_row = 14  # numnber of velocity steps, y direction
-        self.vcu_calib_table_budget = (
-            0.05  # interval that allows modifying the calibration table
-        )
+        self.vcu_calib_table_col = (
+            self.truck.PedalScale
+        )  #  17 number of pedal steps, x direction
+        self.vcu_calib_table_row = (
+            self.truck.VelocityScale
+        )  #  14 numnber of velocity steps, y direction
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
         self.action_budget = 250  # action_budget 250 Nm
         self.action_lower = self.truck.ActionLowerBound  # 0.8
@@ -237,41 +248,13 @@ class RealtimeDDPG(object):
         self.action_bias = self.truck.ActionBias  # 0.0
 
         # index of the current pedal map is speed in kmph
-        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row-1)
-        self.pd_index = np.insert(pd_ind, 1, 7) # insert 7 kmph
-        self.pd_columns = (
-            np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100])
-            / 100
-        )
+        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
+        self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
+        self.pd_columns = np.array(PEDAL_SCALE)
 
-        self.target_velocity = np.array(
-            [
-                0,
-                1.8,
-                3.6,
-                5.4,
-                7.2,
-                9,
-                10.8,
-                12.6,
-                14.4,
-                16.2,
-                14.4,
-                12.6,
-                10.8,
-                9,
-                7.2,
-                5.4,
-                3.6,
-                1.8,
-                0,
-                0,
-                0,
-            ]
-        )  # unit: km/h
 
-        self.pedal_range = [0, 1.0]
-        self.velocity_range = [0, 120.0]
+        self.pedal_range = self.truck.PedalRange  # [0, 1.0]
+        self.velocity_range = self.truck.VelocityRange  # [0, 120.0]
 
         if self.resume:
             self.vcu_calib_table0 = generate_vcu_calibration(
@@ -298,12 +281,11 @@ class RealtimeDDPG(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            bSuccess, json_return = self.remotecan_client.send_torque_map(vcu_table1)
-            returncode = json_return["reson"]
+            returncode = self.remotecan_client.send_torque_map(
+                pedalmap=vcu_table1, k=0, N=self.truck.VelocityScale
+            )  # 14 rows for whole map
         else:
-            returncode = kvaser_send_float_array(
-                vcu_table1, sw_diff=False
-            )
+            returncode = kvaser_send_float_array(vcu_table1, sw_diff=False)
 
         self.logger.info(
             f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
@@ -328,19 +310,32 @@ class RealtimeDDPG(object):
         """
 
         # create actor-critic network
-        self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
+        self.num_observations = self.truck.ObservationNumber
+        # self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
         if self.cloud:
-            self.observation_len = 50  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
-            self.sample_rate = 0.04  # sample rate of the observation tuples
+            self.observation_len = (
+                self.truck.CloudUnitNumber
+            )  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
+            # self.observation_len = 50  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
+            self.sample_rate = (
+                1.0 / self.truck.CloudSignalFrequency
+            )  # sample rate of the observation tuples
+            # self.sample_rate = 0.02  # sample rate 20ms of the observation tuples
         else:
-            self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
-            self.sample_rate = 0.05  # sample rate of the observation tuples
+            self.observation_len = (
+                self.truck.KvaserObservationNumber
+            )  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+            # self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+            self.sample_rate = (
+                1.0 / self.truck.KvaserObservationFrequency
+            )  # sample rate of the observation tuples
+            # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
         self.num_inputs = (
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
         self.vcu_calib_table_row_reduced = 4  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (          # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
+        self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
         # hyperparameters for DRL
@@ -351,7 +346,7 @@ class RealtimeDDPG(object):
         # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
         self.vcu_calib_table_row_start = 0
         self.vcu_calib_table0_reduced = self.vcu_calib_table0[
-            self.vcu_calib_table_row_start: self.vcu_calib_table_row_reduced
+            self.vcu_calib_table_row_start : self.vcu_calib_table_row_reduced
             + self.vcu_calib_table_row_start,
             :,
         ]
@@ -425,7 +420,7 @@ class RealtimeDDPG(object):
 
         # ou_noise is a row vector sdfof num_actions dimension
         self.ou_noise_std_dev = 0.2
-        self.ou_noise =OUActionNoise(
+        self.ou_noise = OUActionNoise(
             mean=np.zeros(self.num_reduced_actions),
             std_deviation=float(self.ou_noise_std_dev)
             * np.ones(self.num_reduced_actions),
@@ -544,8 +539,6 @@ class RealtimeDDPG(object):
                     extra=self.dictLogger,
                 )
 
-
-
     # @eye
     # tracer.start()
 
@@ -612,7 +605,7 @@ class RealtimeDDPG(object):
         self.get_truck_status_myPort = 8002
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
-    def onboard_get_truck_status(self, evt_epi_done):
+    def kvaser_get_truck_status(self, evt_epi_done):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
@@ -825,7 +818,7 @@ class RealtimeDDPG(object):
 
     # this is the calibration table consumer for flashing
     # @eye
-    def flash_vcu(self):
+    def kvaser_flash_vcu(self):
 
         flash_count = 0
         th_exit = False
@@ -849,23 +842,12 @@ class RealtimeDDPG(object):
 
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                if self.cloud:
-                    success, json_ret = self.remotecan_client.send_torque_map(table)
-                    if not success:
-                        returncode = json_ret["reson"]
-                        self.logc.error(
-                            f"send_torque_map failed: {returncode}",
-                            extra=self.dictLogger,
-                        )
-                else:
-                    returncode = kvaser_send_float_array(
-                        table, sw_diff=True
+                returncode = kvaser_send_float_array(table, sw_diff=True)
+                if returncode != 0:
+                    self.logc.error(
+                        f"kvaser_send_float_array failed: {returncode}",
+                        extra=self.dictLogger,
                     )
-                    if returncode != 0:
-                        self.logc.error(
-                            f"kvaser_send_float_array failed: {returncode}",
-                            extra=self.dictLogger,
-                        )
                 # time.sleep(1.0)
                 self.logc.info(
                     f"flash done, count:{flash_count}", extra=self.dictLogger
@@ -876,7 +858,7 @@ class RealtimeDDPG(object):
         # motionpowerQueue.join()
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
-    def cloud_get_truck_status(self):
+    def remote_get_truck_status(self):
         # global program_exit
         # global motionpowerQueue, sequence_len
         # global episode_count, episode_done, episode_end
@@ -906,7 +888,9 @@ class RealtimeDDPG(object):
                     )
                     th_exit = True
                     continue
-            status_ok, remotecan_data = self.remotecan_client.get_signals(duration=duration)
+            status_ok, remotecan_data = self.remotecan_client.get_signals(
+                duration=duration
+            )
             if not status_ok:
                 self.logc.error(
                     f"get_signals failed: {remotecan_data}",
@@ -1149,7 +1133,7 @@ class RealtimeDDPG(object):
                                     self.vcu_calib_table_row_start = 1
                                 elif vel_max < 120:
                                     self.vcu_calib_table_row_start = (
-                                            math.floor((vel_max - 30) / 10) + 2
+                                        math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
                                     self.logc.warning(
@@ -1199,6 +1183,50 @@ class RealtimeDDPG(object):
                 self.logc.info(f"{X}: data corrupt!", extra=self.dictLogger)
 
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+
+    def remote_flash_vcu(self):
+
+        flash_count = 0
+        th_exit = False
+
+        self.logc.info(f"Initialization Done!", extra=self.dictLogger)
+        while not th_exit:
+            # time.sleep(0.1)
+            with self.hmi_lock:
+                if self.program_exit:
+                    th_exit = True
+                    continue
+            try:
+                # print("1 tablequeue size: {}".format(tablequeue.qsize()))
+                table = self.tableQueue.get(
+                    block=False, timeout=1
+                )  # default block = True
+                # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+            except queue.Empty:
+                pass
+            else:
+
+                # tf.print('calib table:', table, output_stream=output_path)
+                self.logc.info(f"flash starts", extra=self.dictLogger)
+                    returncode = self.remotecan_client.send_torque_map(
+                        pedalmap=table,
+                    )
+                    if not success:
+                        returncode = json_ret["reson"]
+                        self.logc.error(
+                            f"send_torque_map failed: {returncode}",
+                            extra=self.dictLogger,
+                        )
+
+                # time.sleep(1.0)
+                self.logc.info(
+                    f"flash done, count:{flash_count}", extra=self.dictLogger
+                )
+                flash_count += 1
+                # watch(flash_count)
+
+        # motionpowerQueue.join()
+        self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
     # @eye
     def run(self):
@@ -1262,13 +1290,18 @@ class RealtimeDDPG(object):
                         epi_end = self.episode_end
                         done = self.episode_done
                         table_start = self.vcu_calib_table_row_start
-                    self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
-                    if epi_end and done and (self.motionpowerQueue.qsize()>2):
+                    self.logc.info(
+                        f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}"
+                    )
+                    if epi_end and done and (self.motionpowerQueue.qsize() > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
-                        self.logc.info(f"Residue in Queue is a sign of disordered sequence, interrupted!")
-                        done = False # this local done is true done with data exploitation
+                        self.logc.info(
+                            f"Residue in Queue is a sign of disordered sequence, interrupted!"
+                        )
+                        done = (
+                            False  # this local done is true done with data exploitation
+                        )
                         epi_end = True
-
 
                     if epi_end:  # stop observing and inferring
                         continue
@@ -1665,13 +1698,20 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
 
-    app = RealtimeDDPG(
-        args.cloud,
-        args.resume,
-        args.infer,
-        args.record_table,
-        args.path,
-        projroot,
-        logger,
-    )
+    try:
+        app = RealtimeDDPG(
+            args.cloud,
+            args.resume,
+            args.infer,
+            args.record_table,
+            args.path,
+            projroot,
+            logger,
+        )
+    except TruckIDError as e:
+        logger.error(f"Caught Project Exeception: {e}", extra=logger.dictLogger)
+        sys.exit(1)
+    except Exception as e:
+        logger.error(e, extra=logger.dictLogger)
+        sys.exit(1)
     app.run()
