@@ -30,7 +30,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
 
     if shortcut == 1:
         vel_ = np.linspace(
-            velocity_range[0], velocity_range[1], num=nvl-1
+            velocity_range[0], velocity_range[1], num=nvl - 1
         )  # 0 - 120 kmph velocity
         vel = np.insert(vel_, 1, 7) / 3.6  # insert 7 kmph, and convert to m/s
         pdv, vlv = np.meshgrid(ped, vel, sparse=True)

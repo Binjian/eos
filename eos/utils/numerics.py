@@ -72,7 +72,7 @@ def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.
                         ragged_nparray_list[count] = np.array(
                             list(ragged_nparray_list[count])
                             + [None] * (ob_num - item_len[count]),
-                            dtype=np.float32
+                            dtype=np.float32,
                         )
                         ragged_nparray_list[count] = nan_interp_1d(
                             ragged_nparray_list[count]

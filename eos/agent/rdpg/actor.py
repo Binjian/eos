@@ -12,6 +12,7 @@ from eos.utils.exception import ReadOnlyError
 
 global _state_dim
 
+
 class ActorNet:
     """Actor network for the RDPG algorithm."""
 
@@ -146,15 +147,17 @@ class ActorNet:
         # logc("ActorNet.predict")
         return sampled_action
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
+    @tf.function(
+        input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)]
+    )
     def predict_step(self, state):
         """Predict the action given the state.
-         Args:
-             state (np.array): State, Batch dimension needs to be one.
+        Args:
+            state (np.array): State, Batch dimension needs to be one.
 
-         Returns:
-             np.array: Action
-         """
+        Returns:
+            np.array: Action
+        """
         # logc("ActorNet.predict")
         action_seq = self.eager_model(state)
 
@@ -162,8 +165,9 @@ class ActorNet:
         last_action = tf.squeeze(action_seq[:, -1, :])
         return last_action
 
-
-    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
+    @tf.function(
+        input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)]
+    )
     def evaluate_actions(self, state):
         """Evaluate the action given the state.
         Args:

@@ -109,6 +109,7 @@ from eos.utils.exception import ReadOnlyError
 
 global _n_obs, _batch_size
 
+
 class RDPG:
     def __init__(
         self,
@@ -270,14 +271,18 @@ class RDPG:
         # self.obs_t = np.ones((1, t + 1, self._n_obs))
         # self.obs_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
-        input_array = tf.convert_to_tensor(np.expand_dims(np.array(self.obs_t), axis=0), dtype=tf.float32)
+        input_array = tf.convert_to_tensor(
+            np.expand_dims(np.array(self.obs_t), axis=0), dtype=tf.float32
+        )
         logger.info(f"input_array.shape: {input_array.shape}", extra=dictLogger)
         # action = self.actor_net.predict(input_arra)
         action = self.actor_predict_step(input_array)
         logger.info(f"action.shape: {action.shape}", extra=dictLogger)
         return action
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)])
+    @tf.function(
+        input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)]
+    )
     def actor_predict_step(self, obs):
         """
         Evaluate the actors given a single observations.
@@ -340,7 +345,9 @@ class RDPG:
             value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
         )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
         # for alignment with critic output with extra feature dimension
-        self.r_n_t = tf.convert_to_tensor(np.expand_dims(self.r_n_t, axis=2),dtype=tf.float32)
+        self.r_n_t = tf.convert_to_tensor(
+            np.expand_dims(self.r_n_t, axis=2), dtype=tf.float32
+        )
         # logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
 
         o_n_l0 = [
@@ -428,9 +435,11 @@ class RDPG:
             # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
             t_q_ht_bl = tf.cast(
                 tf.experimental.numpy.append(
-                    t_q_ht1[:, 1:, :], np.zeros((self._batch_size, 1, 1)), axis=1,
+                    t_q_ht1[:, 1:, :],
+                    np.zeros((self._batch_size, 1, 1)),
+                    axis=1,
                 ),  # TODO: replace self._seq_len with maximal seq length
-                dtype= tf.float32
+                dtype=tf.float32,
             )
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
@@ -453,9 +462,14 @@ class RDPG:
         with tf.GradientTape() as tape:
             logger.info(f"start actor evaluate_actions", extra=dictLogger)
             a_ht = self.actor_net.evaluate_actions(o_n_t)
-            logger.info(f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}", extra=dictLogger)
+            logger.info(
+                f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
+                extra=dictLogger,
+            )
             q_ht = self.critic_net.evaluate_q(o_n_t, a_ht)
-            logger.info(f"actor evaluate_q done, q_ht.shape: {q_ht.shape}", extra=dictLogger)
+            logger.info(
+                f"actor evaluate_q done, q_ht.shape: {q_ht.shape}", extra=dictLogger
+            )
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
             # logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht

@@ -289,9 +289,7 @@ class realtime_train_infer_rdpg(object):
             bSuccess, json_return = self.remotecan_client.send_torque_map(vcu_table1)
             returncode = json_return["reson"]
         else:
-            returncode = kvaser_send_float_array(
-                vcu_table1, sw_diff=True
-            )
+            returncode = kvaser_send_float_array(vcu_table1, sw_diff=True)
 
         self.logger.info(
             f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
@@ -328,7 +326,7 @@ class realtime_train_infer_rdpg(object):
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
         self.vcu_calib_table_row_reduced = 4  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (          # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
+        self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
         # hyperparameters for DRL
@@ -339,7 +337,7 @@ class realtime_train_infer_rdpg(object):
         # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
         self.vcu_calib_table_row_start = 0
         self.vcu_calib_table0_reduced = self.vcu_calib_table0[
-            self.vcu_calib_table_row_start: self.vcu_calib_table_row_reduced
+            self.vcu_calib_table_row_start : self.vcu_calib_table_row_reduced
             + self.vcu_calib_table_row_start,
             :,
         ]
@@ -389,7 +387,7 @@ class realtime_train_infer_rdpg(object):
         init_states = tf.convert_to_tensor(
             init_motionpower
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        input_array = tf.cast(tf.reshape(init_states, -1), dtype= tf.float32)
+        input_array = tf.cast(tf.reshape(init_states, -1), dtype=tf.float32)
 
         # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
 
@@ -723,9 +721,7 @@ class realtime_train_infer_rdpg(object):
                             extra=self.dictLogger,
                         )
                 else:
-                    returncode = kvaser_send_float_array(
-                        table, sw_diff=True
-                    )
+                    returncode = kvaser_send_float_array(table, sw_diff=True)
                     if returncode != 0:
                         self.logc.error(
                             f"kvaser_send_float_array failed: {returncode}",
@@ -771,7 +767,9 @@ class realtime_train_infer_rdpg(object):
                     )
                     th_exit = True
                     continue
-            status_ok, remotecan_data = self.remotecan_client.get_signals(duration=duration)
+            status_ok, remotecan_data = self.remotecan_client.get_signals(
+                duration=duration
+            )
             if not status_ok:
                 self.logc.error(
                     f"get_signals failed: {remotecan_data}",
@@ -1014,7 +1012,7 @@ class realtime_train_infer_rdpg(object):
                                     self.vcu_calib_table_row_start = 1
                                 elif vel_max < 120:
                                     self.vcu_calib_table_row_start = (
-                                            math.floor((vel_max - 30) / 10) + 2
+                                        math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
                                     self.logc.warning(
@@ -1126,15 +1124,22 @@ class realtime_train_infer_rdpg(object):
                             self.program_exit
                         )  # if program_exit is False, reset to wait
                         epi_end = self.episode_end
-                        done = self.episode_done  # this class member episode_done is driving action (maneuver) done
+                        done = (
+                            self.episode_done
+                        )  # this class member episode_done is driving action (maneuver) done
                         table_start = self.vcu_calib_table_row_start
-                    self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
-                    if epi_end and done and (self.motionpowerQueue.qsize()>2):
+                    self.logc.info(
+                        f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}"
+                    )
+                    if epi_end and done and (self.motionpowerQueue.qsize() > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
-                        self.logc.info(f"Residue in Queue is a sign of disordered sequence, interrupted!")
-                        done = False # this local done is true done with data exploitation
+                        self.logc.info(
+                            f"Residue in Queue is a sign of disordered sequence, interrupted!"
+                        )
+                        done = (
+                            False  # this local done is true done with data exploitation
+                        )
                         epi_end = True
-
 
                     if epi_end:  # stop observing and inferring
                         continue
@@ -1199,7 +1204,9 @@ class realtime_train_infer_rdpg(object):
                             if step_count == 2:  # first even step has $r_0$
                                 self.h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
                             else:
-                                self.h_t.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
+                                self.h_t.append(
+                                    np.hstack([prev_o_t, prev_a_t, prev_r_t])
+                                )
 
                             self.logd.info(
                                 f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
