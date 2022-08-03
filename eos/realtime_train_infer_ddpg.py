@@ -226,12 +226,10 @@ class RealtimeDDPG(object):
             0.05  # interval that allows modifying the calibration table
         )
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
-        self.action_budget = (
-            0.10  # interval that allows modifying the calibration table
-        )
-        self.action_lower = 0.8
-        self.action_upper = 1.0
-        self.action_bias = 0.0
+        self.action_budget = 250  # action_budget 250 Nm
+        self.action_lower = self.truck.ActionLowerBound  # 0.8
+        self.action_upper = self.truck.ActionUpperBound  # 1.0
+        self.action_bias = self.truck.ActionBias  # 0.0
 
         # index of the current pedal map is speed in kmph
         pd_ind = np.linspace(0, 120, self.vcu_calib_table_row-1)
@@ -1379,9 +1377,8 @@ class RealtimeDDPG(object):
                         # )
 
                         # get change budget : % of initial table
-                        vcu_calib_table_bound = 250
                         vcu_calib_table_reduced = (
-                            vcu_calib_table_reduced * vcu_calib_table_bound
+                            vcu_calib_table_reduced * self.action_budget
                         )
                         # vcu_calib_table_reduced = tf.math.multiply(
                         #     vcu_calib_table_reduced * vcu_calib_table_budget,

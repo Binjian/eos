@@ -213,20 +213,17 @@ class realtime_train_infer_rdpg(object):
         # initialize pedal map parameters
         self.vcu_calib_table_col = 17  # number of pedal steps, x direction
         self.vcu_calib_table_row = 14  # numnber of velocity steps, y direction
-        self.vcu_calib_table_budget = (
-            0.05  # interval that allows modifying the calibration table
-        )
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
         self.action_budget = (
-            0.10  # interval that allows modifying the calibration table
+            250  # action_budget 250 Nm
         )
         self.action_lower = 0.8
         self.action_upper = 1.0
         self.action_bias = 0.0
 
         # index of the current pedal map is speed in kmph
-        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row-1)
-        self.pd_index = np.insert(pd_ind, 1, 7) # insert 7 kmph
+        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
+        self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
         self.pd_columns = (
             np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100])
             / 100
@@ -1257,9 +1254,8 @@ class realtime_train_infer_rdpg(object):
                         # )
 
                         # get change budget : % of initial table
-                        vcu_calib_table_bound = 250
                         vcu_calib_table_reduced = (
-                            vcu_calib_table_reduced * vcu_calib_table_bound
+                            vcu_calib_table_reduced * self.action_budget
                         )
                         # vcu_calib_table_reduced = tf.math.multiply(
                         #     vcu_calib_table_reduced * vcu_calib_table_budget,
