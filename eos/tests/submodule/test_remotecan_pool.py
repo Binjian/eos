@@ -1,20 +1,22 @@
 # system import
 # 3rd party import
-import unittest
-import json
-import numpy as np
-import os
 import datetime
-import logging
 import inspect
+import logging
+import os
+import unittest
 import warnings
-from collections import namedtuple
-from eos.comm import generate_vcu_calibration
-from eos import projroot
+
+import numpy as np
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
 from eos import RecordPool
+from eos import RemoteCan, projroot
+from eos.comm import generate_vcu_calibration
+from eos.utils import ragged_nparray_list_interp
+from eos.config import trucks
+from eos.utils.exception import TruckIDError
 
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
@@ -43,63 +45,31 @@ class TestRemoteCanPool(unittest.TestCase):
             "https": "http://127.0.0.1:34663",
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
-        self.TruckType = namedtuple(
-            "Truck",
-            [
-                "Name",
-                "VIN",
-                "Plate",
-                "Maturity",
-                "PedalRange",
-                "PedalScale",
-                "VelocityRange",
-                "VelocityScale",
-            ],
-        )
-        self.trucks = [
-            self.TruckType(
-                Name="VB7",
-                VIN="HMZABAAH7MF011058",
-                Plate="77777777",
-                Maturity="VB",
-                PedalRange=[0.0, 1.0],
-                PedalScale=17,
-                VelocityRange=[0.0, 120],
-                VelocityScale=14,
-            ),
-            self.TruckType(
-                Name="VB6",
-                VIN="HMZABAAH5MF011057",
-                Plate="66666666",
-                Maturity="VB",
-                PedalRange=[0.0, 1.0],
-                PedalScale=17,
-                VelocityRange=[0.0, 120],
-                VelocityScale=14,
-            ),
-            self.TruckType(
-                Name="HQB",
-                VIN="NEWRIZON020220328",
-                Plate="00000000",
-                Maturity="VB",
-                PedalRange=[0.0, 1.0],
-                PedalScale=17,
-                VelocityRange=[0.0, 120],
-                VelocityScale=14,
-            ),
-        ]  # HQ Bench
+        self.trucks = trucks
         self.truck_ind = 0  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
+
         self.projroot = projroot
-        self.logger = logging.getLogger("__name__")
+        self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
+        self.truck = self.trucks[self.truck_ind]
         self.set_logger(projroot)
 
+        # validate truck ID to be "VB7"
+        try:
+            if self.truck.TruckName != "VB7":
+                raise TruckIDError("Truck ID is not VB7")
+        except TruckIDError as e:
+            self.logger.error(f"Caught Project Exception: {e}", extra=self.dictLogger)
+            raise e
+
+        self.observe_length = self.truck.CloudUnitNumber  # number of cloud units 5s
+
         self.vcu_calib_table_default = generate_vcu_calibration(
-            self.trucks[self.truck_ind].PedalScale,
-            self.trucks[self.truck_ind].PedalRange,
-            self.trucks[self.truck_ind].VelocityScale,
-            self.trucks[self.truck_ind].VelocityRange,
+            self.truck.PedalScale,
+            self.truck.PedalRange,
+            self.truck.VelocityScale,
+            self.truck.VelocityRange,
             2,
             self.projroot.joinpath("eos/config"),
         )
@@ -112,7 +82,7 @@ class TestRemoteCanPool(unittest.TestCase):
             pass
         logfile = logroot.joinpath(
             "test_remotecan_get-"
-            + self.trucks[self.truck_ind].Name
+            + self.truck.TruckName
             + datetime.datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
@@ -131,44 +101,50 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.addHandler(ch)
         self.logger.setLevel(logging.DEBUG)
 
+    #
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    # def test_proxy_get(self):
+    #
+    #     self.logger.info("start test_proxy", extra=self.dictLogger)
+    #     self.client = RemoteCan(
+    #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
+    #     )
+    #     self.native_get()
+    #
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    # def test_proxy_send(self):
+    #
+    #     self.logger.info("start test_proxy", extra=self.dictLogger)
+    #     self.client = RemoteCan(
+    #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
+    #     )
+    #     self.native_send()
+
     @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_proxy(self):
-
-        self.client = RemoteCan(
-            vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
-        )
-        map2d = [[i * 10 + j for j in range(17)] for i in range(21)]
-        success, response = self.client.send_torque_map(map2d)
-        if success:
-            signal_success, json_ret = self.client.get_signals(duration=2)
-            if signal_success is True:
-                try:
-                    print("print whole json string:")
-                    json_string = json.dumps(
-                        json_ret, indent=4, sort_keys=True, separators=(",", ": ")
-                    )
-                    print(json_string)
-                except Exception as X:
-                    print(f"{X}:data corrupt!")
-            else:
-                print("upload corrupt!")
-                print("reson", json_ret)
-        else:
-            print(f"download corrupt!")
-            print("response:", response)
-
-    def test_native(self):
-        self.logger.info("Start test_native", extra=self.dictLogger)
-        self.client = RemoteCan(vin=self.trucks[self.truck_ind].VIN)
-
+    def test_native_get(self):
+        self.logger.info("Start test_native_get", extra=self.dictLogger)
+        self.client = RemoteCan(vin=self.truck.VIN)
         self.logger.info("Set client", extra=self.dictLogger)
-        signal_success, remotecan_data = self.client.get_signals(duration=2)
+        self.native_get()
+
+    def test_native_send(self):
+        self.logger.info("Start test_native_send", extra=self.dictLogger)
+        self.client = RemoteCan(vin=self.truck.VIN)
+        self.logger.info("Set client", extra=self.dictLogger)
+
+        self.native_send()
+
+    def native_get(self):
+
+        signal_success, remotecan_data = self.client.get_signals(
+            duration=self.observe_length
+        )
         self.logger.info(
             f"get_signal(), return state:{signal_success}", extra=self.dictLogger
         )
 
         data_type = type(remotecan_data)
-        print("data type:", data_type)
+        self.logger.info(f"data type: {data_type}")
         if not isinstance(remotecan_data, dict):
             raise TypeError("udp sending wrong data type!")
         if signal_success is True:
@@ -179,117 +155,85 @@ class TestRemoteCanPool(unittest.TestCase):
                 # print(f"print whole json string:{json_string}")
 
                 self.logger.info("show remotecan_data", extra=self.dictLogger)
+                signal_freq = self.truck.CloudSignalFrequency
+                gear_freq = self.truck.CloudGearFrequency
+                unit_duration = self.truck.CloudUnitDuration
+                unit_ob_num = unit_duration * signal_freq
+                unit_gear_num = unit_duration * gear_freq
+                # timestamp_num = int(self.observe_length // duration)
+
                 for key, value in remotecan_data.items():
                     if key == "result":
                         self.logger.info("show result", extra=self.dictLogger)
-                        # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
-                        with np.printoptions(suppress=True, linewidth=100):
-                            # capture warning about ragged json arrays
-                            with np.testing.suppress_warnings() as sup:
-                                log_warning = sup.record(
-                                    np.VisibleDeprecationWarning,
-                                    "Creating an ndarray from ragged nested sequences",
-                                )
-                                current = np.array(value["list_current_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in current]
-                                    for count, item in enumerate(current):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"current{current.shape}:{current}")
+                        # current = np.array(value["list_current_1s"])
+                        current = value["list_current_1s"]
+                        current = ragged_nparray_list_interp(
+                            current, ob_num=unit_ob_num
+                        )
+                        print(f"current{current.shape}:{current}")
 
-                                voltage = np.array(value["list_voltage_1s"])
-                                if len(log_warning):
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in voltage]
-                                    for count, item in enumerate(voltage):
-                                        item[item_len[count] : max(item_len)] = None
-                                r_v, c_v = voltage.shape
-                                # voltage needs to be upsampled in columns if its sample rate is half of the current
-                                if c_v != current.shape[1]:
-                                    voltage_upsampled = np.empty(
-                                        (r_v, 1, c_v, 2), dtype=voltage.dtype
-                                    )
-                                    voltage_upsampled[...] = voltage[:, None, :, None]
-                                    voltage = voltage_upsampled.reshape(r_v, c_v * 2)
-                                print(f"voltage{voltage.shape}:{voltage}")
+                        voltage = ragged_nparray_list_interp(
+                            value["list_voltage_1s"], ob_num=unit_ob_num
+                        )
+                        r_v, c_v = voltage.shape
+                        # voltage needs to be upsampled in columns if its sample rate is half of the current
+                        if c_v == current.shape[1] // 2:
+                            voltage = np.repeat(voltage, 2, axis=1)
+                        print(f"voltage{voltage.shape}:{voltage}")
 
-                                thrust = np.array(value["list_pedal_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in thrust]
-                                    for count, item in enumerate(thrust):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"accl{thrust.shape}:{thrust}")
+                        thrust = ragged_nparray_list_interp(
+                            value["list_pedal_1s"], ob_num=unit_ob_num
+                        )
+                        print(f"accl{thrust.shape}:{thrust}")
 
-                                brake = np.array(value["list_brake_pressure_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in brake]
-                                    for count, item in enumerate(brake):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"brake{brake.shape}:{brake}")
+                        brake = ragged_nparray_list_interp(
+                            value["list_brake_pressure_1s"], ob_num=unit_ob_num
+                        )
+                        print(f"brake{brake.shape}:{brake}")
 
-                                velocity = np.array(value["list_speed_1s"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in velocity]
-                                    for count, item in enumerate(velocity):
-                                        item[item_len[count] : max(item_len)] = None
-                                print(f"velocity{velocity.shape}:{velocity}")
+                        velocity = ragged_nparray_list_interp(
+                            value["list_speed_1s"], ob_num=unit_ob_num
+                        )
+                        print(f"velocity{velocity.shape}:{velocity}")
 
-                                gears = np.array(value["list_gears"])
-                                if len(log_warning) > 0:
-                                    log_warning.pop()
-                                    item_len = [len(item) for item in gears]
-                                    for count, item in enumerate(gears):
-                                        item[item_len[count] : max(item_len)] = None
-                                # upsample gears from 2Hz to 25Hz
-                                r_v, c_v = gears.shape
-                                gears_upsampled = np.empty(
-                                    (r_v, 1, c_v, 25), dtype=gears.dtype
-                                )
-                                gears_upsampled[...] = gears[:, None, :, None]
-                                gears = gears_upsampled.reshape(r_v, c_v * 25)
-                                # gears = np.c_[
-                                #     gears, gears[:, -1]
-                                # ]  # duplicate last gear on the end
-                                print(f"gears{gears.shape}:{gears}")
+                        gears = ragged_nparray_list_interp(
+                            value["list_gears"], ob_num=unit_gear_num
+                        )
+                        # upsample gears from 2Hz to 50Hz
+                        gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
+                        print(f"gears{gears.shape}:{gears}")
 
-                                observation = np.c_[
-                                    velocity.reshape(-1, 1),
-                                    thrust.reshape(-1, 1),
-                                    brake.reshape(-1, 1),
-                                    current.reshape(-1, 1),
-                                    voltage.reshape(-1, 1),
-                                    gears.reshape(-1, 1),
-                                ]  # 3 +2 +1 : im 5
-                                print(f"observation{observation.shape}:{observation}")
+                        observation = np.c_[
+                            velocity.reshape(-1, 1),
+                            thrust.reshape(-1, 1),
+                            brake.reshape(-1, 1),
+                            current.reshape(-1, 1),
+                            voltage.reshape(-1, 1),
+                            gears.reshape(-1, 1),
+                        ]  # 3 +2 +1 : im 5
+                        print(f"observation{observation.shape}:{observation}")
 
-                                timestamps = []
-                                for ts in value["timestamps"]:
-                                    ts_iso = (
-                                        "20"
-                                        + ts[:2]
-                                        + "-"
-                                        + ts[2:4]
-                                        + "-"
-                                        + ts[4:6]
-                                        + "T"
-                                        + ts[6:8]
-                                        + ":"
-                                        + ts[8:10]
-                                        + ":"
-                                        + ts[10:12]
-                                        + "."
-                                        + ts[12:14]
-                                    )
-                                    timestamps.append(ts_iso)
-                                timestamps = np.array(timestamps).astype(
-                                    "datetime64[ms]"
-                                )
-
-                                print(f"timestamp{timestamps.shape}:{timestamps}")
+                        timestamps = []
+                        separators = (
+                            "--T::."  # adaption separators of the raw intest string
+                        )
+                        start_century = "20"
+                        for ts in value["timestamps"]:
+                            # create standard iso string datetime format
+                            ts_substrings = [
+                                ts[i : i + 2] for i in range(0, len(ts), 2)
+                            ]
+                            ts_iso = start_century
+                            for i, sep in enumerate(separators):
+                                ts_iso = ts_iso + ts_substrings[i] + sep
+                            ts_iso = ts_iso + ts_substrings[-1]
+                            timestamps.append(ts_iso)
+                        timestamps = (
+                            np.array(timestamps).astype("datetime64[ms]").astype("int")
+                        )
+                        print(
+                            f"timestamp{timestamps.shape}:{timestamps.astype('datetime64[ms]')}"
+                        )
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}", extra=self.dictLogger
@@ -306,21 +250,64 @@ class TestRemoteCanPool(unittest.TestCase):
             print("upload corrupt!")
             print("reson", remotecan_data)
 
-        # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
-        map2d = self.vcu_calib_table_default.reshape(-1).tolist()
-        map2d_5rows = self.vcu_calib_table_default[:5, :].reshape(-1).tolist()
-        self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        success, response = self.client.send_torque_map(map2d_5rows)
+    def native_send(self):
+
+        # # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
+
+        # flashing 5 rows of the calibration table
+        k0 = 0
+        N0 = 5
+        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
         self.logger.info(
-            f"finish sending torque map: success={success}, response={response}.",
+            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
         )
-        if success:
-            print("torque map sent")
-            print("response", response)
-        else:
-            print("torque map failed")
-            print("response:", response)
+        returncode = self.client.send_torque_map(
+            pedalmap=map2d_5rows, k=k0, N=N0, abswitch=False
+        )
+        self.logger.info(
+            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
+            extra=self.dictLogger,
+        )
+
+        self.logger.info(
+            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
+            extra=self.dictLogger,
+        )
+        returncode = self.client.send_torque_map(
+            pedalmap=map2d_5rows, k=k0, N=N0, abswitch=True
+        )
+        self.logger.info(
+            f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}.",
+            extra=self.dictLogger,
+        )
+
+        # flashing 5 rows of the calibration table
+        k0 = 2
+        N0 = 8
+        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
+        self.logger.info(
+            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
+            extra=self.dictLogger,
+        )
+        returncode = self.client.send_torque_map(
+            pedalmap=map2d_5rows, k=k0, N=N0, abswitch=False
+        )
+        self.logger.info(
+            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
+            extra=self.dictLogger,
+        )
+
+        # flashing the whole calibration table
+        map2d = self.vcu_calib_table_default.reshape(-1).tolist()
+        self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        returncode = self.client.send_torque_map(
+            pedalmap=map2d, k=0, N=14, abswitch=False
+        )
+        self.logger.info(
+            f"finish sending torque map: returncode={returncode}.",
+            extra=self.dictLogger,
+        )
 
 
 if __name__ == "__main__":
