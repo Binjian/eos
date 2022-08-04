@@ -1,5 +1,4 @@
 from collections import namedtuple
-import numpy as np
 
 TruckType = namedtuple(
     "Truck",
@@ -112,7 +111,7 @@ trucks = [
     ),  # HQ Bench
 ]
 
-PEDAL_SCALE = [0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100] / 100.0
+PEDAL_SCALE = [0, 0.02, 0.04, 0.08, 0.12, 0.16, 0.20, 0.24, 0.28, 0.32, 0.38, 0.44, 0.50, 0.62, 0.74, 0.86, 1.0]
 VELOCITY_SCALE_MULE = [
     0,
     7,
