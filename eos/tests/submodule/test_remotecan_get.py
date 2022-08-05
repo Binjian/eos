@@ -119,13 +119,13 @@ class TestRemoteCanGet(unittest.TestCase):
     #     )
     #     self.native_send()
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_get(self):
         self.logger.info("Start test_native_get", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
         self.logger.info("Set client", extra=self.dictLogger)
         self.native_get()
 
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_send(self):
         self.logger.info("Start test_native_send", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
@@ -159,18 +159,48 @@ class TestRemoteCanGet(unittest.TestCase):
                 unit_duration = self.truck.CloudUnitDuration
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
+                timestamp_upsample_rate = self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
                 # timestamp_num = int(self.observe_length // duration)
 
                 for key, value in remotecan_data.items():
                     if key == "result":
                         self.logger.info("show result", extra=self.dictLogger)
+
+                        # timestamp processing
+                        timestamps = []
+                        separators = (
+                            "--T::."  # adaption separators of the raw intest string
+                        )
+                        start_century = "20"
+                        for ts in value["timestamps"]:
+                            # create standard iso string datetime format
+                            ts_substrings = [
+                                ts[i : i + 2] for i in range(0, len(ts), 2)
+                            ]
+                            ts_iso = start_century
+                            for i, sep in enumerate(separators):
+                                ts_iso = ts_iso + ts_substrings[i] + sep
+                            ts_iso = ts_iso + ts_substrings[-1]
+                            timestamps.append(ts_iso)
+                        timestamps_units = (
+                            np.array(timestamps).astype("datetime64[ms]").astype("int")  # convert to int
+                        )
+                        print(
+                            f"timestamp{timestamps_units.shape}:{timestamps_units.astype('datetime64[ms]')}"
+                        )
+                        # upsample gears from 2Hz to 50Hz
+                        timestamps_upsampled = np.repeat(timestamps_units, timestamp_upsample_rate, axis=0)
+                        timestamps = timestamps_upsampled.reshape((self.truck.CloudUnitNumber, -1))
+                        print(f"gears{timestamps.shape}:{timestamps}")
+
+
                         # current = np.array(value["list_current_1s"])
-                        current = value["list_current_1s"]
                         current = ragged_nparray_list_interp(
-                            current, ob_num=unit_ob_num
+                            value["list_current_1s"], ob_num=unit_ob_num
                         )
                         print(f"current{current.shape}:{current}")
 
+                        # voltage
                         voltage = ragged_nparray_list_interp(
                             value["list_voltage_1s"], ob_num=unit_ob_num
                         )
@@ -202,7 +232,9 @@ class TestRemoteCanGet(unittest.TestCase):
                         gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
                         print(f"gears{gears.shape}:{gears}")
 
+
                         observation = np.c_[
+                            timestamps.reshape((-1, 1)),
                             velocity.reshape(-1, 1),
                             thrust.reshape(-1, 1),
                             brake.reshape(-1, 1),
@@ -212,27 +244,6 @@ class TestRemoteCanGet(unittest.TestCase):
                         ]  # 3 +2 +1 : im 5
                         print(f"observation{observation.shape}:{observation}")
 
-                        timestamps = []
-                        separators = (
-                            "--T::."  # adaption separators of the raw intest string
-                        )
-                        start_century = "20"
-                        for ts in value["timestamps"]:
-                            # create standard iso string datetime format
-                            ts_substrings = [
-                                ts[i : i + 2] for i in range(0, len(ts), 2)
-                            ]
-                            ts_iso = start_century
-                            for i, sep in enumerate(separators):
-                                ts_iso = ts_iso + ts_substrings[i] + sep
-                            ts_iso = ts_iso + ts_substrings[-1]
-                            timestamps.append(ts_iso)
-                        timestamps = (
-                            np.array(timestamps).astype("datetime64[ms]").astype("int")
-                        )
-                        print(
-                            f"timestamp{timestamps.shape}:{timestamps.astype('datetime64[ms]')}"
-                        )
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}", extra=self.dictLogger
