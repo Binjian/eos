@@ -62,8 +62,6 @@ class TestRemoteCanGet(unittest.TestCase):
             self.logger.error(f"Caught Project Exception: {e}", extra=self.dictLogger)
             raise e
 
-        self.observe_length = self.truck.CloudUnitNumber  # number of cloud units 5s
-
         self.vcu_calib_table_default = generate_vcu_calibration(
             self.truck.PedalScale,
             self.truck.PedalRange,
@@ -136,7 +134,7 @@ class TestRemoteCanGet(unittest.TestCase):
     def native_get(self):
 
         signal_success, remotecan_data = self.client.get_signals(
-            duration=self.observe_length
+            duration=self.truck.CloudUnitNumber
         )
         self.logger.info(
             f"get_signal(), return state:{signal_success}", extra=self.dictLogger
@@ -159,6 +157,7 @@ class TestRemoteCanGet(unittest.TestCase):
                 unit_duration = self.truck.CloudUnitDuration
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
+                unit_num = self.truck.CloudUnitNumber
                 timestamp_upsample_rate = self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
                 # timestamp_num = int(self.observe_length // duration)
 
@@ -185,13 +184,19 @@ class TestRemoteCanGet(unittest.TestCase):
                         timestamps_units = (
                             np.array(timestamps).astype("datetime64[ms]").astype("int")  # convert to int
                         )
+                        if len(timestamps_units) != unit_num:
+                            raise ValueError(
+                                f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                            )
                         print(
-                            f"timestamp{timestamps_units.shape}:{timestamps_units.astype('datetime64[ms]')}"
+                            f"timestamps_units{timestamps_units.shape}:{timestamps_units.astype('datetime64[ms]')}"
                         )
                         # upsample gears from 2Hz to 50Hz
-                        timestamps_upsampled = np.repeat(timestamps_units, timestamp_upsample_rate, axis=0)
-                        timestamps = timestamps_upsampled.reshape((self.truck.CloudUnitNumber, -1))
-                        print(f"gears{timestamps.shape}:{timestamps}")
+                        timestamps_seconds = list(timestamps_units/1000)
+                        sampling_interval = 1.0 / signal_freq
+                        timestamps = [i + j*sampling_interval for i in timestamps_seconds for j in np.arange(unit_ob_num)]
+                        timestamps = np.array(timestamps).reshape((self.truck.CloudUnitNumber, -1))
+                        print(f"Timestamps{timestamps.shape}:{timestamps}")
 
 
                         # current = np.array(value["list_current_1s"])
