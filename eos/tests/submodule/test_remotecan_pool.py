@@ -81,7 +81,7 @@ class TestRemoteCanPool(unittest.TestCase):
         except FileExistsError:
             pass
         logfile = logroot.joinpath(
-            "test_remotecan_get-"
+            "test_remotecan_pool-"
             + self.truck.TruckName
             + datetime.datetime.now().isoformat().replace(":", "-")
             + ".log"
@@ -120,13 +120,25 @@ class TestRemoteCanPool(unittest.TestCase):
     #     )
     #     self.native_send()
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_get(self):
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_pool_deposit_record(self):
         self.logger.info("Start test_native_get", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
+        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
         self.logger.info("Set client", extra=self.dictLogger)
         self.native_get()
 
+        k0 = 0
+        N0 = 5
+        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
+        self.logger.info(
+            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
+            extra=self.dictLogger,
+        )
+        self.pool.deposit_record(vin=self.truck.VIN, map2d=map2d_5rows)
+
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_send(self):
         self.logger.info("Start test_native_send", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
@@ -137,7 +149,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def native_get(self):
 
         signal_success, remotecan_data = self.client.get_signals(
-            duration=self.observe_length
+            duration=self.truck.CloudUnitNumber
         )
         self.logger.info(
             f"get_signal(), return state:{signal_success}", extra=self.dictLogger
@@ -160,59 +172,15 @@ class TestRemoteCanPool(unittest.TestCase):
                 unit_duration = self.truck.CloudUnitDuration
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
+                unit_num = self.truck.CloudUnitNumber
+                timestamp_upsample_rate = self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
                 # timestamp_num = int(self.observe_length // duration)
 
                 for key, value in remotecan_data.items():
                     if key == "result":
                         self.logger.info("show result", extra=self.dictLogger)
-                        # current = np.array(value["list_current_1s"])
-                        current = value["list_current_1s"]
-                        current = ragged_nparray_list_interp(
-                            current, ob_num=unit_ob_num
-                        )
-                        print(f"current{current.shape}:{current}")
 
-                        voltage = ragged_nparray_list_interp(
-                            value["list_voltage_1s"], ob_num=unit_ob_num
-                        )
-                        r_v, c_v = voltage.shape
-                        # voltage needs to be upsampled in columns if its sample rate is half of the current
-                        if c_v == current.shape[1] // 2:
-                            voltage = np.repeat(voltage, 2, axis=1)
-                        print(f"voltage{voltage.shape}:{voltage}")
-
-                        thrust = ragged_nparray_list_interp(
-                            value["list_pedal_1s"], ob_num=unit_ob_num
-                        )
-                        print(f"accl{thrust.shape}:{thrust}")
-
-                        brake = ragged_nparray_list_interp(
-                            value["list_brake_pressure_1s"], ob_num=unit_ob_num
-                        )
-                        print(f"brake{brake.shape}:{brake}")
-
-                        velocity = ragged_nparray_list_interp(
-                            value["list_speed_1s"], ob_num=unit_ob_num
-                        )
-                        print(f"velocity{velocity.shape}:{velocity}")
-
-                        gears = ragged_nparray_list_interp(
-                            value["list_gears"], ob_num=unit_gear_num
-                        )
-                        # upsample gears from 2Hz to 50Hz
-                        gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
-                        print(f"gears{gears.shape}:{gears}")
-
-                        observation = np.c_[
-                            velocity.reshape(-1, 1),
-                            thrust.reshape(-1, 1),
-                            brake.reshape(-1, 1),
-                            current.reshape(-1, 1),
-                            voltage.reshape(-1, 1),
-                            gears.reshape(-1, 1),
-                        ]  # 3 +2 +1 : im 5
-                        print(f"observation{observation.shape}:{observation}")
-
+                        # timestamp processing
                         timestamps = []
                         separators = (
                             "--T::."  # adaption separators of the raw intest string
@@ -228,12 +196,54 @@ class TestRemoteCanPool(unittest.TestCase):
                                 ts_iso = ts_iso + ts_substrings[i] + sep
                             ts_iso = ts_iso + ts_substrings[-1]
                             timestamps.append(ts_iso)
-                        timestamps = (
-                            np.array(timestamps).astype("datetime64[ms]").astype("int")
+                        timestamps_units = (
+                            np.array(timestamps).astype("datetime64[ms]").astype("int")  # convert to int
                         )
-                        print(
-                            f"timestamp{timestamps.shape}:{timestamps.astype('datetime64[ms]')}"
+                        if len(timestamps_units) != unit_num:
+                            raise ValueError(
+                                f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                            )
+                        # upsample gears from 2Hz to 50Hz
+                        timestamps_seconds = list(timestamps_units/1000)
+                        sampling_interval = 1.0 / signal_freq
+                        timestamps = [i + j*sampling_interval for i in timestamps_seconds for j in np.arange(unit_ob_num)]
+                        timestamps = np.array(timestamps).reshape((self.truck.CloudUnitNumber, -1))
+
+
+                        # current = np.array(value["list_current_1s"])
+                        current = ragged_nparray_list_interp(
+                            value["list_current_1s"], ob_num=unit_ob_num
                         )
+                        voltage = ragged_nparray_list_interp(
+                            value["list_voltage_1s"], ob_num=unit_ob_num
+                        )
+                        r_v, c_v = voltage.shape
+                        # voltage needs to be upsampled in columns if its sample rate is half of the current
+                        if c_v == current.shape[1] // 2:
+                            voltage = np.repeat(voltage, 2, axis=1)
+                        thrust = ragged_nparray_list_interp(
+                            value["list_pedal_1s"], ob_num=unit_ob_num
+                        )
+                        brake = ragged_nparray_list_interp(
+                            value["list_brake_pressure_1s"], ob_num=unit_ob_num
+                        )
+                        velocity = ragged_nparray_list_interp(
+                            value["list_speed_1s"], ob_num=unit_ob_num
+                        )
+                        gears = ragged_nparray_list_interp(
+                            value["list_gears"], ob_num=unit_gear_num
+                        )
+                        # upsample gears from 2Hz to 50Hz
+                        gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
+                        self.observation = np.c_[
+                            timestamps.reshape((-1, 1)),
+                            velocity.reshape(-1, 1),
+                            thrust.reshape(-1, 1),
+                            brake.reshape(-1, 1),
+                            current.reshape(-1, 1),
+                            voltage.reshape(-1, 1),
+                            gears.reshape(-1, 1),
+                        ]  # 3 +2 +1 : im 5
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}", extra=self.dictLogger
@@ -311,4 +321,4 @@ class TestRemoteCanPool(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(argv=["submodule-remotecan-test"], exit=False)
+    unittest.main(argv=["submodule-remotecan-pool-test"], exit=False)
