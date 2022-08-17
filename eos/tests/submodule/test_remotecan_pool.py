@@ -140,16 +140,33 @@ class TestRemoteCanPool(unittest.TestCase):
         self.client = RemoteCan(vin=self.truck.VIN)
         self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
         self.logger.info("Set client", extra=self.dictLogger)
-        self.native_get()
 
+        quadruple = self.get_quadruple()
+        self.pool.deposit_record(vin=self.truck.VIN, tuple=quadruple)
+
+    def get_quadruple(self):
+        # current state
+        self.native_get()
+        (timestamp0, motion_states0, gear_states0, power_states0) = np.split(self.observation, [1, 3, 1, 2], axis=1) # split by empty string
+        ui_sum0 = np.sum(np.prod(power_states0, axis=1)) / 3600.0 * 0.02 # convert to Wh
+
+        # action
         k0 = 0
         N0 = 5
         map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
         self.logger.info(
-            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
+            f"Create torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
         )
-        self.pool.deposit_record(vin=self.truck.VIN, map2d=map2d_5rows)
+
+        # next state
+        self.native_get()
+        (timestamp1, motion_states1, gear_states1, power_states1) = np.split(self.observation, [1, 3, 1, 2], axis=1) # split by empty string
+        ui_sum1 = np.sum(np.prod(power_states1, axis=1)) / 3600.0 * 0.02 # convert to Wh
+
+        cycle_reward = ui_sum1 + ui_sum0
+        quadruple = (timestamp0[0], motion_states0, map2d_5rows, cycle_reward, motion_states1)
+        return quadruple
 
 
     @unittest.skipIf(site == "internal", "skip for internal test")
@@ -254,10 +271,10 @@ class TestRemoteCanPool(unittest.TestCase):
                             velocity.reshape(-1, 1),
                             thrust.reshape(-1, 1),
                             brake.reshape(-1, 1),
+                            gears.reshape(-1, 1),
                             current.reshape(-1, 1),
                             voltage.reshape(-1, 1),
-                            gears.reshape(-1, 1),
-                        ]  # 3 +2 +1 : im 5
+                        ]  # 1 + 4 + 2
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}", extra=self.dictLogger
