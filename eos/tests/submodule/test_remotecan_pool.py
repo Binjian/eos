@@ -46,22 +46,36 @@ class TestRemoteCanPool(unittest.TestCase):
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
         self.trucks = trucks
-        self.truck_ind = 0  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
+        self.truck_name = 'VB7'
 
         self.projroot = projroot
         self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
-        self.truck = self.trucks[self.truck_ind]
+
+        self.truck = self.trucks[self.truck_name]
         self.set_logger(projroot)
 
-        # validate truck ID to be "VB7"
-        try:
-            if self.truck.TruckName != "VB7":
-                raise TruckIDError("Truck ID is not VB7")
-        except TruckIDError as e:
-            self.logger.error(f"Caught Project Exception: {e}", extra=self.dictLogger)
-            raise e
+
+        # check if the truck is valid
+        self.assertEqual(self.truck_name, self.truck.TruckName)
+
+        # try:
+        #     self.truck = self.trucks[self.truck_name]
+        # except KeyError as e:
+        #     self.logger.error(f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger)
+        #     return
+        # except Exception as e:
+        #     self.logger.error(f"{e}", extra=self.dictLogger)
+        #     return
+
+        # # validate truck ID to be "VB7"
+        # try:
+        #     if self.truck.TruckName != "VB7":
+        #         raise TruckIDError("Truck ID is not VB7")
+        # except TruckIDError as e:
+        #     self.logger.error(f"Caught Project Exception: {e}", extra=self.dictLogger)
+        #     raise e
 
         self.observe_length = self.truck.CloudUnitNumber  # number of cloud units 5s
 
@@ -82,7 +96,7 @@ class TestRemoteCanPool(unittest.TestCase):
             pass
         logfile = logroot.joinpath(
             "test_remotecan_pool-"
-            + self.truck.TruckName
+            + self.truck.TruckName + '-'
             + datetime.datetime.now().isoformat().replace(":", "-")
             + ".log"
         )

@@ -105,7 +105,7 @@ class RealtimeDDPG(object):
     ):
         self.cloud = cloud
         self.trucks = trucks
-        self.truck_ind = 0  # 0: VB7, 1: VB6
+        self.truck_name = "VB7"  # 0: VB7, 1: VB6
         self.projroot = proj_root
         self.logger = vlogger
         self.dictLogger = dictLogger
@@ -124,11 +124,16 @@ class RealtimeDDPG(object):
         self.logger.info(f"Start Logging", extra=self.dictLogger)
 
         # validate truck id
-        self.truck = self.trucks[self.truck_ind]
-        if self.truck.TruckName != "VB7":
-            raise TruckIDError("Truck is not VB7")
-        else:
-            self.logger.info(f"Truck is VB7", extra=self.dictLogger)
+        try:
+            self.truck = self.trucks[self.truck_name]
+        except KeyError as e:
+            self.logger.error(f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger)
+            sys.exit(1)
+
+# if self.truck.TruckName != "VB7":
+        #     raise TruckIDError("Truck is not VB7")
+        # else:
+        #     self.logger.info(f"Truck is VB7", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -1635,9 +1640,6 @@ if __name__ == "__main__":
             projroot,
             logger,
         )
-    except TruckIDError as e:
-        logger.error(f"Project Exeception TruckIDError: {e}", extra=logger.dictLogger)
-        sys.exit(1)
     except TypeError as e:
         logger.error(f"Project Exeception TypeError: {e}", extra=logger.dictLogger)
         sys.exit(1)

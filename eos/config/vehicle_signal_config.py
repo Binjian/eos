@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-TruckType = namedtuple(
+Truck = namedtuple(
     "Truck",
     [
         "TruckName",  # Name of the truck: VB7, M2, MP2, etc.
@@ -24,8 +24,8 @@ TruckType = namedtuple(
         "ActionBias",  # bias of delta torque to be overlapped on the torque map: 0.0
     ],
 )
-trucks = [
-    TruckType(
+truck_list = [
+    Truck(
         TruckName="VB7",
         VIN="HMZABAAH7MF011058",
         Plate="77777777",
@@ -46,7 +46,7 @@ trucks = [
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
     ),
-    TruckType(
+    Truck(
         TruckName="VB6",
         VIN="HMZABAAH5MF011057",
         Plate="66666666",
@@ -67,7 +67,7 @@ trucks = [
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
     ),
-    TruckType(
+    Truck(
         TruckName="M2",
         VIN=None,  # "987654321654321M4"
         Plate="2222222",
@@ -88,7 +88,7 @@ trucks = [
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
     ),
-    TruckType(
+    Truck(
         TruckName="HQB",
         VIN="NEWRIZON020220328",
         Plate="00000000",
@@ -110,6 +110,8 @@ trucks = [
         ActionBias=0.0,  # No bias
     ),  # HQ Bench
 ]
+
+trucks = dict(zip([truck.TruckName for truck in truck_list], truck_list))
 
 PEDAL_SCALE = [0, 0.02, 0.04, 0.08, 0.12, 0.16, 0.20, 0.24, 0.28, 0.32, 0.38, 0.44, 0.50, 0.62, 0.74, 0.86, 1.0]
 VELOCITY_SCALE_MULE = [

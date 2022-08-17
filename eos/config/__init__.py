@@ -1,5 +1,5 @@
 from .vehicle_signal_config import (
-    TruckType,
+    Truck,
     trucks,
     PEDAL_SCALE,
     TRIANGLE_TEST_CASE_TARGET_VELOCITY,
@@ -9,7 +9,7 @@ from .vehicle_signal_config import (
 )
 
 __all__ = [
-    "TruckType",
+    "Truck",
     "trucks",
     "PEDAL_SCALE",
     "TRIANGLE_TEST_CASE_TARGET_VELOCITY",
