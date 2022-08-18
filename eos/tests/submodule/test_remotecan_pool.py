@@ -136,18 +136,33 @@ class TestRemoteCanPool(unittest.TestCase):
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
-        self.logger.info("Start test_native_get", extra=self.dictLogger)
+        self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
-        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
+        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
 
         quadruple = self.get_quadruple()
         self.pool.deposit_record(vin=self.truck.VIN, tuple=quadruple)
 
+    @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_pool_sample_record(self):
+        self.client = RemoteCan(vin=self.truck.VIN)
+        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
+        self.logger.info("Set client", extra=self.dictLogger)
+
+        self.logger.info("Start creating record pool", extra=self.dictLogger)
+        self.create_record_pool(pool_size=128)
+
+        batch_size = 16
+
+        minibatch = self.pool.sample_batch_record(batch_size=batch_size)
+
+        self.logger.info("Start test_pool_sample", extra=self.dictLogger)
+
     def get_quadruple(self):
         # current state
         self.native_get()
-        (timestamp0, motion_states0, gear_states0, power_states0) = np.split(self.observation, [1, 3, 1, 2], axis=1) # split by empty string
+        (timestamp0, motion_states0, gear_states0, power_states0) = np.split(self.observation, [1, 4, 5], axis=1) # split by empty string
         ui_sum0 = np.sum(np.prod(power_states0, axis=1)) / 3600.0 * 0.02 # convert to Wh
 
         # action
@@ -161,12 +176,22 @@ class TestRemoteCanPool(unittest.TestCase):
 
         # next state
         self.native_get()
-        (timestamp1, motion_states1, gear_states1, power_states1) = np.split(self.observation, [1, 3, 1, 2], axis=1) # split by empty string
+        (timestamp1, motion_states1, gear_states1, power_states1) = np.split(self.observation, [1, 4, 5], axis=1) # split by empty string
         ui_sum1 = np.sum(np.prod(power_states1, axis=1)) / 3600.0 * 0.02 # convert to Wh
 
         cycle_reward = ui_sum1 + ui_sum0
-        quadruple = (timestamp0[0], motion_states0, map2d_5rows, cycle_reward, motion_states1)
+        quadruple = (timestamp0[0][0], motion_states0.tolist(), map2d_5rows, cycle_reward, motion_states1.tolist())
         return quadruple
+
+
+    def create_record_pool(self, pool_size=128):
+        self.client = RemoteCan(vin=self.truck.VIN)
+        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
+        self.logger.info("Set client", extra=self.dictLogger)
+
+        for i in range(pool_size):
+            quadruple = self.get_quadruple()
+            self.pool.deposit_record(vin=self.truck.VIN, tuple=quadruple)
 
 
     @unittest.skipIf(site == "internal", "skip for internal test")
