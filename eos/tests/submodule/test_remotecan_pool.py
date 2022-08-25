@@ -1,17 +1,26 @@
 # system import
 # 3rd party import
+import bson
 import datetime
 import inspect
 import logging
 import os
 import unittest
 import warnings
+from datetime import datetime
 
 import numpy as np
+from pymongoarrow.monkey import patch_all
+# from pymongoarrow.api import Schema
+from bson import ObjectId
+
+import pyarrow as pa
+import pymongo as pmg
+import pymongoarrow as pmga
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
-from eos import RecordPool
+from eos import Pool
 from eos import RemoteCan, projroot
 from eos.comm import generate_vcu_calibration
 from eos.utils import ragged_nparray_list_interp
@@ -24,6 +33,7 @@ from eos.utils.exception import TruckIDError
 warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+patch_all()
 
 class TestRemoteCanPool(unittest.TestCase):
     """Tests for 'remote_can_client.py'."""
@@ -48,6 +58,8 @@ class TestRemoteCanPool(unittest.TestCase):
         self.trucks = trucks
         self.truck_name = 'VB7'
 
+        self.schema = []
+        self.record = []
         self.projroot = projroot
         self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
@@ -97,7 +109,7 @@ class TestRemoteCanPool(unittest.TestCase):
         logfile = logroot.joinpath(
             "test_remotecan_pool-"
             + self.truck.TruckName + '-'
-            + datetime.datetime.now().isoformat().replace(":", "-")
+            + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
 
@@ -134,20 +146,35 @@ class TestRemoteCanPool(unittest.TestCase):
     #     )
     #     self.native_send()
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
-        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=True)
+        self.generate_schemas()
+        # test schema[0]
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="record_db", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
+        self.get_records()
+        self.logger.info("Records created.", extra=self.dictLogger)
+        for rec in self.record:
+            result = self.pool.deposit_record(rec)
+            self.logger.info("Quadruple inserted.", extra=self.dictLogger)
+            self.assertEqual(result.acknowledged, True)
+            self.logger.info(f"Pool has {self.pool.count_records()} records", extra=self.dictLogger)
+            rec_inserted = self.pool.find_record_by_id(result.inserted_id)
 
-        quadruple = self.get_quadruple()
-        self.pool.deposit_record(vin=self.truck.VIN, tuple=quadruple)
+            self.logger.info("record found.", extra=self.dictLogger)
+            self.assertEqual(rec_inserted['timestamp'], rec['timestamp'])
+            self.assertEqual(rec_inserted['plot'], rec['plot'])
+            self.assertEqual(rec_inserted['observation'], rec['observation'])
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+        pass
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
         self.client = RemoteCan(vin=self.truck.VIN)
-        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="record_db", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
 
         self.logger.info("Start creating record pool", extra=self.dictLogger)
@@ -159,11 +186,76 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("Start test_pool_sample", extra=self.dictLogger)
 
-    def get_quadruple(self):
+    def generate_schemas(self):
+        # current state
+        self.schema.append({
+            '_id': ObjectId,
+            "timestamp": datetime,
+            'plot': {
+                'character': str,
+                'when': datetime,
+                'where': str
+            },
+            'observation': [float]
+        })
+
+        self.schema.append({
+            '_id': ObjectId,
+            "timestamp": datetime,
+            'plot': {
+                'character': str,
+                'when': datetime,
+                'where': str,
+            },
+            'observation': {
+                'timestamps': datetime,
+                'state': {
+                    'velocity': [float],
+                    'thrust': [float],
+                    'brake': [float]
+                },
+                'action': [float],
+                'reward': float,
+                'next_state': {
+                    'velocity': [float],
+                    'thrust': [float],
+                    'brake': [float]
+                }
+            }
+        })
+
+        self.schema.append({
+            '_id': ObjectId,
+            "timestamp": datetime,
+            'plot': {
+                'character': str,
+                'when': datetime,
+                'where': str
+            },
+            'observation': {
+                'timestamps': datetime,
+                'state': [float],  # [(velocity, thrust, brake)]
+                'action': [float], # [row0, row1, row2, row3, row4]
+                'reward': float,
+                'next_state': [float] # [(velocity, thrust, brake)]
+            }
+        })
+
+    def get_records(self):
         # current state
         self.native_get()
-        (timestamp0, motion_states0, gear_states0, power_states0) = np.split(self.observation, [1, 4, 5], axis=1) # split by empty string
+        out = np.split(self.observation, [1, 4, 5], axis=1) # split by empty string
+        (timestamp0, motion_states0, gear_states0, power_states0) = [np.squeeze(e) for e in out]
         ui_sum0 = np.sum(np.prod(power_states0, axis=1)) / 3600.0 * 0.02 # convert to Wh
+        self.record.append({
+            'timestamp': datetime.fromtimestamp(timestamp0[0]/1000.0),
+            'plot': {
+                'character': self.truck.TruckName,
+                'when': datetime.fromtimestamp(timestamp0[0]/1000.0),
+                'where': 'campus',
+            },
+            'observation': self.observation.tolist()
+        })
 
         # action
         k0 = 0
@@ -176,17 +268,54 @@ class TestRemoteCanPool(unittest.TestCase):
 
         # next state
         self.native_get()
-        (timestamp1, motion_states1, gear_states1, power_states1) = np.split(self.observation, [1, 4, 5], axis=1) # split by empty string
+        out = [np.squeeze(e) for e in np.split(self.observation, [1, 4, 5], axis=1)] # split by empty string
+        (timestamp1, motion_states1, gear_states1, power_states1) = [np.squeeze(e) for e in out]
         ui_sum1 = np.sum(np.prod(power_states1, axis=1)) / 3600.0 * 0.02 # convert to Wh
 
         cycle_reward = ui_sum1 + ui_sum0
-        quadruple = (timestamp0[0][0], motion_states0.tolist(), map2d_5rows, cycle_reward, motion_states1.tolist())
-        return quadruple
 
+        self.record.append({
+            'timestamp':  datetime.fromtimestamp(timestamp0[0]/1000.0),
+             'plot': {
+                 'character': self.truck.TruckName,
+                 'when': datetime.fromtimestamp(timestamp0[0]/1000.0),
+                 'where': 'campus',
+             },
+             'observation': {
+                 'state': {
+                     'velocity': motion_states0[:,0].tolist(),
+                     'thrust': motion_states0[:,1].tolist(),
+                     'brake': motion_states0[:,2].tolist(),
+                 },
+                 'action': map2d_5rows,
+                 'reward': cycle_reward,
+                 'next_state': {
+                     'velocity': motion_states1[:,0].tolist(),
+                     'thrust': motion_states1[:,1].tolist(),
+                     'brake': motion_states1[:,2].tolist(),
+                 },
+             }
+        })
+        self.record.append({
+            'timestamp': datetime.fromtimestamp(timestamp0[0]/1000.0),
+            'plot': {
+                'character': self.truck.TruckName,
+                'when': datetime.fromtimestamp(timestamp0[0]/1000.0),
+                'where': 'campus',
+            },
+            'observation': {
+                'state': motion_states0.tolist(),
+                'action': map2d_5rows,
+                'reward': cycle_reward,
+                'next_state': motion_states1.tolist(),
+            }
+        })
+
+    # motion_states0.tolist(), map2d_5rows, cycle_reward, motion_states1.tolist())
 
     def create_record_pool(self, pool_size=128):
         self.client = RemoteCan(vin=self.truck.VIN)
-        self.pool = RecordPool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
+        self.pool = Pool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
         self.logger.info("Set client", extra=self.dictLogger)
 
         for i in range(pool_size):
@@ -215,7 +344,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info(f"data type: {data_type}")
         if not isinstance(remotecan_data, dict):
             raise TypeError("udp sending wrong data type!")
-        if signal_success is True:
+        if signal_success == 0:
             try:
                 # json_string = json.dumps(
                 #     json_ret, indent=4, sort_keys=True, separators=(",", ": ")
@@ -242,6 +371,7 @@ class TestRemoteCanPool(unittest.TestCase):
                             "--T::."  # adaption separators of the raw intest string
                         )
                         start_century = "20"
+                        timezone = "+0800"
                         for ts in value["timestamps"]:
                             # create standard iso string datetime format
                             ts_substrings = [
@@ -250,7 +380,7 @@ class TestRemoteCanPool(unittest.TestCase):
                             ts_iso = start_century
                             for i, sep in enumerate(separators):
                                 ts_iso = ts_iso + ts_substrings[i] + sep
-                            ts_iso = ts_iso + ts_substrings[-1]
+                            ts_iso = ts_iso + ts_substrings[-1] + timezone
                             timestamps.append(ts_iso)
                         timestamps_units = (
                             np.array(timestamps).astype("datetime64[ms]").astype("int")  # convert to int
@@ -260,8 +390,8 @@ class TestRemoteCanPool(unittest.TestCase):
                                 f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                             )
                         # upsample gears from 2Hz to 50Hz
-                        timestamps_seconds = list(timestamps_units/1000)
-                        sampling_interval = 1.0 / signal_freq
+                        timestamps_seconds = list(timestamps_units)  # in ms
+                        sampling_interval = 1.0 / signal_freq * 1000  # in ms
                         timestamps = [i + j*sampling_interval for i in timestamps_seconds for j in np.arange(unit_ob_num)]
                         timestamps = np.array(timestamps).reshape((self.truck.CloudUnitNumber, -1))
 

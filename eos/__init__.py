@@ -1,5 +1,5 @@
 from .comm.remote.remote_can_client.remote_can_client import RemoteCan
-from .comm.remote.remote_can_client.offline_experiences import RecordPool
+from .comm.remote.remote_can_client.pool import Pool
 from .comm.tbox.scripts import tbox_sim
 from .comm.vcu_calib_generator import generate_vcu_calibration
 from pathlib import Path
@@ -21,6 +21,7 @@ logger.propagate = False
 dictLogger = {"user": inspect.currentframe().f_code.co_name}
 __all__ = [
     RemoteCan,
+    Pool,
     tbox_sim,
     generate_vcu_calibration,
     projroot,
