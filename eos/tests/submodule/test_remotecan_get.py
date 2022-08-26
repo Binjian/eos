@@ -45,22 +45,17 @@ class TestRemoteCanGet(unittest.TestCase):
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
         self.trucks = trucks
-        self.truck_ind = 0  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
+        self.truck_name = "VB7"  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
 
         self.projroot = projroot
         self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
-        self.truck = self.trucks[self.truck_ind]
+        self.truck = self.trucks[self.truck_name]
         self.set_logger(projroot)
 
-        # validate truck ID to be "VB7"
-        try:
-            if self.truck.TruckName != "VB7":
-                raise TruckIDError("Truck ID is not VB7")
-        except TruckIDError as e:
-            self.logger.error(f"Caught Project Exception: {e}", extra=self.dictLogger)
-            raise e
+        # check if the truck is valid
+        self.assertEqual(self.truck_name, self.truck.TruckName)
 
         self.vcu_calib_table_default = generate_vcu_calibration(
             self.truck.PedalScale,
@@ -144,7 +139,7 @@ class TestRemoteCanGet(unittest.TestCase):
         self.logger.info(f"data type: {data_type}")
         if not isinstance(remotecan_data, dict):
             raise TypeError("udp sending wrong data type!")
-        if signal_success is True:
+        if signal_success == 0:
             try:
                 # json_string = json.dumps(
                 #     json_ret, indent=4, sort_keys=True, separators=(",", ": ")
@@ -173,6 +168,7 @@ class TestRemoteCanGet(unittest.TestCase):
                             "--T::."  # adaption separators of the raw intest string
                         )
                         start_century = "20"
+                        timezone = "+0800"
                         for ts in value["timestamps"]:
                             # create standard iso string datetime format
                             ts_substrings = [
@@ -181,7 +177,7 @@ class TestRemoteCanGet(unittest.TestCase):
                             ts_iso = start_century
                             for i, sep in enumerate(separators):
                                 ts_iso = ts_iso + ts_substrings[i] + sep
-                            ts_iso = ts_iso + ts_substrings[-1]
+                            ts_iso = ts_iso + ts_substrings[-1] + timezone
                             timestamps.append(ts_iso)
                         timestamps_units = (
                             np.array(timestamps)
@@ -192,12 +188,9 @@ class TestRemoteCanGet(unittest.TestCase):
                             raise ValueError(
                                 f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                             )
-                        print(
-                            f"timestamps_units{timestamps_units.shape}:{timestamps_units.astype('datetime64[ms]')}"
-                        )
                         # upsample gears from 2Hz to 50Hz
-                        timestamps_seconds = list(timestamps_units / 1000)
-                        sampling_interval = 1.0 / signal_freq
+                        timestamps_seconds = list(timestamps_units)  # in ms
+                        sampling_interval = 1.0 / signal_freq * 1000  # in ms
                         timestamps = [
                             i + j * sampling_interval
                             for i in timestamps_seconds
@@ -206,13 +199,13 @@ class TestRemoteCanGet(unittest.TestCase):
                         timestamps = np.array(timestamps).reshape(
                             (self.truck.CloudUnitNumber, -1)
                         )
-                        print(f"Timestamps{timestamps.shape}:{timestamps}")
+                        self.logger.info(f"Timestamps{timestamps.shape}:{timestamps}")
 
                         # current = np.array(value["list_current_1s"])
                         current = ragged_nparray_list_interp(
                             value["list_current_1s"], ob_num=unit_ob_num
                         )
-                        print(f"current{current.shape}:{current}")
+                        self.logger.info(f"current{current.shape}:{current}")
 
                         # voltage
                         voltage = ragged_nparray_list_interp(
@@ -222,29 +215,29 @@ class TestRemoteCanGet(unittest.TestCase):
                         # voltage needs to be upsampled in columns if its sample rate is half of the current
                         if c_v == current.shape[1] // 2:
                             voltage = np.repeat(voltage, 2, axis=1)
-                        print(f"voltage{voltage.shape}:{voltage}")
+                        self.logger.info(f"voltage{voltage.shape}:{voltage}")
 
                         thrust = ragged_nparray_list_interp(
                             value["list_pedal_1s"], ob_num=unit_ob_num
                         )
-                        print(f"accl{thrust.shape}:{thrust}")
+                        self.logger.info(f"accl{thrust.shape}:{thrust}")
 
                         brake = ragged_nparray_list_interp(
                             value["list_brake_pressure_1s"], ob_num=unit_ob_num
                         )
-                        print(f"brake{brake.shape}:{brake}")
+                        self.logger.info(f"brake{brake.shape}:{brake}")
 
                         velocity = ragged_nparray_list_interp(
                             value["list_speed_1s"], ob_num=unit_ob_num
                         )
-                        print(f"velocity{velocity.shape}:{velocity}")
+                        self.logger.info(f"velocity{velocity.shape}:{velocity}")
 
                         gears = ragged_nparray_list_interp(
                             value["list_gears"], ob_num=unit_gear_num
                         )
                         # upsample gears from 2Hz to 50Hz
                         gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
-                        print(f"gears{gears.shape}:{gears}")
+                        self.logger.info(f"gears{gears.shape}:{gears}")
 
                         observation = np.c_[
                             timestamps.reshape((-1, 1)),
@@ -255,7 +248,7 @@ class TestRemoteCanGet(unittest.TestCase):
                             current.reshape(-1, 1),
                             voltage.reshape(-1, 1),
                         ]  # 1 + 4 + 2 : in
-                        print(f"observation{observation.shape}:{observation}")
+                        self.logger.info(f"observation{observation.shape}:{observation}")
 
                     else:
                         self.logger.info(

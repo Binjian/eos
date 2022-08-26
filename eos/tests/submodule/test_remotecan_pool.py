@@ -74,23 +74,6 @@ class TestRemoteCanPool(unittest.TestCase):
         # check if the truck is valid
         self.assertEqual(self.truck_name, self.truck.TruckName)
 
-        # try:
-        #     self.truck = self.trucks[self.truck_name]
-        # except KeyError as e:
-        #     self.logger.error(f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger)
-        #     return
-        # except Exception as e:
-        #     self.logger.error(f"{e}", extra=self.dictLogger)
-        #     return
-
-        # # validate truck ID to be "VB7"
-        # try:
-        #     if self.truck.TruckName != "VB7":
-        #         raise TruckIDError("Truck ID is not VB7")
-        # except TruckIDError as e:
-        #     self.logger.error(f"Caught Project Exception: {e}", extra=self.dictLogger)
-        #     raise e
-
         self.observe_length = self.truck.CloudUnitNumber  # number of cloud units 5s
 
         self.vcu_calib_table_default = generate_vcu_calibration(
