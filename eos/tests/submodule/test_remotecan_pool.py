@@ -113,17 +113,18 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.addHandler(ch)
         self.logger.setLevel(logging.DEBUG)
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
         self.generate_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.schema[0], db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="test_record_db", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
         self.get_records()
         self.logger.info("Records created.", extra=self.dictLogger)
+        self.logger.info("Start deposit records", extra=self.dictLogger)
         for rec in self.record:
             result = self.pool.deposit_record(rec)
             self.logger.info("Record inserted.", extra=self.dictLogger)
@@ -138,7 +139,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.assertEqual(rec_inserted["plot"], rec["plot"])
             self.assertEqual(rec_inserted["observation"], rec["observation"])
 
-        pass
+        self.logger.info("End test deposit redords", extra=self.dictLogger)
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
@@ -154,12 +155,14 @@ class TestRemoteCanPool(unittest.TestCase):
             self.add_to_record_pool(pool_size=16)
 
 
+        self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
         batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
+        self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
         batch_24 = self.pool.sample_batch_ddpg_records(batch_size=24)
+        self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
 
-        self.logger.info("done test_pool_sample of size 4 and 24.", extra=self.dictLogger)
 
     def generate_schemas(self):
         # current state
