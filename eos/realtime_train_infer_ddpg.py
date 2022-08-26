@@ -23,7 +23,7 @@ as energy consumption
 """
 
 import argparse
-import datetime
+from datetime import datetime
 import json
 
 # logging
@@ -71,6 +71,7 @@ from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
 from eos.utils.exception import TruckIDError
 from eos.config import trucks, PEDAL_SCALE, VELOCITY_SCALE_VB, VELOCITY_SCALE_MULE
+from eos import Pool
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -124,13 +125,16 @@ class RealtimeDDPG(object):
         self.logger.info(f"Start Logging", extra=self.dictLogger)
 
         # validate truck id
+        # assert self.truck_name in self.trucks.keys()
         try:
             self.truck = self.trucks[self.truck_name]
         except KeyError as e:
-            self.logger.error(f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger)
+            self.logger.error(
+                f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger
+            )
             sys.exit(1)
 
-# if self.truck.TruckName != "VB7":
+        # if self.truck.TruckName != "VB7":
         #     raise TruckIDError("Truck is not VB7")
         # else:
         #     self.logger.info(f"Truck is VB7", extra=self.dictLogger)
@@ -141,8 +145,7 @@ class RealtimeDDPG(object):
 
         if self.cloud:
             # reset proxy (internal site force no proxy)
-            os.environ["http_proxy"] = ""
-            self.remotecan_client = RemoteCan(vin=self.truck.VIN)
+            self.init_cloud()
             self.get_truck_status = self.remote_get_truck_status
             self.flash_vcu = self.remote_flash_vcu
         else:
@@ -168,6 +171,24 @@ class RealtimeDDPG(object):
         self.init_threads_data()
         self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
 
+    def init_cloud(self):
+        os.environ["http_proxy"] = ""
+        self.remotecan_client = RemoteCan(vin=self.truck.VIN)
+        self.db_schema ={
+            "_id": ObjectId,
+            "timestamp": datetime,
+            "plot": {"character": str, "when": datetime, "where": str},
+            "observation": {
+                "timestamps": datetime,
+                "state": [float],  # [(velocity, thrust, brake)]
+                "action": [float],  # [row0, row1, row2, row3, row4]
+                "reward": float,
+                "next_state": [float],  # [(velocity, thrust, brake)]
+            }
+        }
+        self.db_name = "ddpg_" + self.truck["TruckName"] + "_db"
+        self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
+
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
         try:
@@ -177,7 +198,7 @@ class RealtimeDDPG(object):
 
         logfilename = self.logroot.joinpath(
             "eos-rt-ddpg-vb-"
-            + datetime.datetime.now().isoformat().replace(":", "-")
+            + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
         formatter = logging.Formatter(
@@ -223,7 +244,7 @@ class RealtimeDDPG(object):
 
     def set_data_path(self):
         # Create folder for ckpts loggings.
-        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.train_log_dir = self.dataroot.joinpath(
             "tf_logs-vb/ddpg/gradient_tape/" + current_time + "/train"
         )
@@ -407,21 +428,40 @@ class RealtimeDDPG(object):
         self.buffer_capacity = 300000
         # try buffer size with 1,000,000
 
-        self.buffer = Buffer(
-            self.actor_model,
-            self.critic_model,
-            self.target_actor,
-            self.target_critic,
-            self.actor_optimizer,
-            self.critic_optimizer,
-            self.num_observations,
-            self.observation_len,
-            self.num_reduced_actions,
-            buffer_capacity=self.buffer_capacity,
-            batch_size=self.batch_size,
-            gamma=self.gamma,
-            datafolder=str(self.dataroot),
-        )
+        if self.cloud:
+            self.buffer = Buffer(
+                self.actor_model,
+                self.critic_model,
+                self.target_actor,
+                self.target_critic,
+                self.actor_optimizer,
+                self.critic_optimizer,
+                self.num_observations,
+                self.observation_len,
+                self.num_reduced_actions,
+                buffer_capacity=self.buffer_capacity,
+                batch_size=self.batch_size,
+                gamma=self.gamma,
+                datafolder=str(self.dataroot),
+                pool=self.pool
+            )
+        else:
+            self.buffer = Buffer(
+                self.actor_model,
+                self.critic_model,
+                self.target_actor,
+                self.target_critic,
+                self.actor_optimizer,
+                self.critic_optimizer,
+                self.num_observations,
+                self.observation_len,
+                self.num_reduced_actions,
+                buffer_capacity=self.buffer_capacity,
+                batch_size=self.batch_size,
+                gamma=self.gamma,
+                datafolder=str(self.dataroot),
+                pool=None
+            )
 
         # ou_noise is a row vector sdfof num_actions dimension
         self.ou_noise_std_dev = 0.2
@@ -443,11 +483,11 @@ class RealtimeDDPG(object):
         else:
             checkpoint_actor_dir = self.dataroot.joinpath(
                 "tf_ckpts-vb/l045a_ddpg_actor"
-                + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
                 "tf_ckpts-vb/l045a_ddpg_critic"
-                + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
         try:
             os.makedirs(checkpoint_actor_dir)
@@ -877,7 +917,7 @@ class RealtimeDDPG(object):
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
                         "tables/instant_table_ddpg-vb-"
-                        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                         + "e-"
                         + str(epi_cnt)
                         + "-"
@@ -1027,7 +1067,7 @@ class RealtimeDDPG(object):
                                 signal_success,
                                 remotecan_data,
                             ) = self.remotecan_client.get_signals(
-                                duration=self.observation_len
+                                duration=self.truck.CloudUnitNumber
                             )
                             if not isinstance(remotecan_data, dict):
                                 self.logd.critical(
@@ -1036,18 +1076,59 @@ class RealtimeDDPG(object):
                                 )
                                 raise TypeError("udp sending wrong data type!")
 
-                            if signal_success is True:
+                            if signal_success is 0:
                                 try:
                                     signal_freq = self.truck.CloudSignalFrequency
                                     gear_freq = self.truck.CloudGearFrequency
                                     unit_duration = self.truck.CloudUnitDuration
                                     unit_ob_num = unit_duration * signal_freq
                                     unit_gear_num = unit_duration * gear_freq
+                                    unit_num = self.truck.CloudUnitNumber
+                                    timestamp_upsample_rate = (
+                                            self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
+                                    )
                                     for key, value in remotecan_data.items():
                                         if key == "result":
                                             self.logd.info(
                                                 "convert observation state to array.",
                                                 extra=self.dictLogger,
+                                            )
+                                            # timestamp processing
+                                            timestamps = []
+                                            separators = (
+                                                "--T::."  # adaption separators of the raw intest string
+                                            )
+                                            start_century = "20"
+                                            timezone = "+0800"
+                                            for ts in value["timestamps"]:
+                                                # create standard iso string datetime format
+                                                ts_substrings = [
+                                                    ts[i : i + 2] for i in range(0, len(ts), 2)
+                                                ]
+                                                ts_iso = start_century
+                                                for i, sep in enumerate(separators):
+                                                    ts_iso = ts_iso + ts_substrings[i] + sep
+                                                ts_iso = ts_iso + ts_substrings[-1] + timezone
+                                                timestamps.append(ts_iso)
+                                            timestamps_units = (
+                                                np.array(timestamps)
+                                                .astype("datetime64[ms]")
+                                                .astype("int")  # convert to int
+                                            )
+                                            if len(timestamps_units) != unit_num:
+                                                raise ValueError(
+                                                    f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                                                )
+                                            # upsample gears from 2Hz to 50Hz
+                                            timestamps_seconds = list(timestamps_units)  # in ms
+                                            sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                                            timestamps = [
+                                                i + j * sampling_interval
+                                                for i in timestamps_seconds
+                                                for j in np.arange(unit_ob_num)
+                                            ]
+                                            timestamps = np.array(timestamps).reshape(
+                                                (self.truck.CloudUnitNumber, -1)
                                             )
                                             current = ragged_nparray_list_interp(
                                                 value["list_current_1s"],
@@ -1071,12 +1152,14 @@ class RealtimeDDPG(object):
                                             )
 
                                             motion_power = np.c_[
+                                                timestamps.reshape(-1, 1),
                                                 velocity.reshape(-1, 1),
                                                 thrust.reshape(-1, 1),
                                                 brake.reshape(-1, 1),
+                                                gears.reshape(-1, 1),
                                                 current.reshape(-1, 1),
                                                 voltage.reshape(-1, 1),
-                                            ]  # 3 +2  : im 5
+                                            ]  # 1 + 3 + 1 + 2  : im 7
 
                                             # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
                                             # average concept
@@ -1199,7 +1282,7 @@ class RealtimeDDPG(object):
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
                         "tables/instant_table_ddpg-vb-"
-                        + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                         + "e-"
                         + str(epi_cnt)
                         + "-"
@@ -1340,9 +1423,15 @@ class RealtimeDDPG(object):
                     motionpower_states = tf.convert_to_tensor(
                         motionpower
                     )  # state must have 30/100 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    motion_states, power_states = tf.split(
-                        motionpower_states, [3, 2], 1
-                    )
+                    if self.cloud:
+                        timstamp, motion_states, gear_states, power_states = tf.split(
+                            motionpower_states, [1, 3, 1, 2], 1
+                        )  # note the difference of split between np and tf
+                    else:
+                        motion_states, power_states = tf.split(
+                            motionpower_states, [3,  2], 1
+                        )  # note the difference of split between np and tf
+
 
                     self.logd.info(
                         f"E{epi_cnt} tensor convert and split!",
@@ -1351,7 +1440,7 @@ class RealtimeDDPG(object):
                     ui_sum = tf.reduce_sum(
                         tf.reduce_prod(power_states, 1)
                     )  # vcu reward is a scalar
-                    wh = ui_sum / 3600.0 * 0.05  # negative wh
+                    wh = ui_sum / 3600.0 * self.sample_rate # rate 0.05 for kvaser, 0.02 remote # negative wh
                     # self.logger.info(
                     #     f"ui_sum: {ui_sum}",
                     #     extra=self.dictLogger,
@@ -1373,16 +1462,35 @@ class RealtimeDDPG(object):
                         episode_reward += cycle_reward
 
                         if step_count != 0:
-                            self.buffer.record(
-                                (
-                                    prev_motion_states,
-                                    prev_action,
-                                    cycle_reward,
-                                    motion_states,
+                            if self.cloud:
+                                self.rec = {
+                                    "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),  #from ms to s
+                                    "plot": {
+                                        "character": self.truck.TruckName,
+                                        "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                                        "where": "campus",
+                                    },
+                                    "observation": {
+                                        "state": motion_states0.tolist(),
+                                        "action": prev_action,
+                                        "reward": cycle_reward,
+                                        "next_state": motion_states1.tolist(),
+                                    },
+
+                                }
+                                self.buffer.record(rec)
+                            else:
+                                self.buffer.record(
+                                    (
+                                        prev_motion_states,
+                                        prev_action,
+                                        cycle_reward,
+                                        motion_states,
+                                    )
                                 )
-                            )
                         # motion_states_history.append(motion_states)
                         motion_states0 = motion_states
+                        timestamp0 = timstamp
 
                         motion_states1 = tf.expand_dims(
                             motion_states0, 0
@@ -1400,7 +1508,10 @@ class RealtimeDDPG(object):
                             self.actor_model, motion_states1, self.ou_noise
                         )
                         prev_motion_states = motion_states0
-                        prev_action = vcu_action_reduced
+                        if self.cloud:
+                            prev_action = vcu_action_reduced.numpy().tolist()
+                        else:
+                            prev_action = vcu_action_reduced
 
                         self.logd.info(
                             f"E{epi_cnt} inference done with reduced action space!",
@@ -1570,7 +1681,7 @@ class RealtimeDDPG(object):
         last_table_store_path = (
             self.dataroot.joinpath(  #  there's no slash in the end of the string
                 "last_table_ddpg-"
-                + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
                 + ".csv"
             )
         )

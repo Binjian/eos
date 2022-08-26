@@ -72,7 +72,7 @@ import tensorflow as tf
 from keras import layers
 import keras.initializers as initializers
 
-from eos import logger, dictLogger
+from eos import logger, dictLogger, Pool
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
@@ -124,6 +124,7 @@ class Buffer:
         file_nsb=None,
         file_bc=None,
         datafolder="./",
+        pool=None,
     ):
         # Number of "experiences" to store at max
         self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
@@ -156,19 +157,39 @@ class Buffer:
         self.actor_optimizer = actor_optimizer
         self.critic_optimizer = critic_optimizer
         self.gamma = gamma
+        self.pool = pool
+
+    def record(self, rec: dict):
+        """
+        Record a new experience in the pool.
+        """
+        result = self.pool.deposit_record(rec)
+        assert result.acknowledged == True
+        rec_inserted = self.pool.find_record_by_id(result.inserted_id)
+        assert rec_inserted == rec
+        self.logger.info(
+            f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+        )
 
     # Takes (s,a,r,s') obervation tuple as input
-    def record(self, obs_tuple):
-        # Set index to zero if buffer_capacity is exceeded,
-        # replacing old records
-        index = self.buffer_counter % self.buffer_capacity
+    def record(self, obs_tuple: tuple):
+        """
+        Record a new experience in the buffer.
 
-        self.state_buffer[index] = obs_tuple[0]
-        self.action_buffer[index] = obs_tuple[1]
-        self.reward_buffer[index] = obs_tuple[2]
-        self.next_state_buffer[index] = obs_tuple[3]
+        Set index to zero if buffer_capacity is exceeded,
+        replacing old records
+        """
+        if self.pool is None:
+            index = self.buffer_counter % self.buffer_capacity
 
-        self.buffer_counter += 1
+            self.state_buffer[index] = obs_tuple[0]
+            self.action_buffer[index] = obs_tuple[1]
+            self.reward_buffer[index] = obs_tuple[2]
+            self.next_state_buffer[index] = obs_tuple[3]
+
+            self.buffer_counter += 1
+        else:
+            self.pool.deposit_record(obs_tuple)
 
     def save(self):
 
@@ -279,25 +300,50 @@ class Buffer:
 
     # We compute the loss and update parameters
     def learn(self):
-        # get sampling range, if not enough data, batch is small,
-        # batch size starting from 1, until reach buffer
-        # logger.info(f"Tracing!", extra=dictLogger)
-        record_range = tf.math.minimum(self.buffer_counter, self.buffer_capacity)
-        # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
-        batch_indices = np.random.choice(record_range, self.batch_size)
+        """
+        Update the actor and critic networks using the sampled batch.
+        """
+        if self.pool == None:
+            # get sampling range, if not enough data, batch is small,
+            # batch size starting from 1, until reach buffer
+            # logger.info(f"Tracing!", extra=dictLogger)
+            record_range = tf.math.minimum(self.buffer_counter, self.buffer_capacity)
+            # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
+            batch_indices = np.random.choice(record_range, self.batch_size)
 
-        # convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
-        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+            # convert to tensors
+            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
+            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
+            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
 
-        critic_loss, actor_loss = self.update(
-            state_batch, action_batch, reward_batch, next_state_batch
-        )
-        return critic_loss, actor_loss
+            critic_loss, actor_loss = self.update(
+                state_batch, action_batch, reward_batch, next_state_batch
+            )
+            return critic_loss, actor_loss
+        else:
+            # get sampling range, if not enough data, batch is small
+            self.logger.info(f"start test_pool_sample of size {self.batch_size}.", extra=self.dictLogger)
+            batch = self.pool.sample_batch_ddpg_records(batch_size=4)
+            assert len(batch) == self.batch_size
 
+            # convert to tensors
+            state = [rec["state"] for rec in batch]
+            action = [rec["action"] for rec in batch]
+            reward = [rec["reward"] for rec in batch]
+            next_state = [rec["next_state"] for rec in batch]
+
+            state_batch = tf.convert_to_tensor(np.array(state))
+            action_batch = tf.convert_to_tensor(np.array(action))
+            reward_batch = tf.convert_to_tensor(np.array(reward))
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(np.array(next_state))
+
+            critic_loss, actor_loss = self.update(
+                state_batch, action_batch, reward_batch, next_state_batch
+            )
+            return critic_loss, actor_loss
     # we only calculate the loss
     @tf.function
     def noupdate(
