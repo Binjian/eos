@@ -165,8 +165,10 @@ class TestRemoteCanPool(unittest.TestCase):
         self.pool = Pool(schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
 
-        self.logger.info("Start creating record pool", extra=self.dictLogger)
-        self.add_to_record_pool(pool_size=16)
+        rec_cnt = self.pool.count_records()
+        if rec_cnt <4:
+            self.logger.info("Start creating record pool", extra=self.dictLogger)
+            self.add_to_record_pool(pool_size=16)
 
 
         batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
