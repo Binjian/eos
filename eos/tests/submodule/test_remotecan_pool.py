@@ -11,6 +11,7 @@ from datetime import datetime
 
 import numpy as np
 from pymongoarrow.monkey import patch_all
+
 # from pymongoarrow.api import Schema
 from bson import ObjectId
 
@@ -19,7 +20,8 @@ import pymongo as pmg
 import pymongoarrow as pmga
 
 # local import
-# import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
+# import src.comm.remote
+
 from eos import Pool
 from eos import RemoteCan, projroot
 from eos.comm import generate_vcu_calibration
@@ -34,6 +36,7 @@ warnings.filterwarnings("ignore", message="currentThread", category=DeprecationW
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 patch_all()
+
 
 class TestRemoteCanPool(unittest.TestCase):
     """Tests for 'remote_can_client.py'."""
@@ -56,7 +59,7 @@ class TestRemoteCanPool(unittest.TestCase):
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
         self.trucks = trucks
-        self.truck_name = 'VB7'
+        self.truck_name = "VB7"
 
         self.schema = []
         self.record = []
@@ -67,7 +70,6 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.truck = self.trucks[self.truck_name]
         self.set_logger(projroot)
-
 
         # check if the truck is valid
         self.assertEqual(self.truck_name, self.truck.TruckName)
@@ -108,7 +110,8 @@ class TestRemoteCanPool(unittest.TestCase):
             pass
         logfile = logroot.joinpath(
             "test_remotecan_pool-"
-            + self.truck.TruckName + '-'
+            + self.truck.TruckName
+            + "-"
             + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
@@ -127,25 +130,6 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.addHandler(ch)
         self.logger.setLevel(logging.DEBUG)
 
-    #
-    # @unittest.skipIf(site == "internal", "skip for internal test")
-    # def test_proxy_get(self):
-    #
-    #     self.logger.info("start test_proxy", extra=self.dictLogger)
-    #     self.client = RemoteCan(
-    #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
-    #     )
-    #     self.native_get()
-    #
-    # @unittest.skipIf(site == "internal", "skip for internal test")
-    # def test_proxy_send(self):
-    #
-    #     self.logger.info("start test_proxy", extra=self.dictLogger)
-    #     self.client = RemoteCan(
-    #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
-    #     )
-    #     self.native_send()
-
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
@@ -159,103 +143,110 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Records created.", extra=self.dictLogger)
         for rec in self.record:
             result = self.pool.deposit_record(rec)
-            self.logger.info("Quadruple inserted.", extra=self.dictLogger)
+            self.logger.info("Record inserted.", extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
-            self.logger.info(f"Pool has {self.pool.count_records()} records", extra=self.dictLogger)
+            self.logger.info(
+                f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+            )
             rec_inserted = self.pool.find_record_by_id(result.inserted_id)
 
             self.logger.info("record found.", extra=self.dictLogger)
-            self.assertEqual(rec_inserted['timestamp'], rec['timestamp'])
-            self.assertEqual(rec_inserted['plot'], rec['plot'])
-            self.assertEqual(rec_inserted['observation'], rec['observation'])
+            self.assertEqual(rec_inserted["timestamp"], rec["timestamp"])
+            self.assertEqual(rec_inserted["plot"], rec["plot"])
+            self.assertEqual(rec_inserted["observation"], rec["observation"])
 
         pass
+
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
         self.client = RemoteCan(vin=self.truck.VIN)
+        self.generate_schemas()
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.schema[0], db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
 
         self.logger.info("Start creating record pool", extra=self.dictLogger)
-        self.create_record_pool(pool_size=128)
+        self.add_to_record_pool(pool_size=16)
 
-        batch_size = 16
 
-        minibatch = self.pool.sample_batch_record(batch_size=batch_size)
+        batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
+        self.assertEqual(len(batch_4), 4)
+        batch_24 = self.pool.sample_batch_ddpg_records(batch_size=24)
+        self.assertEqual(len(batch_24), 24)
 
-        self.logger.info("Start test_pool_sample", extra=self.dictLogger)
+        self.logger.info("done test_pool_sample of size 4 and 24.", extra=self.dictLogger)
 
     def generate_schemas(self):
         # current state
-        self.schema.append({
-            '_id': ObjectId,
-            "timestamp": datetime,
-            'plot': {
-                'character': str,
-                'when': datetime,
-                'where': str
-            },
-            'observation': [float]
-        })
+        self.schema.append(
+            {
+                "_id": ObjectId,
+                "timestamp": datetime,
+                "plot": {"character": str, "when": datetime, "where": str},
+                "observation": [float],
+            }
+        )
 
-        self.schema.append({
-            '_id': ObjectId,
-            "timestamp": datetime,
-            'plot': {
-                'character': str,
-                'when': datetime,
-                'where': str,
-            },
-            'observation': {
-                'timestamps': datetime,
-                'state': {
-                    'velocity': [float],
-                    'thrust': [float],
-                    'brake': [float]
+        self.schema.append(
+            {
+                "_id": ObjectId,
+                "timestamp": datetime,
+                "plot": {
+                    "character": str,
+                    "when": datetime,
+                    "where": str,
                 },
-                'action': [float],
-                'reward': float,
-                'next_state': {
-                    'velocity': [float],
-                    'thrust': [float],
-                    'brake': [float]
-                }
+                "observation": {
+                    "timestamps": datetime,
+                    "state": {"velocity": [float], "thrust": [float], "brake": [float]},
+                    "action": [float],
+                    "reward": float,
+                    "next_state": {
+                        "velocity": [float],
+                        "thrust": [float],
+                        "brake": [float],
+                    },
+                },
             }
-        })
+        )
 
-        self.schema.append({
-            '_id': ObjectId,
+        self.schema.append(
+            {
+                "_id": ObjectId,
+                "timestamp": datetime,
+                "plot": {"character": str, "when": datetime, "where": str},
+                "observation": {
+                    "timestamps": datetime,
+                    "state": [float],  # [(velocity, thrust, brake)]
+                    "action": [float],  # [row0, row1, row2, row3, row4]
+                    "reward": float,
+                    "next_state": [float],  # [(velocity, thrust, brake)]
+                },
+            }
+        )
+
+    def get_ddpg_record(self):
+        self.ddpg_schema = {
+            "_id": ObjectId,
             "timestamp": datetime,
-            'plot': {
-                'character': str,
-                'when': datetime,
-                'where': str
+            "plot": {"character": str, "when": datetime, "where": str},
+            "observation": {
+                "timestamps": datetime,
+                "state": [float],  # [(velocity, thrust, brake)]
+                "action": [float],  # [row0, row1, row2, row3, row4]
+                "reward": float,
+                "next_state": [float],  # [(velocity, thrust, brake)]
             },
-            'observation': {
-                'timestamps': datetime,
-                'state': [float],  # [(velocity, thrust, brake)]
-                'action': [float], # [row0, row1, row2, row3, row4]
-                'reward': float,
-                'next_state': [float] # [(velocity, thrust, brake)]
-            }
-        })
-
-    def get_records(self):
+        }
         # current state
         self.native_get()
-        out = np.split(self.observation, [1, 4, 5], axis=1) # split by empty string
-        (timestamp0, motion_states0, gear_states0, power_states0) = [np.squeeze(e) for e in out]
-        ui_sum0 = np.sum(np.prod(power_states0, axis=1)) / 3600.0 * 0.02 # convert to Wh
-        self.record.append({
-            'timestamp': datetime.fromtimestamp(timestamp0[0]/1000.0),
-            'plot': {
-                'character': self.truck.TruckName,
-                'when': datetime.fromtimestamp(timestamp0[0]/1000.0),
-                'where': 'campus',
-            },
-            'observation': self.observation.tolist()
-        })
+        out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
+        (timestamp0, motion_states0, gear_states0, power_states0) = [
+            np.squeeze(e) for e in out
+        ]
+        ui_sum0 = (
+            np.sum(np.prod(power_states0, axis=1)) / 3600.0 * 0.02
+        )  # convert to Wh
 
         # action
         k0 = 0
@@ -268,68 +259,129 @@ class TestRemoteCanPool(unittest.TestCase):
 
         # next state
         self.native_get()
-        out = [np.squeeze(e) for e in np.split(self.observation, [1, 4, 5], axis=1)] # split by empty string
-        (timestamp1, motion_states1, gear_states1, power_states1) = [np.squeeze(e) for e in out]
-        ui_sum1 = np.sum(np.prod(power_states1, axis=1)) / 3600.0 * 0.02 # convert to Wh
+        out = [
+            np.squeeze(e) for e in np.split(self.observation, [1, 4, 5], axis=1)
+        ]  # split by empty string
+        (timestamp1, motion_states1, gear_states1, power_states1) = [
+            np.squeeze(e) for e in out
+        ]
+        ui_sum1 = (
+            np.sum(np.prod(power_states1, axis=1)) / 3600.0 * 0.02
+        )  # convert to Wh
 
         cycle_reward = ui_sum1 + ui_sum0
 
-        self.record.append({
-            'timestamp':  datetime.fromtimestamp(timestamp0[0]/1000.0),
-             'plot': {
-                 'character': self.truck.TruckName,
-                 'when': datetime.fromtimestamp(timestamp0[0]/1000.0),
-                 'where': 'campus',
-             },
-             'observation': {
-                 'state': {
-                     'velocity': motion_states0[:,0].tolist(),
-                     'thrust': motion_states0[:,1].tolist(),
-                     'brake': motion_states0[:,2].tolist(),
-                 },
-                 'action': map2d_5rows,
-                 'reward': cycle_reward,
-                 'next_state': {
-                     'velocity': motion_states1[:,0].tolist(),
-                     'thrust': motion_states1[:,1].tolist(),
-                     'brake': motion_states1[:,2].tolist(),
-                 },
-             }
-        })
-        self.record.append({
-            'timestamp': datetime.fromtimestamp(timestamp0[0]/1000.0),
-            'plot': {
-                'character': self.truck.TruckName,
-                'when': datetime.fromtimestamp(timestamp0[0]/1000.0),
-                'where': 'campus',
+        self.ddpg_record = {
+            "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+            "plot": {
+                "character": self.truck.TruckName,
+                "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "where": "campus",
             },
-            'observation': {
-                'state': motion_states0.tolist(),
-                'action': map2d_5rows,
-                'reward': cycle_reward,
-                'next_state': motion_states1.tolist(),
+            "observation": {
+                "state": motion_states0.tolist(),
+                "action": map2d_5rows,
+                "reward": cycle_reward,
+                "next_state": motion_states1.tolist(),
+            },
+        }
+
+    def get_records(self):
+        # current state
+        self.native_get()
+        out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
+        (timestamp0, motion_states0, gear_states0, power_states0) = [
+            np.squeeze(e) for e in out
+        ]
+        ui_sum0 = (
+            np.sum(np.prod(power_states0, axis=1)) / 3600.0 * 0.02
+        )  # convert to Wh
+        self.record.append(
+            {
+                "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "plot": {
+                    "character": self.truck.TruckName,
+                    "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                    "where": "campus",
+                },
+                "observation": self.observation.tolist(),
             }
-        })
+        )
+
+        # action
+        k0 = 0
+        N0 = 5
+        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
+        self.logger.info(
+            f"Create torque map: from {k0}th to the {k0+N0-1}th row.",
+            extra=self.dictLogger,
+        )
+
+        # next state
+        self.native_get()
+        out = [
+            np.squeeze(e) for e in np.split(self.observation, [1, 4, 5], axis=1)
+        ]  # split by empty string
+        (timestamp1, motion_states1, gear_states1, power_states1) = [
+            np.squeeze(e) for e in out
+        ]
+        ui_sum1 = (
+            np.sum(np.prod(power_states1, axis=1)) / 3600.0 * 0.02
+        )  # convert to Wh
+
+        cycle_reward = ui_sum1 + ui_sum0
+
+        self.record.append(
+            {
+                "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "plot": {
+                    "character": self.truck.TruckName,
+                    "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                    "where": "campus",
+                },
+                "observation": {
+                    "state": {
+                        "velocity": motion_states0[:, 0].tolist(),
+                        "thrust": motion_states0[:, 1].tolist(),
+                        "brake": motion_states0[:, 2].tolist(),
+                    },
+                    "action": map2d_5rows,
+                    "reward": cycle_reward,
+                    "next_state": {
+                        "velocity": motion_states1[:, 0].tolist(),
+                        "thrust": motion_states1[:, 1].tolist(),
+                        "brake": motion_states1[:, 2].tolist(),
+                    },
+                },
+            }
+        )
+        self.record.append(
+            {
+                "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "plot": {
+                    "character": self.truck.TruckName,
+                    "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                    "where": "campus",
+                },
+                "observation": {
+                    "state": motion_states0.tolist(),
+                    "action": map2d_5rows,
+                    "reward": cycle_reward,
+                    "next_state": motion_states1.tolist(),
+                },
+            }
+        )
 
     # motion_states0.tolist(), map2d_5rows, cycle_reward, motion_states1.tolist())
 
-    def create_record_pool(self, pool_size=128):
-        self.client = RemoteCan(vin=self.truck.VIN)
-        self.pool = Pool(url="mongodb://10.0.64.64:30116/", db_name="eos_db", debug=False)
-        self.logger.info("Set client", extra=self.dictLogger)
-
+    def add_to_record_pool(self, pool_size=4):
         for i in range(pool_size):
-            quadruple = self.get_quadruple()
-            self.pool.deposit_record(vin=self.truck.VIN, tuple=quadruple)
+            self.get_ddpg_record()
+            self.pool.deposit_record(self.ddpg_record)
 
-
-    @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_send(self):
-        self.logger.info("Start test_native_send", extra=self.dictLogger)
-        self.client = RemoteCan(vin=self.truck.VIN)
-        self.logger.info("Set client", extra=self.dictLogger)
-
-        self.native_send()
+        self.logger.info(
+            f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+        )
 
     def native_get(self):
 
@@ -358,7 +410,9 @@ class TestRemoteCanPool(unittest.TestCase):
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
                 unit_num = self.truck.CloudUnitNumber
-                timestamp_upsample_rate = self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
+                timestamp_upsample_rate = (
+                    self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
+                )
                 # timestamp_num = int(self.observe_length // duration)
 
                 for key, value in remotecan_data.items():
@@ -383,7 +437,9 @@ class TestRemoteCanPool(unittest.TestCase):
                             ts_iso = ts_iso + ts_substrings[-1] + timezone
                             timestamps.append(ts_iso)
                         timestamps_units = (
-                            np.array(timestamps).astype("datetime64[ms]").astype("int")  # convert to int
+                            np.array(timestamps)
+                            .astype("datetime64[ms]")
+                            .astype("int")  # convert to int
                         )
                         if len(timestamps_units) != unit_num:
                             raise ValueError(
@@ -392,9 +448,14 @@ class TestRemoteCanPool(unittest.TestCase):
                         # upsample gears from 2Hz to 50Hz
                         timestamps_seconds = list(timestamps_units)  # in ms
                         sampling_interval = 1.0 / signal_freq * 1000  # in ms
-                        timestamps = [i + j*sampling_interval for i in timestamps_seconds for j in np.arange(unit_ob_num)]
-                        timestamps = np.array(timestamps).reshape((self.truck.CloudUnitNumber, -1))
-
+                        timestamps = [
+                            i + j * sampling_interval
+                            for i in timestamps_seconds
+                            for j in np.arange(unit_ob_num)
+                        ]
+                        timestamps = np.array(timestamps).reshape(
+                            (self.truck.CloudUnitNumber, -1)
+                        )
 
                         # current = np.array(value["list_current_1s"])
                         current = ragged_nparray_list_interp(
@@ -445,65 +506,6 @@ class TestRemoteCanPool(unittest.TestCase):
         else:
             print("upload corrupt!")
             print("reson", remotecan_data)
-
-    def native_send(self):
-
-        # # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
-
-        # flashing 5 rows of the calibration table
-        k0 = 0
-        N0 = 5
-        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
-        self.logger.info(
-            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
-        )
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d_5rows, k=k0, N=N0, abswitch=False
-        )
-        self.logger.info(
-            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
-            extra=self.dictLogger,
-        )
-
-        self.logger.info(
-            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
-        )
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d_5rows, k=k0, N=N0, abswitch=True
-        )
-        self.logger.info(
-            f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}.",
-            extra=self.dictLogger,
-        )
-
-        # flashing 5 rows of the calibration table
-        k0 = 2
-        N0 = 8
-        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
-        self.logger.info(
-            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
-        )
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d_5rows, k=k0, N=N0, abswitch=False
-        )
-        self.logger.info(
-            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
-            extra=self.dictLogger,
-        )
-
-        # flashing the whole calibration table
-        map2d = self.vcu_calib_table_default.reshape(-1).tolist()
-        self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d, k=0, N=14, abswitch=False
-        )
-        self.logger.info(
-            f"finish sending torque map: returncode={returncode}.",
-            extra=self.dictLogger,
-        )
 
 
 if __name__ == "__main__":
