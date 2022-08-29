@@ -1483,10 +1483,10 @@ class RealtimeDDPG(object):
                                         "where": "campus",
                                     },
                                     "observation": {
-                                        "state": motion_states0.tolist(),
+                                        "state": prev_motion_states.tolist(),
                                         "action": prev_action,
                                         "reward": cycle_reward,
-                                        "next_state": motion_states1.tolist(),
+                                        "next_state": motion_states.tolist(),
                                     },
                                 }
                                 self.buffer.deposit(rec)
