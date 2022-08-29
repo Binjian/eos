@@ -821,8 +821,7 @@ class RealtimeDDPG(object):
                                     extra=self.dictLogger,
                                 )
                                 # self.logd.info(
-                                #     f"Producer Queue has {motionpowerQueue.qsize()}!",
-                                #     extra=self.dictLogger,
+                                #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
                                 self.motionpowerQueue.put(
                                     self.get_truck_status_motpow_t
@@ -857,6 +856,8 @@ class RealtimeDDPG(object):
             # time.sleep(0.1)
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
+                epi_cnt = self.episode_count
+                step_count = self.step_count
                 if self.program_exit:
                     th_exit = True
                     continue
@@ -943,7 +944,7 @@ class RealtimeDDPG(object):
 
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
-    def remote_get_truck_status(self):
+    def remote_get_truck_status(self, evt_epi_done):
         """
         This function is used to get the truck status
         from remote can module
@@ -1142,6 +1143,11 @@ class RealtimeDDPG(object):
                                                 value["list_speed_1s"],
                                                 ob_num=unit_ob_num,
                                             )
+                                            gears = ragged_nparray_list_interp(
+                                                value["list_gears"], ob_num=unit_gear_num
+                                            )
+                                            # upsample gears from 2Hz to 50Hz
+                                            gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
 
                                             motion_power = np.c_[
                                                 timestamps.reshape(-1, 1),
@@ -1223,6 +1229,8 @@ class RealtimeDDPG(object):
             # time.sleep(0.1)
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
+                epi_cnt = self.epi_countdown
+                step_count = self.step_count
                 if self.program_exit:
                     th_exit = True
                     continue
@@ -1299,6 +1307,7 @@ class RealtimeDDPG(object):
                     abswitch=False,
                 )
                 # time.sleep(1.0)
+
                 if returncode != 0:
                     self.logc.error(
                         f"send_torque_map failed: {returncode}",
@@ -1312,7 +1321,7 @@ class RealtimeDDPG(object):
                 # watch(flash_count)
 
         # motionpowerQueue.join()
-        self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
+        self.logc.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
 
     # @eye
     def run(self):
@@ -1374,8 +1383,11 @@ class RealtimeDDPG(object):
                             self.program_exit
                         )  # if program_exit is False, reset to wait
                         epi_end = self.episode_end
-                        done = self.episode_done
+                        done = (
+                            self.episode_done
+                        )  # this class member episode_done is driving action (maneuver) done
                         table_start = self.vcu_calib_table_row_start
+                        self.step_count = step_count
                     self.logc.info(
                         f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}"
                     )

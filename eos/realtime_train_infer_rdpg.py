@@ -82,7 +82,7 @@ warnings.filterwarnings("ignore", message="currentThread", category=DeprecationW
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # global variables: threading, data, lock, etc.
-class realtime_train_infer_rdpg(object):
+class RealtimeRDPG(object):
     def __init__(
         self,
         cloud=False,
@@ -94,6 +94,8 @@ class realtime_train_infer_rdpg(object):
         vlogger=None,
     ):
         self.cloud = cloud
+        self.trucks = trucks
+        self.truck_name = "VB7"  # 0: VB7, 1: VB6
         self.projroot = proj_root
         self.logger = vlogger
         self.dictLogger = dictLogger
@@ -103,19 +105,6 @@ class realtime_train_infer_rdpg(object):
         self.record = record
         self.path = path
 
-        self.eps = np.finfo(
-            np.float32
-        ).eps.item()  # smallest number such that 1.0 + eps != 1.0
-        self.h_t = []
-
-        if self.cloud:
-            # reset proxy (internal site force no proxy)
-            os.environ["http_proxy"] = ""
-            self.remotecan_client = RemoteCan(vin="987654321654321M4")
-            self.get_truck_status = self.cloud_get_truck_status
-        else:
-            self.get_truck_status = self.onboard_get_truck_status
-
         if resume:
             self.dataroot = projroot.joinpath("data/" + self.path)
         else:
@@ -123,6 +112,35 @@ class realtime_train_infer_rdpg(object):
 
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
+
+        # validate truck id
+        # assert self.truck_name in self.trucks.keys()
+        try:
+            self.truck = self.trucks[self.truck_name]
+        except KeyError as e:
+            self.logger.error(
+                f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger
+            )
+            sys.exit(1)
+
+        # if self.truck.TruckName != "VB7":
+        #     raise TruckIDError("Truck is not VB7")
+        # else:
+        #     self.logger.info(f"Truck is VB7", extra=self.dictLogger)
+
+        self.eps = np.finfo(
+            np.float32
+        ).eps.item()  # smallest number such that 1.0 + eps != 1.0
+        self.h_t = []
+
+        if self.cloud:
+            # reset proxy (internal site force no proxy)
+            self.init_cloud()
+            self.get_truck_status = self.remote_get_truck_status
+            self.flash_vcu = self.remote_flash_vcu
+        else:
+            self.get_truck_status = self.kvaser_get_truck_status
+            self.flash_vcu = self.kvaser_flash_vcu
 
         self.logc.info(
             f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
@@ -141,6 +159,24 @@ class realtime_train_infer_rdpg(object):
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
         self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
+
+    def init_cloud(self):
+        os.environ["http_proxy"] = ""
+        self.remotecan_client = RemoteCan(vin=self.truck.VIN)
+        self.db_schema ={
+            "_id": ObjectId,
+            "timestamp": datetime,
+            "plot": {"character": str, "when": datetime, "where": str},
+            "observation": {
+                "timestamps": datetime,
+                "state": [float],  # [(velocity, thrust, brake)]
+                "action": [float],  # [row0, row1, row2, row3, row4]
+                "reward": float,
+                "next_state": [float],  # [(velocity, thrust, brake)]
+            }
+        }
+        self.db_name = "ddpg_" + self.truck["TruckName"] + "_db"
+        self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -197,9 +233,9 @@ class realtime_train_infer_rdpg(object):
 
     def set_data_path(self):
         # Create folder for ckpts loggings.
-        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.train_log_dir = self.dataroot.joinpath(
-            "tf_logs-vb7/rdpg/gradient_tape/" + current_time + "/train"
+            "tf_logs-vb/rdpg/gradient_tape/" + current_time + "/train"
         )
         self.train_summary_writer = tf.summary.create_file_writer(
             str(self.train_log_dir)
@@ -215,50 +251,25 @@ class realtime_train_infer_rdpg(object):
         # resume last pedal map / scratch from default table
 
         # initialize pedal map parameters
-        self.vcu_calib_table_col = 17  # number of pedal steps, x direction
-        self.vcu_calib_table_row = 14  # numnber of velocity steps, y direction
+        self.vcu_calib_table_col = (
+            self.truck.PedalScale
+        )  #  17 number of pedal steps, x direction
+        self.vcu_calib_table_row = (
+            self.truck.VelocityScale
+        )  #  14 numnber of velocity steps, y direction
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
         self.action_budget = 250  # action_budget 250 Nm
-        self.action_lower = 0.8
-        self.action_upper = 1.0
-        self.action_bias = 0.0
+        self.action_lower = self.truck.ActionLowerBound  # 0.8
+        self.action_upper = self.truck.ActionUpperBound  # 1.0
+        self.action_bias = self.truck.ActionBias  # 0.0
 
         # index of the current pedal map is speed in kmph
         pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
         self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
-        self.pd_columns = (
-            np.array([0, 2, 4, 8, 12, 16, 20, 24, 28, 32, 38, 44, 50, 62, 74, 86, 100])
-            / 100
-        )
+        self.pd_columns = np.array(PEDAL_SCALE)
 
-        self.target_velocity = np.array(
-            [
-                0,
-                1.8,
-                3.6,
-                5.4,
-                7.2,
-                9,
-                10.8,
-                12.6,
-                14.4,
-                16.2,
-                14.4,
-                12.6,
-                10.8,
-                9,
-                7.2,
-                5.4,
-                3.6,
-                1.8,
-                0,
-                0,
-                0,
-            ]
-        )  # unit: km/h
-
-        self.pedal_range = [0, 1.0]
-        self.velocity_range = [0, 120.0]
+        self.pedal_range = self.truck.PedalRange  # [0, 1.0]
+        self.velocity_range = self.truck.VelocityRange  # [0, 120.0]
 
         if self.resume:
             self.vcu_calib_table0 = generate_vcu_calibration(
@@ -285,10 +296,11 @@ class realtime_train_infer_rdpg(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            bSuccess, json_return = self.remotecan_client.send_torque_map(vcu_table1)
-            returncode = json_return["reson"]
+            returncode = self.remotecan_client.send_torque_map(
+                pedalmap=vcu_table1, k=0, N=self.truck.VelocityScale
+            )  # 14 rows for whole map
         else:
-            returncode = kvaser_send_float_array(vcu_table1, sw_diff=True)
+            returncode = kvaser_send_float_array(vcu_table1, sw_diff=False)
 
         self.logger.info(
             f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
@@ -313,13 +325,26 @@ class realtime_train_infer_rdpg(object):
         """
 
         # create actor-critic network
-        self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
+        self.num_observations = self.truck.ObservationNumber
+        # self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
         if self.cloud:
-            self.observation_len = 50  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
-            self.sample_rate = 0.04  # sample rate of the observation tuples
+            self.observation_len = (
+                self.truck.CloudUnitNumber * self.truck.CloudSignalFrequency
+            )  # 250 observation tuples as a valid observation for agent, for period of 20ms, this is equal to 5 second
+            # self.observation_len = 250  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
+            self.sample_rate = (
+                1.0 / self.truck.CloudSignalFrequency
+            )  # sample rate of the observation tuples
+            # self.sample_rate = 0.02  # sample rate 20ms of the observation tuples
         else:
-            self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
-            self.sample_rate = 0.05  # sample rate of the observation tuples
+            self.observation_len = (
+                self.truck.KvaserObservationNumber
+            )  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+            # self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
+            self.sample_rate = (
+                1.0 / self.truck.KvaserObservationFrequency
+            )  # sample rate of the observation tuples
+            # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
         self.num_inputs = (
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
@@ -360,23 +385,45 @@ class realtime_train_infer_rdpg(object):
         self.padding_value = -10000
         self.ckpt_interval = 5
 
-        # Initialize networks
-        self.rdpg = RDPG(
-            self.num_observations,
-            self.observation_len,
-            self.seq_len,
-            self.num_reduced_actions,
-            buffer_capacity=self.buffer_capacity,
-            batch_size=self.batch_size,
-            hidden_unitsAC=self.hidden_unitsAC,
-            n_layersAC=self.n_layerAC,
-            padding_value=self.padding_value,
-            gamma=self.gamma,
-            tauAC=self.tauAC,
-            lrAC=self.lrAC,
-            datafolder=str(self.dataroot),
-            ckpt_interval=self.ckpt_interval,
-        )
+        if self.cloud:
+            # Initialize networks
+            self.rdpg = RDPG(
+                self.num_observations,
+                self.observation_len,
+                self.seq_len,
+                self.num_reduced_actions,
+                buffer_capacity=self.buffer_capacity,
+                batch_size=self.batch_size,
+                hidden_unitsAC=self.hidden_unitsAC,
+                n_layersAC=self.n_layerAC,
+                padding_value=self.padding_value,
+                gamma=self.gamma,
+                tauAC=self.tauAC,
+                lrAC=self.lrAC,
+                datafolder=str(self.dataroot),
+                ckpt_interval=self.ckpt_interval,
+                pool=self.pool
+            )
+            pass  # TODO
+        else:
+            # Initialize networks
+            self.rdpg = RDPG(
+                self.num_observations,
+                self.observation_len,
+                self.seq_len,
+                self.num_reduced_actions,
+                buffer_capacity=self.buffer_capacity,
+                batch_size=self.batch_size,
+                hidden_unitsAC=self.hidden_unitsAC,
+                n_layersAC=self.n_layerAC,
+                padding_value=self.padding_value,
+                gamma=self.gamma,
+                tauAC=self.tauAC,
+                lrAC=self.lrAC,
+                datafolder=str(self.dataroot),
+                ckpt_interval=self.ckpt_interval,
+                pool=None
+            )
 
     def touch_gpu(self):
 
@@ -475,27 +522,19 @@ class realtime_train_infer_rdpg(object):
         self.get_truck_status_myPort = 8002
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
-    def onboard_get_truck_status(self, evt_epi_done):
+    def kvaser_get_truck_status(self, evt_epi_done):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
         """
-        # global program_exit
-        # global motionpowerQueue, sequence_len
-        # global episode_count, episode_done, episode_end
-        # global vcu_calib_table_row_start
 
-        # self.logger.info(f'Start Initialization!', extra=self.dictLogger)
+        th_exit = False
+
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        # datetime.datetime.now().strftime("%Y%b%d-%H%M%S")
-        start_moment = time.time()
-        th_exit = False
-        last_moment = time.time()
-        self.logc.info(f"Initialization Done!", extra=self.dictLogger)
-        # qobject_size = 0
+        self.logc.info(f"Socket Initialization Done!", extra=self.dictLogger)
 
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -687,7 +726,7 @@ class realtime_train_infer_rdpg(object):
 
     # this is the calibration table consumer for flashing
     # @eye
-    def flash_vcu(self):
+    def kvaser_flash_vcu(self):
 
         flash_count = 0
         th_exit = False
@@ -696,6 +735,9 @@ class realtime_train_infer_rdpg(object):
         while not th_exit:
             # time.sleep(0.1)
             with self.hmi_lock:
+                table_start = self.vcu_calib_table_row_start
+                epi_cnt = self.episode_count
+                step_count = self.step_count
                 if self.program_exit:
                     th_exit = True
                     continue
@@ -709,53 +751,94 @@ class realtime_train_infer_rdpg(object):
                 pass
             else:
 
+                vcu_calib_table_reduced = tf.reshape(
+                    table,
+                    [
+                        self.vcu_calib_table_row_reduced,
+                        self.vcu_calib_table_col,
+                    ],
+                )
+
+                # get change budget : % of initial table
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+
+                # dynamically change table row start index
+                vcu_calib_table0_reduced = self.vcu_calib_table0[
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    :,
+                ]
+                vcu_calib_table_min_reduced = (
+                    vcu_calib_table0_reduced - self.action_budget
+                )
+                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+
+                vcu_calib_table_reduced = tf.clip_by_value(
+                    vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                    clip_value_min=vcu_calib_table_min_reduced,
+                    clip_value_max=vcu_calib_table_max_reduced,
+                )
+
+                # create updated complete pedal map, only update the first few rows
+                self.vcu_calib_table1[
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    :,
+                ] = vcu_calib_table_reduced.numpy()
+                pds_curr_table = pd.DataFrame(
+                    self.vcu_calib_table1, self.pd_index, self.pd_columns
+                )
+
+                if args.record_table:
+                    curr_table_store_path = self.dataroot.joinpath(
+                        "tables/instant_table_ddpg-vb-"
+                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + "e-"
+                        + str(epi_cnt)
+                        + "-"
+                        + str(step_count)
+                        + ".csv"
+                    )
+                    with open(curr_table_store_path, "wb") as f:
+                        pds_curr_table.to_csv(curr_table_store_path)
+                        # np.save(last_table_store_path, vcu_calib_table1)
+                    self.logd.info(
+                        f"E{epi_cnt} done with record instant table: {step_count}",
+                        extra=self.dictLogger,
+                    )
+
+                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
                 # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                if self.cloud:
-                    success, json_ret = self.remotecan_client.send_torque_map(table)
-                    if not success:
-                        returncode = json_ret["reson"]
-                        self.logc.error(
-                            f"send_torque_map failed: {returncode}",
-                            extra=self.dictLogger,
-                        )
-                else:
-                    returncode = kvaser_send_float_array(table, sw_diff=True)
-                    if returncode != 0:
-                        self.logc.error(
-                            f"kvaser_send_float_array failed: {returncode}",
-                            extra=self.dictLogger,
-                        )
+                returncode = kvaser_send_float_array(vcu_act_list, sw_diff=True)
                 # time.sleep(1.0)
-                self.logc.info(
-                    f"flash done, count:{flash_count}", extra=self.dictLogger
-                )
-                flash_count += 1
+                if returncode != 0:
+                    self.logc.error(
+                        f"kvaser_send_float_array failed: {returncode}",
+                        extra=self.dictLogger,
+                    )
+                else:
+                    self.logc.info(
+                        f"flash done, count:{flash_count}", extra=self.dictLogger
+                    )
+                    flash_count += 1
                 # watch(flash_count)
 
-        # motionpowerQueue.join()
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
-    def cloud_get_truck_status(self):
-        # global program_exit
-        # global motionpowerQueue, sequence_len
-        # global episode_count, episode_done, episode_end
-        # global vcu_calib_table_row_start
+    def remote_get_truck_status(self, evt_epi_done):
+        """
+        This function is used to get the truck status
+        from remote can module
+        """
 
-        # self.logger.info(f'Start Initialization!', extra=self.dictLogger)
-        start_moment = time.time()
         th_exit = False
-        last_moment = time.time()
-        # self.logc.info(f"Initialization Done!", extra=self.dictLogger)
-        # qobject_size = 0
 
-        self.vel_hist_dQ = deque(maxlen=25)  # accumulate 1s of velocity values
-        # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
-        vel_cycle_dQ = deque(
-            maxlen=self.observation_len
-        )  # accumulate 2s (one cycle) of velocity values
+        #  Get the HMI control command from UDP, but not the data from KvaserCAN
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        socket.socket.settimeout(s, None)
+        s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
+        # s.listen(5)
+        self.logc.info(f"Socket Initialization Done!", extra=self.dictLogger)
 
-        duration = self.observation_len / self.sample_rate
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
@@ -766,301 +849,359 @@ class realtime_train_infer_rdpg(object):
                     )
                     th_exit = True
                     continue
-            status_ok, remotecan_data = self.remotecan_client.get_signals(
-                duration=duration
-            )
-            if not status_ok:
-                self.logc.error(
-                    f"get_signals failed: {remotecan_data}",
-                    extra=self.dictLogger,
-                )
-                continue
+            candata, addr = s.recvfrom(2048)
             # self.logger.info('Data received!!!', extra=self.dictLogger)
-            data_type = type(remotecan_data)
-            self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
-            if not isinstance(remotecan_data, dict):
+            pop_data = json.loads(candata)
+            data_type = type(pop_data)
+            # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
+            if not isinstance(pop_data, dict):
                 self.logd.critical(
                     f"udp sending wrong data type!", extra=self.dictLogger
                 )
                 raise TypeError("udp sending wrong data type!")
 
-            try:
-                for key, value in remotecan_data.items():
-                    if key == "status":  # state machine chores
-                        # print(candata)
-                        if value == "begin":
-                            self.get_truck_status_start = True
-                            self.logc.info(
-                                "%s", "Episode will start!!!", extra=self.dictLogger
+            for key, value in pop_data.items():
+                if key == "status":  # state machine chores
+                    # print(candata)
+                    if value == "begin":
+                        self.get_truck_status_start = True
+                        self.logc.info(
+                            "%s", "Episode will start!!!", extra=self.dictLogger
+                        )
+                        th_exit = False
+                        # ts_epi_start = time.time()
+
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
+                        self.vel_hist_dQ.clear()
+                        with self.hmi_lock:
+                            self.episode_done = False
+                            self.episode_end = False
+                    elif value == "end_valid":
+                        # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                        # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+                        self.get_truck_status_start = (
+                            True  # do not stopping data capture immediately
+                        )
+
+                        # set flag for countdown thread
+                        evt_epi_done.set()
+                        self.logc.info(f"Episode end starts countdown!")
+                        with self.hmi_lock:
+                            # self.episode_count += 1  # valid round increments self.epi_countdown = False
+                            self.episode_done = False  # TODO delay episode_done to make main thread keep running
+                            self.episode_end = False
+                    elif value == "end_invalid":
+                        self.get_truck_status_start = False
+                        self.logc.info(
+                            f"Episode is interrupted!!!", extra=self.dictLogger
+                        )
+                        self.get_truck_status_motpow_t = []
+                        self.vel_hist_dQ.clear()
+                        # motionpowerQueue.queue.clear()
+                        # self.logc.info(
+                        #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
+                        #     extra=self.dictLogger,
+                        # )
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
+                        # self.logc.info(
+                        #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
+                        # )
+                        th_exit = False
+                        with self.hmi_lock:
+                            self.episode_done = False
+                            self.episode_end = True
+                            self.episode_count += 1  # invalid round increments
+                    elif value == "exit":
+                        self.get_truck_status_start = False
+                        self.get_truck_status_motpow_t = []
+                        self.vel_hist_dQ.clear()
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
+                        # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
+                        th_exit = True
+                        # for program exit, need to set episode states
+                        # final change to inform main thread
+                        with self.hmi_lock:
+                            self.episode_done = False
+                            self.episode_end = True
+                            self.program_exit = True
+                            self.episode_count += 1
+                        evt_epi_done.set()
+                        break
+                        # time.sleep(0.1)
+                elif key == "data":
+                    #  instead of get kvasercan, we get remotecan data here!
+                    try:
+                        if self.get_truck_status_start:  # starts episode
+
+                            (
+                                signal_success,
+                                remotecan_data,
+                            ) = self.remotecan_client.get_signals(
+                                duration=self.truck.CloudUnitNumber
                             )
-                            th_exit = False
-                            # ts_epi_start = time.time()
-
-                            self.vel_hist_dQ.clear()
-                            with self.hmi_lock:
-                                self.episode_done = False
-                                self.episode_end = False
-
-                        elif value == "end_valid":
-                            # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
-                            # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
-                            self.get_truck_status_start = (
-                                True  # do not stopping data capture immediately
-                            )
-                            self.get_truck_status_motpow_t = []
-                            while not self.motionpowerQueue.empty():
-                                self.motionpowerQueue.get()
-                            self.logc.info(
-                                "%s", "Episode done!!!", extra=self.dictLogger
-                            )
-                            th_exit = False
-                            self.vel_hist_dQ.clear()
-                            with self.hmi_lock:
-                                self.episode_count += 1  # valid round increments
-                                self.episode_done = True
-                                self.episode_end = True
-                        elif value == "end_invalid":
-                            self.get_truck_status_start = False
-                            self.logc.info(
-                                f"Episode is interrupted!!!", extra=self.dictLogger
-                            )
-                            self.get_truck_status_motpow_t = []
-                            self.vel_hist_dQ.clear()
-                            # motionpowerQueue.queue.clear()
-                            # self.logc.info(
-                            #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
-                            #     extra=self.dictLogger,
-                            # )
-                            while not self.motionpowerQueue.empty():
-                                self.motionpowerQueue.get()
-                            # self.logc.info(
-                            #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
-                            # )
-                            th_exit = False
-                            with self.hmi_lock:
-                                self.episode_done = False
-                                self.episode_end = True
-                                self.episode_count += 1  # invalid round increments
-                        elif value == "exit":
-                            self.get_truck_status_start = False
-                            self.get_truck_status_motpow_t = []
-                            self.vel_hist_dQ.clear()
-                            while not self.motionpowerQueue.empty():
-                                self.motionpowerQueue.get()
-                            # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
-                            th_exit = True
-                            # for program exit, need to set episode states
-                            # final change to inform main thread
-                            with self.hmi_lock:
-                                self.episode_done = False
-                                self.episode_end = True
-                                self.program_exit = True
-                                self.episode_count += 1
-                                self.epi_countdown = False
-                            break
-                            # time.sleep(0.1)
-
-                    elif key == "result":
-                        # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
-                        # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
-                        # DONE add logic for episode valid and invalid
-                        try:
-                            if self.get_truck_status_start:  # starts episode
-
-                                # with np.printoptions(precision=4, suppress=True, formatter={'float': '{:0.1f}'.format}, linewidth=100):
-                                with np.printoptions(suppress=True, linewidth=100):
-                                    # capture warning about ragged json arrays
-                                    with np.testing.suppress_warnings() as sup:
-                                        log_warning = sup.record(
-                                            np.VisibleDeprecationWarning,
-                                            "Creating an ndarray from ragged nested sequences",
-                                        )
-                                        current = np.array(value["list_current_1s"])
-                                        if len(log_warning) > 0:
-                                            log_warning.pop()
-                                            item_len = [len(item) for item in current]
-                                            for count, item in enumerate(current):
-                                                item[
-                                                    item_len[count] : max(item_len)
-                                                ] = None
-                                        self.logd.info(
-                                            f"current{current.shape}:{current}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                        voltage = np.array(value["list_voltage_1s"])
-                                        if len(log_warning):
-                                            log_warning.pop()
-                                            item_len = [len(item) for item in voltage]
-                                            for count, item in enumerate(voltage):
-                                                item[
-                                                    item_len[count] : max(item_len)
-                                                ] = None
-                                        # voltage needs to be upsampled in columns since its sample rate is half of others
-                                        r_v, c_v = voltage.shape
-                                        voltage_upsampled = np.empty(
-                                            (r_v, 1, c_v, 2), dtype=voltage.dtype
-                                        )
-                                        voltage_upsampled[...] = voltage[
-                                            :, None, :, None
-                                        ]
-                                        voltage = voltage_upsampled.reshape(
-                                            r_v, c_v * 2
-                                        )
-                                        self.logd.info(
-                                            f"voltage{voltage.shape}:{voltage}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                        thrust = np.array(value["list_pedal_1s"])
-                                        if len(log_warning) > 0:
-                                            log_warning.pop()
-                                            item_len = [len(item) for item in thrust]
-                                            for count, item in enumerate(thrust):
-                                                item[
-                                                    item_len[count] : max(item_len)
-                                                ] = None
-                                        self.logd.info(
-                                            f"accl{thrust.shape}:{thrust}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                        brake = np.array(
-                                            value["list_brake_pressure_1s"]
-                                        )
-                                        if len(log_warning) > 0:
-                                            log_warning.pop()
-                                            item_len = [len(item) for item in brake]
-                                            for count, item in enumerate(brake):
-                                                item[
-                                                    item_len[count] : max(item_len)
-                                                ] = None
-                                        self.logd.info(
-                                            f"brake{brake.shape}:{brake}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                        velocity = np.array(value["list_speed_1s"])
-                                        if len(log_warning) > 0:
-                                            log_warning.pop()
-                                            item_len = [len(item) for item in velocity]
-                                            for count, item in enumerate(velocity):
-                                                item[
-                                                    item_len[count] : max(item_len)
-                                                ] = None
-                                        self.logd.info(
-                                            f"velocity{velocity.shape}:{velocity}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                        gears = np.array(value["list_gears"])
-                                        if len(log_warning) > 0:
-                                            log_warning.pop()
-                                            item_len = [len(item) for item in gears]
-                                            for count, item in enumerate(gears):
-                                                item[
-                                                    item_len[count] : max(item_len)
-                                                ] = None
-                                        # upsample gears from 2Hz to 25Hz
-                                        r_v, c_v = gears.shape
-                                        gears_upsampled = np.empty(
-                                            (r_v, 1, c_v, 12), dtype=gears.dtype
-                                        )
-                                        gears_upsampled[...] = gears[:, None, :, None]
-                                        gears = gears_upsampled.reshape(r_v, c_v * 12)
-                                        gears = np.c_[
-                                            gears, gears[:, -1]
-                                        ]  # duplicate last gear on the end
-                                        gears = gears.reshape(-1, 1)
-                                        self.logd.info(
-                                            f"gears{gears.shape}:{gears}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                        timestamp = value["timestamp"]
-                                        self.logd.info(
-                                            f"timestamp{timestamp.shape}:{datetime.datetime.fromtimestamp(timestamp)}",
-                                            extra=self.dictLogger,
-                                        )
-
-                                motion_power = np.c_[
-                                    velocity.reshape(-1, 1),
-                                    thrust.reshape(-1, 1),
-                                    brake.reshape(-1, 1),
-                                    current.reshape(-1, 1),
-                                    voltage.reshape(-1, 1),
-                                ]  # 3 +2 : im 5
-
-                                self.get_truck_status_motpow_t.append(
-                                    motion_power
-                                )  # obs_reward [speed, pedal, brake, current, voltage]
-                                self.vel_hist_dQ.append(velocity)
-
-                                vel_aver = velocity.mean()
-                                vel_min = velocity.min(initial=300)
-                                vel_max = velocity.max(initial=-100)
-
-                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
-                                # average concept
-                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
-                                #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                                # here upper bound rule adopted
-                                if vel_max < 20:
-                                    self.vcu_calib_table_row_start = 0
-                                elif vel_max < 30:
-                                    self.vcu_calib_table_row_start = 1
-                                elif vel_max < 120:
-                                    self.vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 30) / 10) + 2
-                                    )
-                                else:
-                                    self.logc.warning(
-                                        f"cycle higher than 120km/h!",
-                                        extra=self.dictLogger,
-                                    )
-                                    self.vcu_calib_table_row_start = 16
-
-                                self.logd.info(
-                                    f"Cycle velocity: Aver{vel_aver},Min{vel_min},Max{vel_max},StartIndex{self.vcu_calib_table_row_start}!",
+                            if not isinstance(remotecan_data, dict):
+                                self.logd.critical(
+                                    f"udp sending wrong data type!",
                                     extra=self.dictLogger,
                                 )
-                                # self.logd.info(
-                                #     f"Producer Queue has {motionpowerQueue.qsize()}!",
-                                #     extra=self.dictLogger,
-                                # )
-                                self.motionpowerQueue.put(
-                                    self.get_truck_status_motpow_t
+                                raise TypeError("udp sending wrong data type!")
+
+                            if signal_success is 0:
+                                try:
+                                    signal_freq = self.truck.CloudSignalFrequency
+                                    gear_freq = self.truck.CloudGearFrequency
+                                    unit_duration = self.truck.CloudUnitDuration
+                                    unit_ob_num = unit_duration * signal_freq
+                                    unit_gear_num = unit_duration * gear_freq
+                                    unit_num = self.truck.CloudUnitNumber
+                                    timestamp_upsample_rate = (
+                                            self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
+                                    )
+                                    for key, value in remotecan_data.items():
+                                        if key == "result":
+                                            self.logd.info(
+                                                "convert observation state to array.",
+                                                extra=self.dictLogger,
+                                            )
+                                            # timestamp processing
+                                            timestamps = []
+                                            separators = (
+                                                "--T::."  # adaption separators of the raw intest string
+                                            )
+                                            start_century = "20"
+                                            timezone = "+0800"
+                                            for ts in value["timestamps"]:
+                                                # create standard iso string datetime format
+                                                ts_substrings = [
+                                                    ts[i : i + 2] for i in range(0, len(ts), 2)
+                                                ]
+                                                ts_iso = start_century
+                                                for i, sep in enumerate(separators):
+                                                    ts_iso = ts_iso + ts_substrings[i] + sep
+                                                ts_iso = ts_iso + ts_substrings[-1] + timezone
+                                                timestamps.append(ts_iso)
+                                            timestamps_units = (
+                                                np.array(timestamps)
+                                                .astype("datetime64[ms]")
+                                                .astype("int")  # convert to int
+                                            )
+                                            if len(timestamps_units) != unit_num:
+                                                raise ValueError(
+                                                    f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                                                )
+                                            # upsample gears from 2Hz to 50Hz
+                                            timestamps_seconds = list(timestamps_units)  # in ms
+                                            sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                                            timestamps = [
+                                                i + j * sampling_interval
+                                                for i in timestamps_seconds
+                                                for j in np.arange(unit_ob_num)
+                                            ]
+                                            timestamps = np.array(timestamps).reshape(
+                                                (self.truck.CloudUnitNumber, -1)
+                                            )
+                                            current = ragged_nparray_list_interp(
+                                                value["list_current_1s"],
+                                                ob_num=unit_ob_num,
+                                            )
+                                            voltage = ragged_nparray_list_interp(
+                                                value["list_voltage_1s"],
+                                                ob_num=unit_ob_num,
+                                            )
+                                            thrust = ragged_nparray_list_interp(
+                                                value["list_pedal_1s"],
+                                                ob_num=unit_ob_num,
+                                            )
+                                            brake = ragged_nparray_list_interp(
+                                                value["list_brake_pressure_1s"],
+                                                ob_num=unit_ob_num,
+                                            )
+                                            velocity = ragged_nparray_list_interp(
+                                                value["list_speed_1s"],
+                                                ob_num=unit_ob_num,
+                                            )
+                                            gears = ragged_nparray_list_interp(
+                                                value["list_gears"], ob_num=unit_gear_num
+                                            )
+                                            # upsample gears from 2Hz to 50Hz
+                                            gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
+
+                                            motion_power = np.c_[
+                                                timestamps.reshape(-1, 1),
+                                                velocity.reshape(-1, 1),
+                                                thrust.reshape(-1, 1),
+                                                brake.reshape(-1, 1),
+                                                gears.reshape(-1, 1),
+                                                current.reshape(-1, 1),
+                                                voltage.reshape(-1, 1),
+                                            ]  # 1 + 3 + 1 + 2  : im 7
+
+                                            # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
+                                            # average concept
+                                            # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
+                                            #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                                            # here upper bound rule adopted
+                                            vel_max = np.amax(velocity)
+                                            if vel_max < 20:
+                                                self.vcu_calib_table_row_start = 0
+                                            elif vel_max < 30:
+                                                self.vcu_calib_table_row_start = 1
+                                            elif vel_max < 120:
+                                                self.vcu_calib_table_row_start = (
+                                                    math.floor((vel_max - 30) / 10) + 2
+                                                )
+                                            else:
+                                                self.logc.warning(
+                                                    f"cycle higher than 120km/h!",
+                                                    extra=self.dictLogger,
+                                                )
+                                                self.vcu_calib_table_row_start = 16
+
+                                            self.logd.info(
+                                                f"Cycle velocity: Aver{np.mean(velocity):.2f},Min{np.amin(velocity):.2f},Max{np.amax(velocity):.2f},StartIndex{self.vcu_calib_table_row_start}!",
+                                                extra=self.dictLogger,
+                                            )
+
+                                            self.motionpowerQueue.put(motion_power)
+                                        else:
+                                            self.logger.info(
+                                                f"show status: {key}:{value}",
+                                                extra=self.dictLogger,
+                                            )
+
+                                except Exception as X:
+                                    self.logger.error(
+                                        f"show status: exception {X}, data corruption.",
+                                        extra=self.dictLogger,
+                                    )
+                            else:
+                                self.logd.error(
+                                    f"get_signals failed: {remotecan_data}",
+                                    extra=self.dictLogger,
                                 )
-                                self.get_truck_status_motpow_t = []
-                        except Exception as X:
-                            self.logc.info(
-                                X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
-                                extra=self.dictLogger,
-                            )
-                    elif key == "reson":
-                        self.logd.info(
-                            f"reson: {value}",
+
+                    except Exception as X:
+                        self.logc.info(
+                            X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                             extra=self.dictLogger,
-                        )
-                    elif key == "success":
-                        self.logd.info(
-                            f"success: {value}",
-                            extra=self.dictLogger,
-                        )
-                    elif key == "elapsed":
-                        self.logd.info(
-                            f"elapsed: {value}",
-                            extra=self.dictLogger,
-                        )
-                    else:
-                        self.logc.critical(
-                            "udp sending unknown signal (neither status nor data)!"
                         )
                         break
-            except Exception as X:
-                self.logc.info(f"{X}: data corrupt!", extra=self.dictLogger)
+                else:
+                    self.logc.warning(
+                        f"udp sending message with key: {key}; value: {value}!!!"
+                    )
 
+                    break
+
+        s.close()
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+
+    def remote_flash_vcu(self):
+
+        flash_count = 0
+        th_exit = False
+
+        self.logc.info(f"Initialization Done!", extra=self.dictLogger)
+        while not th_exit:
+            # time.sleep(0.1)
+            with self.hmi_lock:
+                table_start = self.vcu_calib_table_row_start
+                epi_cnt = self.epi_countdown
+                step_count = self.step_count
+                if self.program_exit:
+                    th_exit = True
+                    continue
+            try:
+                # print("1 tablequeue size: {}".format(tablequeue.qsize()))
+                table = self.tableQueue.get(
+                    block=False, timeout=1
+                )  # default block = True
+                # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+            except queue.Empty:
+                pass
+            else:
+                vcu_calib_table_reduced = tf.reshape(
+                    table,
+                    [
+                        self.vcu_calib_table_row_reduced,
+                        self.vcu_calib_table_col,
+                    ],
+                )
+
+                # get change budget : % of initial table
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+
+                # dynamically change table row start index
+                vcu_calib_table0_reduced = self.vcu_calib_table0[
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    :,
+                ]
+                vcu_calib_table_min_reduced = (
+                    vcu_calib_table0_reduced - self.action_budget
+                )
+                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+
+                vcu_calib_table_reduced = tf.clip_by_value(
+                    vcu_calib_table_reduced + vcu_calib_table0_reduced,
+                    clip_value_min=vcu_calib_table_min_reduced,
+                    clip_value_max=vcu_calib_table_max_reduced,
+                )
+
+                # create updated complete pedal map, only update the first few rows
+                self.vcu_calib_table1[
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    :,
+                ] = vcu_calib_table_reduced.numpy()
+                pds_curr_table = pd.DataFrame(
+                    self.vcu_calib_table1, self.pd_index, self.pd_columns
+                )
+
+                if args.record_table:
+                    curr_table_store_path = self.dataroot.joinpath(
+                        "tables/instant_table_ddpg-vb-"
+                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + "e-"
+                        + str(epi_cnt)
+                        + "-"
+                        + str(step_count)
+                        + ".csv"
+                    )
+                    with open(curr_table_store_path, "wb") as f:
+                        pds_curr_table.to_csv(curr_table_store_path)
+                        # np.save(last_table_store_path, vcu_calib_table1)
+                    self.logd.info(
+                        f"E{epi_cnt} done with record instant table: {step_count}",
+                        extra=self.dictLogger,
+                    )
+
+                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
+                # tf.print('calib table:', table, output_stream=output_path)
+                self.logc.info(f"flash starts", extra=self.dictLogger)
+                returncode = self.remotecan_client.send_torque_map(
+                    pedalmap=vcu_act_list,
+                    k=table_start,
+                    N=self.vcu_calib_table_row_reduced,
+                    abswitch=False,
+                )
+                # time.sleep(1.0)
+
+                if returncode != 0:
+                    self.logc.error(
+                        f"send_torque_map failed: {returncode}",
+                        extra=self.dictLogger,
+                    )
+                else:
+                    self.logc.info(
+                        f"flash done, count:{flash_count}", extra=self.dictLogger
+                    )
+                    flash_count += 1
+                # watch(flash_count)
+
+        # motionpowerQueue.join()
+        self.logc.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
 
     # @eye
     def run(self):
@@ -1127,6 +1268,7 @@ class realtime_train_infer_rdpg(object):
                             self.episode_done
                         )  # this class member episode_done is driving action (maneuver) done
                         table_start = self.vcu_calib_table_row_start
+                        self.step_count = step_count
                     self.logc.info(
                         f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}"
                     )
@@ -1167,8 +1309,14 @@ class realtime_train_infer_rdpg(object):
                     motpow_t = tf.convert_to_tensor(
                         motionpower
                     )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
-                    o_t = tf.reshape(o_t0, -1)
+                    if self.cloud:
+                        ts, o_t0, gr_t, pow_t = tf.split(
+                            motpow_t, [1, 3, 1, 2], 1
+                        )  # note the difference of split between np and tf
+                        o_t = tf.reshape(o_t0, -1)
+                    else:
+                        o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
+                        o_t = tf.reshape(o_t0, -1)
 
                     self.logd.info(
                         f"E{epi_cnt} tensor convert and split!",
@@ -1273,7 +1421,7 @@ class realtime_train_infer_rdpg(object):
                             :,
                         ]
                         vcu_calib_table_min_reduced = (
-                            vcu_calib_table0_reduced - vcu_calib_table_bound
+                            vcu_calib_table0_reduced - self.action_budget
                         )
                         vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
 
@@ -1463,7 +1611,7 @@ class realtime_train_infer_rdpg(object):
         last_table_store_path = (
             self.dataroot.joinpath(  #  there's no slash in the end of the string
                 "last_table_rdpg-"
-                + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
                 + ".csv"
             )
         )
@@ -1523,13 +1671,20 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
 
-    app = realtime_train_infer_rdpg(
-        args.cloud,
-        args.resume,
-        args.infer,
-        args.record_table,
-        args.path,
-        projroot,
-        logger,
-    )
+    try:
+        app = RealtimeRDPG(
+            args.cloud,
+            args.resume,
+            args.infer,
+            args.record_table,
+            args.path,
+            projroot,
+            logger,
+        )
+    except TypeError as e:
+        logger.error(f"Project Exeception TypeError: {e}", extra=logger.dictLogger)
+        sys.exit(1)
+    except Exception as e:
+        logger.error(e, extra=logger.dictLogger)
+        sys.exit(1)
     app.run()
