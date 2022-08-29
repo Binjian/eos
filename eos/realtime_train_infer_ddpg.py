@@ -179,7 +179,6 @@ class RealtimeDDPG(object):
             }
         }
         self.db_name = "ddpg_" + self.truck["TruckName"] + "_db"
-        self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -420,40 +419,22 @@ class RealtimeDDPG(object):
         self.buffer_capacity = 300000
         # try buffer size with 1,000,000
 
-        if self.cloud:
-            self.buffer = Buffer(
-                self.actor_model,
-                self.critic_model,
-                self.target_actor,
-                self.target_critic,
-                self.actor_optimizer,
-                self.critic_optimizer,
-                self.num_observations,
-                self.observation_len,
-                self.num_reduced_actions,
-                buffer_capacity=self.buffer_capacity,
-                batch_size=self.batch_size,
-                gamma=self.gamma,
-                datafolder=str(self.dataroot),
-                pool=self.pool
-            )
-        else:
-            self.buffer = Buffer(
-                self.actor_model,
-                self.critic_model,
-                self.target_actor,
-                self.target_critic,
-                self.actor_optimizer,
-                self.critic_optimizer,
-                self.num_observations,
-                self.observation_len,
-                self.num_reduced_actions,
-                buffer_capacity=self.buffer_capacity,
-                batch_size=self.batch_size,
-                gamma=self.gamma,
-                datafolder=str(self.dataroot),
-                pool=None
-            )
+        self.buffer = Buffer(
+            self.actor_model,
+            self.critic_model,
+            self.target_actor,
+            self.target_critic,
+            self.actor_optimizer,
+            self.critic_optimizer,
+            self.num_observations,
+            self.observation_len,
+            self.num_reduced_actions,
+            buffer_capacity=self.buffer_capacity,
+            batch_size=self.batch_size,
+            gamma=self.gamma,
+            datafolder=str(self.dataroot),
+            cloud=self.cloud
+        )
 
         # ou_noise is a row vector sdfof num_actions dimension
         self.ou_noise_std_dev = 0.2
@@ -1482,7 +1463,7 @@ class RealtimeDDPG(object):
                                     },
 
                                 }
-                                self.buffer.record(rec)
+                                self.buffer.deposit(rec)
                             else:
                                 self.buffer.record(
                                     (
@@ -1691,7 +1672,10 @@ class RealtimeDDPG(object):
         )
         with open(last_table_store_path, "wb") as f:
             pds_last_table.to_csv(last_table_store_path)
-        self.buffer.save()
+
+        if self.cloud is False:
+            self.buffer.save()
+        #  for database, just exit no need to cleanup.
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 

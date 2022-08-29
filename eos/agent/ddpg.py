@@ -124,7 +124,7 @@ class Buffer:
         file_nsb=None,
         file_bc=None,
         datafolder="./",
-        pool=None,
+        cloud=False,
     ):
         # Number of "experiences" to store at max
         self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
@@ -137,18 +137,21 @@ class Buffer:
         self.sequence_len = sequence_len
         self.num_actions = num_actions
         self.data_folder = datafolder
-        self.file_sb = self.data_folder + "/state_buffer.npy"
-        self.file_ab = self.data_folder + "/action_buffer.npy"
-        self.file_rb = self.data_folder + "/reward_buffer.npy"
-        self.file_nsb = self.data_folder + "/next_state_buffer.npy"
-        self.file_bc = self.data_folder + "/buffer_counter.npy"
-        self.state_buffer = None
-        self.action_buffer = None
-        self.reward_buffer = None
-        self.next_state_buffer = None
-        # Its tells us num of times record() was called.
-        self.buffer_counter = tf.convert_to_tensor(0, dtype=tf.int64)
-        self.load()
+        if cloud is True:
+            self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
+        else:
+            self.file_sb = self.data_folder + "/state_buffer.npy"
+            self.file_ab = self.data_folder + "/action_buffer.npy"
+            self.file_rb = self.data_folder + "/reward_buffer.npy"
+            self.file_nsb = self.data_folder + "/next_state_buffer.npy"
+            self.file_bc = self.data_folder + "/buffer_counter.npy"
+            self.state_buffer = None
+            self.action_buffer = None
+            self.reward_buffer = None
+            self.next_state_buffer = None
+            # Its tells us num of times record() was called.
+            self.buffer_counter = tf.convert_to_tensor(0, dtype=tf.int64)
+            self.load()
 
         self.actor_model = actor_model
         self.critic_model = critic_model
@@ -157,11 +160,10 @@ class Buffer:
         self.actor_optimizer = actor_optimizer
         self.critic_optimizer = critic_optimizer
         self.gamma = gamma
-        self.pool = pool
 
-    def record(self, rec: dict):
+    def deposit(self, rec: dict):
         """
-        Record a new experience in the pool.
+        Record a new experience in the pool (database).
         """
         result = self.pool.deposit_record(rec)
         assert result.acknowledged == True
@@ -174,22 +176,19 @@ class Buffer:
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):
         """
-        Record a new experience in the buffer.
+        Record a new experience in the buffer (numpy arrays).
 
         Set index to zero if buffer_capacity is exceeded,
         replacing old records
         """
-        if self.pool is None:
-            index = self.buffer_counter % self.buffer_capacity
+        index = self.buffer_counter % self.buffer_capacity
 
-            self.state_buffer[index] = obs_tuple[0]
-            self.action_buffer[index] = obs_tuple[1]
-            self.reward_buffer[index] = obs_tuple[2]
-            self.next_state_buffer[index] = obs_tuple[3]
+        self.state_buffer[index] = obs_tuple[0]
+        self.action_buffer[index] = obs_tuple[1]
+        self.reward_buffer[index] = obs_tuple[2]
+        self.next_state_buffer[index] = obs_tuple[3]
 
-            self.buffer_counter += 1
-        else:
-            self.pool.deposit_record(obs_tuple)
+        self.buffer_counter += 1
 
     def save(self):
 
@@ -303,7 +302,7 @@ class Buffer:
         """
         Update the actor and critic networks using the sampled batch.
         """
-        if self.pool == None:
+        if self.cloud == False:
             # get sampling range, if not enough data, batch is small,
             # batch size starting from 1, until reach buffer
             # logger.info(f"Tracing!", extra=dictLogger)
@@ -316,16 +315,17 @@ class Buffer:
             action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
             reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
             reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
-
-            critic_loss, actor_loss = self.update(
-                state_batch, action_batch, reward_batch, next_state_batch
+            next_state_batch = tf.convert_to_tensor(
+                self.next_state_buffer[batch_indices]
             )
-            return critic_loss, actor_loss
+
         else:
             # get sampling range, if not enough data, batch is small
-            self.logger.info(f"start test_pool_sample of size {self.batch_size}.", extra=self.dictLogger)
-            batch = self.pool.sample_batch_ddpg_records(batch_size=4)
+            self.logger.info(
+                f"start test_pool_sample of size {self.batch_size}.",
+                extra=self.dictLogger,
+            )
+            batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
             assert len(batch) == self.batch_size
 
             # convert to tensors
@@ -340,10 +340,10 @@ class Buffer:
             reward_batch = tf.cast(reward_batch, dtype=tf.float32)
             next_state_batch = tf.convert_to_tensor(np.array(next_state))
 
-            critic_loss, actor_loss = self.update(
-                state_batch, action_batch, reward_batch, next_state_batch
-            )
-            return critic_loss, actor_loss
+        critic_loss, actor_loss = self.update(
+            state_batch, action_batch, reward_batch, next_state_batch
+        )
+        return critic_loss, actor_loss
     # we only calculate the loss
     @tf.function
     def noupdate(
@@ -393,16 +393,37 @@ class Buffer:
     def nolearn(self):
         # get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
-        record_range = min(self.buffer_counter, self.buffer_capacity)
-        # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
-        batch_indices = np.random.choice(record_range, self.batch_size)
+        if self.cloud == False:
+            record_range = min(self.buffer_counter, self.buffer_capacity)
+            # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
+            batch_indices = np.random.choice(record_range, self.batch_size)
 
-        # convert to tensors
-        state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-        action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
-        reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
-        reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-        next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+            # convert to tensors
+            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
+            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
+            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(self.next_state_buffer[batch_indices])
+
+        else:
+            self.logger.info(
+                f"start test_pool_sample of size {self.batch_size}.",
+                extra=self.dictLogger,
+            )
+            batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
+            assert len(batch) == self.batch_size
+
+            # convert to tensors
+            state = [rec["state"] for rec in batch]
+            action = [rec["action"] for rec in batch]
+            reward = [rec["reward"] for rec in batch]
+            next_state = [rec["next_state"] for rec in batch]
+
+            state_batch = tf.convert_to_tensor(np.array(state))
+            action_batch = tf.convert_to_tensor(np.array(action))
+            reward_batch = tf.convert_to_tensor(np.array(reward))
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(np.array(next_state))
 
         critic_loss, actor_loss = self.noupdate(
             state_batch, action_batch, reward_batch, next_state_batch
