@@ -1507,6 +1507,7 @@ class RealtimeRDPG(object):
                     extra=self.dictLogger,
                 )
                 episode_reward = 0.0
+                self.h_t = []
                 continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
@@ -1518,6 +1519,7 @@ class RealtimeRDPG(object):
             actor_loss = 0
             # add episode history to agent replay buffer
             self.rdpg.add_to_replay(self.h_t)
+            self.h_t = []
 
             if self.infer:
                 (actor_loss, critic_loss) = self.rdpg.notrain()
