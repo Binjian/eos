@@ -1,14 +1,14 @@
 # third-party imports
+import keras.initializers as initializers
 import numpy as np
 import tensorflow as tf
 from keras import layers
-import keras.initializers as initializers
-from eos import logger, dictLogger
 
+from eos import dictLogger, logger
+from eos.utils.exception import ReadOnlyError
 
 # local imports
 from ..utils.ou_noise import OUActionNoise
-from eos.utils.exception import ReadOnlyError
 
 global _state_dim
 

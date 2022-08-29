@@ -1,7 +1,7 @@
 import os
 import pprint
-from eos import logger, projroot
 
+from eos import logger, projroot
 from eos.RealtimeDDPG import RealtimeDDPG
 
 pp = pprint.PrettyPrinter(indent=40)

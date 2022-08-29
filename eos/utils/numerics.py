@@ -1,5 +1,6 @@
+from typing import Callable, List
+
 import numpy as np
-from typing import List, Callable
 
 
 def nan_helper_1d(y: np.array) -> (np.array, Callable):

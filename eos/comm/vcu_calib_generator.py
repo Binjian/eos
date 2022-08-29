@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
-import numpy as np
+import glob
+import os
+import os.path
+import pickle
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 from scipy import interpolate
-import pandas as pd
-import pickle
-import os
-import glob
-import os.path
-
 
 # test_list = range(1, 37)
 # for i in range(36):

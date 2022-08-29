@@ -1,15 +1,14 @@
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from matplotlib import style
-from reportlab.platypus import SimpleDocTemplate
-from reportlab.platypus import Paragraph, Spacer, Table, Image
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import inch
+import io
 import webbrowser as wb
 
-import io
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
 import tensorflow as tf
+from matplotlib import style
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import (Image, Paragraph, SimpleDocTemplate, Spacer,
+                                Table)
 
 
 def plot_to_image(figure):

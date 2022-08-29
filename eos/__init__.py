@@ -1,10 +1,11 @@
-from .comm.remote.remote_can_client.remote_can_client import RemoteCan
+import inspect
+import logging
+from pathlib import Path
+
 from .comm.remote.remote_can_client.pool import Pool
+from .comm.remote.remote_can_client.remote_can_client import RemoteCan
 from .comm.tbox.scripts import tbox_sim
 from .comm.vcu_calib_generator import generate_vcu_calibration
-from pathlib import Path
-import logging
-import inspect
 
 projroot = Path(__file__).parent.parent
 

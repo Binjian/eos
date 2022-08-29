@@ -67,12 +67,12 @@ accumulated so far.
 
 Now, let's see how is it implemented.
 """
+import keras.initializers as initializers
 import numpy as np
 import tensorflow as tf
 from keras import layers
-import keras.initializers as initializers
 
-from eos import logger, dictLogger, Pool
+from eos import Pool, dictLogger, logger
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.

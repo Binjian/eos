@@ -1,11 +1,11 @@
 # third-party imports
+import keras.initializers as initializers
 import numpy as np
 import tensorflow as tf
 from keras import layers
-import keras.initializers as initializers
 
 # local imports
-from eos import logger, dictLogger
+from eos import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
 
 

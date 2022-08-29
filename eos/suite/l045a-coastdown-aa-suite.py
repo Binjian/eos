@@ -1,11 +1,8 @@
-import os
-import time
-
-import os
-import time
-import datetime
-import subprocess
 import argparse
+import datetime
+import os
+import subprocess
+import time
 
 # local import
 

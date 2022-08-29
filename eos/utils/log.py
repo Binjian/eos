@@ -3,16 +3,18 @@ logging service for the package
 """
 
 
+import datetime
+import inspect
+# Logging Service Initialization
+import logging
 # system imports
-import os, datetime
+import os
+from logging.handlers import SocketHandler
+
+from pythonjsonlogger import jsonlogger
 
 # third-party imports
 
-# Logging Service Initialization
-import logging
-from logging.handlers import SocketHandler
-from pythonjsonlogger import jsonlogger
-import inspect
 
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
 mpl_logger = logging.getLogger("matplotlib.font_manager")

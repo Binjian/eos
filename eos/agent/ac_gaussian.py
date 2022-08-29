@@ -1,10 +1,9 @@
+import keras.initializers as initializers
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
-from keras import layers
-import keras.initializers as initializers
 import tensorflow_probability as tfp
-
+from keras import layers
+from tensorflow import keras
 
 """ one ddpg training step to update network"""
 

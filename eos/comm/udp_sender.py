@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import socket
-import numpy as np
 import json
+import socket
+
+import numpy as np
 
 
 def send_table(table):

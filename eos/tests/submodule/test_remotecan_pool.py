@@ -1,6 +1,5 @@
 # system import
 # 3rd party import
-import bson
 import datetime
 import inspect
 import logging
@@ -9,25 +8,24 @@ import unittest
 import warnings
 from datetime import datetime
 
+import bson
 import numpy as np
-from pymongoarrow.monkey import patch_all
-
-# from pymongoarrow.api import Schema
-from bson import ObjectId
-
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
+# from pymongoarrow.api import Schema
+from bson import ObjectId
+from pymongoarrow.monkey import patch_all
+
+from eos import Pool, RemoteCan, projroot
+from eos.comm import generate_vcu_calibration
+from eos.config import trucks
+from eos.utils import ragged_nparray_list_interp
+from eos.utils.exception import TruckIDError
 
 # local import
 # import src.comm.remote
 
-from eos import Pool
-from eos import RemoteCan, projroot
-from eos.comm import generate_vcu_calibration
-from eos.utils import ragged_nparray_list_interp
-from eos.config import trucks
-from eos.utils.exception import TruckIDError
 
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
@@ -113,7 +111,56 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.addHandler(ch)
         self.logger.setLevel(logging.DEBUG)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_pool_deposit_episode(self):
+        self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
+        self.client = RemoteCan(vin=self.truck.VIN)
+        self.generate_schemas()
+        # test schema[0]
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="test_record_db", debug=True)
+        self.logger.info("Set client", extra=self.dictLogger)
+        self.get_records()
+        self.logger.info("Records created.", extra=self.dictLogger)
+        self.logger.info("Start deposit records", extra=self.dictLogger)
+        for rec in self.record:
+            result = self.pool.deposit_record(rec)
+            self.logger.info("Record inserted.", extra=self.dictLogger)
+            self.assertEqual(result.acknowledged, True)
+            self.logger.info(
+                f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+            )
+            rec_inserted = self.pool.find_record_by_id(result.inserted_id)
+
+            self.logger.info("record found.", extra=self.dictLogger)
+            self.assertEqual(rec_inserted["timestamp"], rec["timestamp"])
+            self.assertEqual(rec_inserted["plot"], rec["plot"])
+            self.assertEqual(rec_inserted["observation"], rec["observation"])
+
+        self.logger.info("End test deposit redords", extra=self.dictLogger)
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_pool_sample_episode(self):
+        self.client = RemoteCan(vin=self.truck.VIN)
+        self.generate_schemas()
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True)
+        self.logger.info("Set client", extra=self.dictLogger)
+
+        rec_cnt = self.pool.count_records()
+        if rec_cnt <4:
+            self.logger.info("Start creating record pool", extra=self.dictLogger)
+            self.add_to_record_pool(pool_size=16)
+
+
+        self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
+        batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
+        self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
+        self.assertEqual(len(batch_4), 4)
+        batch_24 = self.pool.sample_batch_ddpg_records(batch_size=24)
+        self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
+        self.assertEqual(len(batch_24), 24)
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(vin=self.truck.VIN)
@@ -141,7 +188,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
         self.client = RemoteCan(vin=self.truck.VIN)
         self.generate_schemas()

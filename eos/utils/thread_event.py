@@ -7,7 +7,6 @@
 import threading
 import time
 
-
 # In[2]:
 
 signal_lock = threading.Lock()

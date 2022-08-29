@@ -1,7 +1,7 @@
-from .log import get_logger
 from .decorators import prepend_string_arg
+from .exception import ReadOnlyError, TruckIDError, WriteOnlyError
+from .log import get_logger
 from .numerics import ragged_nparray_list_interp
-from .exception import TruckIDError, ReadOnlyError, WriteOnlyError
 
 __all__ = [
     "get_logger",

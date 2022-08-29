@@ -1,19 +1,16 @@
-import os
 import datetime
-
-from pathlib import Path
-
-from pythonjsonlogger import jsonlogger
-
+import inspect
 # Logging Service Initialization
 import logging
+import os
 from logging.handlers import SocketHandler
-import inspect
+from pathlib import Path
+
 import numpy as np
+from pythonjsonlogger import jsonlogger
 
 # internal import
 from eos.comm import generate_vcu_calibration, kvaser_send_float_array
-
 
 mpl_logger = logging.getLogger("matplotlib.font_manager")
 mpl_logger.disabled = True
