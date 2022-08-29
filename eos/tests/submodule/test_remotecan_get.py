@@ -248,7 +248,9 @@ class TestRemoteCanGet(unittest.TestCase):
                             current.reshape(-1, 1),
                             voltage.reshape(-1, 1),
                         ]  # 1 + 4 + 2 : in
-                        self.logger.info(f"observation{observation.shape}:{observation}")
+                        self.logger.info(
+                            f"observation{observation.shape}:{observation}"
+                        )
 
                     else:
                         self.logger.info(

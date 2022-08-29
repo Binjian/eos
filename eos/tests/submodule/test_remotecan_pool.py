@@ -13,6 +13,7 @@ import numpy as np
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
+
 # from pymongoarrow.api import Schema
 from bson import ObjectId
 from pymongoarrow.monkey import patch_all
@@ -117,9 +118,9 @@ class TestRemoteCanPool(unittest.TestCase):
         self.generate_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.schema[0], db_name="test_record_db", debug=True)
+        self.pool = Pool(schema=self.schema[0], db_name="test_episode_db", debug=True)
         self.logger.info("Set client", extra=self.dictLogger)
-        self.get_records()
+        self.get_an_episode()
         self.logger.info("Records created.", extra=self.dictLogger)
         self.logger.info("Start deposit records", extra=self.dictLogger)
         for rec in self.record:
@@ -143,14 +144,15 @@ class TestRemoteCanPool(unittest.TestCase):
         self.client = RemoteCan(vin=self.truck.VIN)
         self.generate_schemas()
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True)
+        self.pool = Pool(
+            schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True
+        )
         self.logger.info("Set client", extra=self.dictLogger)
 
         rec_cnt = self.pool.count_records()
-        if rec_cnt <4:
+        if rec_cnt < 4:
             self.logger.info("Start creating record pool", extra=self.dictLogger)
             self.add_to_record_pool(pool_size=16)
-
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
         batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
@@ -193,14 +195,15 @@ class TestRemoteCanPool(unittest.TestCase):
         self.client = RemoteCan(vin=self.truck.VIN)
         self.generate_schemas()
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True)
+        self.pool = Pool(
+            schema=self.schema[0], db_name="eos_db", coll_name="record_coll", debug=True
+        )
         self.logger.info("Set client", extra=self.dictLogger)
 
         rec_cnt = self.pool.count_records()
-        if rec_cnt <4:
+        if rec_cnt < 4:
             self.logger.info("Start creating record pool", extra=self.dictLogger)
             self.add_to_record_pool(pool_size=16)
-
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
         batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
@@ -209,7 +212,6 @@ class TestRemoteCanPool(unittest.TestCase):
         batch_24 = self.pool.sample_batch_ddpg_records(batch_size=24)
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
-
 
     def generate_schemas(self):
         # current state
@@ -259,6 +261,27 @@ class TestRemoteCanPool(unittest.TestCase):
                 },
             }
         )
+
+    def get_an_episode(self):
+
+        self.logger.info("Start get_an_episode", extra=self.dictLogger)
+        self.h_t = []
+        for i in range(5):
+            self.native_get()
+            out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
+            (ts, o_t0, gr_t, pow_t) = [np.squeeze(e) for e in out]
+            o_t = o_t0.reshape(-1)
+            ui_sum = (
+                np.sum(np.prod(pow_t, axis=1))
+                / 3600.0
+                / self.truck.CloudSignalFrequency
+            )  # convert to Wh
+            if i > 0:
+                if i == 2:
+                    self.h_t.append(ui_sum)
+                else:
+                    self.h_t.append(ui_sum - self.h_t[-1])
+            prev_o_t = o_t
 
     def get_ddpg_record(self):
         self.ddpg_schema = {

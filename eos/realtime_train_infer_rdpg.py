@@ -24,9 +24,11 @@ as energy consumption
 
 import argparse
 import json
+
 # logging
 import logging
 import math
+
 # system imports
 import os
 import sys
@@ -35,6 +37,7 @@ import socket
 import threading
 import time
 import warnings
+
 # third party imports
 from collections import deque
 from datetime import datetime
@@ -45,21 +48,21 @@ from bson import ObjectId
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 # tf.debugging.set_log_device_placement(True)
 # visualization import
 import pandas as pd
 import tensorflow as tf
 from pythonjsonlogger import jsonlogger
+
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
 from eos import Pool, dictLogger, logger, projroot
 from eos.agent import RDPG
-from eos.comm import (RemoteCan, generate_vcu_calibration,
-                      kvaser_send_float_array)
-from eos.config import (PEDAL_SCALE, VELOCITY_SCALE_MULE, VELOCITY_SCALE_VB,
-                        trucks)
+from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
+from eos.config import PEDAL_SCALE, VELOCITY_SCALE_MULE, VELOCITY_SCALE_VB, trucks
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 from eos.visualization import plot_3d_figure, plot_to_image
@@ -163,7 +166,7 @@ class RealtimeRDPG(object):
     def init_cloud(self):
         os.environ["http_proxy"] = ""
         self.remotecan_client = RemoteCan(vin=self.truck.VIN)
-        self.db_schema ={
+        self.db_schema = {
             "_id": ObjectId,
             "timestamp": datetime,
             "plot": {"character": str, "when": datetime, "where": str},
@@ -173,7 +176,7 @@ class RealtimeRDPG(object):
                 "action": [float],  # [row0, row1, row2, row3, row4]
                 "reward": float,
                 "next_state": [float],  # [(velocity, thrust, brake)]
-            }
+            },
         }
         self.db_name = "ddpg_" + self.truck["TruckName"] + "_db"
         self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
@@ -402,7 +405,7 @@ class RealtimeRDPG(object):
                 lrAC=self.lrAC,
                 datafolder=str(self.dataroot),
                 ckpt_interval=self.ckpt_interval,
-                pool=self.pool
+                pool=self.pool,
             )
             pass  # TODO
         else:
@@ -422,7 +425,7 @@ class RealtimeRDPG(object):
                 lrAC=self.lrAC,
                 datafolder=str(self.dataroot),
                 ckpt_interval=self.ckpt_interval,
-                pool=None
+                pool=None,
             )
 
     def touch_gpu(self):
@@ -958,7 +961,8 @@ class RealtimeRDPG(object):
                                     unit_gear_num = unit_duration * gear_freq
                                     unit_num = self.truck.CloudUnitNumber
                                     timestamp_upsample_rate = (
-                                            self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
+                                        self.truck.CloudSignalFrequency
+                                        * self.truck.CloudUnitDuration
                                     )
                                     for key, value in remotecan_data.items():
                                         if key == "result":
@@ -968,20 +972,25 @@ class RealtimeRDPG(object):
                                             )
                                             # timestamp processing
                                             timestamps = []
-                                            separators = (
-                                                "--T::."  # adaption separators of the raw intest string
-                                            )
+                                            separators = "--T::."  # adaption separators of the raw intest string
                                             start_century = "20"
                                             timezone = "+0800"
                                             for ts in value["timestamps"]:
                                                 # create standard iso string datetime format
                                                 ts_substrings = [
-                                                    ts[i : i + 2] for i in range(0, len(ts), 2)
+                                                    ts[i : i + 2]
+                                                    for i in range(0, len(ts), 2)
                                                 ]
                                                 ts_iso = start_century
                                                 for i, sep in enumerate(separators):
-                                                    ts_iso = ts_iso + ts_substrings[i] + sep
-                                                ts_iso = ts_iso + ts_substrings[-1] + timezone
+                                                    ts_iso = (
+                                                        ts_iso + ts_substrings[i] + sep
+                                                    )
+                                                ts_iso = (
+                                                    ts_iso
+                                                    + ts_substrings[-1]
+                                                    + timezone
+                                                )
                                                 timestamps.append(ts_iso)
                                             timestamps_units = (
                                                 np.array(timestamps)
@@ -993,8 +1002,12 @@ class RealtimeRDPG(object):
                                                     f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                                                 )
                                             # upsample gears from 2Hz to 50Hz
-                                            timestamps_seconds = list(timestamps_units)  # in ms
-                                            sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                                            timestamps_seconds = list(
+                                                timestamps_units
+                                            )  # in ms
+                                            sampling_interval = (
+                                                1.0 / signal_freq * 1000
+                                            )  # in ms
                                             timestamps = [
                                                 i + j * sampling_interval
                                                 for i in timestamps_seconds
@@ -1024,10 +1037,15 @@ class RealtimeRDPG(object):
                                                 ob_num=unit_ob_num,
                                             )
                                             gears = ragged_nparray_list_interp(
-                                                value["list_gears"], ob_num=unit_gear_num
+                                                value["list_gears"],
+                                                ob_num=unit_gear_num,
                                             )
                                             # upsample gears from 2Hz to 50Hz
-                                            gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
+                                            gears = np.repeat(
+                                                gears,
+                                                (signal_freq // gear_freq),
+                                                axis=1,
+                                            )
 
                                             motion_power = np.c_[
                                                 timestamps.reshape(-1, 1),

@@ -33,7 +33,7 @@ truck_list = [
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
-        CloudUnitNumber=5,
+        CloudUnitNumber=20,
         PedalRange=[0.0, 1.0],
         PedalScale=17,
         VelocityRange=[0.0, 120],
@@ -113,7 +113,25 @@ truck_list = [
 
 trucks = dict(zip([truck.TruckName for truck in truck_list], truck_list))
 
-PEDAL_SCALE = [0, 0.02, 0.04, 0.08, 0.12, 0.16, 0.20, 0.24, 0.28, 0.32, 0.38, 0.44, 0.50, 0.62, 0.74, 0.86, 1.0]
+PEDAL_SCALE = [
+    0,
+    0.02,
+    0.04,
+    0.08,
+    0.12,
+    0.16,
+    0.20,
+    0.24,
+    0.28,
+    0.32,
+    0.38,
+    0.44,
+    0.50,
+    0.62,
+    0.74,
+    0.86,
+    1.0,
+]
 VELOCITY_SCALE_MULE = [
     0,
     7,

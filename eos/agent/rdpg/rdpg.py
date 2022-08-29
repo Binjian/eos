@@ -95,6 +95,7 @@ the maximum predicted value as seen by the Critic, for a given state.
 import os
 
 import keras.initializers as initializers
+
 # third-party imports
 import numpy as np
 import tensorflow as tf
@@ -128,6 +129,7 @@ class RDPG:
         lrAC=(0.001, 0.002),
         datafolder="./",
         ckpt_interval="5",
+        cloud=False,
     ):
         """Initialize the RDPG agent.
 
@@ -146,13 +148,18 @@ class RDPG:
         _batch_size = self._batch_size
         self._padding_value = padding_value
         self._gamma = tf.cast(gamma, dtype=tf.float32)
+        self.cloud = cloud
         # new data
-        self.R = (
-            []
-        )  # list for dynamic buffer, when saving memory needs to be converted to numpy array
-        # Number of "experiences" to store at max
-        self._buffer_capacity = buffer_capacity
-        self._datafolder = datafolder
+        if self.cloud == False:
+            self.R = (
+                []
+            )  # list for dynamic buffer, when saving memory needs to be converted to numpy array
+            self._buffer_capacity = buffer_capacity
+            self._datafolder = datafolder
+        else:
+            # TODO implement database solution
+            pass
+        # Number of "experiences" to store     at max
         self._ckpt_interval = ckpt_interval
         # Num of tuples to train on.
 
