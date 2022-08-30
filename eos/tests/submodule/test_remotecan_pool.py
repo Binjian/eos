@@ -129,9 +129,9 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Record inserted.", extra=self.dictLogger)
         self.assertEqual(result.acknowledged, True)
         self.logger.info(
-            f"Pool has {self.pool.count_episodes()} records", extra=self.dictLogger
+            f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
         )
-        epi_inserted = self.pool.find_episode_by_id(result.inserted_id)
+        epi_inserted = self.pool.find_item(result.inserted_id)
 
         self.logger.info("episode found.", extra=self.dictLogger)
         self.assertEqual(epi_inserted["timestamp"], self.h_t["timestamp"])
@@ -148,18 +148,18 @@ class TestRemoteCanPool(unittest.TestCase):
         self.pool = Pool(
             schema=self.epi_schema[0], db_name="eos_db", coll_name="episode_coll", debug=True
         )
-        self.logger.info("Set client", extra=self.dictLogger)
+        self.logger.info("Set client and pool", extra=self.dictLogger)
 
-        rec_cnt = self.pool.count_records()
+        rec_cnt = self.pool.count_items()
         if rec_cnt < 4:
             self.logger.info("Start creating record pool", extra=self.dictLogger)
-            self.add_to_record_pool(pool_size=16)
+            self.add_to_episode_pool(pool_size=4)
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
-        batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
+        batch_4 = self.pool.sample_batch_items(batch_size=4)
         self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_ddpg_records(batch_size=24)
+        batch_24 = self.pool.sample_batch_items(batch_size=24)
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
 
@@ -176,13 +176,13 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Records created.", extra=self.dictLogger)
         self.logger.info("Start deposit records", extra=self.dictLogger)
         for rec in self.record:
-            result = self.pool.deposit_record(rec)
+            result = self.pool.deposit_item(rec)
             self.logger.info("Record inserted.", extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
             self.logger.info(
-                f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+                f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
             )
-            rec_inserted = self.pool.find_record_by_id(result.inserted_id)
+            rec_inserted = self.pool.find_item(result.inserted_id)
 
             self.logger.info("record found.", extra=self.dictLogger)
             self.assertEqual(rec_inserted["timestamp"], rec["timestamp"])
@@ -199,18 +199,18 @@ class TestRemoteCanPool(unittest.TestCase):
         self.pool = Pool(
             schema=self.rec_schema[0], db_name="eos_db", coll_name="record_coll", debug=True
         )
-        self.logger.info("Set client", extra=self.dictLogger)
+        self.logger.info("Set client and pool", extra=self.dictLogger)
 
-        rec_cnt = self.pool.count_records()
+        rec_cnt = self.pool.count_items()
         if rec_cnt < 4:
             self.logger.info("Start creating record pool", extra=self.dictLogger)
             self.add_to_record_pool(pool_size=16)
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
-        batch_4 = self.pool.sample_batch_ddpg_records(batch_size=4)
+        batch_4 = self.pool.sample_batch_items(batch_size=4)
         self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_ddpg_records(batch_size=24)
+        batch_24 = self.pool.sample_batch_items(batch_size=24)
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
 
@@ -221,14 +221,26 @@ class TestRemoteCanPool(unittest.TestCase):
             {
                 "_id": ObjectId,
                 "timestamp": datetime,
-                "plot": {"character": str,
-                         "when": datetime,
-                         "where": str,
-                         "steps": int,
-                         "observation_dim": int,
-                         "action_row_number": int,
-                         "action_dim": int,
-                         },
+                "plot": {
+                    "character": str,
+                    "when": datetime,
+                    "where": str,
+                    "length": int,
+                    "observations": {
+                        "velocity_unit": "kmph",
+                        "thrust_unit": "percentage",
+                        "brake_unit": "percentage",
+                        "length": int,
+                    },
+                    "actions": {
+                        "action_row_number": int,
+                        "action_column_number": int,
+                        "action_start_row": int,
+                    },
+                    "rewards": {
+                        "work": "wh",
+                    }
+                },
                 "history": [float],
             }
         )
@@ -282,6 +294,32 @@ class TestRemoteCanPool(unittest.TestCase):
             }
         )
 
+    def add_to_episode_pool(self, pool_size=4):
+        self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
+        self.client = RemoteCan(vin=self.truck.VIN)
+        self.generate_epi_schemas()
+        # test schema[0]
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(schema=self.epi_schema[0], db_name="test_episode_db", coll_name="episode_coll", debug=True)
+        self.logger.info("Set client", extra=self.dictLogger)
+
+        for i in range(pool_size):
+            self.get_an_episode()
+            self.logger.info("An Episode is created.", extra=self.dictLogger)
+            self.logger.info("Start deposit an episode", extra=self.dictLogger)
+            result = self.pool.deposit_episode(self.episode)
+            self.logger.info("Record inserted.", extra=self.dictLogger)
+            self.assertEqual(result.acknowledged, True)
+            self.logger.info(
+                f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
+            )
+            epi_inserted = self.pool.find_item(result.inserted_id)
+            self.logger.info("episode found.", extra=self.dictLogger)
+            self.assertEqual(epi_inserted["timestamp"], self.h_t["timestamp"])
+            self.assertEqual(epi_inserted["plot"], self.h_t["plot"])
+            self.assertEqual(epi_inserted["history"], self.h_t["history"])
+
+
     def get_an_episode(self):
 
         self.logger.info("Start get_an_episode", extra=self.dictLogger)
@@ -292,7 +330,16 @@ class TestRemoteCanPool(unittest.TestCase):
         map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
         wh1 = 0
 
+        action_row_number = N0
+        action_column_number = self.vcu_calib_table_default.shape[1]
+        action_start_row = k0
+        timestamp0 = datetime.now()
+        observation_length = 0
+        prev_o_t = None
+        prev_a_t = None
+
         for i in range(7):
+
             self.native_get()
             out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
             (ts, o_t0, gr_t, pow_t) = [np.squeeze(e) for e in out]
@@ -311,6 +358,7 @@ class TestRemoteCanPool(unittest.TestCase):
                         )
                 else:
                     timestamp0 = datetime.fromtimestamp(ts[0]/1000.0)
+                    observation_length = o_t0.shape[1]
             else:
                 wh1 = wh
 
@@ -326,6 +374,21 @@ class TestRemoteCanPool(unittest.TestCase):
                 "character": self.truck.TruckName,
                 "when": timestamp0,
                 "where": "campus",
+                "length": self.h_t.shape[0],
+                "observations": {
+                    "velocity_unit": "kmph",
+                    "thrust_unit": "percentage",
+                    "brake_unit": "percentage",
+                    "length": observation_length,
+                },
+                "actions": {
+                    "action_row_number": action_row_number,
+                    "action_column_number": action_column_number,
+                    "action_start_row": action_start_row,
+                },
+                "rewards": {
+                    "work": "wh",
+                }
             },
             "history": self.h_t.tolist(),
         }
@@ -482,10 +545,10 @@ class TestRemoteCanPool(unittest.TestCase):
     def add_to_record_pool(self, pool_size=4):
         for i in range(pool_size):
             self.get_ddpg_record()
-            self.pool.deposit_record(self.ddpg_record)
+            self.pool.deposit_item(self.ddpg_record)
 
         self.logger.info(
-            f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+            f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
         )
 
     def native_get(self):
