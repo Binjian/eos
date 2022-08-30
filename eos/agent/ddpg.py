@@ -148,7 +148,11 @@ class Buffer:
         self.num_actions = num_actions
         self.data_folder = datafolder
         if cloud is True:
-            self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
+            self.generate_record_schema()
+            self.db_name = "ddpg_db"
+            self.collection_name = "record_coll"
+            self.pool = Pool(schema=self.schema, db_name=self.db_name, coll_name=self.collection_name, debug=False)
+            self.logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}")
         else:
             self.file_sb = self.data_folder + "/state_buffer.npy"
             self.file_ab = self.data_folder + "/action_buffer.npy"
@@ -214,6 +218,7 @@ class Buffer:
                 "next_state": [float],  # [(velocity, thrust, brake)]
             },
         }
+
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):
         """
