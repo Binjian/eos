@@ -120,7 +120,12 @@ class TestRemoteCanPool(unittest.TestCase):
         self.generate_epi_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.epi_schema[0], db_name="test_episode_db", coll_name="episode_coll", debug=True)
+        self.pool = Pool(
+            schema=self.epi_schema[0],
+            db_name="test_episode_db",
+            coll_name="episode_coll",
+            debug=True,
+        )
         self.logger.info("Set client", extra=self.dictLogger)
         self.get_an_episode()
         self.logger.info("An Episode is created.", extra=self.dictLogger)
@@ -147,7 +152,10 @@ class TestRemoteCanPool(unittest.TestCase):
         self.generate_epi_schemas()
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            schema=self.epi_schema[0], db_name="test_episode_db", coll_name="episode_coll", debug=True
+            schema=self.epi_schema[0],
+            db_name="test_episode_db",
+            coll_name="episode_coll",
+            debug=True,
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
@@ -171,7 +179,12 @@ class TestRemoteCanPool(unittest.TestCase):
         self.generate_record_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.rec_schema[0], db_name="test_record_db",coll_name="record_coll", debug=True)
+        self.pool = Pool(
+            schema=self.rec_schema[0],
+            db_name="test_record_db",
+            coll_name="record_coll",
+            debug=True,
+        )
         self.logger.info("Set client", extra=self.dictLogger)
         self.get_records()
         self.logger.info("Records created.", extra=self.dictLogger)
@@ -198,7 +211,10 @@ class TestRemoteCanPool(unittest.TestCase):
         self.generate_record_schemas()
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            schema=self.rec_schema[0], db_name="eos_db", coll_name="record_coll", debug=True
+            schema=self.rec_schema[0],
+            db_name="eos_db",
+            coll_name="record_coll",
+            debug=True,
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
@@ -214,7 +230,6 @@ class TestRemoteCanPool(unittest.TestCase):
         batch_24 = self.pool.sample_batch_items(batch_size=24)
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
-
 
     def generate_epi_schemas(self):
         # current state
@@ -239,8 +254,8 @@ class TestRemoteCanPool(unittest.TestCase):
                         "action_start_row": int,
                     },
                     "rewards": {
-                        "work": "wh",
-                    }
+                        "reward_unit": "wh",
+                    },
                 },
                 "history": [float],
             }
@@ -284,7 +299,25 @@ class TestRemoteCanPool(unittest.TestCase):
             {
                 "_id": ObjectId,
                 "timestamp": datetime,
-                "plot": {"character": str, "when": datetime, "where": str},
+                "plot": {
+                    "character": str,
+                    "when": datetime,
+                    "where": str,
+                    "states": {
+                        "velocity_unit": "kmph",
+                        "thrust_unit": "percentage",
+                        "brake_unit": "percentage",
+                        "length": int,
+                    },
+                    "actions": {
+                        "action_row_number": int,
+                        "action_column_number": int,
+                        "action_start_row": int,
+                    },
+                    "rewards": {
+                        "reward_unit": "wh",
+                    },
+                },
                 "observation": {
                     "timestamps": datetime,
                     "state": [float],  # [(velocity, thrust, brake)]
@@ -301,7 +334,12 @@ class TestRemoteCanPool(unittest.TestCase):
         self.generate_epi_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(schema=self.epi_schema[0], db_name="test_episode_db", coll_name="episode_coll", debug=True)
+        self.pool = Pool(
+            schema=self.epi_schema[0],
+            db_name="test_episode_db",
+            coll_name="episode_coll",
+            debug=True,
+        )
         self.logger.info("Set client", extra=self.dictLogger)
 
         for i in range(pool_size):
@@ -319,7 +357,6 @@ class TestRemoteCanPool(unittest.TestCase):
             self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
             self.assertEqual(epi_inserted["plot"], self.episode["plot"])
             self.assertEqual(epi_inserted["history"], self.episode["history"])
-
 
     def get_an_episode(self):
 
@@ -346,19 +383,17 @@ class TestRemoteCanPool(unittest.TestCase):
             (ts, o_t0, gr_t, pow_t) = [np.squeeze(e) for e in out]
             o_t = o_t0.reshape(-1)
             ui_sum = np.sum(np.prod(pow_t, axis=1))
-            wh = ui_sum / 3600.0/ self.truck.CloudSignalFrequency # convert to Wh
+            wh = ui_sum / 3600.0 / self.truck.CloudSignalFrequency  # convert to Wh
 
             if i % 2 == 0:
-                prev_r_t = (wh1 + wh)
+                prev_r_t = wh1 + wh
                 if i > 0:
                     if i == 2:
                         h_t_l = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
                     else:
-                        h_t_l.append(
-                            np.hstack([prev_o_t, prev_a_t, prev_r_t])
-                        )
+                        h_t_l.append(np.hstack([prev_o_t, prev_a_t, prev_r_t]))
                 else:
-                    timestamp0 = datetime.fromtimestamp(ts[0]/1000.0)
+                    timestamp0 = datetime.fromtimestamp(ts[0] / 1000.0)
                     observation_length = o_t0.shape[0]
             else:
                 wh1 = wh
@@ -366,7 +401,6 @@ class TestRemoteCanPool(unittest.TestCase):
             a_t = map2d_5rows
             prev_o_t = o_t
             prev_a_t = a_t
-
 
         self.h_t = np.array(h_t_l)
         self.episode = {
@@ -388,8 +422,8 @@ class TestRemoteCanPool(unittest.TestCase):
                     "action_start_row": action_start_row,
                 },
                 "rewards": {
-                    "work": "wh",
-                }
+                    "reward_unit": "wh",
+                },
             },
             "history": self.h_t.tolist(),
         }
@@ -448,6 +482,20 @@ class TestRemoteCanPool(unittest.TestCase):
                 "character": self.truck.TruckName,
                 "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
                 "where": "campus",
+                "states": {
+                    "velocity_unit": "kmph",
+                    "thrust_unit": "percentage",
+                    "brake_unit": "percentage",
+                    "length": motion_states0.shape[0],
+                },
+                "actions": {
+                    "action_row_number": N0,
+                    "action_column_number": self.vcu_calib_table_default.shape[1],
+                    "action_start_row": k0,
+                },
+                "reward": {
+                    "reward_unit": "wh",
+                },
             },
             "observation": {
                 "state": motion_states0.tolist(),
@@ -533,6 +581,20 @@ class TestRemoteCanPool(unittest.TestCase):
                     "character": self.truck.TruckName,
                     "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
                     "where": "campus",
+                    "states": {
+                        "velocity_unit": "kmph",
+                        "thrust_unit": "percentage",
+                        "brake_unit": "percentage",
+                        "length": motion_states0.shape[0],
+                    },
+                    "actions": {
+                        "action_row_number": N0,
+                        "action_column_number": self.vcu_calib_table_default.shape[1],
+                        "action_start_row": k0,
+                    },
+                    "reward": {
+                        "reward_unit": "wh",
+                    },
                 },
                 "observation": {
                     "state": motion_states0.tolist(),
