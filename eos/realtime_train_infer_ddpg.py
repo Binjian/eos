@@ -1481,6 +1481,20 @@ class RealtimeDDPG(object):
                                             timestamp0[0] / 1000.0
                                         ),
                                         "where": "campus",
+                                        "states": {
+                                            "velocity_unit": "kmph",
+                                            "thrust_unit": "percentage",
+                                            "brake_unit": "percentage",
+                                            "length": motion_states.shape[0],
+                                        },
+                                        "actions": {
+                                            "action_row_number": self.vcu_calib_table_row_reduced,
+                                            "action_column_number": self.vcu_calib_table_col,
+                                            "action_start_row": table_start,
+                                        },
+                                        "reward": {
+                                            "reward_unit": "wh",
+                                        },
                                     },
                                     "observation": {
                                         "state": prev_motion_states.tolist(),

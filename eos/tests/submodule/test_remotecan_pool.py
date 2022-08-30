@@ -434,7 +434,25 @@ class TestRemoteCanPool(unittest.TestCase):
         self.ddpg_schema = {
             "_id": ObjectId,
             "timestamp": datetime,
-            "plot": {"character": str, "when": datetime, "where": str},
+            "plot": {
+                "character": str,
+                "when": datetime,
+                "where": str,
+                "states": {
+                    "velocity_unit": "kmph",
+                    "thrust_unit": "percentage",
+                    "brake_unit": "percentage",
+                    "length": int,
+                },
+                "actions": {
+                    "action_row_number": int,
+                    "action_column_number": int,
+                    "action_start_row": int,
+                },
+                "rewards": {
+                    "reward_unit": "wh",
+                },
+            },
             "observation": {
                 "timestamps": datetime,
                 "state": [float],  # [(velocity, thrust, brake)]

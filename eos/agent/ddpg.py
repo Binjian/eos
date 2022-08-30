@@ -72,6 +72,16 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 
+from datetime import datetime
+import bson
+import pyarrow as pa
+import pymongo as pmg
+import pymongoarrow as pmga
+
+# from pymongoarrow.api import Schema
+from bson import ObjectId
+from pymongoarrow.monkey import patch_all
+
 from eos import Pool, dictLogger, logger
 
 """
@@ -173,6 +183,37 @@ class Buffer:
             f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
         )
 
+    def generate_record_schema(self):
+        self.schema = {
+            "_id": ObjectId,
+            "timestamp": datetime,
+            "plot": {
+                "character": str,
+                "when": datetime,
+                "where": str,
+                "states": {
+                    "velocity_unit": "kmph",
+                    "thrust_unit": "percentage",
+                    "brake_unit": "percentage",
+                    "length": int,
+                },
+                "actions": {
+                    "action_row_number": int,
+                    "action_column_number": int,
+                    "action_start_row": int,
+                },
+                "rewards": {
+                    "reward_unit": "wh",
+                },
+            },
+            "observation": {
+                "timestamps": datetime,
+                "state": [float],  # [(velocity, thrust, brake)]
+                "action": [float],  # [row0, row1, row2, row3, row4]
+                "reward": float,
+                "next_state": [float],  # [(velocity, thrust, brake)]
+            },
+        }
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):
         """
