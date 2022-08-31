@@ -170,7 +170,15 @@ class RDPG:
             self._datafolder = datafolder
         else:
             # TODO implement database solution
-            pass
+            self.generate_episode_schema()
+            self.db_name = "rdpg_db"
+            self.collection_name = "episode_coll"
+            self.pool = Pool(schema=self.schema,
+                             db_name=self.db_name,
+                             coll_name=self.collection_name,
+                             debug=False)
+            self.logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}")
+
         # Number of "experiences" to store     at max
         self._ckpt_interval = ckpt_interval
         # Num of tuples to train on.
@@ -317,9 +325,62 @@ class RDPG:
         """reset noise of the moving actor network"""
         self.actor_net.reset_noise()
 
+    def add_to_db(self, episode):
+        """add an episode to database
+
+        db buffer is lists of lists
+        """
+
+        self.logger.info("Start deposit an episode", extra=self.dictLogger)
+        self.pool.deposit_item(episode)
+        self.logger.info("Episode inserted.", extra=self.dictLogger)
+        self.assertEqual(result.acknowledged, True)
+        self.logger.info(
+            f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
+        )
+        epi_inserted = self.pool.find_item(result.inserted_id)
+        self.logger.info("episode found.", extra=self.dictLogger)
+        self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
+        self.assertEqual(epi_inserted["plot"], self.episode["plot"])
+        self.assertEqual(epi_inserted["history"], self.episode["history"])
+
+    def generate_episode_schema(self):
+        self.schema = {
+                "_id": ObjectId,
+                "timestamp": datetime,
+                "plot": {
+                    "character": str,
+                    "when": datetime,
+                    "where": str,
+                    "length": int,
+                    "states": {
+                        "velocity_unit": "kmph",
+                        "thrust_unit": "percentage",
+                        "brake_unit": "percentage",
+                        "length": int,
+                    },
+                    "actions": {
+                        "action_row_number": int,
+                        "action_column_number": int,
+                        "action_start_row": int,
+                    },
+                    "reward": {
+                        "reward_unit": "wh",
+                    },
+                },
+            "history": [
+                {
+                    "states": [float],  # velocity, thrust, brake
+                    "actions": [float],  # pedal map of reduced_row_number
+                    "reward": float,  # scalar
+                }
+            ],
+        }
+
     def add_to_replay(self, h_t):
         """Add the current h_t to the replay buffer.
 
+        replay buffer is list of 2d numpy arrays
         Args:
             h_t (np.array): The current h_t, could be variable length
         """
@@ -334,8 +395,35 @@ class RDPG:
             self.R.pop(0)
         logger.info(f"Memory length: {len(self.R)}", extra=dictLogger)
 
+    def sample_mini_batch_from_db(self):
+        """Sample a mini batch from the database.
+
+        db buffer is lists of lists
+        """
+        # TODO check copilot!
+        self.logger.info("Start sampling a mini batch from the database.", extra=self.dictLogger)
+
+        item_cnt = self.pool.count_items()
+        batch = self.pool.sample_batch_items(self.batch_size)
+        assert (len(batch) == self.batch_size)
+        self.logger.info(f"{self.batch_size} Episodes sampled from {item_cnt}.", extra=self.dictLogger)
+
+        # get dimension of the history
+        observation_length = batch[0]["plot"]["states"]["length"]
+        action_row_number = batch[0]["plot"]["actions"]["action_row_number"]
+        action_column_number = batch[0]["plot"]["actions"]["action_column_number"]
+        action_start_row = batch[0]["plot"]["actions"]["action_start_row"]
+
+        r_n_t = [episode['hisotry'] for episode in batch]
+
+
+        # TODO codecs
+        return self.episode["history"]
+
     def sample_mini_batch(self):
         """Sample a mini batch from the replay buffer. Add post padding for masking
+
+        replay buffer is list of 2d numpy arrays
         Args attributes:
             self.R (list): The replay buffer,
             contains lists of variable lengths of (o_t, a_t, r_t) tuples.
@@ -426,7 +514,11 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
-        self.sample_mini_batch()
+        if self.cloud:
+            self.sample_mini_batch_from_db()
+            pass  # TODO: implement cloud training
+        else:
+            self.sample_mini_batch()
         actor_loss, critic_loss = self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
         return actor_loss, critic_loss
 

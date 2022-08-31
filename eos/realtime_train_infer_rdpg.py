@@ -1271,6 +1271,8 @@ class RealtimeRDPG(object):
                 extra=self.dictLogger,
             )
 
+            timestamp0 = datetime.now()
+            observation_length = 0
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
@@ -1366,17 +1368,45 @@ class RealtimeRDPG(object):
                         # TODO add speed sum as positive reward
 
                         if step_count > 0:
-                            if step_count == 2:  # first even step has $r_0$
-                                self.h_t = [np.hstack([prev_o_t, prev_a_t, prev_r_t])]
-                            else:
-                                self.h_t.append(
-                                    np.hstack([prev_o_t, prev_a_t, prev_r_t])
+                            if self.cloud == False: # local buffer needs array
+                                if step_count == 2:  # first even step has $r_0$
+                                    self.h_t = [
+                                        np.hstack([prev_o_t, prev_a_t, prev_r_t])]
+                                else:
+                                    self.h_t.append(
+                                        np.hstack([prev_o_t, prev_a_t, prev_r_t])
+                                    )
+
+                                self.logd.info(
+                                    f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
+                                    extra=self.dictLogger,
+                                )
+                            else: # cloud need dict and list
+                                if step_count == 2:  # first even step has $r_0$
+                                    self.h_t = [
+                                        {
+                                            "states": prev_o_t.tolist(),
+                                            "actions": prev_a_t.tolist(),
+                                            "reward": prev_r_t,
+                                        }
+                                    ]
+                                else:
+                                    self.h_t.append(
+                                        {
+                                            "states": prev_o_t.tolist(),
+                                            "actions": prev_a_t.tolist(),
+                                            "reward": prev_r_t,
+                                        }
+                                    )
+
+                                self.logd.info(
+                                    f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
+                                    extra=self.dictLogger,
                                 )
 
-                            self.logd.info(
-                                f"prev_o_t.shape: {prev_o_t.shape},prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
-                                extra=self.dictLogger,
-                            )
+                        else:
+                            timestamp0 = datetime.fromtimestamp(ts[0]/1000.0)
+                            observation_length = o_t0.shape[0]
                         # predict action probabilities and estimated future rewards
                         # from environment state
                         # for causal rl, the odd indexed observation/reward are caused by last action
@@ -1536,7 +1566,36 @@ class RealtimeRDPG(object):
             critic_loss = 0
             actor_loss = 0
             # add episode history to agent replay buffer
-            self.rdpg.add_to_replay(self.h_t)
+            if self.cloud:
+                self.episode = {
+                    "timestamp": timestamp0,
+                    "plot": {
+                        "character": self.truck.TruckName,
+                        "when": timestamp0,
+                        "where": "campus",
+                        "length": len(self.h_t),
+                        "states": {
+                            "velocity_unit": "kmph",
+                            "thrust_unit": "percentage",
+                            "brake_unit": "percentage",
+                            "length": observation_length,
+                        },
+                        "actions": {
+                            "action_row_number": self.vcu_calib_table_row_reduced,
+                            "action_column_number": self.vcu_calib_table_col,
+                            "action_start_row": table_start,
+                        },
+                        "reward": {
+                            "reward_unit": "wh",
+                        }
+                    },
+                    "history": self.h_t.tolist(),
+                }
+                self.rdpg.add_to_db(self.episode)
+
+            else:
+                self.rdpg.add_to_replay(self.h_t)
+
             self.h_t = []
 
             if self.infer:
