@@ -461,12 +461,15 @@ class RDPG:
         o_n_l0 = [
             self.R[i][:, 0 : self._n_obs] for i in indexes
         ]  # list of np.array with variable observation length
+        # o_n_l1 = [
+        #     o_n_l0[i].tolist() for i in np.arange(self._batch_size)
+        # ]  # list (batch_size) of list (n_obs) of np.array with variable observation length
         o_n_l1 = [
-            o_n_l0[i].tolist() for i in np.arange(self._batch_size)
-        ]  # list (batch_size) of list (n_obs) of np.array with variable observation length
+            [state[:,i].tolist() for state in o_n_l0] for i in np.arange(self.n_obs)
+        ]  # list (n_obs) of lists (batch_size) of lists with variable observation length
 
         try:
-            self.o_n_t = np.array(
+            o_n_t = np.array(
                 [
                     pad_sequences(
                         o_n_l1i,
@@ -485,12 +488,15 @@ class RDPG:
         a_n_l0 = [
             self.R[i][:, self._n_obs : self._n_obs + self._n_act] for i in indexes
         ]  # list of np.array with variable action length
+        # a_n_l1 = [
+        #     a_n_l0[i].tolist() for i in np.arange(self._batch_size)
+        # ]  # list (batch_size) of list (n_act) of np.array with variable action length
         a_n_l1 = [
-            a_n_l0[i].tolist() for i in np.arange(self._batch_size)
-        ]  # list (batch_size) of list (n_act) of np.array with variable action length
+            [act[:,i].tolist() for act in a_n_l0] for i in np.arange(self.n_act)
+        ]  # list (n_act) of lists (batch_size) of lists with variable observation length
 
         try:
-            self.a_n_t = np.array(
+            a_n_t = np.array(
                 [
                     pad_sequences(
                         a_n_l1i,
