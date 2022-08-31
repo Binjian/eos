@@ -82,6 +82,8 @@ import pymongoarrow as pmga
 from bson import ObjectId
 from pymongoarrow.monkey import patch_all
 
+patch_all()
+
 from eos import Pool, dictLogger, logger
 
 """

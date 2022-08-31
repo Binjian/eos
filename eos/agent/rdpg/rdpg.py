@@ -102,6 +102,18 @@ import tensorflow as tf
 from keras import layers
 from keras.utils import pad_sequences
 
+from datetime import datetime
+import bson
+import pyarrow as pa
+import pymongo as pmg
+import pymongoarrow as pmga
+
+# from pymongoarrow.api import Schema
+from bson import ObjectId
+from pymongoarrow.monkey import patch_all
+
+patch_all()
+
 # local imports
 from eos import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
