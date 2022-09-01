@@ -121,8 +121,6 @@ from eos.utils.exception import ReadOnlyError
 from .actor import ActorNet
 from .critic import CriticNet
 
-global _n_obs, _batch_size
-
 
 class RDPG:
     def __init__(
@@ -149,15 +147,12 @@ class RDPG:
             num_observations (int): Dimension of the state space.
             padding_value (float): Value to pad the state with, impossible value for observation, action or re
         """
-        global _n_obs, _batch_size
         self._num_observations = num_observations
         self._obs_len = obs_len
-        self._n_obs = num_observations * obs_len  # 3 * 30
-        _n_obs = self._n_obs
-        self._n_act = num_actions  # reduced action 5 * 17
+        self._state_len = num_observations * obs_len  # 3 * 30
+        self._action_len = num_actions  # reduced action 5 * 17
         self._seq_len = seq_len
         self._batch_size = batch_size
-        _batch_size = self._batch_size
         self._padding_value = padding_value
         self._gamma = tf.cast(gamma, dtype=tf.float32)
         self.cloud = cloud
@@ -188,8 +183,8 @@ class RDPG:
         # Actor Network (w/ Target Network)
         self.init_ckpt()
         self.actor_net = ActorNet(
-            self._n_obs,
-            self._n_act,
+            self._state_len,
+            self._action_len,
             hidden_unitsAC[0],
             n_layersAC[0],
             padding_value,
@@ -200,8 +195,8 @@ class RDPG:
         )
 
         self.target_actor_net = ActorNet(
-            self._n_obs,
-            self._n_act,
+            self._state_len,
+            self._action_len,
             hidden_unitsAC[0],
             n_layersAC[0],
             padding_value,
@@ -216,8 +211,8 @@ class RDPG:
         # Critic Network (w/ Target Network)
 
         self.critic_net = CriticNet(
-            self._n_obs,
-            self._n_act,
+            self._state_len,
+            self._action_len,
             hidden_unitsAC[1],
             n_layersAC[1],
             padding_value,
@@ -228,8 +223,8 @@ class RDPG:
         )
 
         self.target_critic_net = CriticNet(
-            self._n_obs,
-            self._n_act,
+            self._state_len,
+            self._action_len,
             hidden_unitsAC[1],
             n_layersAC[1],
             padding_value,
@@ -296,7 +291,7 @@ class RDPG:
         else:
             self.obs_t.append(obs)
 
-        # self.obs_t = np.ones((1, t + 1, self._n_obs))
+        # self.obs_t = np.ones((1, t + 1, self._state_len))
         # self.obs_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
         input_array = tf.convert_to_tensor(
@@ -383,6 +378,7 @@ class RDPG:
         replay buffer is list of 2d numpy arrays
         Args:
             h_t (np.array): The current h_t, could be variable length
+                            a two dimensional array of shape (t, 3) with t the number of steps/rows
         """
         # logger.info(
         #     f"h_t list shape: {len(h_t)}X{h_t[-1].shape}.",
@@ -400,7 +396,6 @@ class RDPG:
 
         db buffer is lists of lists
         """
-        # TODO check copilot!
         self.logger.info("Start sampling a mini batch from the database.", extra=self.dictLogger)
 
         item_cnt = self.pool.count_items()
@@ -409,16 +404,88 @@ class RDPG:
         self.logger.info(f"{self.batch_size} Episodes sampled from {item_cnt}.", extra=self.dictLogger)
 
         # get dimension of the history
-        observation_length = batch[0]["plot"]["states"]["length"]
+        episode_length = batch[0]["plot"]["length"]
+        states_length = batch[0]["plot"]["states"]["length"]
         action_row_number = batch[0]["plot"]["actions"]["action_row_number"]
         action_column_number = batch[0]["plot"]["actions"]["action_column_number"]
         action_start_row = batch[0]["plot"]["actions"]["action_start_row"]
 
-        r_n_t = [episode['hisotry'] for episode in batch]
+        assert self.state_len == states_length*self.num_observations # (3s*50)*3(obs_num))=450
+        assert self.action_len == action_row_number*action_column_number
 
+        r_n_t = [[history['reward'] for history in episode["history"]] for episode in batch]  # list of lists
+        self.r_n_t = pad_sequences(
+            r_n_t,
+            padding="post",
+            dtype="float32",
+            value=self._padding_value,
+        )
 
-        # TODO codecs
-        return self.episode["history"]
+        # for alignment with critic output with extra feature dimension
+        self.r_n_t = tf.convert_to_tensor(
+            np.expand_dims(self.r_n_t, axis=2), dtype=tf.float32
+        )
+        self.logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
+        # self.logger.info("done decoding reward.", extra=self.dictLogger)
+
+        # decode and padding rewards, states and actions
+        #  history['states'] for history in episdoe["history"] is the time sequence of states
+        o_n_l0 = [[history['states'] for history in episode["history"]] for episode in batch]
+
+        # state in o_n_l0 is the time sequence of states [o1, o2, o3, ..., o7]
+        # o1=[v0, t0, b0, v1, t1, b1, ...] (3x50x3=450)
+        # state has n steps (for example 7)
+        # each step has dimension of state_len(450)
+        # [step[i] for step in state] is the time sequence of the i-th feature
+        o_n_l1 = [
+            [[step[i] for step in state] for state in o_n_l0] for i in np.arange(self.state_len)
+        ]  # list (state_len) of lists (batch_size) of lists with variable observation length
+
+        try:
+            o_n_t = np.array(
+                [
+                    pad_sequences(
+                        o_n_l1i,
+                        padding="post",
+                        dtype="float32",
+                        value=self._padding_value,
+                    )  # return numpy array
+                    for o_n_l1i in o_n_l1
+                ]  # return numpy array list
+            )  # return numpy array list of size (state_len, batch_size, max(len(o_n_l1i))),
+            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
+            # otherwise observation is ragged, throw exception
+            o_n_t = tf.transpose(o_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
+            self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
+        except:
+            logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
+        logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
+
+        a_n_l0 = [[obs['actions'] for obs in episode["history"]] for episode in batch]
+        a_n_l1 = [
+            [[step[i] for step in act] for act in a_n_l0] for i in np.arange(self.action_len)
+        ]  # list (action_len) of lists (batch_size) of lists with variable observation length
+
+        try:
+            a_n_t = np.array(
+                [
+                    pad_sequences(
+                        a_n_l1i,
+                        padding="post",
+                        dtype="float32",
+                        value=self._padding_value,
+                    )  # return numpy array
+                    for a_n_l1i in a_n_l1
+                ]  # return numpy array list
+            )  # return numpy array list of size (state_len, batch_size, max(len(o_n_l1i))),
+            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
+            # otherwise observation is ragged, throw exception
+            a_n_t = tf.transpose(a_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
+            self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
+        except:
+            logger.error("Ragged action state a_n_l1!", extra=dictLogger)
+        logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
+
 
     def sample_mini_batch(self):
         """Sample a mini batch from the replay buffer. Add post padding for masking
@@ -437,14 +504,15 @@ class RDPG:
         # Sample random indexes
         record_range = min(len(self.R), self._buffer_capacity)
         logger.info(f"record_range: {record_range}", extra=dictLogger)
-        indexes = np.random.choice(record_range, self._batch_size)
+        indexes = np.random.choice(record_range, self.batch_size)
         logger.info(f"indexes: {indexes}", extra=dictLogger)
         # logger.info(f"R indices type: {type(indexes)}:{indexes}")
         # mini-batch for Reward, Observation and Action, with keras padding
         # padding automatically expands every sequence to the maximal length by pad_sequences
 
         # logger.info(f"self.R[0][:,-1]: {self.R[0][:,-1]}", extra=dictLogger)
-        r_n_t = [self.R[i][:, -1] for i in indexes]
+        r_n_t = [self.R[i][:, -1] for i in indexes]  # list of arrays
+
         # logger.info(f"r_n_t.shape: {len(r_n_t)}X{len(r_n_t[-1])}")
         self.r_n_t = pad_sequences(
             r_n_t,
@@ -452,6 +520,9 @@ class RDPG:
             dtype="float32",
             value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
         )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
+        # it works for list of arrays! not necessary the following
+        # r_n_t = [(self.R[i][:, -1]).tolist() for i in indexes]  # list of arrays
+
         # for alignment with critic output with extra feature dimension
         self.r_n_t = tf.convert_to_tensor(
             np.expand_dims(self.r_n_t, axis=2), dtype=tf.float32
@@ -459,14 +530,18 @@ class RDPG:
         # logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
 
         o_n_l0 = [
-            self.R[i][:, 0 : self._n_obs] for i in indexes
+            self.R[i][:, 0 : self.state_len] for i in indexes
         ]  # list of np.array with variable observation length
         # o_n_l1 = [
         #     o_n_l0[i].tolist() for i in np.arange(self._batch_size)
-        # ]  # list (batch_size) of list (n_obs) of np.array with variable observation length
+        # ]  # list (batch_size) of list (state_len) of np.array with variable observation length
+
+        # state[:,i].tolist() is the time sequence of the i-th observation (dimension time)
+        # [state[:,i].tolist() for state in o_n_l0] is the list of time sequences of a single batch (dimension batch)
+        # o_n_l1 is the final ragged list (different time steps) of different observations (dimension observation)
         o_n_l1 = [
-            [state[:,i].tolist() for state in o_n_l0] for i in np.arange(self.n_obs)
-        ]  # list (n_obs) of lists (batch_size) of lists with variable observation length
+            [state[:,i].tolist() for state in o_n_l0] for i in np.arange(self.state_len)
+        ]  # list (state_len) of lists (batch_size) of lists with variable observation length
 
         try:
             o_n_t = np.array(
@@ -479,21 +554,24 @@ class RDPG:
                     )  # return numpy array
                     for o_n_l1i in o_n_l1
                 ]  # return numpy array list
-            )
-            self.o_n_t = tf.convert_to_tensor(self.o_n_t, dtype=tf.float32)
+            )  # return numpy array list of size (state_len, batch_size, max(len(o_n_l1i))),
+            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
+            # otherwise observation is ragged, throw exception
+            o_n_t = tf.transpose(o_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
+            self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except:
             logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         a_n_l0 = [
-            self.R[i][:, self._n_obs : self._n_obs + self._n_act] for i in indexes
+            self.R[i][:, self.state_len : self.state_len + self.action_len] for i in indexes
         ]  # list of np.array with variable action length
         # a_n_l1 = [
         #     a_n_l0[i].tolist() for i in np.arange(self._batch_size)
-        # ]  # list (batch_size) of list (n_act) of np.array with variable action length
+        # ]  # list (batch_size) of list (action_len) of np.array with variable action length
         a_n_l1 = [
-            [act[:,i].tolist() for act in a_n_l0] for i in np.arange(self.n_act)
-        ]  # list (n_act) of lists (batch_size) of lists with variable observation length
+            [act[:,i].tolist() for act in a_n_l0] for i in np.arange(self.action_len)
+        ]  # list (action_len) of lists (batch_size) of lists with variable observation length
 
         try:
             a_n_t = np.array(
@@ -507,7 +585,8 @@ class RDPG:
                     for a_n_l1i in a_n_l1
                 ]  # return numpy array list
             )
-            self.a_n_t = tf.convert_to_tensor(self.a_n_t, dtype=tf.float32)
+            a_n_t = tf.transpose(a_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(a_n_l1i)), action_len)
+            self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except:
             logger.error(f"Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
@@ -522,7 +601,6 @@ class RDPG:
 
         if self.cloud:
             self.sample_mini_batch_from_db()
-            pass  # TODO: implement cloud training
         else:
             self.sample_mini_batch()
         actor_loss, critic_loss = self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
@@ -622,6 +700,11 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
+        if self.cloud:
+            self.sample_mini_batch_from_db()
+        else:
+            self.sample_mini_batch()
+
         # get critic loss
         # actions at h_t+1
         self.t_a_ht1 = self.target_actor_net.evaluate_actions(self.o_n_t)
@@ -706,20 +789,20 @@ class RDPG:
         raise ReadOnlyError("obs_len is read-only")
 
     @property
-    def n_obs(self):
-        return self._n_obs
+    def state_len(self):
+        return self._state_len
 
-    @n_obs.setter
-    def n_obs(self, value):
-        raise ReadOnlyError("n_obs is read-only")
+    @state_len.setter
+    def state_len(self, value):
+        raise ReadOnlyError("state_len is read-only")
 
     @property
-    def n_act(self):
-        return self._n_act
+    def action_len(self):
+        return self._action_len
 
-    @n_act.setter
-    def n_act(self, value):
-        raise ReadOnlyError("n_act is read-only")
+    @action_len.setter
+    def action_len(self, value):
+        raise ReadOnlyError("action_len is read-only")
 
     @property
     def seq_len(self):

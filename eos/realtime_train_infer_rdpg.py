@@ -348,6 +348,7 @@ class RealtimeRDPG(object):
                 1.0 / self.truck.KvaserObservationFrequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
+        self.state_len = self.observation_len * self.num_observations
         self.num_inputs = (
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
@@ -1589,7 +1590,7 @@ class RealtimeRDPG(object):
                             "reward_unit": "wh",
                         }
                     },
-                    "history": self.h_t.tolist(),
+                    "history": self.h_t,
                 }
                 self.rdpg.add_to_db(self.episode)
 
