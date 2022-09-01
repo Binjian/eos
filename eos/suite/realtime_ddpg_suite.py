@@ -44,6 +44,7 @@ if pid == 0:  # copy process
             "python",
             "../realtime_train_infer_ddpg.py",
             "--resume",
+            "--cloud",
             "--path",
             args.path,
             "--record_table",
@@ -55,6 +56,7 @@ if pid == 0:  # copy process
             "python",
             "../realtime_train_infer_ddpg.py",
             "--path",
+            "--cloud",
             args.path,
             "--record_table",
         )  #  run Simulation

@@ -178,7 +178,25 @@ class RealtimeDDPG(object):
         self.db_schema = {
             "_id": ObjectId,
             "timestamp": datetime,
-            "plot": {"character": str, "when": datetime, "where": str},
+            "plot": {
+                "character": str,
+                "when": datetime,
+                "where": str,
+                "states": {
+                    "velocity_unit": "kmph",
+                    "thrust_unit": "percentage",
+                    "brake_unit": "percentage",
+                    "length": int,
+                },
+                "actions": {
+                    "action_row_number": int,
+                    "action_column_number": int,
+                    "action_start_row": int,
+                },
+                "rewards": {
+                    "reward_unit": "wh",
+                },
+            },
             "observation": {
                 "timestamps": datetime,
                 "state": [float],  # [(velocity, thrust, brake)]
@@ -187,7 +205,7 @@ class RealtimeDDPG(object):
                 "next_state": [float],  # [(velocity, thrust, brake)]
             },
         }
-        self.db_name = "ddpg_" + self.truck["TruckName"] + "_db"
+        self.db_name = "ddpg_" + self.truck.TruckName + "_db"
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -1057,7 +1075,7 @@ class RealtimeDDPG(object):
                                 )
                                 raise TypeError("udp sending wrong data type!")
 
-                            if signal_success is 0:
+                            if signal_success == 0:
                                 try:
                                     signal_freq = self.truck.CloudSignalFrequency
                                     gear_freq = self.truck.CloudGearFrequency
@@ -1733,7 +1751,7 @@ if __name__ == "__main__":
         "--cloud",
         default=False,
         help="Use cloud mode, default is False",
-        action="store_false",
+        action="store_true",
     )
 
     parser.add_argument(
@@ -1769,20 +1787,20 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
 
-    try:
-        app = RealtimeDDPG(
-            args.cloud,
-            args.resume,
-            args.infer,
-            args.record_table,
-            args.path,
-            projroot,
-            logger,
-        )
-    except TypeError as e:
-        logger.error(f"Project Exeception TypeError: {e}", extra=logger.dictLogger)
-        sys.exit(1)
-    except Exception as e:
-        logger.error(e, extra=logger.dictLogger)
-        sys.exit(1)
+    # try:
+    app = RealtimeDDPG(
+        args.cloud,
+        args.resume,
+        args.infer,
+        args.record_table,
+        args.path,
+        projroot,
+        logger,
+    )
+    # except TypeError as e:
+    #     logger.error(f"Project Exeception TypeError: {e}", extra=dictLogger)
+    #     sys.exit(1)
+    # except Exception as e:
+    #     logger.error(e, extra=dictLogger)
+    #     sys.exit(1)
     app.run()

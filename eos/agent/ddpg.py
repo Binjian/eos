@@ -154,7 +154,7 @@ class Buffer:
             self.db_name = "ddpg_db"
             self.collection_name = "record_coll"
             self.pool = Pool(schema=self.schema, db_name=self.db_name, coll_name=self.collection_name, debug=False)
-            self.logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}")
+            logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}", extra=dictLogger)
         else:
             self.file_sb = self.data_folder + "/state_buffer.npy"
             self.file_ab = self.data_folder + "/action_buffer.npy"
@@ -185,8 +185,8 @@ class Buffer:
         assert result.acknowledged == True
         rec_inserted = self.pool.find_record_by_id(result.inserted_id)
         assert rec_inserted == rec
-        self.logger.info(
-            f"Pool has {self.pool.count_records()} records", extra=self.dictLogger
+        logger.info(
+            f"Pool has {self.pool.count_records()} records", extra=dictLogger
         )
 
     def generate_record_schema(self):
@@ -369,9 +369,9 @@ class Buffer:
 
         else:
             # get sampling range, if not enough data, batch is small
-            self.logger.info(
+            logger.info(
                 f"start test_pool_sample of size {self.batch_size}.",
-                extra=self.dictLogger,
+                extra=dictLogger,
             )
             batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
             assert len(batch) == self.batch_size
@@ -457,9 +457,9 @@ class Buffer:
             )
 
         else:
-            self.logger.info(
+            logger.info(
                 f"start test_pool_sample of size {self.batch_size}.",
-                extra=self.dictLogger,
+                extra=dictLogger,
             )
             batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
             assert len(batch) == self.batch_size
