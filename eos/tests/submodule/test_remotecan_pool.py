@@ -18,6 +18,8 @@ import pymongoarrow as pmga
 from bson import ObjectId
 from pymongoarrow.monkey import patch_all
 
+from keras.utils import pad_sequences
+
 from eos import Pool, RemoteCan, projroot
 from eos.comm import generate_vcu_calibration
 from eos.config import trucks
@@ -148,7 +150,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_episode(self):
-        coll_name = "episode_coll"
+        coll_name = "episode_coll1"
         db_name = "test_episode_db"
         self.client = RemoteCan(vin=self.truck.VIN)
         self.generate_epi_schemas()
@@ -162,9 +164,9 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info(f"Connected to MongoDB {db_name}, collection {coll_name}")
 
         rec_cnt = self.pool.count_items()
-        if rec_cnt < 36:
+        if rec_cnt < 8:
             self.logger.info("Start creating record pool", extra=self.dictLogger)
-            self.add_to_episode_pool(pool_size=24)
+            self.add_to_episode_pool(pool_size=8)
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
         batch_4 = self.pool.sample_batch_items(batch_size=4)
@@ -174,14 +176,74 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
         # get dimension of the history
-        observation_length = batch_4[0]["plot"]["states"]["length"]
+        state_length = batch_4[0]["plot"]["states"]["length"]*self.truck.ObservationNumber
         action_row_number = batch_4[0]["plot"]["actions"]["action_row_number"]
         action_column_number = batch_4[0]["plot"]["actions"]["action_column_number"]
         action_start_row = batch_4[0]["plot"]["actions"]["action_start_row"]
+        action_length = action_column_number*action_row_number
         self.logger.info(
-            f"observation_length: {observation_length}, action_row_number: {action_row_number}, action_column_number: {action_column_number}, action_start_row: {action_start_row}",
+            f"state length: {state_length}, action length: {action_length}.",
             extra=self.dictLogger,
         )
+        # test codecs
+        r_n_t = [[history["reward"] for history in episode["history"]] for episode in batch_24]
+        r_n_t1 = pad_sequences(
+            r_n_t,
+            padding="post",
+            dtype="float32",
+            value=-10000,
+        )
+
+        self.logger.info("done decoding reward.", extra=self.dictLogger)
+        o_n_l0 = [[history["states"] for history in episode["history"]] for episode in batch_24]
+        o_n_l1 = [
+            [[step[i] for step in state] for state in o_n_l0] for i in np.arange(state_length)
+        ]  # list (n_obs) of lists (batch_size) of lists with variable observation length
+
+        try:
+            o_n_t1 = np.array(
+                [
+                    pad_sequences(
+                        o_n_l1i,
+                        padding="post",
+                        dtype="float32",
+                        value=-10000,
+                    )  # return numpy array
+                    for o_n_l1i in o_n_l1
+                ]  # return numpy array list
+            )  # return numpy array list of size (n_obs, batch_size, max(len(o_n_l1i))),
+            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
+            # otherwise observation is ragged, throw exception
+            o_n_t2 = o_n_t1.transpose((1, 2, 0))  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
+        except:
+            self.logger.error("Ragged observation state o_n_l1!", extra=self.dictLogger)
+        # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
+        self.logger.info("done decoding states.", extra=self.dictLogger)
+
+        a_n_l0 = [[history["actions"] for history in episode["history"]] for episode in batch_24]
+        a_n_l1 = [
+            [[step[i] for step in act] for act in a_n_l0] for i in np.arange(action_length)
+        ]  # list (n_act) of lists (batch_size) of lists with variable observation length
+
+        try:
+            a_n_t1 = np.array(
+                [
+                    pad_sequences(
+                        a_n_l1i,
+                        padding="post",
+                        dtype="float32",
+                        value=-10000,
+                    )  # return numpy array
+                    for a_n_l1i in a_n_l1
+                ]  # return numpy array list
+            )  # return numpy array list of size (n_obs, batch_size, max(len(o_n_l1i))),
+            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
+            # otherwise observation is ragged, throw exception
+            a_n_t2 = a_n_t1.transpose((1, 2, 0))  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
+        except:
+            self.logger.error("Ragged action state a_n_l1!", extra=self.dictLogger)
+        self.logger.info("done decoding actions.", extra=self.dictLogger)
+
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
@@ -375,17 +437,6 @@ class TestRemoteCanPool(unittest.TestCase):
 
     def add_to_episode_pool(self, pool_size=4):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
-        self.client = RemoteCan(vin=self.truck.VIN)
-        self.generate_epi_schemas()
-        # test schema[0]
-        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(
-            schema=self.epi_schema[0],
-            db_name="test_episode_db",
-            coll_name="episode_coll",
-            debug=True,
-        )
-        self.logger.info("Set client", extra=self.dictLogger)
 
         for i in range(pool_size):
             self.get_an_episode()
@@ -421,7 +472,7 @@ class TestRemoteCanPool(unittest.TestCase):
         prev_o_t = None
         prev_a_t = None
 
-        for i in range(7):
+        for i in range(5):
 
             self.native_get()
             out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
