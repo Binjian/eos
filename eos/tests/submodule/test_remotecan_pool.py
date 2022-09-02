@@ -353,6 +353,12 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
 
+        # test decoding
+        state = [rec["observation"]["state"] for rec in batch_24]
+        action = [rec["observation"]["action"] for rec in batch_24]
+        reward = [rec["observation"]["reward"] for rec in batch_24]
+        next_state = [rec["observation"]["next_state"] for rec in batch_24]
+
     def generate_epi_schemas(self):
         # current state
         self.epi_schema.append(
