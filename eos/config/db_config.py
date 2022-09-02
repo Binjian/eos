@@ -19,7 +19,7 @@ db_record_list = [
     DB(
         SRVName="local",  # name of the database
         DatabaseName="eos",  # name of the database
-        CollName="record_coll",  # name of the collection
+        CollName="record",  # name of the collection
         Url="127.0.0.1",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
