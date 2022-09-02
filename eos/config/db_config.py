@@ -122,25 +122,6 @@ rec_schema_list = [
         },  # structure of the schema
     ),
     SCHEMA(
-        NAME="record_shallow",  # name of the schema
-        STRUCTURE={
-            "_id": ObjectId,
-            "timestamp": datetime,
-            "plot": {"character": str, "when": datetime, "where": str},
-            "observation": {
-                "timestamps": datetime,
-                "state": {"velocity": [float], "thrust": [float], "brake": [float]},
-                "action": [float],
-                "reward": float,
-                "next_state": {
-                    "velocity": [float],
-                    "thrust": [float],
-                    "brake": [float],
-                },
-            },
-        },  # structure of the schema
-    ),
-    SCHEMA(
         NAME="record_deep",  # name of the schema
         STRUCTURE={
             "_id": ObjectId,
@@ -170,6 +151,43 @@ rec_schema_list = [
                 "action": [float],  # [row0, row1, row2, row3, row4]
                 "reward": float,
                 "next_state": [float],  # [(velocity, thrust, brake)]
+            },
+        },  # structure of the schema
+    ),
+    SCHEMA(
+        NAME="record_deeper",  # name of the schema
+        STRUCTURE={
+            "_id": ObjectId,
+            "timestamp": datetime,
+            "plot": {
+                "character": str,
+                "when": datetime,
+                "where": str,
+                "states": {
+                    "velocity_unit": "kmph",
+                    "thrust_unit": "percentage",
+                    "brake_unit": "percentage",
+                    "length": int,
+                },
+                "actions": {
+                    "action_row_number": int,
+                    "action_column_number": int,
+                    "action_start_row": int,
+                },
+                "rewards": {
+                    "reward_unit": "wh",
+                },
+            },
+            "observation": {
+                "timestamps": datetime,
+                "state": {"velocity": [float], "thrust": [float], "brake": [float]},
+                "action": [float],
+                "reward": float,
+                "next_state": {
+                    "velocity": [float],
+                    "thrust": [float],
+                    "brake": [float],
+                },
             },
         },  # structure of the schema
     ),

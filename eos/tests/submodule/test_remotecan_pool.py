@@ -138,7 +138,10 @@ class TestRemoteCanPool(unittest.TestCase):
             coll_name=self.db.CollName,
             debug=True,
         )
-        self.logger.info(f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}", extra=self.dictLogger)
+        self.logger.info(
+            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
+            extra=self.dictLogger,
+        )
         self.logger.info("Set client", extra=self.dictLogger)
         self.get_an_episode()
         self.logger.info("An Episode is created.", extra=self.dictLogger)
@@ -178,7 +181,10 @@ class TestRemoteCanPool(unittest.TestCase):
             coll_name=self.db.CollName,
             debug=True,
         )
-        self.logger.info(f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}", extra=self.dictLogger)
+        self.logger.info(
+            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
+            extra=self.dictLogger,
+        )
 
         rec_cnt = self.pool.count_items()
         if rec_cnt < 8:
@@ -193,17 +199,22 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
         # get dimension of the history
-        state_length = batch_4[0]["plot"]["states"]["length"]*self.truck.ObservationNumber
+        state_length = (
+            batch_4[0]["plot"]["states"]["length"] * self.truck.ObservationNumber
+        )
         action_row_number = batch_4[0]["plot"]["actions"]["action_row_number"]
         action_column_number = batch_4[0]["plot"]["actions"]["action_column_number"]
         action_start_row = batch_4[0]["plot"]["actions"]["action_start_row"]
-        action_length = action_column_number*action_row_number
+        action_length = action_column_number * action_row_number
         self.logger.info(
             f"state length: {state_length}, action length: {action_length}.",
             extra=self.dictLogger,
         )
         # test codecs
-        r_n_t = [[history["reward"] for history in episode["history"]] for episode in batch_24]
+        r_n_t = [
+            [history["reward"] for history in episode["history"]]
+            for episode in batch_24
+        ]
         r_n_t1 = pad_sequences(
             r_n_t,
             padding="post",
@@ -212,9 +223,13 @@ class TestRemoteCanPool(unittest.TestCase):
         )
 
         self.logger.info("done decoding reward.", extra=self.dictLogger)
-        o_n_l0 = [[history["states"] for history in episode["history"]] for episode in batch_24]
+        o_n_l0 = [
+            [history["states"] for history in episode["history"]]
+            for episode in batch_24
+        ]
         o_n_l1 = [
-            [[step[i] for step in state] for state in o_n_l0] for i in np.arange(state_length)
+            [[step[i] for step in state] for state in o_n_l0]
+            for i in np.arange(state_length)
         ]  # list (n_obs) of lists (batch_size) of lists with variable observation length
 
         try:
@@ -231,15 +246,21 @@ class TestRemoteCanPool(unittest.TestCase):
             )  # return numpy array list of size (n_obs, batch_size, max(len(o_n_l1i))),
             # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
             # otherwise observation is ragged, throw exception
-            o_n_t2 = o_n_t1.transpose((1, 2, 0))  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
+            o_n_t2 = o_n_t1.transpose(
+                (1, 2, 0)
+            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
         except:
             self.logger.error("Ragged observation state o_n_l1!", extra=self.dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
         self.logger.info("done decoding states.", extra=self.dictLogger)
 
-        a_n_l0 = [[history["actions"] for history in episode["history"]] for episode in batch_24]
+        a_n_l0 = [
+            [history["actions"] for history in episode["history"]]
+            for episode in batch_24
+        ]
         a_n_l1 = [
-            [[step[i] for step in act] for act in a_n_l0] for i in np.arange(action_length)
+            [[step[i] for step in act] for act in a_n_l0]
+            for i in np.arange(action_length)
         ]  # list (n_act) of lists (batch_size) of lists with variable observation length
 
         try:
@@ -256,11 +277,12 @@ class TestRemoteCanPool(unittest.TestCase):
             )  # return numpy array list of size (n_obs, batch_size, max(len(o_n_l1i))),
             # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
             # otherwise observation is ragged, throw exception
-            a_n_t2 = a_n_t1.transpose((1, 2, 0))  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
+            a_n_t2 = a_n_t1.transpose(
+                (1, 2, 0)
+            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
         except:
             self.logger.error("Ragged action state a_n_l1!", extra=self.dictLogger)
         self.logger.info("done decoding actions.", extra=self.dictLogger)
-
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
@@ -710,6 +732,20 @@ class TestRemoteCanPool(unittest.TestCase):
                     "character": self.truck.TruckName,
                     "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
                     "where": "campus",
+                    "states": {
+                        "velocity_unit": "kmph",
+                        "thrust_unit": "percentage",
+                        "brake_unit": "percentage",
+                        "length": motion_states0.shape[0],
+                    },
+                    "actions": {
+                        "action_row_number": N0,
+                        "action_column_number": self.vcu_calib_table_default.shape[1],
+                        "action_start_row": k0,
+                    },
+                    "reward": {
+                        "reward_unit": "wh",
+                    },
                 },
                 "observation": {
                     "state": {
