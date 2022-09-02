@@ -85,6 +85,7 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 from eos import Pool, dictLogger, logger
+from eos.config import dbs_record, record_schemas
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
@@ -150,11 +151,19 @@ class Buffer:
         self.num_actions = num_actions
         self.data_folder = datafolder
         if cloud is True:
-            self.generate_record_schema()
-            self.db_name = "ddpg_db"
-            self.collection_name = "record_coll"
-            self.pool = Pool(schema=self.schema, db_name=self.db_name, coll_name=self.collection_name, debug=False)
-            logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}", extra=dictLogger)
+            self.db = dbs_record["local"]
+            self.db_schema = record_schemas["record_deep"]
+            # self.db_name = "ddpg_db"
+            # self.collection_name = "record_coll"
+            self.pool = Pool(
+                url=self.db.Url,
+                username=self.db.Username,
+                password=self.db.Password,
+                schema=self.db_schema.STRUCTURE,
+                db_name=self.db.DatabaseName,
+                coll_name=self.db.CollName,
+                debug=False)
+            logger.info(f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}", extra=dictLogger)
         else:
             self.file_sb = self.data_folder + "/state_buffer.npy"
             self.file_ab = self.data_folder + "/action_buffer.npy"
@@ -181,45 +190,13 @@ class Buffer:
         """
         Record a new experience in the pool (database).
         """
-        result = self.pool.deposit_record(rec)
-        assert result.acknowledged == True
-        rec_inserted = self.pool.find_record_by_id(result.inserted_id)
-        assert rec_inserted == rec
+        result = self.pool.deposit_item(rec)
+        assert (result.acknowledged == True)
+        rec_inserted = self.pool.find_item(result.inserted_id)
+        assert (rec_inserted == rec)
         logger.info(
-            f"Pool has {self.pool.count_records()} records", extra=dictLogger
+            f"Pool has {self.pool.count_items()} records", extra=dictLogger
         )
-
-    def generate_record_schema(self):
-        self.schema = {
-            "_id": ObjectId,
-            "timestamp": datetime,
-            "plot": {
-                "character": str,
-                "when": datetime,
-                "where": str,
-                "states": {
-                    "velocity_unit": "kmph",
-                    "thrust_unit": "percentage",
-                    "brake_unit": "percentage",
-                    "length": int,
-                },
-                "actions": {
-                    "action_row_number": int,
-                    "action_column_number": int,
-                    "action_start_row": int,
-                },
-                "rewards": {
-                    "reward_unit": "wh",
-                },
-            },
-            "observation": {
-                "timestamps": datetime,
-                "state": [float],  # [(velocity, thrust, brake)]
-                "action": [float],  # [row0, row1, row2, row3, row4]
-                "reward": float,
-                "next_state": [float],  # [(velocity, thrust, brake)]
-            },
-        }
 
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):
@@ -373,15 +350,16 @@ class Buffer:
                 f"start test_pool_sample of size {self.batch_size}.",
                 extra=dictLogger,
             )
-            batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
+            batch = self.pool.sample_batch_items(batch_size=self.batch_size)
             assert len(batch) == self.batch_size
 
             # convert to tensors
-            state = [rec["state"] for rec in batch]
-            action = [rec["action"] for rec in batch]
-            reward = [rec["reward"] for rec in batch]
-            next_state = [rec["next_state"] for rec in batch]
+            state = [rec["observation"]["state"] for rec in batch]
+            action = [rec["observation"]["action"] for rec in batch]
+            reward = [rec["observation"]["reward"] for rec in batch]
+            next_state = [rec["observation"]["next_state"] for rec in batch]
 
+            # the shape of the tensor is the same as the buffer
             state_batch = tf.convert_to_tensor(np.array(state))
             action_batch = tf.convert_to_tensor(np.array(action))
             reward_batch = tf.convert_to_tensor(np.array(reward))
@@ -465,11 +443,12 @@ class Buffer:
             assert len(batch) == self.batch_size
 
             # convert to tensors
-            state = [rec["state"] for rec in batch]
-            action = [rec["action"] for rec in batch]
-            reward = [rec["reward"] for rec in batch]
-            next_state = [rec["next_state"] for rec in batch]
+            state = [rec["observation"]["state"] for rec in batch]
+            action = [rec["observation"]["action"] for rec in batch]
+            reward = [rec["observation"]["reward"] for rec in batch]
+            next_state = [rec["observation"]["next_state"] for rec in batch]
 
+            # the shape of the tensor is the same as the buffer
             state_batch = tf.convert_to_tensor(np.array(state))
             action_batch = tf.convert_to_tensor(np.array(action))
             reward_batch = tf.convert_to_tensor(np.array(reward))

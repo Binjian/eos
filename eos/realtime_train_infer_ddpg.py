@@ -70,6 +70,7 @@ from eos.agent import (
 )
 from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
 from eos.config import PEDAL_SCALE, VELOCITY_SCALE_MULE, VELOCITY_SCALE_VB, trucks
+from eos.config import dbs_record, record_schemas
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 from eos.visualization import plot_3d_figure, plot_to_image
@@ -174,38 +175,8 @@ class RealtimeDDPG(object):
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
+        self.rec_sch = self
         self.remotecan_client = RemoteCan(vin=self.truck.VIN)
-        self.db_schema = {
-            "_id": ObjectId,
-            "timestamp": datetime,
-            "plot": {
-                "character": str,
-                "when": datetime,
-                "where": str,
-                "states": {
-                    "velocity_unit": "kmph",
-                    "thrust_unit": "percentage",
-                    "brake_unit": "percentage",
-                    "length": int,
-                },
-                "actions": {
-                    "action_row_number": int,
-                    "action_column_number": int,
-                    "action_start_row": int,
-                },
-                "rewards": {
-                    "reward_unit": "wh",
-                },
-            },
-            "observation": {
-                "timestamps": datetime,
-                "state": [float],  # [(velocity, thrust, brake)]
-                "action": [float],  # [row0, row1, row2, row3, row4]
-                "reward": float,
-                "next_state": [float],  # [(velocity, thrust, brake)]
-            },
-        }
-        self.db_name = "ddpg_" + self.truck.TruckName + "_db"
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -1449,9 +1420,12 @@ class RealtimeDDPG(object):
                         motionpower
                     )  # state must have 30/100 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
                     if self.cloud:
-                        timstamp, motion_states, gear_states, power_states = tf.split(
+                        out = tf.split(
                             motionpower_states, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
+                        (timstamp, motion_states, gear_states, power_states)  = [
+                            tf.squeeze(x, axis=1) for x in out
+                        ]
                     else:
                         motion_states, power_states = tf.split(
                             motionpower_states, [3, 2], 1
