@@ -62,7 +62,7 @@ from tensorflow.python.client import device_lib
 from eos import Pool, dictLogger, logger, projroot
 from eos.agent import RDPG
 from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
-from eos.config import PEDAL_SCALE, VELOCITY_SCALE_MULE, VELOCITY_SCALE_VB, trucks
+from eos.config import PEDAL_SCALES, VELOCITY_SCALES_MULE, VELOCITY_SCALES_VB, trucks
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 from eos.visualization import plot_3d_figure, plot_to_image

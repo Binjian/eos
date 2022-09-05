@@ -69,7 +69,7 @@ from eos.agent import (
     update_target,
 )
 from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
-from eos.config import PEDAL_SCALE, VELOCITY_SCALE_MULE, VELOCITY_SCALE_VB, trucks
+from eos.config import PEDAL_SCALES, VELOCITY_SCALES_MULE, VELOCITY_SCALES_VB, trucks
 from eos.config import dbs_record, record_schemas
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
