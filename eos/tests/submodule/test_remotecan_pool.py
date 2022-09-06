@@ -123,7 +123,7 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_episode(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
-        self.client = RemoteCan(vin=self.truck.VIN)
+        self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
         self.epi_sch = self.episode_schemas["episode_deep"]
         self.db = self.dbs_episode["local"]
         # self.generate_epi_schemas()
@@ -162,11 +162,11 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit records", extra=self.dictLogger)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_episode(self):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
-        self.client = RemoteCan(vin=self.truck.VIN)
+        self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
 
         self.epi_sch = self.episode_schemas["episode_deep"]
         self.db = self.dbs_episode["local"]
@@ -287,7 +287,7 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
-        self.client = RemoteCan(vin=self.truck.VIN)
+        self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
         # test schema[0]
@@ -322,9 +322,9 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
-        self.client = RemoteCan(vin=self.truck.VIN)
+        self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
         self.db = self.dbs_record["local"]
