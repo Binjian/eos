@@ -175,8 +175,9 @@ class RealtimeDDPG(object):
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
-        self.rec_sch = self
-        self.remotecan_client = RemoteCan(vin=self.truck.VIN)
+        self.remotecan_client = RemoteCan(
+            truckname=self.truck.TruckName,
+            url="http://10.0.64.78:5000/")
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -1317,12 +1318,6 @@ class RealtimeDDPG(object):
 
     # @eye
     def run(self):
-        # global episode_count
-        # global program_exit
-        # global motionpowerQueue
-        # global pd_index, pd_columns
-        # global episode_done, episode_end
-        # global vcu_calib_table_row_start
 
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
@@ -1423,7 +1418,7 @@ class RealtimeDDPG(object):
                         out = tf.split(
                             motionpower_states, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
-                        (timstamp, motion_states, gear_states, power_states)  = [
+                        (timstamp, motion_states, gear_states, power_states) = [
                             tf.squeeze(x, axis=1) for x in out
                         ]
                     else:
