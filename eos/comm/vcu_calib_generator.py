@@ -23,26 +23,32 @@ from scipy import interpolate
 # action space will be then within this bounds
 # TODO ask for safety bounds and real vcu to be integrated.
 # TODO generate a mask according to WLTC to reduce parameter optimization space.
+
 def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     npd, pedal_range, nvl, velocity_range, shortcut, dataroot
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
+    """
+    Generate VCU calibration parameters for a given truck.
+    return: pandas dataframe
+    """
     ped = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
 
     if shortcut == 1:
         vel_ = np.linspace(
             velocity_range[0], velocity_range[1], num=nvl - 1
         )  # 0 - 120 kmph velocity
-        vel = np.insert(vel_, 1, 7) / 3.6  # insert 7 kmph, and convert to m/s
-        pdv, vlv = np.meshgrid(ped, vel, sparse=True)
+        vel = np.insert(vel_, 1, 7)  # insert 7 kmph, and convert to m/s
+        pdv, vlv = np.meshgrid(ped, vel/3.6, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
+        pd_v = pd.DataFrame(v, columns=ped, index=vel)
+
     elif shortcut == 2:  # import default eco calibration table
         table_path = dataroot.joinpath(
             "vb7_init_table.csv"
         )  # init table is driver independent in the pardir.
-        pd_data = pd.read_csv(table_path, header=0, index_col=0)
+        pd_v = pd.read_csv(table_path, header=0, index_col=0)
         # table_path = datafolder + "/54_vertices_approx-regen3.csv"  # init table is driver independent in the pardir.
         # pd_data = pd.read_csv(table_path, header=0, index_col=0)
-        v = pd_data.to_numpy()
     elif shortcut == 3:  # import latest pedal map that was used
         files = glob.glob(str(dataroot) + "/last_table*.csv")
         if not files:  # files is empty list []
@@ -53,14 +59,13 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
         else:
             latest_table = max(files, key=os.path.getmtime)
         # latest = datafolder + "last_table.csv"  # init table is driver relevant.
-        pd_data = pd.read_csv(latest_table, header=0, index_col=0)
-        v = pd_data.to_numpy()
+        pd_v = pd.read_csv(latest_table, header=0, index_col=0)
 
     else:
         vel = np.ones(nvl)
         pdv, vlv = np.meshgrid(ped, vel, sparse=False)
-        v = pdv
-    return v
+        pd_v = pd.DataFrame(pdv, columns=ped, index=vel)
+    return pd_v
 
 
 # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -89,7 +94,7 @@ def generate_lookup_table(  # pedal in x(col), velocity in y(row)
         velocity_range[0] : velocity_range[1] : v_step,
         pedal_range[0] : pedal_range[1] : p_step,
     ]
-    calib_lookup = interpolate.interp2d(grid_p, grid_v, calib_table, kind="linear")
+    calib_lookup = interpolate.interp2d(grid_p, grid_v, calib_table.to_numpy(), kind="linear")
     return calib_lookup
 
 
