@@ -79,15 +79,10 @@ vcu_calib_table0 = generate_vcu_calibration(
     datapath,
 )
 
-vcu_calib_table1 = np.copy(vcu_calib_table0)  # shallow copy of the default table
-# vcu_calib_table = np.copy(vcu_calib_table0)  # shallow copy of the default table
-# vcu_calib_table1 = vcu_calib_table.transpose()
-# print("Transpose table!")
 
-vcu_table1 = vcu_calib_table1.reshape(-1).tolist()
 logger.info(f"Start flash initial table", extra=dictLogger)
 # time.sleep(1.0)
-returncode = kvaser_send_float_array(vcu_table1, sw_diff=False)
+returncode = kvaser_send_float_array(vcu_calib_table0, sw_diff=False)
 logger.info(f"The exit code was: {returncode}", extra=dictLogger)
 logger.info(f"Done flash initial table", extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v

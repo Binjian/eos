@@ -281,16 +281,16 @@ class TestRemoteCanGet(unittest.TestCase):
         k0 = 0
         N0 = 5
         # map2d_5rows = self.vcu_calib_table_default.iloc[k0 : k0 + N0, :]  # explicit indexing
-        minvel= 0
-        maxvel= 30
-        map2d_5rows = self.vcu_calib_table_default.loc[minvel:maxvel]  # explicit indexing
+        minvel = 0
+        maxvel = 30
+        map2d_5rows = self.vcu_calib_table_default.loc[
+            minvel:maxvel
+        ]  # explicit indexing
         self.logger.info(
             f"start sending torque map: from {minvel} kmph to the {maxvel} kmph row.",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d_5rows, swap=False
-        )
+        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
         self.logger.info(
             f"finish sending torque map from {minvel} kmph to the {maxvel} kmph row.: returncode={returncode}.",
             extra=self.dictLogger,
@@ -300,9 +300,7 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: {N0} rows from row {k0} .",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d_5rows, swap=True
-        )
+        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=True)
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}.",
             extra=self.dictLogger,
@@ -316,9 +314,7 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d_5rows, swap=False
-        )
+        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
             extra=self.dictLogger,
@@ -327,9 +323,7 @@ class TestRemoteCanGet(unittest.TestCase):
         # flashing the whole calibration table
         map2d = self.vcu_calib_table_default
         self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        returncode = self.client.send_torque_map(
-            pedalmap=map2d, swap=False
-        )
+        returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
         self.logger.info(
             f"finish sending torque map: returncode={returncode}.",
             extra=self.dictLogger,

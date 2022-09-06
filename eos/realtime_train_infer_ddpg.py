@@ -288,18 +288,16 @@ class RealtimeDDPG(object):
                 2,
                 self.projroot.joinpath("eos/config"),
             )
-        self.vcu_calib_table1 = np.copy(
-            self.vcu_calib_table0
-        )  # shallow copy of the default table
-        vcu_table1 = self.vcu_calib_table1.reshape(-1).tolist()
+        # pandas deep copy of the default table (while numpy shallow copy is sufficient)
+        self.vcu_calib_table1 = self.vcu_calib_table0.copy(deep=True)
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
             returncode = self.remotecan_client.send_torque_map(
-                pedalmap=vcu_table1, k=0, N=self.truck.VelocityScale
+                pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
         else:
-            returncode = kvaser_send_float_array(vcu_table1, sw_diff=False)
+            returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
 
         self.logger.info(
             f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
@@ -877,13 +875,9 @@ class RealtimeDDPG(object):
                 )
 
                 # create updated complete pedal map, only update the first few rows
-                self.vcu_calib_table1[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
-                    :,
-                ] = vcu_calib_table_reduced.numpy()
-                pds_curr_table = pd.DataFrame(
-                    self.vcu_calib_table1, self.pd_index, self.pd_columns
-                )
+                # vcu_calib_table1 keeps changing as the cache of the changing pedal map
+                self.vcu_calib_table1.iloc[table_start : self.vcu_calib_table_row_reduced + table_start] \
+                    = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
@@ -896,18 +890,17 @@ class RealtimeDDPG(object):
                         + ".csv"
                     )
                     with open(curr_table_store_path, "wb") as f:
-                        pds_curr_table.to_csv(curr_table_store_path)
+                        self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
                     self.logd.info(
                         f"E{epi_cnt} done with record instant table: {step_count}",
                         extra=self.dictLogger,
                     )
 
-                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                returncode = kvaser_send_float_array(vcu_act_list, sw_diff=True)
+                returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=True)
                 # time.sleep(1.0)
+
                 if returncode != 0:
                     self.logc.error(
                         f"kvaser_send_float_array failed: {returncode}",
@@ -1264,13 +1257,9 @@ class RealtimeDDPG(object):
                 )
 
                 # create updated complete pedal map, only update the first few rows
-                self.vcu_calib_table1[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
-                    :,
-                ] = vcu_calib_table_reduced.numpy()
-                pds_curr_table = pd.DataFrame(
-                    self.vcu_calib_table1, self.pd_index, self.pd_columns
-                )
+                # vcu_calib_table1 keeps changing as the cache of the changing pedal map
+                self.vcu_calib_table1.iloc[table_start : self.vcu_calib_table_row_reduced + table_start]\
+                    = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
@@ -1283,21 +1272,17 @@ class RealtimeDDPG(object):
                         + ".csv"
                     )
                     with open(curr_table_store_path, "wb") as f:
-                        pds_curr_table.to_csv(curr_table_store_path)
+                        self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
                     self.logd.info(
                         f"E{epi_cnt} done with record instant table: {step_count}",
                         extra=self.dictLogger,
                     )
 
-                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                # tf.print('calib table:', table, output_stream=output_path)
                 self.logc.info(f"flash starts", extra=self.dictLogger)
                 returncode = self.remotecan_client.send_torque_map(
-                    pedalmap=vcu_act_list,
-                    k=table_start,
-                    N=self.vcu_calib_table_row_reduced,
-                    abswitch=False,
+                    pedalmap=self.vcu_calib_table1,
+                    swap=False,
                 )
                 # time.sleep(1.0)
 

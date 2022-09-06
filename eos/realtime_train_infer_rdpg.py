@@ -292,18 +292,16 @@ class RealtimeRDPG(object):
                 2,
                 self.projroot.joinpath("eos/config"),
             )
-        self.vcu_calib_table1 = np.copy(
-            self.vcu_calib_table0
-        )  # shallow copy of the default table
-        vcu_table1 = self.vcu_calib_table1.reshape(-1).tolist()
+        # pandas deep copy of the default table (while numpy shallow copy is sufficient)
+        self.vcu_calib_table1 = self.vcu_calib_table0.copy(deep=True)
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
             returncode = self.remotecan_client.send_torque_map(
-                pedalmap=vcu_table1, k=0, N=self.truck.VelocityScale
+                pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
         else:
-            returncode = kvaser_send_float_array(vcu_table1, sw_diff=False)
+            returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
 
         self.logger.info(
             f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
