@@ -166,20 +166,6 @@ class RealtimeRDPG(object):
     def init_cloud(self):
         os.environ["http_proxy"] = ""
         self.remotecan_client = RemoteCan(vin=self.truck.VIN)
-        self.db_schema = {
-            "_id": ObjectId,
-            "timestamp": datetime,
-            "plot": {"character": str, "when": datetime, "where": str},
-            "observation": {
-                "timestamps": datetime,
-                "state": [float],  # [(velocity, thrust, brake)]
-                "action": [float],  # [row0, row1, row2, row3, row4]
-                "reward": float,
-                "next_state": [float],  # [(velocity, thrust, brake)]
-            },
-        }
-        self.db_name = "ddpg_" + self.truck["TruckName"] + "_db"
-        self.pool = Pool(schema=self.db_schema, db_name=self.db_name)
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -387,45 +373,24 @@ class RealtimeRDPG(object):
         self.padding_value = -10000
         self.ckpt_interval = 5
 
-        if self.cloud:
-            # Initialize networks
-            self.rdpg = RDPG(
-                self.num_observations,
-                self.observation_len,
-                self.seq_len,
-                self.num_reduced_actions,
-                buffer_capacity=self.buffer_capacity,
-                batch_size=self.batch_size,
-                hidden_unitsAC=self.hidden_unitsAC,
-                n_layersAC=self.n_layerAC,
-                padding_value=self.padding_value,
-                gamma=self.gamma,
-                tauAC=self.tauAC,
-                lrAC=self.lrAC,
-                datafolder=str(self.dataroot),
-                ckpt_interval=self.ckpt_interval,
-                pool=self.pool,
-            )
-            pass  # TODO
-        else:
-            # Initialize networks
-            self.rdpg = RDPG(
-                self.num_observations,
-                self.observation_len,
-                self.seq_len,
-                self.num_reduced_actions,
-                buffer_capacity=self.buffer_capacity,
-                batch_size=self.batch_size,
-                hidden_unitsAC=self.hidden_unitsAC,
-                n_layersAC=self.n_layerAC,
-                padding_value=self.padding_value,
-                gamma=self.gamma,
-                tauAC=self.tauAC,
-                lrAC=self.lrAC,
-                datafolder=str(self.dataroot),
-                ckpt_interval=self.ckpt_interval,
-                pool=None,
-            )
+        # Initialize networks
+        self.rdpg = RDPG(
+            self.num_observations,
+            self.observation_len,
+            self.seq_len,
+            self.num_reduced_actions,
+            buffer_capacity=self.buffer_capacity,
+            batch_size=self.batch_size,
+            hidden_unitsAC=self.hidden_unitsAC,
+            n_layersAC=self.n_layerAC,
+            padding_value=self.padding_value,
+            gamma=self.gamma,
+            tauAC=self.tauAC,
+            lrAC=self.lrAC,
+            datafolder=str(self.dataroot),
+            ckpt_interval=self.ckpt_interval,
+            cloud=self.cloud,
+        )
 
     def touch_gpu(self):
 
@@ -1367,10 +1332,11 @@ class RealtimeRDPG(object):
                         # TODO add speed sum as positive reward
 
                         if step_count > 0:
-                            if self.cloud == False: # local buffer needs array
+                            if self.cloud == False:  # local buffer needs array
                                 if step_count == 2:  # first even step has $r_0$
                                     self.h_t = [
-                                        np.hstack([prev_o_t, prev_a_t, prev_r_t])]
+                                        np.hstack([prev_o_t, prev_a_t, prev_r_t])
+                                    ]
                                 else:
                                     self.h_t.append(
                                         np.hstack([prev_o_t, prev_a_t, prev_r_t])
@@ -1380,7 +1346,7 @@ class RealtimeRDPG(object):
                                     f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
                                     extra=self.dictLogger,
                                 )
-                            else: # cloud need dict and list
+                            else:  # cloud need dict and list
                                 if step_count == 2:  # first even step has $r_0$
                                     self.h_t = [
                                         {
@@ -1404,7 +1370,7 @@ class RealtimeRDPG(object):
                                 )
 
                         else:
-                            timestamp0 = datetime.fromtimestamp(ts[0]/1000.0)
+                            timestamp0 = datetime.fromtimestamp(ts[0] / 1000.0)
                             observation_length = o_t0.shape[0]
                         # predict action probabilities and estimated future rewards
                         # from environment state
@@ -1586,7 +1552,7 @@ class RealtimeRDPG(object):
                         },
                         "reward": {
                             "reward_unit": "wh",
-                        }
+                        },
                     },
                     "history": self.h_t,
                 }

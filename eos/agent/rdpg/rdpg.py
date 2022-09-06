@@ -115,8 +115,9 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 # local imports
-from eos import dictLogger, logger
+from eos import Pool, dictLogger, logger
 from eos.utils.exception import ReadOnlyError
+from eos.config import dbs_episode, episode_schemas
 
 from .actor import ActorNet
 from .critic import CriticNet
@@ -165,13 +166,16 @@ class RDPG:
             self._datafolder = datafolder
         else:
             # TODO implement database solution
-            self.generate_episode_schema()
-            self.db_name = "rdpg_db"
-            self.collection_name = "episode_coll"
-            self.pool = Pool(schema=self.schema,
-                             db_name=self.db_name,
-                             coll_name=self.collection_name,
-                             debug=False)
+            self.db = dbs_episode["local"]
+            self.db_schema = episode_schemas["episode_deep"]
+            self.pool = Pool(
+                url=self.db.Url,
+                username=self.db.Username,
+                password=self.db.Password,
+                schema=self.db_schema.STRUCTURE,
+                db_name=self.db.DatabaseName,
+                coll_name=self.db.CollName,
+                debug=False)
             self.logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}")
 
         # Number of "experiences" to store     at max
@@ -338,39 +342,6 @@ class RDPG:
         self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
         self.assertEqual(epi_inserted["plot"], self.episode["plot"])
         self.assertEqual(epi_inserted["history"], self.episode["history"])
-
-    def generate_episode_schema(self):
-        self.schema = {
-                "_id": ObjectId,
-                "timestamp": datetime,
-                "plot": {
-                    "character": str,
-                    "when": datetime,
-                    "where": str,
-                    "length": int,
-                    "states": {
-                        "velocity_unit": "kmph",
-                        "thrust_unit": "percentage",
-                        "brake_unit": "percentage",
-                        "length": int,
-                    },
-                    "actions": {
-                        "action_row_number": int,
-                        "action_column_number": int,
-                        "action_start_row": int,
-                    },
-                    "reward": {
-                        "reward_unit": "wh",
-                    },
-                },
-            "history": [
-                {
-                    "states": [float],  # velocity, thrust, brake
-                    "actions": [float],  # pedal map of reduced_row_number
-                    "reward": float,  # scalar
-                }
-            ],
-        }
 
     def add_to_replay(self, h_t):
         """Add the current h_t to the replay buffer.
