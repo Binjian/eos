@@ -44,7 +44,7 @@ from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
 from threading import Lock, Thread
-from bson import ObjectId
+# from bson import ObjectId
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -59,7 +59,7 @@ from pythonjsonlogger import jsonlogger
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-from eos import Pool, dictLogger, logger, projroot
+from eos import dictLogger, logger, projroot
 from eos.agent import (
     Buffer,
     OUActionNoise,
@@ -69,10 +69,8 @@ from eos.agent import (
     update_target,
 )
 from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, VELOCITY_SCALES_MULE, VELOCITY_SCALES_VB, trucks
-from eos.config import dbs_record, record_schemas
+from eos.config import PEDAL_SCALES, trucks
 from eos.utils import ragged_nparray_list_interp
-from eos.utils.exception import TruckIDError
 from eos.visualization import plot_3d_figure, plot_to_image
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -579,7 +577,8 @@ class RealtimeDDPG(object):
             while not self.motionpowerQueue.empty():
                 self.motionpowerQueue.get()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
-            self.vel_hist_dQ.clear()
+            if self.cloud:
+                self.vel_hist_dQ.clear()
             # raise Exception("reset capture to stop")
         self.logc.info(f"Coutndown dies!!!", extra=self.dictLogger)
 
@@ -960,7 +959,6 @@ class RealtimeDDPG(object):
 
                         while not self.motionpowerQueue.empty():
                             self.motionpowerQueue.get()
-                        self.vel_hist_dQ.clear()
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
@@ -984,7 +982,6 @@ class RealtimeDDPG(object):
                             f"Episode is interrupted!!!", extra=self.dictLogger
                         )
                         self.get_truck_status_motpow_t = []
-                        self.vel_hist_dQ.clear()
                         # motionpowerQueue.queue.clear()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
@@ -1003,7 +1000,6 @@ class RealtimeDDPG(object):
                     elif value == "exit":
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
-                        self.vel_hist_dQ.clear()
                         while not self.motionpowerQueue.empty():
                             self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
@@ -1044,10 +1040,6 @@ class RealtimeDDPG(object):
                                     unit_ob_num = unit_duration * signal_freq
                                     unit_gear_num = unit_duration * gear_freq
                                     unit_num = self.truck.CloudUnitNumber
-                                    timestamp_upsample_rate = (
-                                        self.truck.CloudSignalFrequency
-                                        * self.truck.CloudUnitDuration
-                                    )
                                     for key, value in remotecan_data.items():
                                         if key == "result":
                                             self.logd.info(
@@ -1400,7 +1392,7 @@ class RealtimeDDPG(object):
                             motionpower_states, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
                         (timstamp, motion_states, gear_states, power_states) = [
-                            tf.squeeze(x, axis=1) for x in out
+                            tf.squeeze(x) for x in out
                         ]
                     else:
                         motion_states, power_states = tf.split(
@@ -1441,12 +1433,12 @@ class RealtimeDDPG(object):
                             if self.cloud:
                                 self.rec = {
                                     "timestamp": datetime.fromtimestamp(
-                                        timestamp0[0] / 1000.0
+                                        timestamp0.numpy()[0] / 1000.0
                                     ),  # from ms to s
                                     "plot": {
                                         "character": self.truck.TruckName,
                                         "when": datetime.fromtimestamp(
-                                            timestamp0[0] / 1000.0
+                                            timestamp0.numpy()[0] / 1000.0
                                         ),
                                         "where": "campus",
                                         "states": {
@@ -1465,13 +1457,13 @@ class RealtimeDDPG(object):
                                         },
                                     },
                                     "observation": {
-                                        "state": prev_motion_states.tolist(),
-                                        "action": prev_action,
-                                        "reward": cycle_reward,
-                                        "next_state": motion_states.tolist(),
+                                        "state": prev_motion_states.numpy().tolist(),
+                                        "action": prev_action.numpy().tolist(),
+                                        "reward": cycle_reward.numpy().tolist(),
+                                        "next_state": motion_states.numpy().tolist(),
                                     },
                                 }
-                                self.buffer.deposit(rec)
+                                self.buffer.deposit(self.rec)
                             else:
                                 self.buffer.record(
                                     (
@@ -1501,10 +1493,7 @@ class RealtimeDDPG(object):
                             self.actor_model, motion_states1, self.ou_noise
                         )
                         prev_motion_states = motion_states0
-                        if self.cloud:
-                            prev_action = vcu_action_reduced.numpy().tolist()
-                        else:
-                            prev_action = vcu_action_reduced
+                        prev_action = vcu_action_reduced
 
                         self.logd.info(
                             f"E{epi_cnt} inference done with reduced action space!",
@@ -1625,7 +1614,7 @@ class RealtimeDDPG(object):
                     "Calibration Table", plot_to_image(fig), step=epi_cnt_local
                 )
                 tf.summary.histogram(
-                    "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
+                    "Calibration Table Hist", self.vcu_calib_table1, step=epi_cnt_local
                 )
                 # tf.summary.trace_export(
                 #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir

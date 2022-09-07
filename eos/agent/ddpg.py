@@ -149,6 +149,7 @@ class Buffer:
         self.sequence_len = sequence_len
         self.num_actions = num_actions
         self.data_folder = datafolder
+        self.cloud = cloud
         if cloud is True:
             self.db = dbs_record["local"]
             self.db_schema = record_schemas["record_deep"]
