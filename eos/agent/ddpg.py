@@ -140,7 +140,6 @@ class Buffer:
         cloud=False,
     ):
         # Number of "experiences" to store at max
-        self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
         # Num of tuples to train on.
         self.batch_size = batch_size
 
@@ -163,8 +162,10 @@ class Buffer:
                 db_name=self.db.DatabaseName,
                 coll_name=self.db.CollName,
                 debug=False)
+            self.buffer_counter = self.pool.count_items()
             logger.info(f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}", extra=dictLogger)
         else:
+            self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
             self.file_sb = self.data_folder + "/state_buffer.npy"
             self.file_ab = self.data_folder + "/action_buffer.npy"
             self.file_rb = self.data_folder + "/reward_buffer.npy"

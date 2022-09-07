@@ -159,13 +159,15 @@ class RDPG:
         self.cloud = cloud
         # new data
         if self.cloud == False:
-            self.R = (
-                []
-            )  # list for dynamic buffer, when saving memory needs to be converted to numpy array
-            self._buffer_capacity = buffer_capacity
+            # Instead of list of tuples as the exp.replay concept go
+            # We use different np.arrays for each tuple element
             self._datafolder = datafolder
+            self.file_replay = datafolder + "/replay_buffer.npy"
+            # Its tells us num of times record() was called.
+            self.load_replay_buffer()
+            self.buffer_counter = len(self.R)
+            self._buffer_capacity = buffer_capacity
         else:
-            # TODO implement database solution
             self.db = dbs_episode["local"]
             self.db_schema = episode_schemas["episode_deep"]
             self.pool = Pool(
@@ -177,6 +179,7 @@ class RDPG:
                 coll_name=self.db.CollName,
                 debug=False)
             self.logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}")
+            self.buffer_counter = self.pool.count_items()
 
         # Number of "experiences" to store     at max
         self._ckpt_interval = ckpt_interval
@@ -240,11 +243,6 @@ class RDPG:
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
 
-        # Instead of list of tuples as the exp.replay concept go
-        # We use different np.arrays for each tuple element
-        self.file_replay = datafolder + "/replay_buffer.npy"
-        # Its tells us num of times record() was called.
-        self.load_replay_buffer()
 
     def init_ckpt(self):
         # Actor create or restore from checkpoint
@@ -742,6 +740,7 @@ class RDPG:
             )
         except IOError:
             logger.info("blank experience", extra=dictLogger)
+            self.R = []
 
     @property
     def num_observations(self):
