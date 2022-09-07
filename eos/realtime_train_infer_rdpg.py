@@ -348,11 +348,6 @@ class RealtimeRDPG(object):
 
         # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
         self.vcu_calib_table_row_start = 0
-        self.vcu_calib_table0_reduced = self.vcu_calib_table0[
-            self.vcu_calib_table_row_start : self.vcu_calib_table_row_reduced
-            + self.vcu_calib_table_row_start,
-            :,
-        ]
 
         # Learning rate for actor-critic models
         self.critic_lr = 0.002
@@ -730,7 +725,7 @@ class RealtimeRDPG(object):
                 vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
 
                 # dynamically change table row start index
-                vcu_calib_table0_reduced = self.vcu_calib_table0[
+                vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
                     table_start : self.vcu_calib_table_row_reduced + table_start,
                     :,
                 ]
@@ -1117,7 +1112,7 @@ class RealtimeRDPG(object):
                 vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
 
                 # dynamically change table row start index
-                vcu_calib_table0_reduced = self.vcu_calib_table0[
+                vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
                     table_start : self.vcu_calib_table_row_reduced + table_start,
                     :,
                 ]
