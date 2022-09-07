@@ -285,6 +285,43 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("done decoding actions.", extra=self.dictLogger)
 
     @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_pool_sample_record(self):
+        self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
+        # self.generate_record_schemas()
+        self.rec_sch = self.record_schemas["record_deep"]
+        self.db = self.dbs_record["local"]
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(
+            url=self.db.Url,
+            username=self.db.Username,
+            password=self.db.Password,
+            schema=self.rec_sch.STRUCTURE,
+            db_name=self.db.DatabaseName,
+            coll_name=self.db.CollName,
+            debug=True,
+        )
+        self.logger.info("Set client and pool", extra=self.dictLogger)
+
+        rec_cnt = self.pool.count_items()
+        if rec_cnt < 4:
+            self.logger.info("Start creating record pool", extra=self.dictLogger)
+            self.add_to_record_pool(pool_size=16)
+
+        self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
+        batch_4 = self.pool.sample_batch_items(batch_size=4)
+        self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
+        self.assertEqual(len(batch_4), 4)
+        batch_24 = self.pool.sample_batch_items(batch_size=24)
+        self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
+        self.assertEqual(len(batch_24), 24)
+
+        # test decoding
+        state = [rec["observation"]["state"] for rec in batch_24]
+        action = [rec["observation"]["action"] for rec in batch_24]
+        reward = [rec["observation"]["reward"] for rec in batch_24]
+        next_state = [rec["observation"]["next_state"] for rec in batch_24]
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
@@ -323,7 +360,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_pool_sample_record(self):
+    def test_native_pool_consecutive_observation(self):
         self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -341,23 +378,58 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
         rec_cnt = self.pool.count_items()
-        if rec_cnt < 4:
-            self.logger.info("Start creating record pool", extra=self.dictLogger)
-            self.add_to_record_pool(pool_size=16)
+        self.logger.info("Start observation test", extra=self.dictLogger)
+        for rec_cnt in range(16):
+            self.native_get()
+            out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
+            (timestamp0, motion_states0, gear_states0, power_states0) = [
+                np.squeeze(e) for e in out
+            ]
+            self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dictLogger)
 
-        self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
-        batch_4 = self.pool.sample_batch_items(batch_size=4)
-        self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
-        self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_items(batch_size=24)
-        self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
-        self.assertEqual(len(batch_24), 24)
+        self.logger.info("Done with observation test", extra=self.dictLogger)
 
-        # test decoding
-        state = [rec["observation"]["state"] for rec in batch_24]
-        action = [rec["observation"]["action"] for rec in batch_24]
-        reward = [rec["observation"]["reward"] for rec in batch_24]
-        next_state = [rec["observation"]["next_state"] for rec in batch_24]
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_consecutive_flash_test(self):
+        self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
+        # self.generate_record_schemas()
+        self.rec_sch = self.record_schemas["record_deep"]
+        self.db = self.dbs_record["local"]
+        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.pool = Pool(
+            url=self.db.Url,
+            username=self.db.Username,
+            password=self.db.Password,
+            schema=self.rec_sch.STRUCTURE,
+            db_name=self.db.DatabaseName,
+            coll_name=self.db.CollName,
+            debug=True,
+        )
+        self.logger.info("Set client and pool", extra=self.dictLogger)
+
+        self.logger.info("Start consecutive flashing test", extra=self.dictLogger)
+        for rec_cnt in range(16):
+            self.native_send()
+
+        self.logger.info("Done with observation test", extra=self.dictLogger)
+
+
+    def native_send(self):
+
+        # flashing 5 rows of the calibration table
+        k0 = 2
+        N0 = 4
+        map2d_5rows = self.vcu_calib_table_default.iloc[k0 : k0 + N0, :]
+        self.logger.info(
+            f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
+            extra=self.dictLogger,
+        )
+        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
+        self.logger.info(
+            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
+            extra=self.dictLogger,
+        )
 
     def generate_epi_schemas(self):
         # current state
