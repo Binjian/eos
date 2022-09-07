@@ -247,7 +247,7 @@ class RealtimeRDPG(object):
             self.truck.VelocityScale
         )  #  14 numnber of velocity steps, y direction
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
-        self.action_budget = 250  # action_budget 250 Nm
+        self.action_budget = self.truck.ActionBudget  # action_budget 250 Nm
         self.action_lower = self.truck.ActionLowerBound  # 0.8
         self.action_upper = self.truck.ActionUpperBound  # 1.0
         self.action_bias = self.truck.ActionBias  # 0.0
@@ -255,7 +255,7 @@ class RealtimeRDPG(object):
         # index of the current pedal map is speed in kmph
         pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
         self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
-        self.pd_columns = np.array(PEDAL_SCALE)
+        self.pd_columns = np.array(PEDAL_SCALES)
 
         self.pedal_range = self.truck.PedalRange  # [0, 1.0]
         self.velocity_range = self.truck.VelocityRange  # [0, 120.0]
