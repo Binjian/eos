@@ -1268,9 +1268,11 @@ class RealtimeDDPG(object):
                     )
 
                 self.logc.info(f"flash starts", extra=self.dictLogger)
+
+
                 returncode = self.remotecan_client.send_torque_map(
-                    pedalmap=self.vcu_calib_table1,
-                    swap=False,
+                    pedalmap= self.vcu_calib_table1.iloc[table_start : self.vcu_calib_table_row_reduced + table_start],
+                    swap=False
                 )
                 # time.sleep(1.0)
 
