@@ -600,6 +600,7 @@ class RealtimeDDPG(object):
         self.epi_countdown_time = (
             3  # extend capture time after valid episode temrination
         )
+        self.step_count = 0
 
         # use timer object
         # self.timer_capture_countdown = threading.Timer(
