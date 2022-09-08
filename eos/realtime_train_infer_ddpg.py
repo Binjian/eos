@@ -1203,7 +1203,7 @@ class RealtimeDDPG(object):
             # time.sleep(0.1)
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
-                epi_cnt = self.epi_countdown
+                epi_cnt = self.episode_count
                 step_count = self.step_count
                 if self.program_exit:
                     th_exit = True
