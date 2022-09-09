@@ -104,6 +104,7 @@ Truck = namedtuple(
         "ObservationNumber",  # number of observation, 3: velocity, throttle, brake
         "KvaserObservationNumber",  # Kvaser nunmber of one observation unit: 30 as count number
         "KvaserObservationFrequency",  # Kvaser observation frequency: 20 Hz
+        "KvaserCountdownTime",  # Kvaser countdown time: 3 seconds
         "ActionBudget",  # maximal delta torque to be overlapped on the torque map 250 in Nm
         "ActionLowerBound",  # minimal percentage of delta torque to be overlapped on the torque map: 0.8
         "ActionUpperBound",  # maximal percentage of delta torque to be overlapped on the torque map: 1.0
@@ -129,6 +130,7 @@ truck_list = [
         ObservationNumber=3,
         KvaserObservationNumber=30,
         KvaserObservationFrequency=20,
+        KvaserCountdownTime=3,
         ActionBudget=250,  # 250 Nm
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
@@ -152,6 +154,7 @@ truck_list = [
         ObservationNumber=3,
         KvaserObservationNumber=30,
         KvaserObservationFrequency=20,
+        KvaserCountdownTime=3,
         ActionBudget=250,  # 250 Nm
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
@@ -175,6 +178,7 @@ truck_list = [
         ObservationNumber=3,
         KvaserObservationNumber=30,
         KvaserObservationFrequency=20,
+        KvaserCountdownTime=3,
         ActionBudget=250,  # 250 Nm
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
@@ -198,6 +202,7 @@ truck_list = [
         ObservationNumber=3,
         KvaserObservationNumber=30,
         KvaserObservationFrequency=20,
+        KvaserCountdownTime=3,
         ActionBudget=250,  # 250 Nm
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%

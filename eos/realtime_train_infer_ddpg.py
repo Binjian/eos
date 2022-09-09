@@ -44,6 +44,7 @@ from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
 from threading import Lock, Thread
+
 # from bson import ObjectId
 
 import matplotlib.pyplot as plt
@@ -174,8 +175,8 @@ class RealtimeDDPG(object):
     def init_cloud(self):
         os.environ["http_proxy"] = ""
         self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url="http://10.0.64.78:5000/")
+            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+        )
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -596,10 +597,16 @@ class RealtimeDDPG(object):
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
-        self.epi_countdown_time = (
-            3  # extend capture time after valid episode temrination
-        )
         self.step_count = 0
+        if self.cloud:
+            self.epi_countdown_time = (
+                self.truck.CloudUnitNumber
+                * self.truck.CloudUnitDuration  # extend capture time after valid episode temrination
+            )
+        else:
+            self.epi_countdown_time = (
+                self.truck.KvaserCountdownTime  # extend capture time after valid episode temrination (3s)
+            )
 
         # use timer object
         # self.timer_capture_countdown = threading.Timer(
@@ -871,8 +878,9 @@ class RealtimeDDPG(object):
 
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
-                self.vcu_calib_table1.iloc[table_start : self.vcu_calib_table_row_reduced + table_start] \
-                    = vcu_calib_table_reduced.numpy()
+                self.vcu_calib_table1.iloc[
+                    table_start : self.vcu_calib_table_row_reduced + table_start
+                ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
@@ -893,7 +901,9 @@ class RealtimeDDPG(object):
                     )
 
                 self.logc.info(f"flash starts", extra=self.dictLogger)
-                returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=True)
+                returncode = kvaser_send_float_array(
+                    self.vcu_calib_table1, sw_diff=True
+                )
                 # time.sleep(1.0)
 
                 if returncode != 0:
@@ -1246,8 +1256,9 @@ class RealtimeDDPG(object):
 
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
-                self.vcu_calib_table1.iloc[table_start : self.vcu_calib_table_row_reduced + table_start]\
-                    = vcu_calib_table_reduced.numpy()
+                self.vcu_calib_table1.iloc[
+                    table_start : self.vcu_calib_table_row_reduced + table_start
+                ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
@@ -1269,10 +1280,11 @@ class RealtimeDDPG(object):
 
                 self.logc.info(f"flash starts", extra=self.dictLogger)
 
-
                 returncode = self.remotecan_client.send_torque_map(
-                    pedalmap= self.vcu_calib_table1.iloc[table_start : self.vcu_calib_table_row_reduced + table_start],
-                    swap=False
+                    pedalmap=self.vcu_calib_table1.iloc[
+                        table_start : self.vcu_calib_table_row_reduced + table_start
+                    ],
+                    swap=False,
                 )
                 # time.sleep(1.0)
 
