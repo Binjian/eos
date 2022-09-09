@@ -1338,7 +1338,7 @@ class RealtimeDDPG(object):
                 continue
 
             step_count = 0
-            wh1 = 0  # initialize odd step wh
+            wh0 = 0  # initialize odd step wh
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
@@ -1438,61 +1438,24 @@ class RealtimeDDPG(object):
                         # k_cycle = 1000  # TODO determine the ratio
                         # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
                         # wh0 = wh  # add velocitoy sum as reward
-                        cycle_reward = (wh1 + wh) * (
-                            -1.0
-                        )  # most recent odd and even indexed reward
-                        episode_reward += cycle_reward
-
-                        if step_count != 0:
-                            if self.cloud:
-                                self.rec = {
-                                    "timestamp": datetime.fromtimestamp(
-                                        timestamp0.numpy()[0] / 1000.0
-                                    ),  # from ms to s
-                                    "plot": {
-                                        "character": self.truck.TruckName,
-                                        "when": datetime.fromtimestamp(
-                                            timestamp0.numpy()[0] / 1000.0
-                                        ),
-                                        "where": "campus",
-                                        "states": {
-                                            "velocity_unit": "kmph",
-                                            "thrust_unit": "percentage",
-                                            "brake_unit": "percentage",
-                                            "length": motion_states.shape[0],
-                                        },
-                                        "actions": {
-                                            "action_row_number": self.vcu_calib_table_row_reduced,
-                                            "action_column_number": self.vcu_calib_table_col,
-                                            "action_start_row": table_start,
-                                        },
-                                        "reward": {
-                                            "reward_unit": "wh",
-                                        },
-                                    },
-                                    "observation": {
-                                        "state": prev_motion_states.numpy().tolist(),
-                                        "action": prev_action.numpy().tolist(),
-                                        "reward": cycle_reward.numpy().tolist(),
-                                        "next_state": motion_states.numpy().tolist(),
-                                    },
-                                }
-                                self.buffer.deposit(self.rec)
-                            else:
-                                self.buffer.record(
-                                    (
-                                        prev_motion_states,
-                                        prev_action,
-                                        cycle_reward,
-                                        motion_states,
-                                    )
-                                )
+                        wh0 = wh
                         # motion_states_history.append(motion_states)
-                        motion_states0 = motion_states
-                        timestamp0 = timstamp
+                        if (
+                            step_count != 0
+                        ):  # not the first step, starting from the second step
+                            prev_motion_states = motion_states_even
+                            prev_timestamp = timestamp_even
+                            prev_table_start = table_start
+                            if self.cloud:
+                                prev_action = vcu_action_reduced.numpy().tolist()
+                            else:
+                                prev_action = vcu_action_reduced
 
-                        motion_states1 = tf.expand_dims(
-                            motion_states0, 0
+                        motion_states_even = motion_states
+                        timestamp_even = timstamp
+
+                        motion_states0 = tf.expand_dims(
+                            motion_states_even, 0
                         )  # motion states is 30*3 matrix
 
                         # predict action probabilities and estimated future rewards
@@ -1504,10 +1467,8 @@ class RealtimeDDPG(object):
                             extra=self.dictLogger,
                         )
                         vcu_action_reduced = policy(
-                            self.actor_model, motion_states1, self.ou_noise
+                            self.actor_model, motion_states0, self.ou_noise
                         )
-                        prev_motion_states = motion_states0
-                        prev_action = vcu_action_reduced
 
                         self.logd.info(
                             f"E{epi_cnt} inference done with reduced action space!",
@@ -1533,7 +1494,56 @@ class RealtimeDDPG(object):
                         # Bugfix: the reward recorded in the first even step is not causal
                         # cycle_reward should include the most recent even wh in the even step
                         # record the odd step wh
-                        wh1 = wh
+
+                        cycle_reward = (wh0 + wh) * (
+                            -1.0
+                        )  # most recent odd and even indexed reward
+                        if step_count != 1:  # starting from 3rd step
+                            episode_reward += cycle_reward
+
+                            if self.cloud:
+                                self.rec = {
+                                    "timestamp": datetime.fromtimestamp(
+                                        prev_timestamp[0] / 1000.0
+                                    ),  # from ms to s
+                                    "plot": {
+                                        "character": self.truck.TruckName,
+                                        "when": datetime.fromtimestamp(
+                                            prev_timestamp[0] / 1000.0
+                                        ),
+                                        "where": "campus",
+                                        "states": {
+                                            "velocity_unit": "kmph",
+                                            "thrust_unit": "percentage",
+                                            "brake_unit": "percentage",
+                                            "length": motion_states_even.shape[0],
+                                        },
+                                        "actions": {
+                                            "action_row_number": self.vcu_calib_table_row_reduced,
+                                            "action_column_number": self.vcu_calib_table_col,
+                                            "action_start_row": prev_table_start,
+                                        },
+                                        "reward": {
+                                            "reward_unit": "wh",
+                                        },
+                                    },
+                                    "observation": {
+                                        "state": prev_motion_states.tolist(),
+                                        "action": prev_action,
+                                        "reward": cycle_reward,
+                                        "next_state": motion_states_even.tolist(),
+                                    },
+                                }
+                                self.buffer.deposit(rec)
+                            else:
+                                self.buffer.record(
+                                    (
+                                        prev_motion_states,
+                                        prev_action,
+                                        cycle_reward,
+                                        motion_states,
+                                    )
+                                )
 
                         # TODO add speed sum as positive reward
                         self.logc.info(
