@@ -575,7 +575,7 @@ class RealtimeDDPG(object):
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
             self.get_truck_status_motpow_t = []
-            with self.capture_lock:
+            with self.captureQ_lock:
                 while not self.motionpowerQueue.empty():
                     self.motionpowerQueue.get()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
@@ -587,8 +587,9 @@ class RealtimeDDPG(object):
     def init_threads_data(self):
         # multithreading initialization
         self.hmi_lock = Lock()
-        self.table_lock = Lock()
-        self.capture_lock = Lock()
+        self.tableQ_lock = Lock()
+        self.captureQ_lock = Lock()
+        self.remoteClient_lock = Lock()
 
         # tableQueue contains a table which is a list of type float
         self.tableQueue = queue.Queue()
@@ -675,7 +676,7 @@ class RealtimeDDPG(object):
                         th_exit = False
                         # ts_epi_start = time.time()
 
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                         self.vel_hist_dQ.clear()
@@ -708,7 +709,7 @@ class RealtimeDDPG(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                         # self.logc.info(
@@ -723,7 +724,7 @@ class RealtimeDDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
                         self.vel_hist_dQ.clear()
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
@@ -808,7 +809,7 @@ class RealtimeDDPG(object):
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
 
-                                with self.capture_lock:
+                                with self.captureQ_lock:
                                     self.motionpowerQueue.put(
                                         self.get_truck_status_motpow_t
                                     )
@@ -849,7 +850,7 @@ class RealtimeDDPG(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                with self.table_lock:
+                with self.tableQ_lock:
                     table = self.tableQueue.get(
                         block=False, timeout=1
                     )  # default block = True
@@ -977,7 +978,7 @@ class RealtimeDDPG(object):
                         # ts_epi_start = time.time()
 
 
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                         with self.hmi_lock:
@@ -1008,7 +1009,7 @@ class RealtimeDDPG(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                         # self.logc.info(
@@ -1023,7 +1024,7 @@ class RealtimeDDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
 
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
@@ -1043,12 +1044,13 @@ class RealtimeDDPG(object):
                     try:
                         if self.get_truck_status_start:  # starts episode
 
-                            (
-                                signal_success,
-                                remotecan_data,
-                            ) = self.remotecan_client.get_signals(
-                                duration=self.truck.CloudUnitNumber
-                            )
+                            with self.remoteClient_lock:
+                                (
+                                    signal_success,
+                                    remotecan_data,
+                                ) = self.remotecan_client.get_signals(
+                                    duration=self.truck.CloudUnitNumber
+                                )
                             if not isinstance(remotecan_data, dict):
                                 self.logd.critical(
                                     f"udp sending wrong data type!",
@@ -1183,7 +1185,7 @@ class RealtimeDDPG(object):
                                                 extra=self.dictLogger,
                                             )
 
-                                            with self.capture_lock:
+                                            with self.captureQ_lock:
                                                 self.motionpowerQueue.put(motion_power)
                                         else:
                                             self.logger.info(
@@ -1235,7 +1237,7 @@ class RealtimeDDPG(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                with self.table_lock:
+                with self.tableQ_lock:
                     table = self.tableQueue.get(
                         block=False, timeout=1
                     )  # default block = True
@@ -1296,12 +1298,13 @@ class RealtimeDDPG(object):
 
                 self.logc.info(f"flash starts", extra=self.dictLogger)
 
-                returncode = self.remotecan_client.send_torque_map(
-                    pedalmap=self.vcu_calib_table1.iloc[
-                        table_start : self.vcu_calib_table_row_reduced + table_start
-                    ],
-                    swap=False,
-                )
+                with self.remoteClient_lock:
+                    returncode = self.remotecan_client.send_torque_map(
+                        pedalmap=self.vcu_calib_table1.iloc[
+                            table_start : self.vcu_calib_table_row_reduced + table_start
+                        ],
+                        swap=False,
+                    )
                 # time.sleep(1.0)
 
                 if returncode != 0:
@@ -1379,7 +1382,7 @@ class RealtimeDDPG(object):
                         table_start = self.vcu_calib_table_row_start
                         self.step_count = step_count
 
-                    with self.capture_lock:
+                    with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
                         self.logc.info(
                             f"motionpowerQueue.qsize(): {motionpowerqueue_size}"
@@ -1402,7 +1405,7 @@ class RealtimeDDPG(object):
                             f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
                         )
 
-                        with self.capture_lock:
+                        with self.captureQ_lock:
                             motionpower = self.motionpowerQueue.get(
                                 block=True, timeout=1.55
                             )
@@ -1497,7 +1500,7 @@ class RealtimeDDPG(object):
                         )
 
                         # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                        with self.table_lock:
+                        with self.tableQ_lock:
                             self.tableQueue.put(vcu_action_reduced)
                             self.logd.info(
                                 f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
