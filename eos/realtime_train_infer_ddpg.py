@@ -575,8 +575,9 @@ class RealtimeDDPG(object):
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
             self.get_truck_status_motpow_t = []
-            while not self.motionpowerQueue.empty():
-                self.motionpowerQueue.get()
+            with self.capture_lock:
+                while not self.motionpowerQueue.empty():
+                    self.motionpowerQueue.get()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
             if self.cloud:
                 self.vel_hist_dQ.clear()
@@ -586,6 +587,8 @@ class RealtimeDDPG(object):
     def init_threads_data(self):
         # multithreading initialization
         self.hmi_lock = Lock()
+        self.table_lock = Lock()
+        self.capture_lock = Lock()
 
         # tableQueue contains a table which is a list of type float
         self.tableQueue = queue.Queue()
@@ -672,8 +675,9 @@ class RealtimeDDPG(object):
                         th_exit = False
                         # ts_epi_start = time.time()
 
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.capture_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         self.vel_hist_dQ.clear()
                         with self.hmi_lock:
                             self.episode_done = False
@@ -704,8 +708,9 @@ class RealtimeDDPG(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.capture_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
@@ -718,8 +723,9 @@ class RealtimeDDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
                         self.vel_hist_dQ.clear()
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.capture_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
@@ -801,9 +807,11 @@ class RealtimeDDPG(object):
                                 # self.logd.info(
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
-                                self.motionpowerQueue.put(
-                                    self.get_truck_status_motpow_t
-                                )
+
+                                with self.capture_lock:
+                                    self.motionpowerQueue.put(
+                                        self.get_truck_status_motpow_t
+                                    )
                                 self.get_truck_status_motpow_t = []
                     except Exception as X:
                         self.logc.info(
@@ -841,10 +849,11 @@ class RealtimeDDPG(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tableQueue.get(
-                    block=False, timeout=1
-                )  # default block = True
-                # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+                with self.table_lock:
+                    table = self.tableQueue.get(
+                        block=False, timeout=1
+                    )  # default block = True
+                    # print("2 tablequeue size: {}".format(tablequeue.qsize()))
             except queue.Empty:
                 pass
             else:
@@ -967,8 +976,10 @@ class RealtimeDDPG(object):
                         th_exit = False
                         # ts_epi_start = time.time()
 
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+
+                        with self.capture_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
@@ -997,8 +1008,9 @@ class RealtimeDDPG(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.capture_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
@@ -1010,8 +1022,10 @@ class RealtimeDDPG(object):
                     elif value == "exit":
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+
+                        with self.capture_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
@@ -1169,7 +1183,8 @@ class RealtimeDDPG(object):
                                                 extra=self.dictLogger,
                                             )
 
-                                            self.motionpowerQueue.put(motion_power)
+                                            with self.capture_lock:
+                                                self.motionpowerQueue.put(motion_power)
                                         else:
                                             self.logger.info(
                                                 f"show status: {key}:{value}",
@@ -1220,10 +1235,11 @@ class RealtimeDDPG(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tableQueue.get(
-                    block=False, timeout=1
-                )  # default block = True
-                # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+                with self.table_lock:
+                    table = self.tableQueue.get(
+                        block=False, timeout=1
+                    )  # default block = True
+                    # print("2 tablequeue size: {}".format(tablequeue.qsize()))
             except queue.Empty:
                 pass
             else:
@@ -1362,10 +1378,13 @@ class RealtimeDDPG(object):
                         )  # this class member episode_done is driving action (maneuver) done
                         table_start = self.vcu_calib_table_row_start
                         self.step_count = step_count
-                    self.logc.info(
-                        f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}"
-                    )
-                    if epi_end and done and (self.motionpowerQueue.qsize() > 2):
+
+                    with self.capture_lock:
+                        motionpowerqueue_size = self.motionpowerQueue.qsize()
+                        self.logc.info(
+                            f"motionpowerQueue.qsize(): {motionpowerqueue_size}"
+                        )
+                    if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
                             f"Residue in Queue is a sign of disordered sequence, interrupted!"
@@ -1382,9 +1401,11 @@ class RealtimeDDPG(object):
                         self.logc.info(
                             f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
                         )
-                        motionpower = self.motionpowerQueue.get(
-                            block=True, timeout=1.55
-                        )
+
+                        with self.capture_lock:
+                            motionpower = self.motionpowerQueue.get(
+                                block=True, timeout=1.55
+                            )
                     except queue.Empty:
                         self.logc.info(
                             f"E{epi_cnt} No data in the Queue!!!",
@@ -1476,11 +1497,12 @@ class RealtimeDDPG(object):
                         )
 
                         # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                        self.tableQueue.put(vcu_action_reduced)
-                        self.logd.info(
-                            f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
-                            extra=self.dictLogger,
-                        )
+                        with self.table_lock:
+                            self.tableQueue.put(vcu_action_reduced)
+                            self.logd.info(
+                                f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
+                                extra=self.dictLogger,
+                            )
                         self.logc.info(
                             f"E{epi_cnt} Finish Step: {step_count}",
                             extra=self.dictLogger,
