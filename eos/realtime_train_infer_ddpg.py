@@ -1384,9 +1384,9 @@ class RealtimeDDPG(object):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                        self.logc.info(
-                            f"motionpowerQueue.qsize(): {motionpowerqueue_size}"
-                        )
+                    self.logc.info(
+                        f"motionpowerQueue.qsize(): {motionpowerqueue_size}"
+                    )
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
