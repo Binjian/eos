@@ -380,17 +380,21 @@ class TestRemoteCanPool(unittest.TestCase):
         rec_cnt = self.pool.count_items()
         self.logger.info("Start observation test", extra=self.dictLogger)
         for rec_cnt in range(16):
-            self.native_get()
-            out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
-            (timestamp0, motion_states0, gear_states0, power_states0) = [
-                np.squeeze(e) for e in out
-            ]
-            self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dictLogger)
+
+            self.get_ddpg_record()
+            self.pool.deposit_item(self.ddpg_record)
+            self.logger.info(f"Get and deposit Observation No. {rec_cnt}", extra=self.dictLogger)
+            # self.native_get()
+            # out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
+            # (timestamp0, motion_states0, gear_states0, power_states0) = [
+            #     np.squeeze(e) for e in out
+            # ]
+            # self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dictLogger)
 
         self.logger.info("Done with observation test", extra=self.dictLogger)
 
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_consecutive_flash_test(self):
         self.client = RemoteCan(truckname=self.truck.TruckName, url="http://10.0.64.78:5000/")
         # self.generate_record_schemas()
@@ -408,12 +412,31 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
+
+        # # flashing the whole calibration table
+        # map2d = self.vcu_calib_table_default
+        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        # returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
+        # self.logger.info(
+        #     f"finish sending torque map: returncode={returncode}.",
+        #     extra=self.dictLogger,
+        # )
+
         self.logger.info("Start consecutive flashing test", extra=self.dictLogger)
-        for rec_cnt in range(16):
+        for rec_cnt in range(2):
             self.native_send()
 
         self.logger.info("Done with observation test", extra=self.dictLogger)
 
+
+        # # flashing the whole calibration table
+        # map2d = self.vcu_calib_table_default
+        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        # returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
+        # self.logger.info(
+        #     f"finish sending torque map: returncode={returncode}.",
+        #     extra=self.dictLogger,
+        # )
 
     def native_send(self):
 
@@ -708,8 +731,10 @@ class TestRemoteCanPool(unittest.TestCase):
 
         # action
         k0 = 0
-        N0 = 5
-        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
+        N0 = 4
+        map2d_5rows = self.vcu_calib_table_default.iloc[k0 : k0 + N0]
+
+        swap=False,
         self.logger.info(
             f"Create torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
@@ -752,7 +777,7 @@ class TestRemoteCanPool(unittest.TestCase):
             },
             "observation": {
                 "state": motion_states0.tolist(),
-                "action": map2d_5rows,
+                "action": map2d_5rows.values.tolist(),
                 "reward": cycle_reward,
                 "next_state": motion_states1.tolist(),
             },
