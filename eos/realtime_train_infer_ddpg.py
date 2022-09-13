@@ -1534,7 +1534,7 @@ class RealtimeDDPG(object):
                                         "next_state": motion_states_even.tolist(),
                                     },
                                 }
-                                self.buffer.deposit(rec)
+                                self.buffer.deposit(self.rec)
                             else:
                                 self.buffer.record(
                                     (
