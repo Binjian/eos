@@ -162,9 +162,13 @@ class Buffer:
                 schema=self.db_schema.STRUCTURE,
                 db_name=self.db.DatabaseName,
                 coll_name=self.db.CollName,
-                debug=False)
+                debug=False,
+            )
             self.buffer_counter = self.pool.count_items()
-            logger.info(f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}", extra=dictLogger)
+            logger.info(
+                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
+                extra=dictLogger,
+            )
         else:
             self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
             self.file_sb = self.data_folder + "/state_buffer.npy"
@@ -193,12 +197,10 @@ class Buffer:
         Record a new experience in the pool (database).
         """
         result = self.pool.deposit_item(rec)
-        assert (result.acknowledged == True)
+        assert result.acknowledged == True
         rec_inserted = self.pool.find_item(result.inserted_id)
-        assert (rec_inserted == rec)
-        logger.info(
-            f"Pool has {self.pool.count_items()} records", extra=dictLogger
-        )
+        assert rec_inserted == rec
+        logger.info(f"Pool has {self.pool.count_items()} records", extra=dictLogger)
 
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):

@@ -320,7 +320,6 @@ class TestRemoteCanGet(unittest.TestCase):
             extra=self.dictLogger,
         )
 
-
         # flashing the whole calibration table
         map2d = self.vcu_calib_table_default
         self.logger.info(f"start sending torque map.", extra=self.dictLogger)

@@ -987,19 +987,12 @@ class RealtimeDDPG(object):
                                 for ts in value["timestamps"]:
                                     # create standard iso string datetime format
                                     ts_substrings = [
-                                        ts[i : i + 2]
-                                        for i in range(0, len(ts), 2)
+                                        ts[i : i + 2] for i in range(0, len(ts), 2)
                                     ]
                                     ts_iso = start_century
                                     for i, sep in enumerate(separators):
-                                        ts_iso = (
-                                                ts_iso + ts_substrings[i] + sep
-                                        )
-                                    ts_iso = (
-                                            ts_iso
-                                            + ts_substrings[-1]
-                                            + timezone
-                                    )
+                                        ts_iso = ts_iso + ts_substrings[i] + sep
+                                    ts_iso = ts_iso + ts_substrings[-1] + timezone
                                     timestamps.append(ts_iso)
                                 timestamps_units = (
                                     np.array(timestamps)
@@ -1011,12 +1004,8 @@ class RealtimeDDPG(object):
                                         f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                                     )
                                 # upsample gears from 2Hz to 50Hz
-                                timestamps_seconds = list(
-                                    timestamps_units
-                                )  # in ms
-                                sampling_interval = (
-                                        1.0 / signal_freq * 1000
-                                )  # in ms
+                                timestamps_seconds = list(timestamps_units)  # in ms
+                                sampling_interval = 1.0 / signal_freq * 1000  # in ms
                                 timestamps = [
                                     i + j * sampling_interval
                                     for i in timestamps_seconds
@@ -1078,7 +1067,7 @@ class RealtimeDDPG(object):
                                     self.vcu_calib_table_row_start = 1
                                 elif vel_max < 120:
                                     self.vcu_calib_table_row_start = (
-                                            math.floor((vel_max - 30) / 10) + 2
+                                        math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
                                     self.logc.warning(
@@ -1169,7 +1158,6 @@ class RealtimeDDPG(object):
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
-
 
                         with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
@@ -1360,7 +1348,9 @@ class RealtimeDDPG(object):
             target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done]
         )
         thr_observe = Thread(
-            target=self.get_truck_status, name="observe", args=[evt_epi_done, evt_remote_get]
+            target=self.get_truck_status,
+            name="observe",
+            args=[evt_epi_done, evt_remote_get],
         )
 
         thr_remoteget = Thread(
@@ -1417,9 +1407,7 @@ class RealtimeDDPG(object):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                    self.logc.info(
-                        f"motionpowerQueue.qsize(): {motionpowerqueue_size}"
-                    )
+                    self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(

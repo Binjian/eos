@@ -177,8 +177,11 @@ class RDPG:
                 schema=self.db_schema.STRUCTURE,
                 db_name=self.db.DatabaseName,
                 coll_name=self.db.CollName,
-                debug=False)
-            self.logger.info(f"Connected to MongoDB {self.db_name}, collection {self.collection_name}")
+                debug=False,
+            )
+            self.logger.info(
+                f"Connected to MongoDB {self.db_name}, collection {self.collection_name}"
+            )
             self.buffer_counter = self.pool.count_items()
 
         # Number of "experiences" to store     at max
@@ -242,7 +245,6 @@ class RDPG:
         )
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
-
 
     def init_ckpt(self):
         # Actor create or restore from checkpoint
@@ -365,12 +367,17 @@ class RDPG:
 
         db buffer is lists of lists
         """
-        self.logger.info("Start sampling a mini batch from the database.", extra=self.dictLogger)
+        self.logger.info(
+            "Start sampling a mini batch from the database.", extra=self.dictLogger
+        )
 
         item_cnt = self.pool.count_items()
         batch = self.pool.sample_batch_items(self.batch_size)
-        assert (len(batch) == self.batch_size)
-        self.logger.info(f"{self.batch_size} Episodes sampled from {item_cnt}.", extra=self.dictLogger)
+        assert len(batch) == self.batch_size
+        self.logger.info(
+            f"{self.batch_size} Episodes sampled from {item_cnt}.",
+            extra=self.dictLogger,
+        )
 
         # get dimension of the history
         episode_length = batch[0]["plot"]["length"]
@@ -379,10 +386,14 @@ class RDPG:
         action_column_number = batch[0]["plot"]["actions"]["action_column_number"]
         action_start_row = batch[0]["plot"]["actions"]["action_start_row"]
 
-        assert self.state_len == states_length*self.num_observations # (3s*50)*3(obs_num))=450
-        assert self.action_len == action_row_number*action_column_number
+        assert (
+            self.state_len == states_length * self.num_observations
+        )  # (3s*50)*3(obs_num))=450
+        assert self.action_len == action_row_number * action_column_number
 
-        r_n_t = [[history['reward'] for history in episode["history"]] for episode in batch]  # list of lists
+        r_n_t = [
+            [history["reward"] for history in episode["history"]] for episode in batch
+        ]  # list of lists
         self.r_n_t = pad_sequences(
             r_n_t,
             padding="post",
@@ -399,7 +410,9 @@ class RDPG:
 
         # decode and padding rewards, states and actions
         #  history['states'] for history in episdoe["history"] is the time sequence of states
-        o_n_l0 = [[history['states'] for history in episode["history"]] for episode in batch]
+        o_n_l0 = [
+            [history["states"] for history in episode["history"]] for episode in batch
+        ]
 
         # state in o_n_l0 is the time sequence of states [o1, o2, o3, ..., o7]
         # o1=[v0, t0, b0, v1, t1, b1, ...] (3x50x3=450)
@@ -407,7 +420,8 @@ class RDPG:
         # each step has dimension of state_len(450)
         # [step[i] for step in state] is the time sequence of the i-th feature
         o_n_l1 = [
-            [[step[i] for step in state] for state in o_n_l0] for i in np.arange(self.state_len)
+            [[step[i] for step in state] for state in o_n_l0]
+            for i in np.arange(self.state_len)
         ]  # list (state_len) of lists (batch_size) of lists with variable observation length
 
         try:
@@ -424,15 +438,18 @@ class RDPG:
             )  # return numpy array list of size (state_len, batch_size, max(len(o_n_l1i))),
             # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
             # otherwise observation is ragged, throw exception
-            o_n_t = tf.transpose(o_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
+            o_n_t = tf.transpose(
+                o_n_t, perm=[1, 2, 0]
+            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
             self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except:
             logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
-        a_n_l0 = [[obs['actions'] for obs in episode["history"]] for episode in batch]
+        a_n_l0 = [[obs["actions"] for obs in episode["history"]] for episode in batch]
         a_n_l1 = [
-            [[step[i] for step in act] for act in a_n_l0] for i in np.arange(self.action_len)
+            [[step[i] for step in act] for act in a_n_l0]
+            for i in np.arange(self.action_len)
         ]  # list (action_len) of lists (batch_size) of lists with variable observation length
 
         try:
@@ -449,12 +466,13 @@ class RDPG:
             )  # return numpy array list of size (state_len, batch_size, max(len(o_n_l1i))),
             # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
             # otherwise observation is ragged, throw exception
-            a_n_t = tf.transpose(a_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
+            a_n_t = tf.transpose(
+                a_n_t, perm=[1, 2, 0]
+            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
             self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except:
             logger.error("Ragged action state a_n_l1!", extra=dictLogger)
         logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
-
 
     def sample_mini_batch(self):
         """Sample a mini batch from the replay buffer. Add post padding for masking
@@ -509,7 +527,8 @@ class RDPG:
         # [state[:,i].tolist() for state in o_n_l0] is the list of time sequences of a single batch (dimension batch)
         # o_n_l1 is the final ragged list (different time steps) of different observations (dimension observation)
         o_n_l1 = [
-            [state[:,i].tolist() for state in o_n_l0] for i in np.arange(self.state_len)
+            [state[:, i].tolist() for state in o_n_l0]
+            for i in np.arange(self.state_len)
         ]  # list (state_len) of lists (batch_size) of lists with variable observation length
 
         try:
@@ -526,20 +545,23 @@ class RDPG:
             )  # return numpy array list of size (state_len, batch_size, max(len(o_n_l1i))),
             # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
             # otherwise observation is ragged, throw exception
-            o_n_t = tf.transpose(o_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
+            o_n_t = tf.transpose(
+                o_n_t, perm=[1, 2, 0]
+            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
             self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except:
             logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         a_n_l0 = [
-            self.R[i][:, self.state_len : self.state_len + self.action_len] for i in indexes
+            self.R[i][:, self.state_len : self.state_len + self.action_len]
+            for i in indexes
         ]  # list of np.array with variable action length
         # a_n_l1 = [
         #     a_n_l0[i].tolist() for i in np.arange(self._batch_size)
         # ]  # list (batch_size) of list (action_len) of np.array with variable action length
         a_n_l1 = [
-            [act[:,i].tolist() for act in a_n_l0] for i in np.arange(self.action_len)
+            [act[:, i].tolist() for act in a_n_l0] for i in np.arange(self.action_len)
         ]  # list (action_len) of lists (batch_size) of lists with variable observation length
 
         try:
@@ -554,7 +576,9 @@ class RDPG:
                     for a_n_l1i in a_n_l1
                 ]  # return numpy array list
             )
-            a_n_t = tf.transpose(a_n_t, perm=[1, 2, 0])  # return numpy array list of size (batch_size,max(len(a_n_l1i)), action_len)
+            a_n_t = tf.transpose(
+                a_n_t, perm=[1, 2, 0]
+            )  # return numpy array list of size (batch_size,max(len(a_n_l1i)), action_len)
             self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except:
             logger.error(f"Ragged action state a_n_l1!", extra=dictLogger)

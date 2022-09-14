@@ -24,6 +24,7 @@ from scipy import interpolate
 # TODO ask for safety bounds and real vcu to be integrated.
 # TODO generate a mask according to WLTC to reduce parameter optimization space.
 
+
 def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     npd, pedal_range, nvl, velocity_range, shortcut, dataroot
 ):  # input : npd 17, nvl 21; output vcu_param_list as float32
@@ -38,7 +39,7 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
             velocity_range[0], velocity_range[1], num=nvl - 1
         )  # 0 - 120 kmph velocity
         vel = np.insert(vel_, 1, 7)  # insert 7 kmph, and convert to m/s
-        pdv, vlv = np.meshgrid(ped, vel/3.6, sparse=True)
+        pdv, vlv = np.meshgrid(ped, vel / 3.6, sparse=True)
         v = pdv / (1 + np.sqrt(np.abs(vlv)))
         pd_v = pd.DataFrame(v, columns=ped, index=vel)
 
@@ -94,7 +95,9 @@ def generate_lookup_table(  # pedal in x(col), velocity in y(row)
         velocity_range[0] : velocity_range[1] : v_step,
         pedal_range[0] : pedal_range[1] : p_step,
     ]
-    calib_lookup = interpolate.interp2d(grid_p, grid_v, calib_table.to_numpy(), kind="linear")
+    calib_lookup = interpolate.interp2d(
+        grid_p, grid_v, calib_table.to_numpy(), kind="linear"
+    )
     return calib_lookup
 
 
