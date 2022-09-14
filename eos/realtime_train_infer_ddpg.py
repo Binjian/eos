@@ -147,7 +147,7 @@ class RealtimeDDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             self.init_cloud()
-            self.get_truck_status = self.remote_get_truck_status
+            self.get_truck_status = self.remote_hmi_state_machine
             self.flash_vcu = self.remote_flash_vcu
         else:
             self.get_truck_status = self.kvaser_get_truck_status
@@ -625,10 +625,12 @@ class RealtimeDDPG(object):
         self.get_truck_status_myPort = 8002
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
-    def kvaser_get_truck_status(self, evt_epi_done):
+    def kvaser_get_truck_status(self, evt_epi_done, evt_remote_get):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
+        evt_remote_get is not used in this function for kvaser
+        just to keep the uniform interface with remote_get_truck_status
         """
 
         th_exit = False
@@ -931,7 +933,197 @@ class RealtimeDDPG(object):
 
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
-    def remote_get_truck_status(self, evt_epi_done):
+    def remote_get_handler(self, evt_remote_get):
+
+        th_exit = False
+        while not th_exit:
+            with self.hmi_lock:
+                if self.program_exit:
+                    th_exit = True
+                    continue
+
+            self.logger.info(f"wait for remote get trigger", extra=self.dictLogger)
+            evt_epi_done.wait()
+
+            # if episode is done, sleep for the extension time
+            # cancel wait as soon as waking up
+            self.logger.info(f"Wake up to fetch remote data", extra=self.dictLogger)
+
+            try:
+                with self.remoteClient_lock:
+                    (
+                        signal_success,
+                        remotecan_data,
+                    ) = self.remotecan_client.get_signals(
+                        duration=self.truck.CloudUnitNumber
+                    )
+
+                if not isinstance(remotecan_data, dict):
+                    self.logd.critical(
+                        f"udp sending wrong data type!",
+                        extra=self.dictLogger,
+                    )
+                    raise TypeError("udp sending wrong data type!")
+
+                if signal_success == 0:
+                    try:
+                        signal_freq = self.truck.CloudSignalFrequency
+                        gear_freq = self.truck.CloudGearFrequency
+                        unit_duration = self.truck.CloudUnitDuration
+                        unit_ob_num = unit_duration * signal_freq
+                        unit_gear_num = unit_duration * gear_freq
+                        unit_num = self.truck.CloudUnitNumber
+                        for key, value in remotecan_data.items():
+                            if key == "result":
+                                self.logd.info(
+                                    "convert observation state to array.",
+                                    extra=self.dictLogger,
+                                )
+                                # timestamp processing
+                                timestamps = []
+                                separators = "--T::."  # adaption separators of the raw intest string
+                                start_century = "20"
+                                timezone = "+0800"
+                                for ts in value["timestamps"]:
+                                    # create standard iso string datetime format
+                                    ts_substrings = [
+                                        ts[i : i + 2]
+                                        for i in range(0, len(ts), 2)
+                                    ]
+                                    ts_iso = start_century
+                                    for i, sep in enumerate(separators):
+                                        ts_iso = (
+                                                ts_iso + ts_substrings[i] + sep
+                                        )
+                                    ts_iso = (
+                                            ts_iso
+                                            + ts_substrings[-1]
+                                            + timezone
+                                    )
+                                    timestamps.append(ts_iso)
+                                timestamps_units = (
+                                    np.array(timestamps)
+                                    .astype("datetime64[ms]")
+                                    .astype("int")  # convert to int
+                                )
+                                if len(timestamps_units) != unit_num:
+                                    raise ValueError(
+                                        f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                                    )
+                                # upsample gears from 2Hz to 50Hz
+                                timestamps_seconds = list(
+                                    timestamps_units
+                                )  # in ms
+                                sampling_interval = (
+                                        1.0 / signal_freq * 1000
+                                )  # in ms
+                                timestamps = [
+                                    i + j * sampling_interval
+                                    for i in timestamps_seconds
+                                    for j in np.arange(unit_ob_num)
+                                ]
+                                timestamps = np.array(timestamps).reshape(
+                                    (self.truck.CloudUnitNumber, -1)
+                                )
+                                current = ragged_nparray_list_interp(
+                                    value["list_current_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                voltage = ragged_nparray_list_interp(
+                                    value["list_voltage_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                thrust = ragged_nparray_list_interp(
+                                    value["list_pedal_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                brake = ragged_nparray_list_interp(
+                                    value["list_brake_pressure_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                velocity = ragged_nparray_list_interp(
+                                    value["list_speed_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                gears = ragged_nparray_list_interp(
+                                    value["list_gears"],
+                                    ob_num=unit_gear_num,
+                                )
+                                # upsample gears from 2Hz to 50Hz
+                                gears = np.repeat(
+                                    gears,
+                                    (signal_freq // gear_freq),
+                                    axis=1,
+                                )
+
+                                motion_power = np.c_[
+                                    timestamps.reshape(-1, 1),
+                                    velocity.reshape(-1, 1),
+                                    thrust.reshape(-1, 1),
+                                    brake.reshape(-1, 1),
+                                    gears.reshape(-1, 1),
+                                    current.reshape(-1, 1),
+                                    voltage.reshape(-1, 1),
+                                ]  # 1 + 3 + 1 + 2  : im 7
+
+                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
+                                # average concept
+                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
+                                #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                                # here upper bound rule adopted
+                                vel_max = np.amax(velocity)
+                                if vel_max < 20:
+                                    self.vcu_calib_table_row_start = 0
+                                elif vel_max < 30:
+                                    self.vcu_calib_table_row_start = 1
+                                elif vel_max < 120:
+                                    self.vcu_calib_table_row_start = (
+                                            math.floor((vel_max - 30) / 10) + 2
+                                    )
+                                else:
+                                    self.logc.warning(
+                                        f"cycle higher than 120km/h!",
+                                        extra=self.dictLogger,
+                                    )
+                                    self.vcu_calib_table_row_start = 16
+
+                                self.logd.info(
+                                    f"Cycle velocity: Aver{np.mean(velocity):.2f},Min{np.amin(velocity):.2f},Max{np.amax(velocity):.2f},StartIndex{self.vcu_calib_table_row_start}!",
+                                    extra=self.dictLogger,
+                                )
+
+                                with self.captureQ_lock:
+                                    self.motionpowerQueue.put(motion_power)
+                            else:
+                                self.logger.info(
+                                    f"show status: {key}:{value}",
+                                    extra=self.dictLogger,
+                                )
+
+                    except Exception as X:
+                        self.logger.error(
+                            f"show status: exception {X}, data corruption.",
+                            extra=self.dictLogger,
+                        )
+                else:
+                    self.logd.error(
+                        f"get_signals failed: {remotecan_data}",
+                        extra=self.dictLogger,
+                    )
+
+            except Exception as X:
+                self.logc.info(
+                    X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                    extra=self.dictLogger,
+                )
+                break
+
+            self.logc.info(f"Get on record!!!", extra=self.dictLogger)
+            evt_epi_done.clear()
+
+        self.logc.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
+
+    def remote_hmi_state_machine(self, evt_epi_done, evt_remote_get):
         """
         This function is used to get the truck status
         from remote can module
@@ -1042,175 +1234,10 @@ class RealtimeDDPG(object):
                         # time.sleep(0.1)
                 elif key == "data":
                     #  instead of get kvasercan, we get remotecan data here!
-                    try:
-                        if self.get_truck_status_start:  # starts episode
-
-                            with self.remoteClient_lock:
-                                (
-                                    signal_success,
-                                    remotecan_data,
-                                ) = self.remotecan_client.get_signals(
-                                    duration=self.truck.CloudUnitNumber
-                                )
-                            if not isinstance(remotecan_data, dict):
-                                self.logd.critical(
-                                    f"udp sending wrong data type!",
-                                    extra=self.dictLogger,
-                                )
-                                raise TypeError("udp sending wrong data type!")
-
-                            if signal_success == 0:
-                                try:
-                                    signal_freq = self.truck.CloudSignalFrequency
-                                    gear_freq = self.truck.CloudGearFrequency
-                                    unit_duration = self.truck.CloudUnitDuration
-                                    unit_ob_num = unit_duration * signal_freq
-                                    unit_gear_num = unit_duration * gear_freq
-                                    unit_num = self.truck.CloudUnitNumber
-                                    for key, value in remotecan_data.items():
-                                        if key == "result":
-                                            self.logd.info(
-                                                "convert observation state to array.",
-                                                extra=self.dictLogger,
-                                            )
-                                            # timestamp processing
-                                            timestamps = []
-                                            separators = "--T::."  # adaption separators of the raw intest string
-                                            start_century = "20"
-                                            timezone = "+0800"
-                                            for ts in value["timestamps"]:
-                                                # create standard iso string datetime format
-                                                ts_substrings = [
-                                                    ts[i : i + 2]
-                                                    for i in range(0, len(ts), 2)
-                                                ]
-                                                ts_iso = start_century
-                                                for i, sep in enumerate(separators):
-                                                    ts_iso = (
-                                                        ts_iso + ts_substrings[i] + sep
-                                                    )
-                                                ts_iso = (
-                                                    ts_iso
-                                                    + ts_substrings[-1]
-                                                    + timezone
-                                                )
-                                                timestamps.append(ts_iso)
-                                            timestamps_units = (
-                                                np.array(timestamps)
-                                                .astype("datetime64[ms]")
-                                                .astype("int")  # convert to int
-                                            )
-                                            if len(timestamps_units) != unit_num:
-                                                raise ValueError(
-                                                    f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
-                                                )
-                                            # upsample gears from 2Hz to 50Hz
-                                            timestamps_seconds = list(
-                                                timestamps_units
-                                            )  # in ms
-                                            sampling_interval = (
-                                                1.0 / signal_freq * 1000
-                                            )  # in ms
-                                            timestamps = [
-                                                i + j * sampling_interval
-                                                for i in timestamps_seconds
-                                                for j in np.arange(unit_ob_num)
-                                            ]
-                                            timestamps = np.array(timestamps).reshape(
-                                                (self.truck.CloudUnitNumber, -1)
-                                            )
-                                            current = ragged_nparray_list_interp(
-                                                value["list_current_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            voltage = ragged_nparray_list_interp(
-                                                value["list_voltage_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            thrust = ragged_nparray_list_interp(
-                                                value["list_pedal_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            brake = ragged_nparray_list_interp(
-                                                value["list_brake_pressure_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            velocity = ragged_nparray_list_interp(
-                                                value["list_speed_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            gears = ragged_nparray_list_interp(
-                                                value["list_gears"],
-                                                ob_num=unit_gear_num,
-                                            )
-                                            # upsample gears from 2Hz to 50Hz
-                                            gears = np.repeat(
-                                                gears,
-                                                (signal_freq // gear_freq),
-                                                axis=1,
-                                            )
-
-                                            motion_power = np.c_[
-                                                timestamps.reshape(-1, 1),
-                                                velocity.reshape(-1, 1),
-                                                thrust.reshape(-1, 1),
-                                                brake.reshape(-1, 1),
-                                                gears.reshape(-1, 1),
-                                                current.reshape(-1, 1),
-                                                voltage.reshape(-1, 1),
-                                            ]  # 1 + 3 + 1 + 2  : im 7
-
-                                            # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
-                                            # average concept
-                                            # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
-                                            #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                                            # here upper bound rule adopted
-                                            vel_max = np.amax(velocity)
-                                            if vel_max < 20:
-                                                self.vcu_calib_table_row_start = 0
-                                            elif vel_max < 30:
-                                                self.vcu_calib_table_row_start = 1
-                                            elif vel_max < 120:
-                                                self.vcu_calib_table_row_start = (
-                                                    math.floor((vel_max - 30) / 10) + 2
-                                                )
-                                            else:
-                                                self.logc.warning(
-                                                    f"cycle higher than 120km/h!",
-                                                    extra=self.dictLogger,
-                                                )
-                                                self.vcu_calib_table_row_start = 16
-
-                                            self.logd.info(
-                                                f"Cycle velocity: Aver{np.mean(velocity):.2f},Min{np.amin(velocity):.2f},Max{np.amax(velocity):.2f},StartIndex{self.vcu_calib_table_row_start}!",
-                                                extra=self.dictLogger,
-                                            )
-
-                                            with self.captureQ_lock:
-                                                self.motionpowerQueue.put(motion_power)
-                                        else:
-                                            self.logger.info(
-                                                f"show status: {key}:{value}",
-                                                extra=self.dictLogger,
-                                            )
-
-                                except Exception as X:
-                                    self.logger.error(
-                                        f"show status: exception {X}, data corruption.",
-                                        extra=self.dictLogger,
-                                    )
-                            else:
-                                self.logd.error(
-                                    f"get_signals failed: {remotecan_data}",
-                                    extra=self.dictLogger,
-                                )
-
-                    except Exception as X:
-                        self.logc.info(
-                            X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
-                            extra=self.dictLogger,
-                        )
-                        break
+                    if self.get_truck_status_start:  # starts episode
+                        # set flag for remote_get thread
+                        evt_remote_get.set()
+                        self.logc.info(f"Kick off remoteget!!")
                 else:
                     self.logc.warning(
                         f"udp sending message with key: {key}; value: {value}!!!"
@@ -1328,13 +1355,18 @@ class RealtimeDDPG(object):
 
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
+        evt_remote_get = threading.Event()
         thr_countdown = Thread(
             target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done]
         )
         thr_observe = Thread(
-            target=self.get_truck_status, name="observe", args=[evt_epi_done]
+            target=self.get_truck_status, name="observe", args=[evt_epi_done, evt_remote_get]
         )
-        thr_flash = Thread(target=self.flash_vcu, name="flash", args=())
+
+        thr_remoteget = Thread(
+            target=self.remote_get_handler, name="remoteget", args=[]
+        )
+        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_get])
         thr_countdown.start()
         thr_observe.start()
         thr_flash.start()
