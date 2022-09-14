@@ -198,7 +198,8 @@ class RealtimeDDPG(object):
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(json_file_formatter)
-        strfilename = PurePosixPath(logfilename).stem + ".json"
+        # strfilename = PurePosixPath(logfilename).stem + ".json"
+        strfilename = self.logroot.joinpath(PurePosixPath(logfilename).stem + ".json")
         strh = logging.FileHandler(strfilename, mode="a")
         strh.setLevel(logging.DEBUG)
         strh.setFormatter(json_file_formatter)
