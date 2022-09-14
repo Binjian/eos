@@ -1529,12 +1529,12 @@ class RealtimeDDPG(object):
                             if self.cloud:
                                 self.rec = {
                                     "timestamp": datetime.fromtimestamp(
-                                        prev_timestamp[0] / 1000.0
+                                        prev_timestamp.numpy()[0] / 1000.0
                                     ),  # from ms to s
                                     "plot": {
                                         "character": self.truck.TruckName,
                                         "when": datetime.fromtimestamp(
-                                            prev_timestamp[0] / 1000.0
+                                            prev_timestamp.numpy()[0] / 1000.0
                                         ),
                                         "where": "campus",
                                         "states": {
@@ -1553,10 +1553,10 @@ class RealtimeDDPG(object):
                                         },
                                     },
                                     "observation": {
-                                        "state": prev_motion_states.tolist(),
+                                        "state": prev_motion_states.numpy().tolist(),
                                         "action": prev_action,
-                                        "reward": cycle_reward,
-                                        "next_state": motion_states_even.tolist(),
+                                        "reward": cycle_reward.numpy().tolist(),
+                                        "next_state": motion_states_even.numpy().tolist(),
                                     },
                                 }
                                 self.buffer.deposit(self.rec)
