@@ -943,7 +943,7 @@ class RealtimeDDPG(object):
                     continue
 
             self.logger.info(f"wait for remote get trigger", extra=self.dictLogger)
-            evt_epi_done.wait()
+            evt_remote_get.wait()
 
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
@@ -1119,7 +1119,7 @@ class RealtimeDDPG(object):
                 break
 
             self.logc.info(f"Get on record!!!", extra=self.dictLogger)
-            evt_epi_done.clear()
+            evt_remote_get.clear()
 
         self.logc.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
 
