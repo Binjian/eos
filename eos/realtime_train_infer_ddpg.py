@@ -1107,7 +1107,7 @@ class RealtimeDDPG(object):
                 )
                 break
 
-            self.logc.info(f"Get on record!!!", extra=self.dictLogger)
+            self.logc.info(f"Get one record!!!", extra=self.dictLogger)
             evt_remote_get.clear()
 
         self.logc.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
@@ -1168,6 +1168,10 @@ class RealtimeDDPG(object):
                     elif value == "end_valid":
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+
+                        self.logc.info(
+                            "End Valid!!!!!!", extra=self.dictLogger
+                        )
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
@@ -1205,6 +1209,9 @@ class RealtimeDDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
 
+                        self.logc.info(
+                            "Exit!!!!!!", extra=self.dictLogger
+                        )
                         with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
