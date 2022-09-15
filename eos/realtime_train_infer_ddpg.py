@@ -580,7 +580,7 @@ class RealtimeDDPG(object):
                 while not self.motionpowerQueue.empty():
                     self.motionpowerQueue.get()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
-            if self.cloud:
+            if self.cloud is False:
                 self.vel_hist_dQ.clear()
             # raise Exception("reset capture to stop")
         self.logc.info(f"Coutndown dies!!!", extra=self.dictLogger)
@@ -1335,6 +1335,17 @@ class RealtimeDDPG(object):
                     flash_count += 1
                 # watch(flash_count)
 
+        self.logc.info(f"Save the last table!!!!", extra=self.dictLogger)
+
+        last_table_store_path = (
+            self.dataroot.joinpath(  #  there's no slash in the end of the string
+                "last_table_ddpg-"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + ".csv"
+            )
+        )
+        with open(last_table_store_path, "wb") as f:
+            self.vcu_calib_table1.to_csv(last_table_store_path)
         # motionpowerQueue.join()
         self.logc.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
 
@@ -1354,11 +1365,13 @@ class RealtimeDDPG(object):
         )
 
         thr_remoteget = Thread(
-            target=self.remote_get_handler, name="remoteget", args=[]
+            target=self.remote_get_handler, name="remoteget", args=[evt_remote_get]
         )
-        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_get])
+        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[])
         thr_countdown.start()
         thr_observe.start()
+        if self.cloud:
+            thr_remoteget.start()
         thr_flash.start()
 
         """
@@ -1723,22 +1736,6 @@ class RealtimeDDPG(object):
         thr_observe.join()
         thr_flash.join()
 
-        # TODOt  test restore last table
-        self.logc.info(f"Save the last table!!!!", extra=self.dictLogger)
-
-        pds_last_table = pd.DataFrame(
-            self.vcu_calib_table1, self.pd_index, self.pd_columns
-        )
-
-        last_table_store_path = (
-            self.dataroot.joinpath(  #  there's no slash in the end of the string
-                "last_table_ddpg-"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-                + ".csv"
-            )
-        )
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
 
         if self.cloud is False:
             self.buffer.save()
