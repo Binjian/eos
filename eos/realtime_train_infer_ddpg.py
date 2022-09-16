@@ -1690,7 +1690,7 @@ class RealtimeDDPG(object):
             running_reward = 0.05 * (-episode_reward) + (1 - 0.05) * running_reward
 
             # Create a matplotlib 3d figure, //export and save in log
-            fig = plot_3d_figure(self.vcu_calib_table1, self.pd_columns, self.pd_index)
+            fig = plot_3d_figure(self.vcu_calib_table1)
 
             # tf logging after episode ends
             # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple self.logdir and automatic switch

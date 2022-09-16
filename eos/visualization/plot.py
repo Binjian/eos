@@ -7,27 +7,25 @@ import pandas as pd
 # local import
 
 
-def plot_3d_figure(table, pd_columns, pd_index):
-    """Create a matplotlib 3d figure, //export and save in log"""
-    pd_data = pd.DataFrame(
-        table,
-        columns=pd_columns,
-        index=pd_index,
-    )
-    df = pd_data.unstack().reset_index()
-    df.columns = ["pedal", "velocity", "throttle"]
+def plot_3d_figure(table: pd.DataFrame):
+    """Create a matplotlib 3d figure, //export and save in log
+    table: pd.DataFrame
+    """
+
+    df = table.unstack().reset_index()
+    df.columns = ["pedal", "velocity", "torque"]
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     surf = ax.plot_trisurf(
         df["pedal"],
         df["velocity"],
-        df["throttle"],
-        cmap=plt.cm.viridis,
-        linewidth=0.2,
+        df["torque"],
+        cmap=plt.cm.YlGnBu,
+        linewidth=5,
     )
     fig.colorbar(surf, shrink=0.5, aspect=5)
-    ax.view_init(30, 135)
+    ax.view_init(30, 175)
 
     return fig
     # plt.show()
