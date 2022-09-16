@@ -1488,7 +1488,7 @@ class RealtimeDDPG(object):
                         out = tf.split(
                             motionpower_states, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
-                        (timstamp, motion_states, gear_states, power_states) = [
+                        (timestamp, motion_states, gear_states, power_states) = [
                             tf.squeeze(x) for x in out
                         ]
                     else:
@@ -1515,130 +1515,109 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
 
-                    if (
-                        step_count % 2
-                    ) == 0:  # only for even observation/reward take an action
-                        # k_cycle = 1000  # TODO determine the ratio
-                        # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                        # wh0 = wh  # add velocitoy sum as reward
-                        wh0 = wh
-                        # motion_states_history.append(motion_states)
-                        if (
-                            step_count != 0
-                        ):  # not the first step, starting from the second step
-                            prev_motion_states = motion_states_even
-                            prev_timestamp = timestamp_even
-                            prev_table_start = table_start
-                            if self.cloud:
-                                prev_action = vcu_action_reduced.numpy().tolist()
-                            else:
-                                prev_action = vcu_action_reduced
+                    # !!!no parallel even!!!
 
-                        motion_states_even = motion_states
-                        timestamp_even = timstamp
 
-                        motion_states0 = tf.expand_dims(
-                            motion_states_even, 0
-                        )  # motion states is 30*3 matrix
+                    motion_states0 = tf.expand_dims(
+                        motion_states, 0
+                    )  # motion states is 30*3 matrix
 
-                        # predict action probabilities and estimated future rewards
-                        # from environment state
-                        # for causal rl, the odd indexed observation/reward are caused by last action
-                        # skip the odd indexed observation/reward for policy to make it causal
-                        self.logc.info(
-                            f"E{epi_cnt} before inference!",
-                            extra=self.dictLogger,
-                        )
-                        vcu_action_reduced = policy(
-                            self.actor_model, motion_states0, self.ou_noise
-                        )
+                    # predict action probabilities and estimated future rewards
+                    # from environment state
+                    # for causal rl, the odd indexed observation/reward are caused by last action
+                    # skip the odd indexed observation/reward for policy to make it causal
+                    self.logc.info(
+                        f"E{epi_cnt} before inference!",
+                        extra=self.dictLogger,
+                    )
+                    vcu_action_reduced = policy(
+                        self.actor_model, motion_states0, self.ou_noise
+                    )
 
+                    self.logd.info(
+                        f"E{epi_cnt} inference done with reduced action space!",
+                        extra=self.dictLogger,
+                    )
+
+                    # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
+                    with self.tableQ_lock:
+                        self.tableQueue.put(vcu_action_reduced)
                         self.logd.info(
-                            f"E{epi_cnt} inference done with reduced action space!",
+                            f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
                         )
+                    self.logc.info(
+                        f"E{epi_cnt} Finish Inference Step: {step_count}",
+                        extra=self.dictLogger,
+                    )
 
-                        # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                        with self.tableQ_lock:
-                            self.tableQueue.put(vcu_action_reduced)
-                            self.logd.info(
-                                f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
-                                extra=self.dictLogger,
-                            )
-                        self.logc.info(
-                            f"E{epi_cnt} Finish Step: {step_count}",
-                            extra=self.dictLogger,
-                        )
+                    # !!!no parallel odd!!!
+                    cycle_reward =  wh * (-1.0)
+                    episode_reward += cycle_reward
+                    if step_count > 0:  # starting from 3rd step
 
-                    # during odd steps, old action remains effective due to learn and flash delay
-                    # so ust record the reward history
-                    # motion states (observation) are not used later for backpropagation
-                    else:
-                        # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
-                        # Bugfix: the reward recorded in the first even step is not causal
-                        # cycle_reward should include the most recent even wh in the even step
-                        # record the odd step wh
-
-                        cycle_reward = (wh0 + wh) * (
-                            -1.0
-                        )  # most recent odd and even indexed reward
-                        if step_count != 1:  # starting from 3rd step
-                            episode_reward += cycle_reward
-
-                            if self.cloud:
-                                self.rec = {
-                                    "timestamp": datetime.fromtimestamp(
+                        if self.cloud:
+                            self.rec = {
+                                "timestamp": datetime.fromtimestamp(
+                                    prev_timestamp.numpy()[0] / 1000.0
+                                ),  # from ms to s
+                                "plot": {
+                                    "character": self.truck.TruckName,
+                                    "when": datetime.fromtimestamp(
                                         prev_timestamp.numpy()[0] / 1000.0
-                                    ),  # from ms to s
-                                    "plot": {
-                                        "character": self.truck.TruckName,
-                                        "when": datetime.fromtimestamp(
-                                            prev_timestamp.numpy()[0] / 1000.0
-                                        ),
-                                        "where": "campus",
-                                        "states": {
-                                            "velocity_unit": "kmph",
-                                            "thrust_unit": "percentage",
-                                            "brake_unit": "percentage",
-                                            "length": motion_states_even.shape[0],
-                                        },
-                                        "actions": {
-                                            "action_row_number": self.vcu_calib_table_row_reduced,
-                                            "action_column_number": self.vcu_calib_table_col,
-                                            "action_start_row": prev_table_start,
-                                        },
-                                        "reward": {
-                                            "reward_unit": "wh",
-                                        },
+                                    ),
+                                    "where": "campus",
+                                    "states": {
+                                        "velocity_unit": "kmph",
+                                        "thrust_unit": "percentage",
+                                        "brake_unit": "percentage",
+                                        "length": motion_states_even.shape[0],
                                     },
-                                    "observation": {
-                                        "state": prev_motion_states.numpy().tolist(),
-                                        "action": prev_action,
-                                        "reward": cycle_reward.numpy().tolist(),
-                                        "next_state": motion_states_even.numpy().tolist(),
+                                    "actions": {
+                                        "action_row_number": self.vcu_calib_table_row_reduced,
+                                        "action_column_number": self.vcu_calib_table_col,
+                                        "action_start_row": prev_table_start,
                                     },
-                                }
-                                self.buffer.deposit(self.rec)
-                            else:
-                                self.buffer.record(
-                                    (
-                                        prev_motion_states,
-                                        prev_action,
-                                        cycle_reward,
-                                        motion_states,
-                                    )
+                                    "reward": {
+                                        "reward_unit": "wh",
+                                    },
+                                },
+                                "observation": {
+                                    "state": prev_motion_states.numpy().tolist(),
+                                    "action": prev_action,
+                                    "reward": cycle_reward.numpy().tolist(),
+                                    "next_state": motion_states_even.numpy().tolist(),
+                                },
+                            }
+                            self.buffer.deposit(self.rec)
+                        else:
+                            self.buffer.record(
+                                (
+                                    prev_motion_states,
+                                    prev_action,
+                                    cycle_reward,
+                                    motion_states,
                                 )
+                            )
 
-                        # TODO add speed sum as positive reward
-                        self.logc.info(
-                            f"E{epi_cnt} Step done: {step_count}",
-                            extra=self.dictLogger,
-                        )
+                        prev_motion_states = motion_states
+                        prev_timestamp = timestamp
+                        prev_table_start = table_start
+                        if self.cloud:
+                            prev_action = vcu_action_reduced.numpy().tolist()
+                        else:
+                            prev_action = vcu_action_reduced
 
-                        # motion_states = tf.stack([motion_states0, motion_states])
-                        # motion_states_history was not used for back propagation
-                        # 60 frames, but never used again
-                        # motion_states_history.append(motion_states)
+                    # TODO add speed sum as positive reward
+                    self.logc.info(
+                        f"E{epi_cnt} Step done: {step_count}",
+                        extra=self.dictLogger,
+                    )
+
+                    # motion_states = tf.stack([motion_states0, motion_states])
+                    # motion_states_history was not used for back propagation
+                    # 60 frames, but never used again
+                    # motion_states_history.append(motion_states)
 
                     # step level
                     step_count += 1
