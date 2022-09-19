@@ -327,6 +327,8 @@ class TestRemoteCanPool(unittest.TestCase):
         reward = [rec["observation"]["reward"] for rec in batch_24]
         next_state = [rec["observation"]["next_state"] for rec in batch_24]
 
+
+
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
@@ -368,7 +370,23 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_pool_consecutive_observation(self):
+    def test_native_pool_consecutive_observations(self):
+        self.client = RemoteCan(
+            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+        )
+
+        self.logger.info("Start observation test", extra=self.dictLogger)
+        for rec_cnt in range(3):
+
+            self.native_get()
+            self.logger.info(
+                f"Get and deposit Observation No. {rec_cnt}", extra=self.dictLogger
+            )
+
+        self.logger.info("Done with get consecutive observation test", extra=self.dictLogger)
+
+    @unittest.skipIf(site == "internal", "skip for internal test")
+    def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
         )
@@ -403,7 +421,7 @@ class TestRemoteCanPool(unittest.TestCase):
             # ]
             # self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dictLogger)
 
-        self.logger.info("Done with observation test", extra=self.dictLogger)
+        self.logger.info("Done with consecutive getting record test", extra=self.dictLogger)
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_consecutive_flash_test(self):
@@ -929,7 +947,7 @@ class TestRemoteCanPool(unittest.TestCase):
         )
 
         data_type = type(remotecan_data)
-        self.logger.info(f"data type: {data_type}")
+        # self.logger.info(f"data type: {data_type}")
         if not isinstance(remotecan_data, dict):
             raise TypeError("udp sending wrong data type!")
         if signal_success == 0:
