@@ -1586,7 +1586,7 @@ class RealtimeDDPG(object):
                                         "velocity_unit": "kmph",
                                         "thrust_unit": "percentage",
                                         "brake_unit": "percentage",
-                                        "length": motion_states_even.shape[0],
+                                        "length": motion_states.shape[0],
                                     },
                                     "actions": {
                                         "action_row_number": self.vcu_calib_table_row_reduced,
@@ -1601,7 +1601,7 @@ class RealtimeDDPG(object):
                                     "state": prev_motion_states.numpy().tolist(),
                                     "action": prev_action,
                                     "reward": cycle_reward.numpy().tolist(),
-                                    "next_state": motion_states_even.numpy().tolist(),
+                                    "next_state": motion_states.numpy().tolist(),
                                 },
                             }
                             self.buffer.deposit(self.rec)
@@ -1615,13 +1615,13 @@ class RealtimeDDPG(object):
                                 )
                             )
 
-                        prev_motion_states = motion_states
-                        prev_timestamp = timestamp
-                        prev_table_start = table_start
-                        if self.cloud:
-                            prev_action = vcu_action_reduced.numpy().tolist()
-                        else:
-                            prev_action = vcu_action_reduced
+                    prev_motion_states = motion_states
+                    prev_timestamp = timestamp
+                    prev_table_start = table_start
+                    if self.cloud:
+                        prev_action = vcu_action_reduced.numpy().tolist()
+                    else:
+                        prev_action = vcu_action_reduced
 
                     # TODO add speed sum as positive reward
                     self.logc.info(
