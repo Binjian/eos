@@ -1118,16 +1118,19 @@ class RealtimeDDPG(object):
             )
             # now we can say remote_get is done and wait for remote_flash to be done
             evt_remote_flash.wait()
-            self.logc.info(
-                f"remote_flash done, reset inner lock, restart remote_get!!!",
-                extra=self.dictLogger,
-            )
+
+            if not get_truck_status_start:
+                self.logc.info(
+                    f"remote_flash skipped, reset inner lock, restart remote_get!!!",
+                    extra=self.dictLogger,
+                )
+            else:
+                self.logc.info(
+                    f"remote_flash done, reset inner lock, restart remote_get!!!",
+                    extra=self.dictLogger,
+                )
             # reset the inner lock immediately
             evt_remote_flash.clear()
-
-            self.logc.info(
-                f"remote_flash done. restart remote_get!!!", extra=self.dictLogger
-            )
             # unlock the outer hmi lock
             evt_remote_get.clear()
 
@@ -1473,6 +1476,8 @@ class RealtimeDDPG(object):
                         epi_end = True
 
                     if epi_end:  # stop observing and inferring
+                        self.logc.info(f"epi_end is True, break, free remote_flash!", extra=self.dictLogger)
+                        evt_remote_flash.set()
                         continue
 
                     try:
