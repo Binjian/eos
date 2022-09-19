@@ -119,7 +119,7 @@ class RealtimeDDPG(object):
         self.path = path
 
         self.repo = Repo(self.projroot)
-        assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
+        # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if resume:
             self.dataroot = projroot.joinpath("data/" + self.path)
@@ -129,7 +129,7 @@ class RealtimeDDPG(object):
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
         self.logger.info(
-            f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.message}",
+            f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
 
