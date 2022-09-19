@@ -558,7 +558,7 @@ class RealtimeDDPG(object):
     # @eye
     # tracer.start()
 
-    def capture_countdown_handler(self, evt_epi_done: threading.Event):
+    def capture_countdown_handler(self, evt_epi_done :threading.Event, evt_remote_get :threading.Event):
 
         th_exit = False
         while not th_exit:
@@ -587,6 +587,9 @@ class RealtimeDDPG(object):
             with self.captureQ_lock:
                 while not self.motionpowerQueue.empty():
                     self.motionpowerQueue.get()
+
+            # unlock remote_get_handler
+            evt_remote_get.set()
             self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
             if self.cloud is False:
                 self.vel_hist_dQ.clear()
@@ -950,11 +953,15 @@ class RealtimeDDPG(object):
             with self.hmi_lock:
                 if self.program_exit:
                     th_exit = True
+                    get_truck_status_start = self.get_truck_status_start
                     continue
 
             self.logger.info(f"wait for remote get trigger", extra=self.dictLogger)
             evt_remote_get.wait()
 
+            if not get_truck_status_start:
+                evt_remote_get.clear()
+                continue
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
             self.logger.info(f"Wake up to fetch remote data", extra=self.dictLogger)
@@ -1228,6 +1235,9 @@ class RealtimeDDPG(object):
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
                         th_exit = False
+
+                        # remote_get_handler exit
+                        evt_remote_get.set()
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = True
@@ -1237,6 +1247,9 @@ class RealtimeDDPG(object):
                         self.get_truck_status_motpow_t = []
 
                         self.logc.info("Exit!!!!!!", extra=self.dictLogger)
+
+                        # remote_get_handler exit
+                        evt_remote_get.set()
                         with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
@@ -1398,7 +1411,7 @@ class RealtimeDDPG(object):
         evt_remote_get = threading.Event()
         evt_remote_flash = threading.Event()
         thr_countdown = Thread(
-            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done]
+            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done, evt_remote_get]
         )
         thr_observe = Thread(
             target=self.get_truck_status,
