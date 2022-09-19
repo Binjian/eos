@@ -970,7 +970,6 @@ class RealtimeDDPG(object):
                 )
                 raise TypeError("udp sending wrong data type!")
             try:
-
                 if signal_success == 0:
                     try:
                         signal_freq = self.truck.CloudSignalFrequency
@@ -1090,10 +1089,11 @@ class RealtimeDDPG(object):
                                 with self.captureQ_lock:
                                     self.motionpowerQueue.put(motion_power)
                             else:
-                                self.logger.info(
-                                    f"show status: {key}:{value}",
-                                    extra=self.dictLogger,
-                                )
+                                # self.logger.info(
+                                #     f"show status: {key}:{value}",
+                                #     extra=self.dictLogger,
+                                # )
+                                pass
 
                     except Exception as X:
                         self.logger.error(
@@ -1174,6 +1174,9 @@ class RealtimeDDPG(object):
             for key, value in pop_data.items():
                 if key == "status":  # state machine chores
                     # print(candata)
+                    # self.logc.info(
+                    #     f"Status data: key={key},value={value}!!!!!!", extra=self.dictLogger
+                    # )
                     if value == "begin":
                         self.get_truck_status_start = True
                         self.logc.info(
@@ -1251,7 +1254,7 @@ class RealtimeDDPG(object):
                     if self.get_truck_status_start:  # starts episode
                         # set flag for remote_get thread
                         evt_remote_get.set()
-                        self.logc.info(f"Kick off remoteget!!")
+                        # self.logc.info(f"Kick off remoteget!!")
                 else:
                     self.logc.warning(
                         f"udp sending message with key: {key}; value: {value}!!!"
@@ -1336,10 +1339,10 @@ class RealtimeDDPG(object):
                     with open(curr_table_store_path, "wb") as f:
                         self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
-                    self.logd.info(
-                        f"E{epi_cnt} done with record instant table: {step_count}",
-                        extra=self.dictLogger,
-                    )
+                    # self.logd.info(
+                    #     f"E{epi_cnt} done with record instant table: {step_count}",
+                    #     extra=self.dictLogger,
+                    # )
 
                 self.logc.info(f"flash starts", extra=self.dictLogger)
 
@@ -1458,7 +1461,7 @@ class RealtimeDDPG(object):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                    self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
+                    # self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
@@ -1473,9 +1476,9 @@ class RealtimeDDPG(object):
                         continue
 
                     try:
-                        self.logc.info(
-                            f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
-                        )
+                        # self.logc.info(
+                        #     f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
+                        # )
 
                         with self.captureQ_lock:
                             motionpower = self.motionpowerQueue.get(
