@@ -558,7 +558,7 @@ class RealtimeDDPG(object):
     # @eye
     # tracer.start()
 
-    def capture_countdown_handler(self, evt_epi_done :threading.Event):
+    def capture_countdown_handler(self, evt_epi_done: threading.Event):
 
         th_exit = False
         while not th_exit:
@@ -941,7 +941,9 @@ class RealtimeDDPG(object):
 
         self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
-    def remote_get_handler(self, evt_remote_get :threading.Event, evt_remote_flash :threading.Event):
+    def remote_get_handler(
+        self, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+    ):
 
         th_exit = False
         while not th_exit:
@@ -957,10 +959,7 @@ class RealtimeDDPG(object):
             # cancel wait as soon as waking up
             self.logger.info(f"Wake up to fetch remote data", extra=self.dictLogger)
             with self.remoteClient_lock:
-                (
-                    signal_success,
-                    remotecan_data,
-                ) = self.remotecan_client.get_signals(
+                (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
                     duration=self.truck.CloudUnitNumber
                 )
 
@@ -1114,20 +1113,29 @@ class RealtimeDDPG(object):
                 )
                 break
 
-            self.logc.info(f"Get one record, wait for remote_flash!!!", extra=self.dictLogger)
+            self.logc.info(
+                f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
+            )
             # now we can say remote_get is done and wait for remote_flash to be done
             evt_remote_flash.wait()
-            self.logc.info(f"remote_flash done, reset inner lock, restart remote_get!!!", extra=self.dictLogger)
+            self.logc.info(
+                f"remote_flash done, reset inner lock, restart remote_get!!!",
+                extra=self.dictLogger,
+            )
             # reset the inner lock immediately
             evt_remote_flash.clear()
 
-            self.logc.info(f"remote_flash done. restart remote_get!!!", extra=self.dictLogger)
+            self.logc.info(
+                f"remote_flash done. restart remote_get!!!", extra=self.dictLogger
+            )
             # unlock the outer hmi lock
             evt_remote_get.clear()
 
         self.logc.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
 
-    def remote_hmi_state_machine(self, evt_epi_done :threading.Event, evt_remote_get :threading.Event):
+    def remote_hmi_state_machine(
+        self, evt_epi_done: threading.Event, evt_remote_get: threading.Event
+    ):
         """
         This function is used to get the truck status
         from remote can module
@@ -1184,9 +1192,7 @@ class RealtimeDDPG(object):
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                        self.logc.info(
-                            "End Valid!!!!!!", extra=self.dictLogger
-                        )
+                        self.logc.info("End Valid!!!!!!", extra=self.dictLogger)
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
@@ -1224,9 +1230,7 @@ class RealtimeDDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
 
-                        self.logc.info(
-                            "Exit!!!!!!", extra=self.dictLogger
-                        )
+                        self.logc.info("Exit!!!!!!", extra=self.dictLogger)
                         with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
@@ -1258,7 +1262,7 @@ class RealtimeDDPG(object):
         s.close()
         self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
 
-    def remote_flash_vcu(self, evt_remote_flash :threading.Event):
+    def remote_flash_vcu(self, evt_remote_flash: threading.Event):
         """
         trigger 1: tableQueue is not empty
         trigger 2: remote client is available as signaled by the remote_get thread
@@ -1366,7 +1370,6 @@ class RealtimeDDPG(object):
 
                 # watch(flash_count)
 
-
         self.logc.info(f"Save the last table!!!!", extra=self.dictLogger)
 
         last_table_store_path = (
@@ -1398,7 +1401,9 @@ class RealtimeDDPG(object):
         )
 
         thr_remoteget = Thread(
-            target=self.remote_get_handler, name="remoteget", args=[evt_remote_get, evt_remote_flash]
+            target=self.remote_get_handler,
+            name="remoteget",
+            args=[evt_remote_get, evt_remote_flash],
         )
         thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
         thr_countdown.start()
@@ -1525,7 +1530,6 @@ class RealtimeDDPG(object):
 
                     # !!!no parallel even!!!
 
-
                     motion_states0 = tf.expand_dims(
                         motion_states, 0
                     )  # motion states is 30*3 matrix
@@ -1560,7 +1564,7 @@ class RealtimeDDPG(object):
                     )
 
                     # !!!no parallel odd!!!
-                    cycle_reward =  wh * (-1.0)
+                    cycle_reward = wh * (-1.0)
                     episode_reward += cycle_reward
                     if step_count > 0:  # starting from 3rd step
 
@@ -1747,7 +1751,6 @@ class RealtimeDDPG(object):
         thr_countdown.join()
         thr_observe.join()
         thr_flash.join()
-
 
         if self.cloud is False:
             self.buffer.save()

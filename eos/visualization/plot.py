@@ -16,7 +16,7 @@ def plot_3d_figure(table: pd.DataFrame):
     df.columns = ["pedal", "velocity", "torque"]
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
     surf = ax.plot_trisurf(
         df["pedal"],
         df["velocity"],
