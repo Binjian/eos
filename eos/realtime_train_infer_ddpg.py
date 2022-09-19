@@ -1658,20 +1658,26 @@ class RealtimeDDPG(object):
                 self.logd.info("Learning and updating 6 times!")
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    (critic_loss, actor_loss) = self.buffer.learn()
+                    if self.buffer.buffer_counter > 0:
+                        (critic_loss, actor_loss) = self.buffer.learn()
 
-                    update_target(
-                        self.target_actor.variables,
-                        self.actor_model.variables,
-                        self.tau,
-                    )
-                    # self.logger.info(f"Updated target actor", extra=self.dictLogger)
-                    update_target(
-                        self.target_critic.variables,
-                        self.critic_model.variables,
-                        self.tau,
-                    )
-                    # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+                        update_target(
+                            self.target_actor.variables,
+                            self.actor_model.variables,
+                            self.tau,
+                        )
+                        # self.logger.info(f"Updated target actor", extra=self.dictLogger)
+                        update_target(
+                            self.target_critic.variables,
+                            self.critic_model.variables,
+                            self.tau,
+                        )
+                        # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+                    else:
+                        self.logger.info(f"Buffer empty, no learning!", extra=self.dictLogger)
+                        self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
+                        continue
+
 
                 # Checkpoint manager save model
                 self.ckpt_actor.step.assign_add(1)
