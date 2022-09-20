@@ -24,45 +24,42 @@ as energy consumption
 
 import argparse
 import json
-
 # logging
 import logging
 import math
-
 # system imports
 import os
-import sys
 import queue
 import socket
+import sys
 import threading
 import time
 import warnings
-
 # third party imports
 from collections import deque
 from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
 from threading import Lock, Thread
-from bson import ObjectId
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 # tf.debugging.set_log_device_placement(True)
 # visualization import
 import pandas as pd
 import tensorflow as tf
+from bson import ObjectId
 from pythonjsonlogger import jsonlogger
-
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
 from eos import Pool, dictLogger, logger, projroot
 from eos.agent import RDPG
-from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, VELOCITY_SCALES_MULE, VELOCITY_SCALES_VB, trucks
+from eos.comm import (RemoteCan, generate_vcu_calibration,
+                      kvaser_send_float_array)
+from eos.config import (PEDAL_SCALES, VELOCITY_SCALES_MULE, VELOCITY_SCALES_VB,
+                        trucks)
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 from eos.visualization import plot_3d_figure, plot_to_image

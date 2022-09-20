@@ -13,16 +13,15 @@ import numpy as np
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
-
 # from pymongoarrow.api import Schema
 from bson import ObjectId
-from pymongoarrow.monkey import patch_all
-
 from keras.utils import pad_sequences
+from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
 from eos.comm import generate_vcu_calibration
-from eos.config import trucks, dbs_record, record_schemas, dbs_episode, episode_schemas
+from eos.config import (dbs_episode, dbs_record, episode_schemas,
+                        record_schemas, trucks)
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 

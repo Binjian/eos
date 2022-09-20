@@ -1,5 +1,6 @@
 from collections import namedtuple
 from datetime import datetime
+
 from bson import ObjectId
 
 DB = namedtuple(

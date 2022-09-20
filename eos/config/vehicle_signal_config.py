@@ -1,6 +1,5 @@
 from collections import namedtuple
 
-
 PEDAL_SCALES = [
     0,
     0.02,

@@ -5,10 +5,8 @@ logging service for the package
 
 import datetime
 import inspect
-
 # Logging Service Initialization
 import logging
-
 # system imports
 import os
 from logging.handlers import SocketHandler

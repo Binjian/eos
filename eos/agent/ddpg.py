@@ -67,19 +67,18 @@ accumulated so far.
 
 Now, let's see how is it implemented.
 """
+from datetime import datetime
+
+import bson
 import keras.initializers as initializers
 import numpy as np
-import tensorflow as tf
-from keras import layers
-
-from datetime import datetime
-import bson
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
-
+import tensorflow as tf
 # from pymongoarrow.api import Schema
 from bson import ObjectId
+from keras import layers
 from pymongoarrow.monkey import patch_all
 
 patch_all()

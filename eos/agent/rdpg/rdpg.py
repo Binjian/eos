@@ -93,31 +93,28 @@ the maximum predicted value as seen by the Critic, for a given state.
 
 # system imports
 import os
+from datetime import datetime
 
+import bson
 import keras.initializers as initializers
-
 # third-party imports
 import numpy as np
-import tensorflow as tf
-from keras import layers
-from keras.utils import pad_sequences
-
-from datetime import datetime
-import bson
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
-
+import tensorflow as tf
 # from pymongoarrow.api import Schema
 from bson import ObjectId
+from keras import layers
+from keras.utils import pad_sequences
 from pymongoarrow.monkey import patch_all
 
 patch_all()
 
 # local imports
 from eos import Pool, dictLogger, logger
-from eos.utils.exception import ReadOnlyError
 from eos.config import dbs_episode, episode_schemas
+from eos.utils.exception import ReadOnlyError
 
 from .actor import ActorNet
 from .critic import CriticNet
