@@ -991,7 +991,6 @@ class RealtimeDDPG(object):
                                 timestamps = []
                                 separators = "--T::."  # adaption separators of the raw intest string
                                 start_century = "20"
-                                timezone = "+0800"
                                 for ts in value["timestamps"]:
                                     # create standard iso string datetime format
                                     ts_substrings = [
@@ -1000,11 +999,10 @@ class RealtimeDDPG(object):
                                     ts_iso = start_century
                                     for i, sep in enumerate(separators):
                                         ts_iso = ts_iso + ts_substrings[i] + sep
-                                    ts_iso = ts_iso + ts_substrings[-1] + timezone
+                                    ts_iso = ts_iso + ts_substrings[-1]
                                     timestamps.append(ts_iso)
                                 timestamps_units = (
-                                    np.array(timestamps)
-                                    .astype("datetime64[ms]")
+                                    (np.array(timestamps).astype("datetime64[ms]") - np.timedelta64(8, "h"))  # convert to UTC+8
                                     .astype("int")  # convert to int
                                 )
                                 if len(timestamps_units) != unit_num:
