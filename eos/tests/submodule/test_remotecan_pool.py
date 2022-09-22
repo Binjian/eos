@@ -989,10 +989,8 @@ class TestRemoteCanPool(unittest.TestCase):
                             ts_iso = ts_iso + ts_substrings[-1]
                             timestamps.append(ts_iso)
                         timestamps_units = (
-                            np.array(timestamps)
-                            .astype("datetime64[ms]")
+                            (np.array(timestamps).astype("datetime64[ms]") - np.timedelta64(8, "h"))  # convert to UTC+8
                             .astype("int")  # convert to int
-                            + np.timedelta64(8, "h")  # convert to UTC+8
                         )
                         if len(timestamps_units) != unit_num:
                             raise ValueError(
