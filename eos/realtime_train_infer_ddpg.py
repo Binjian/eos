@@ -963,8 +963,8 @@ class RealtimeDDPG(object):
             self.logger.info(f"Wake up to fetch remote data", extra=self.dictLogger)
             with self.remoteClient_lock:
                 (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
-                    duration=self.truck.CloudUnitNumber
-                )
+                    duration=self.truck.CloudUnitNumber, timeout=self.truck.CloudUnitNumber+1
+                )  # timeout is 1 second longer than duration
 
             if not isinstance(remotecan_data, dict):
                 self.logd.critical(
@@ -1375,7 +1375,10 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
                     continue
-                self.logc.info(f"flash starts", extra=self.dictLogger)
+
+                # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
+                timeout = self.vcu_calib_table_row_reduced + 1
+                self.logc.info(f"flash starts, timeout={timeout}s", extra=self.dictLogger)
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
@@ -1384,6 +1387,7 @@ class RealtimeDDPG(object):
                             table_start : self.vcu_calib_table_row_reduced + table_start
                         ],
                         swap=False,
+                        timeout=timeout,
                     )
                 # time.sleep(1.0)
 
