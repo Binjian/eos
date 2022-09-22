@@ -1046,17 +1046,17 @@ class TestRemoteCanPool(unittest.TestCase):
                         self.logger.info(
                             f"show status: {key}:{value}", extra=self.dictLogger
                         )
-                        print(f"{key}:{value}")
             except Exception as X:
-                print(f"{X}:data corrupt!")
                 self.logger.error(
                     f"show status: exception {X}, data corruption",
                     extra=self.dictLogger,
                 )
                 return
         else:
-            print("upload corrupt!")
-            print("reson", remotecan_data)
+            self.logger.error(
+                f"Upload corrupt! remotecan_data: {remotecan_data}",
+                extra=self.dictLogger,
+            )
 
 
 if __name__ == "__main__":
