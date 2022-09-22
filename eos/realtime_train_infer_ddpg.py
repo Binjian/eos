@@ -24,56 +24,50 @@ as energy consumption
 
 import argparse
 import json
-
 # logging
 import logging
 import math
-
 # system imports
 import os
-import sys
 import queue
 import socket
+import sys
 import threading
 import time
 import warnings
-
 # third party imports
 from collections import deque
 from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
 from threading import Lock, Thread
-from git import Repo
-
-# from bson import ObjectId
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 # tf.debugging.set_log_device_placement(True)
 # visualization import
 import pandas as pd
 import tensorflow as tf
+from git import Repo
 from pythonjsonlogger import jsonlogger
-
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
 from eos import dictLogger, logger, projroot
-from eos.agent import (
-    Buffer,
-    OUActionNoise,
-    get_actor,
-    get_critic,
-    policy,
-    update_target,
-)
-from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
+from eos.agent import (Buffer, OUActionNoise, get_actor, get_critic, policy,
+                       update_target)
+from eos.comm import (RemoteCan, generate_vcu_calibration,
+                      kvaser_send_float_array)
 from eos.config import PEDAL_SCALES, trucks
 from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
+
+# from bson import ObjectId
+
+
+
+
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -949,18 +943,20 @@ class RealtimeDDPG(object):
     ):
 
         th_exit = False
+
         while not th_exit:
             with self.hmi_lock:
                 if self.program_exit:
-                    th_exit = True
-                    get_truck_status_start = self.get_truck_status_start
+                    th_exit = self.program_exit
                     continue
+                episode_end = self.episode_end
 
             self.logger.info(f"wait for remote get trigger", extra=self.dictLogger)
             evt_remote_get.wait()
 
-            if not get_truck_status_start:
+            if episode_end is True:
                 evt_remote_get.clear()
+                self.logger.info(f"Episode end and continue without get_signals!", extra=self.dictLogger)
                 continue
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
@@ -1120,18 +1116,23 @@ class RealtimeDDPG(object):
                 )
                 break
 
-            self.logc.info(
-                f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
-            )
-            # now we can say remote_get is done and wait for remote_flash to be done
-            evt_remote_flash.wait()
 
-            if not get_truck_status_start:
+            with self.hmi_lock:
+                th_exit = self.program_exit
+                episode_end = self.episode_end
+
+            if episode_end is True:
                 self.logc.info(
-                    f"remote_flash skipped, reset inner lock, restart remote_get!!!",
+                    f"Episode ends, not waiting for evt_remote_flash and continue!",
                     extra=self.dictLogger,
                 )
+
             else:
+                self.logc.info(
+                    f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
+                )
+                # now we can say remote_get is done and wait for remote_flash to be done
+                evt_remote_flash.wait()
                 self.logc.info(
                     f"remote_flash done, reset inner lock, restart remote_get!!!",
                     extra=self.dictLogger,
@@ -1299,6 +1300,8 @@ class RealtimeDDPG(object):
                 if self.program_exit:
                     th_exit = True
                     continue
+
+            self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
                 with self.tableQ_lock:
@@ -1360,8 +1363,19 @@ class RealtimeDDPG(object):
                     #     extra=self.dictLogger,
                     # )
 
-                self.logc.info(f"flash starts", extra=self.dictLogger)
 
+                with self.hmi_lock:
+                    th_exit = self.program_exit
+                    episode_end = self.episode_end
+
+                if episode_end is True:
+                    evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
+                    self.logc.info(
+                        f"Episode ends, skipping remote_flash and continue!",
+                        extra=self.dictLogger,
+                    )
+                    continue
+                self.logc.info(f"flash starts", extra=self.dictLogger)
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
