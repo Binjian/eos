@@ -956,7 +956,7 @@ class TestRemoteCanPool(unittest.TestCase):
                 # )
                 # print(f"print whole json string:{json_string}")
 
-                self.logger.info("show remotecan_data", extra=self.dictLogger)
+                self.logger.info("convert remotecan_data", extra=self.dictLogger)
                 signal_freq = self.truck.CloudSignalFrequency
                 gear_freq = self.truck.CloudGearFrequency
                 unit_duration = self.truck.CloudUnitDuration

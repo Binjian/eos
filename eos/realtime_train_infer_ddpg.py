@@ -1299,7 +1299,7 @@ class RealtimeDDPG(object):
                     th_exit = True
                     continue
 
-            self.logc.info(f"Wait for table!", extra=self.dictLogger)
+            # self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
                 with self.tableQ_lock:
