@@ -1095,25 +1095,26 @@ class RealtimeDDPG(object):
                                 #     extra=self.dictLogger,
                                 # )
                                 pass
-
+                        bGetSignals = True
                     except Exception as X:
                         self.logger.error(
                             f"show status: exception {X}, data corruption.",
                             extra=self.dictLogger,
                         )
+                        bGetSignals = False
                 else:
                     self.logd.error(
                         f"get_signals failed: {remotecan_data}",
                         extra=self.dictLogger,
                     )
+                    bGetSignals = False
 
             except Exception as X:
                 self.logc.info(
-                    X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                    f"Break due to Exception: {X}",
                     extra=self.dictLogger,
                 )
-                break
-
+                bGetSignals = False
 
             with self.hmi_lock:
                 th_exit = self.program_exit
@@ -1126,17 +1127,23 @@ class RealtimeDDPG(object):
                 )
 
             else:
-                self.logc.info(
-                    f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
-                )
-                # now we can say remote_get is done and wait for remote_flash to be done
-                evt_remote_flash.wait()
-                self.logc.info(
-                    f"remote_flash done, reset inner lock, restart remote_get!!!",
-                    extra=self.dictLogger,
-                )
+                if bGetSignals is True:
+                    self.logc.info(
+                        f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
+                    )
+                    # now we can say remote_get is done and wait for remote_flash to be done
+                    evt_remote_flash.wait()
+                    self.logc.info(
+                        f"remote_flash done, reset inner lock, restart remote_get!!!",
+                        extra=self.dictLogger,
+                    )
+                    evt_remote_flash.clear()
+                else:
+                    self.logc.info(
+                        f"Get no record, retry!!!", extra=self.dictLogger
+                    )
+                    # now we can say remote_get is done and wait for remote_flash to be done
             # reset the inner lock immediately
-            evt_remote_flash.clear()
             # unlock the outer hmi lock
             evt_remote_get.clear()
 
@@ -1391,7 +1398,7 @@ class RealtimeDDPG(object):
 
                 if returncode != 0:
                     self.logc.error(
-                        f"send_torque_map failed: {returncode}",
+                        f"send_torque_map failed and retry: {returncode}",
                         extra=self.dictLogger,
                     )
                 else:
