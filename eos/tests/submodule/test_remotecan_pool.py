@@ -455,7 +455,7 @@ class TestRemoteCanPool(unittest.TestCase):
         for rec_cnt in range(2):
             self.native_send()
 
-        self.logger.info("Done with observation test", extra=self.dictLogger)
+        self.logger.info("Done with flashing test", extra=self.dictLogger)
 
         # # flashing the whole calibration table
         # map2d = self.vcu_calib_table_default
