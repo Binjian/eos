@@ -584,7 +584,8 @@ class RealtimeDDPG(object):
 
             # unlock remote_get_handler
             evt_remote_get.set()
-            self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
+            evt_remote_flash.set()
+            self.logc.info(f"Episode done! free remote_flash and remote_get!", extra=self.dictLogger)
             if self.cloud is False:
                 self.vel_hist_dQ.clear()
             # raise Exception("reset capture to stop")
@@ -950,14 +951,27 @@ class RealtimeDDPG(object):
                     th_exit = self.program_exit
                     continue
                 episode_end = self.episode_end
+            if episode_end is True:
+                self.logc.info(
+                    f"Episode ends, before evt_remote_get and continue!",
+                    extra=self.dictLogger,
+                )
+                evt_remote_get.clear()
+                continue
 
             self.logger.info(f"wait for remote get trigger", extra=self.dictLogger)
             evt_remote_get.wait()
 
+            # after long wait, need to refresh state machine
+            with self.hmi_lock:
+                th_exit = self.program_exit
+                episode_end = self.episode_end
+
             if episode_end is True:
+                self.logger.info(f"Episode ends after evt_remote_get without get_signals!", extra=self.dictLogger)
                 evt_remote_get.clear()
-                self.logger.info(f"Episode end and continue without get_signals!", extra=self.dictLogger)
                 continue
+
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
             self.logger.info(f"Wake up to fetch remote data", extra=self.dictLogger)
@@ -974,6 +988,18 @@ class RealtimeDDPG(object):
                 raise TypeError("udp sending wrong data type!")
             try:
                 if signal_success == 0:
+
+                    with self.hmi_lock:
+                        th_exit = self.program_exit
+                        episode_end = self.episode_end
+                    if episode_end is True:
+                        self.logc.info(
+                            f"Episode ends, not waiting for evt_remote_flash and continue!",
+                            extra=self.dictLogger,
+                        )
+                        evt_remote_get.clear()
+                        continue
+
                     try:
                         signal_freq = self.truck.CloudSignalFrequency
                         gear_freq = self.truck.CloudGearFrequency
@@ -1089,62 +1115,40 @@ class RealtimeDDPG(object):
 
                                 with self.captureQ_lock:
                                     self.motionpowerQueue.put(motion_power)
+
+                                self.logc.info(
+                                    f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
+                                )
+                                # as long as one observation is received, always waiting for flash
+                                evt_remote_flash.wait()
+                                self.logc.info(
+                                    f"evt_remote_flash wakes up, reset inner lock, restart remote_get!!!",
+                                    extra=self.dictLogger,
+                                )
+                                evt_remote_flash.clear()
                             else:
                                 # self.logger.info(
                                 #     f"show status: {key}:{value}",
                                 #     extra=self.dictLogger,
                                 # )
                                 pass
-                        bGetSignals = True
                     except Exception as X:
                         self.logger.error(
-                            f"show status: exception {X}, data corruption.",
+                            f"Observation Corrupt! Status exception {X}",
                             extra=self.dictLogger,
                         )
-                        bGetSignals = False
                 else:
                     self.logd.error(
                         f"get_signals failed: {remotecan_data}",
                         extra=self.dictLogger,
                     )
-                    bGetSignals = False
 
             except Exception as X:
                 self.logc.info(
                     f"Break due to Exception: {X}",
                     extra=self.dictLogger,
                 )
-                bGetSignals = False
 
-            with self.hmi_lock:
-                th_exit = self.program_exit
-                episode_end = self.episode_end
-
-            if episode_end is True:
-                self.logc.info(
-                    f"Episode ends, not waiting for evt_remote_flash and continue!",
-                    extra=self.dictLogger,
-                )
-
-            else:
-                if bGetSignals is True:
-                    self.logc.info(
-                        f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
-                    )
-                    # now we can say remote_get is done and wait for remote_flash to be done
-                    evt_remote_flash.wait()
-                    self.logc.info(
-                        f"remote_flash done, reset inner lock, restart remote_get!!!",
-                        extra=self.dictLogger,
-                    )
-                    evt_remote_flash.clear()
-                else:
-                    self.logc.info(
-                        f"Get no record, retry!!!", extra=self.dictLogger
-                    )
-                    # now we can say remote_get is done and wait for remote_flash to be done
-            # reset the inner lock immediately
-            # unlock the outer hmi lock
             evt_remote_get.clear()
 
         self.logc.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
@@ -1200,6 +1204,9 @@ class RealtimeDDPG(object):
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
+                        evt_remote_get.clear()
+                        evt_remote_flash.clear()
+                        self.logc.info(f"Episode start! clear remote_flash and remote_get!", extra=self.dictLogger)
 
                         with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
@@ -1244,6 +1251,9 @@ class RealtimeDDPG(object):
 
                         # remote_get_handler exit
                         evt_remote_get.set()
+                        evt_remote_flash.set()
+                        self.logc.info(f"end_invalid! free remote_flash and remote_get!", extra=self.dictLogger)
+
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = True
@@ -1252,10 +1262,10 @@ class RealtimeDDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
 
-                        self.logc.info("Exit!!!!!!", extra=self.dictLogger)
-
-                        # remote_get_handler exit
                         evt_remote_get.set()
+                        evt_remote_flash.set()
+                        self.logc.info(f"Program exit!!!! free remote_flash and remote_get!", extra=self.dictLogger)
+
                         with self.captureQ_lock:
                             while not self.motionpowerQueue.empty():
                                 self.motionpowerQueue.get()
@@ -1314,6 +1324,18 @@ class RealtimeDDPG(object):
                         block=False, timeout=1
                     )  # default block = True
                     # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+
+                with self.hmi_lock:
+                    th_exit = self.program_exit
+                    episode_end = self.episode_end
+
+                if episode_end is True:
+                    evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
+                    self.logc.info(
+                        f"Episode ends, skipping remote_flash and continue!",
+                        extra=self.dictLogger,
+                    )
+                    continue
             except queue.Empty:
                 pass
             else:
@@ -1369,17 +1391,17 @@ class RealtimeDDPG(object):
                     # )
 
 
-                with self.hmi_lock:
-                    th_exit = self.program_exit
-                    episode_end = self.episode_end
-
-                if episode_end is True:
-                    evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
-                    self.logc.info(
-                        f"Episode ends, skipping remote_flash and continue!",
-                        extra=self.dictLogger,
-                    )
-                    continue
+                # with self.hmi_lock:
+                #     th_exit = self.program_exit
+                #     episode_end = self.episode_end
+                #
+                # if episode_end is True:
+                #     evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
+                #     self.logc.info(
+                #         f"Episode ends, skipping remote_flash and continue!",
+                #         extra=self.dictLogger,
+                #     )
+                #     continue
 
                 # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
                 timeout = self.vcu_calib_table_row_reduced + 1
@@ -1509,11 +1531,8 @@ class RealtimeDDPG(object):
                         done = (
                             False  # this local done is true done with data exploitation
                         )
-                        epi_end = True
 
                     if epi_end:  # stop observing and inferring
-                        self.logc.info(f"epi_end is True, break, free remote_flash!", extra=self.dictLogger)
-                        evt_remote_flash.set()
                         continue
 
                     try:
