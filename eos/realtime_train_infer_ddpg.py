@@ -552,7 +552,7 @@ class RealtimeDDPG(object):
     # @eye
     # tracer.start()
 
-    def capture_countdown_handler(self, evt_epi_done :threading.Event, evt_remote_get :threading.Event):
+    def capture_countdown_handler(self, evt_epi_done :threading.Event, evt_remote_get :threading.Event, evt_remote_flash :threading.Event):
 
         th_exit = False
         while not th_exit:
@@ -1155,7 +1155,7 @@ class RealtimeDDPG(object):
         self.logc.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
 
     def remote_hmi_state_machine(
-        self, evt_epi_done: threading.Event, evt_remote_get: threading.Event
+        self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
     ):
         """
         This function is used to get the truck status
@@ -1457,12 +1457,12 @@ class RealtimeDDPG(object):
         evt_remote_get = threading.Event()
         evt_remote_flash = threading.Event()
         thr_countdown = Thread(
-            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done, evt_remote_get]
+            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done, evt_remote_get, evt_remote_flash]
         )
         thr_observe = Thread(
             target=self.get_truck_status,
             name="observe",
-            args=[evt_epi_done, evt_remote_get],
+            args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
 
         thr_remoteget = Thread(
