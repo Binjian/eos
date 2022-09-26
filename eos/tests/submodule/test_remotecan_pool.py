@@ -476,7 +476,8 @@ class TestRemoteCanPool(unittest.TestCase):
             f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False, timeout=5)
+        timeout = N0 + 9
+        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False, timeout=timeout)
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
             extra=self.dictLogger,
@@ -938,8 +939,9 @@ class TestRemoteCanPool(unittest.TestCase):
 
     def native_get(self):
 
+        timeout = self.truck.CloudUnitNumber+9
         signal_success, remotecan_data = self.client.get_signals(
-            duration=self.truck.CloudUnitNumber, timeout=self.truck.CloudUnitNumber+1
+            duration=self.truck.CloudUnitNumber, timeout=timeout
         )
         self.logger.info(
             f"get_signal(), return state:{signal_success}", extra=self.dictLogger
