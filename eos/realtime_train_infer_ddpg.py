@@ -953,11 +953,11 @@ class RealtimeDDPG(object):
                 episode_end = self.episode_end
             if episode_end is True:
                 self.logc.info(
-                    f"Episode ends, before evt_remote_get and continue!",
+                    f"Episode ends and wait for evt_remote_get!",
                     extra=self.dictLogger,
                 )
                 evt_remote_get.clear()
-                continue
+                # continue
 
             self.logger.info(f"wait for remote get trigger", extra=self.dictLogger)
             evt_remote_get.wait()
