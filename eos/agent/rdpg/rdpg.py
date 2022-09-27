@@ -403,14 +403,13 @@ class RDPG:
             value=self._padding_value,
         )
 
-        # for alignment with critic output with extra feature dimension
+        ### for alignment with critic output with extra feature dimension
         self.r_n_t = tf.convert_to_tensor(
             np.expand_dims(self.r_n_t, axis=2), dtype=tf.float32
         )
         self.logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
         # self.logger.info("done decoding reward.", extra=self.dictLogger)
 
-        # decode and padding rewards, states and actions
         #  history['states'] for history in episdoe["history"] is the time sequence of states
         o_n_l0 = [
             [history["states"] for history in episode["history"]] for episode in batch
