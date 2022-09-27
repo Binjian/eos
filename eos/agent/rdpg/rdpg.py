@@ -145,6 +145,10 @@ class RDPG:
             num_observations (int): Dimension of the state space.
             padding_value (float): Value to pad the state with, impossible value for observation, action or re
         """
+
+        self.logger = logger.getChild("main").getChild("rdpg")
+        self.logger.propagate = True
+
         self._num_observations = num_observations
         self._obs_len = obs_len
         self._state_len = num_observations * obs_len  # 3 * 30
@@ -249,13 +253,13 @@ class RDPG:
         self._ckpt_actor_dir = self._datafolder + "/vb_checkpoints/rdpg_actor"
         try:
             os.makedirs(self._ckpt_actor_dir)
-            logger.info(
+            self.logger.info(
                 "Created checkpoint directory for actor: %s",
                 self._ckpt_actor_dir,
                 extra=dictLogger,
             )
         except FileExistsError:
-            logger.info(
+            self.logger.info(
                 "Actor checkpoint directory already exists: %s",
                 self._ckpt_actor_dir,
                 extra=dictLogger,
@@ -266,13 +270,13 @@ class RDPG:
         self._ckpt_critic_dir = self._datafolder + "/vb_checkpoints/rdpg_critic"
         try:
             os.makedirs(self._ckpt_critic_dir)
-            logger.info(
+            self.logger.info(
                 f"Created checkpoint directory for critic: %s",
                 self._ckpt_critic_dir,
                 extra=dictLogger,
             )
         except FileExistsError:
-            logger.info(
+            self.logger.info(
                 f"Critic checkpoint directory already exists: %s",
                 self._ckpt_critic_dir,
                 extra=dictLogger,
@@ -298,10 +302,10 @@ class RDPG:
         input_array = tf.convert_to_tensor(
             np.expand_dims(np.array(self.obs_t), axis=0), dtype=tf.float32
         )
-        logger.info(f"input_array.shape: {input_array.shape}", extra=dictLogger)
+        self.logger.info(f"input_array.shape: {input_array.shape}", extra=dictLogger)
         # action = self.actor_net.predict(input_arra)
         action = self.actor_predict_step(input_array)
-        logger.info(f"action.shape: {action.shape}", extra=dictLogger)
+        self.logger.info(f"action.shape: {action.shape}", extra=dictLogger)
         return action
 
     @tf.function(
@@ -353,11 +357,11 @@ class RDPG:
         #     extra=dictLogger
         # )
         self.h_t = np.array(h_t)
-        logger.info(f"h_t np array shape: {self.h_t.shape}.", extra=dictLogger)
+        self.logger.info(f"h_t np array shape: {self.h_t.shape}.", extra=dictLogger)
         self.R.append(self.h_t)
         if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
-        logger.info(f"Memory length: {len(self.R)}", extra=dictLogger)
+        self.logger.info(f"Memory length: {len(self.R)}", extra=dictLogger)
 
     def sample_mini_batch_from_db(self):
         """Sample a mini batch from the database.
@@ -440,9 +444,23 @@ class RDPG:
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
             self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except:
-            logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
-        logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
+            self.logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
+        self.logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
+        # decode starting row series, not used for now
+        a_n_start_t = [
+            [history["action_start_row"] for history in episode["history"]]
+            for episode in batch_24
+        ]
+        a_n_start_t1 = pad_sequences(
+            a_n_start_t,
+            padding="post",
+            dtype="float32",
+            value=self._padding_value,
+        )
+        self.logger.info("done decoding starting row.", extra=self.dictLogger)
+
+        # decode action series, not used for now
         a_n_l0 = [[obs["actions"] for obs in episode["history"]] for episode in batch]
         a_n_l1 = [
             [[step[i] for step in act] for act in a_n_l0]
@@ -468,8 +486,8 @@ class RDPG:
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
             self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except:
-            logger.error("Ragged action state a_n_l1!", extra=dictLogger)
-        logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
+            self.logger.error("Ragged action state a_n_l1!", extra=dictLogger)
+        self.logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     def sample_mini_batch(self):
         """Sample a mini batch from the replay buffer. Add post padding for masking
@@ -487,9 +505,9 @@ class RDPG:
         """
         # Sample random indexes
         record_range = min(len(self.R), self._buffer_capacity)
-        logger.info(f"record_range: {record_range}", extra=dictLogger)
+        self.logger.info(f"record_range: {record_range}", extra=dictLogger)
         indexes = np.random.choice(record_range, self.batch_size)
-        logger.info(f"indexes: {indexes}", extra=dictLogger)
+        self.logger.info(f"indexes: {indexes}", extra=dictLogger)
         # logger.info(f"R indices type: {type(indexes)}:{indexes}")
         # mini-batch for Reward, Observation and Action, with keras padding
         # padding automatically expands every sequence to the maximal length by pad_sequences
@@ -547,7 +565,7 @@ class RDPG:
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), state_len)
             self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except:
-            logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
+            self.logger.error("Ragged observation state o_n_l1!", extra=dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         a_n_l0 = [
@@ -578,7 +596,7 @@ class RDPG:
             )  # return numpy array list of size (batch_size,max(len(a_n_l1i)), action_len)
             self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except:
-            logger.error(f"Ragged action state a_n_l1!", extra=dictLogger)
+            self.logger.error(f"Ragged action state a_n_l1!", extra=dictLogger)
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     def train(self):
@@ -602,11 +620,11 @@ class RDPG:
     def train_step(self, r_n_t, o_n_t, a_n_t):
         # train critic USING BPTT
         print("Tracing train_step!")
-        logger.info(f"start train_step with tracing")
+        self.logger.info(f"start train_step with tracing")
         # logger.info(f"start train_step")
         with tf.GradientTape() as tape:
             # actions at h_t+1
-            logger.info(f"start evaluate_actions")
+            self.logger.info(f"start evaluate_actions")
             t_a_ht1 = self.target_actor_net.evaluate_actions(o_n_t)
 
             # state action value at h_t+1
@@ -614,7 +632,7 @@ class RDPG:
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             logger.info(f"start critic evaluate_q")
             t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
-            logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
+            self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
 
             # compute the target action value at h_t for the current batch
             # using fancy indexing
@@ -630,7 +648,7 @@ class RDPG:
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1)
             y_n_t = r_n_t + self._gamma * t_q_ht_bl
-            logger.info(f"y_n_t.shape: {y_n_t.shape}")
+            self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
@@ -642,18 +660,18 @@ class RDPG:
         self.critic_net.optimizer.apply_gradients(
             zip(critic_grad, self.critic_net.eager_model.trainable_variables)
         )
-        logger.info(f"applied critic gradient", extra=dictLogger)
+        self.logger.info(f"applied critic gradient", extra=dictLogger)
 
         # train actor USING BPTT
         with tf.GradientTape() as tape:
-            logger.info(f"start actor evaluate_actions", extra=dictLogger)
+            self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
             a_ht = self.actor_net.evaluate_actions(o_n_t)
-            logger.info(
+            self.logger.info(
                 f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
                 extra=dictLogger,
             )
             q_ht = self.critic_net.evaluate_q(o_n_t, a_ht)
-            logger.info(
+            self.logger.info(
                 f"actor evaluate_q done, q_ht.shape: {q_ht.shape}", extra=dictLogger
             )
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
@@ -678,7 +696,7 @@ class RDPG:
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
-        logger.info(f"applied actor gradient", extra=dictLogger)
+        self.logger.info(f"applied actor gradient", extra=dictLogger)
 
         return actor_loss, critic_loss
 
@@ -741,7 +759,7 @@ class RDPG:
     def save_replay_buffer(self):
         replay_buffer_npy = np.array(self.R)
         np.save(self.file_replay, replay_buffer_npy)
-        logger.info(
+        self.logger.info(
             f"saved replay buffer with size : {len(self.R)}",
             extra=dictLogger,
         )
@@ -755,12 +773,12 @@ class RDPG:
                 replay_buffer_npy[i, :, :]
                 for i in np.arange(replay_buffer_npy.shape[0])
             ]
-            logger.info(
+            self.logger.info(
                 f"loaded last buffer with size: {len(self.R)}, element[0] size: {self.R[0].shape}.",
                 extra=dictLogger,
             )
         except IOError:
-            logger.info("blank experience", extra=dictLogger)
+            self.logger.info("blank experience", extra=dictLogger)
             self.R = []
 
     @property
