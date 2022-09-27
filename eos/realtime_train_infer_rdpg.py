@@ -48,21 +48,25 @@ import numpy as np
 # visualization import
 import pandas as pd
 import tensorflow as tf
-from bson import ObjectId
+from git import Repo
 from pythonjsonlogger import jsonlogger
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
 
-from eos import Pool, dictLogger, logger, projroot
+from eos import dictLogger, logger, projroot
 from eos.agent import RDPG
 from eos.comm import (RemoteCan, generate_vcu_calibration,
                       kvaser_send_float_array)
-from eos.config import (PEDAL_SCALES, VELOCITY_SCALES_MULE, VELOCITY_SCALES_VB,
-                        trucks)
+from eos.config import PEDAL_SCALES, trucks
 from eos.utils import ragged_nparray_list_interp
-from eos.utils.exception import TruckIDError
 from eos.visualization import plot_3d_figure, plot_to_image
+
+# from bson import ObjectId
+
+
+
+
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -105,6 +109,9 @@ class RealtimeRDPG(object):
         self.record = record
         self.path = path
 
+        self.repo = Repo(self.projroot)
+        # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
+
         if resume:
             self.dataroot = projroot.joinpath("data/" + self.path)
         else:
@@ -112,6 +119,10 @@ class RealtimeRDPG(object):
 
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
+        self.logger.info(
+            f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
+            extra=self.dictLogger,
+        )
 
         # validate truck id
         # assert self.truck_name in self.trucks.keys()
@@ -136,7 +147,7 @@ class RealtimeRDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             self.init_cloud()
-            self.get_truck_status = self.remote_get_truck_status
+            self.get_truck_status = self.remote_hmi_state_machine
             self.flash_vcu = self.remote_flash_vcu
         else:
             self.get_truck_status = self.kvaser_get_truck_status
@@ -162,7 +173,9 @@ class RealtimeRDPG(object):
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
-        self.remotecan_client = RemoteCan(vin=self.truck.VIN)
+        self.remotecan_client = RemoteCan(
+            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+        )
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -176,17 +189,19 @@ class RealtimeRDPG(object):
             + datetime.datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
-        formatter = logging.Formatter(
-            "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+        formatter = logging.basicConfig(
+            format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S.%f",
         )
         json_file_formatter = jsonlogger.JsonFormatter(
-            "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+            "%(created)f %(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
         )
 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(json_file_formatter)
-        strfilename = PurePosixPath(logfilename).stem + ".json"
+        # strfilename = PurePosixPath(logfilename).stem + ".json"
+        strfilename = self.logroot.joinpath(PurePosixPath(logfilename).stem + ".json")
         strh = logging.FileHandler(strfilename, mode="a")
         strh.setLevel(logging.DEBUG)
         strh.setFormatter(json_file_formatter)
@@ -207,10 +222,10 @@ class RealtimeRDPG(object):
         # self.dictLogger = {'funcName': '__self__.__func__.__name__'}
         # self.dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 
-        self.logc = logger.getChild("control flow")
+        self.logc = logger.getChild("main")  # main thread control flow
         self.logc.propagate = True
-        self.logd = logger.getChild("data flow")
-        self.logd.propagate = True
+        # self.logd = logger.getChild("data flow")
+        # self.logd.propagate = True
         self.tflog = tf.get_logger()
         self.tflog.addHandler(fh)
         self.tflog.addHandler(ch)
@@ -419,42 +434,12 @@ class RealtimeRDPG(object):
     # @eye
     # tracer.start()
 
-    def capture_countdown_handler(self, evt_epi_done):
-
-        th_exit = False
-        while not th_exit:
-            with self.hmi_lock:
-                if self.program_exit:
-                    th_exit = True
-                    continue
-
-            self.logger.info(f"wait for countdown", extra=self.dictLogger)
-            evt_epi_done.wait()
-            evt_epi_done.clear()
-            # if episode is done, sleep for the extension time
-            time.sleep(self.epi_countdown_time)
-            # cancel wait as soon as waking up
-            self.logger.info(f"finish countdown", extra=self.dictLogger)
-
-            with self.hmi_lock:
-                self.episode_count += 1  # valid round increments
-                self.episode_done = (
-                    True  # TODO delay episode_done to make main thread keep running
-                )
-                self.episode_end = True
-                self.get_truck_status_start = False
-            # move clean up under mutex to avoid competetion.
-            self.get_truck_status_motpow_t = []
-            while not self.motionpowerQueue.empty():
-                self.motionpowerQueue.get()
-            self.logc.info("%s", "Episode done!!!", extra=self.dictLogger)
-            self.vel_hist_dQ.clear()
-            # raise Exception("reset capture to stop")
-        self.logc.info(f"Coutndown dies!!!", extra=self.dictLogger)
-
     def init_threads_data(self):
         # multithreading initialization
         self.hmi_lock = Lock()
+        self.tableQ_lock = Lock()
+        self.captureQ_lock = Lock()
+        self.remoteClient_lock = Lock()
 
         # tableQueue contains a table which is a list of type float
         self.tableQueue = queue.Queue()
@@ -466,9 +451,16 @@ class RealtimeRDPG(object):
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
-        self.epi_countdown_time = (
-            3  # extend capture time after valid episode temrination
-        )
+        self.step_count = 0
+        if self.cloud:
+            self.epi_countdown_time = (
+                    self.truck.CloudUnitNumber
+                    * self.truck.CloudUnitDuration  # extend capture time after valid episode temrination
+            )
+        else:
+            self.epi_countdown_time = (
+                self.truck.KvaserCountdownTime  # extend capture time after valid episode temrination (3s)
+            )
 
         # use timer object
         # self.timer_capture_countdown = threading.Timer(
@@ -482,19 +474,65 @@ class RealtimeRDPG(object):
         self.get_truck_status_myPort = 8002
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
-    def kvaser_get_truck_status(self, evt_epi_done):
+
+    def capture_countdown_handler(self, evt_epi_done :threading.Event, evt_remote_get :threading.Event, evt_remote_flash :threading.Event):
+
+        logger_countdown = self.logger.getChild("countdown")
+        logger_countdown.propagate = True
+        th_exit = False
+        while not th_exit:
+            with self.hmi_lock:
+                if self.program_exit:
+                    th_exit = True
+                    continue
+
+            logger_countdown.info(f"wait for countdown", extra=self.dictLogger)
+            evt_epi_done.wait()
+            evt_epi_done.clear()
+            # if episode is done, sleep for the extension time
+            time.sleep(self.epi_countdown_time)
+            # cancel wait as soon as waking up
+            logger_countdown.info(f"finish countdown", extra=self.dictLogger)
+
+            with self.hmi_lock:
+                self.episode_count += 1  # valid round increments
+                self.episode_done = (
+                    True  # TODO delay episode_done to make main thread keep running
+                )
+                self.episode_end = True
+                self.get_truck_status_start = False
+            # move clean up under mutex to avoid competetion.
+            self.get_truck_status_motpow_t = []
+            with self.captureQ_lock:
+                while not self.motionpowerQueue.empty():
+                    self.motionpowerQueue.get()
+
+            # unlock remote_get_handler
+            evt_remote_get.set()
+            evt_remote_flash.set()
+            logger_countdown.info(f"Episode done! free remote_flash and remote_get!", extra=self.dictLogger)
+            if self.cloud is False:
+                self.vel_hist_dQ.clear()
+            # raise Exception("reset capture to stop")
+        logger_countdown.info(f"Coutndown dies!!!", extra=self.dictLogger)
+
+    def kvaser_get_truck_status(self, evt_epi_done, evt_remote_get):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
+        evt_remote_get is not used in this function for kvaser
+        just to keep the uniform interface with remote_get_truck_status
         """
 
         th_exit = False
+        logger_kvaser_get = self.logger.getChild("kvaser_get")
+        logger_kvaser_get.propagate = True
 
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        self.logc.info(f"Socket Initialization Done!", extra=self.dictLogger)
+        logger_kvaser_get.info(f"Socket Initialization Done!", extra=self.dictLogger)
 
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -505,7 +543,7 @@ class RealtimeRDPG(object):
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
-                    self.logger.info(
+                    logger_kvaser_get.info(
                         "%s",
                         "Capture thread exit due to processing request!!!",
                         extra=self.dictLogger,
@@ -518,7 +556,7 @@ class RealtimeRDPG(object):
             data_type = type(pop_data)
             # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
-                self.logd.critical(
+                logger_kvaser_get.critical(
                     f"udp sending wrong data type!", extra=self.dictLogger
                 )
                 raise TypeError("udp sending wrong data type!")
@@ -528,14 +566,15 @@ class RealtimeRDPG(object):
                     # print(candata)
                     if value == "begin":
                         self.get_truck_status_start = True
-                        self.logc.info(
+                        logger_kvaser_get.info(
                             "%s", "Episode will start!!!", extra=self.dictLogger
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
 
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.captureQ_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         self.vel_hist_dQ.clear()
                         with self.hmi_lock:
                             self.episode_done = False
@@ -549,14 +588,14 @@ class RealtimeRDPG(object):
 
                         # set flag for countdown thread
                         evt_epi_done.set()
-                        self.logc.info(f"Episode end starts countdown!")
+                        logger_kvaser_get.info(f"Episode end starts countdown!")
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
                     elif value == "end_invalid":
                         self.get_truck_status_start = False
-                        self.logc.info(
+                        logger_kvaser_get.info(
                             f"Episode is interrupted!!!", extra=self.dictLogger
                         )
                         self.get_truck_status_motpow_t = []
@@ -566,8 +605,9 @@ class RealtimeRDPG(object):
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.captureQ_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
@@ -580,8 +620,9 @@ class RealtimeRDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
                         self.vel_hist_dQ.clear()
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.captureQ_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
@@ -649,38 +690,40 @@ class RealtimeRDPG(object):
                                         math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
-                                    self.logc.warning(
+                                    logger_kvaser_get.warning(
                                         f"cycle higher than 120km/h!",
                                         extra=self.dictLogger,
                                     )
                                     self.vcu_calib_table_row_start = 16
                                 # get the row of the table
 
-                                self.logd.info(
+                                logger_kvaser_get.info(
                                     f"Cycle velocity: Aver{vel_aver:.2f},Min{vel_min:.2f},Max{vel_max:.2f},StartIndex{self.vcu_calib_table_row_start}!",
                                     extra=self.dictLogger,
                                 )
                                 # self.logd.info(
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
-                                self.motionpowerQueue.put(
-                                    self.get_truck_status_motpow_t
-                                )
+
+                                with self.captureQ_lock:
+                                    self.motionpowerQueue.put(
+                                        self.get_truck_status_motpow_t
+                                    )
                                 self.get_truck_status_motpow_t = []
                     except Exception as X:
-                        self.logc.info(
+                        logger_kvaser_get.info(
                             X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                             extra=self.dictLogger,
                         )
                         break
                 else:
-                    self.logc.warning(
+                    logger_kvaser_get.warning(
                         f"udp sending message with key: {key}; value: {value}!!!"
                     )
 
                     break
 
-        self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+        logger_kvaser_get.info(f"get_truck_status dies!!!", extra=self.dictLogger)
 
         s.close()
 
@@ -691,7 +734,10 @@ class RealtimeRDPG(object):
         flash_count = 0
         th_exit = False
 
-        self.logc.info(f"Initialization Done!", extra=self.dictLogger)
+        logger_flash = self.logger.getChild("kvaser_flash")
+        logger_flash.propagate = True
+
+        logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
         while not th_exit:
             # time.sleep(0.1)
             with self.hmi_lock:
@@ -703,10 +749,11 @@ class RealtimeRDPG(object):
                     continue
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tableQueue.get(
-                    block=False, timeout=1
-                )  # default block = True
-                # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+                with self.tableQ_lock:
+                    table = self.tableQueue.get(
+                        block=False, timeout=1
+                    )  # default block = True
+                    # print("2 tablequeue size: {}".format(tablequeue.qsize()))
             except queue.Empty:
                 pass
             else:
@@ -739,17 +786,14 @@ class RealtimeRDPG(object):
                 )
 
                 # create updated complete pedal map, only update the first few rows
-                self.vcu_calib_table1[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
-                    :,
+                # vcu_calib_table1 keeps changing as the cache of the changing pedal map
+                self.vcu_calib_table1.iloc[
+                    table_start : self.vcu_calib_table_row_reduced + table_start
                 ] = vcu_calib_table_reduced.numpy()
-                pds_curr_table = pd.DataFrame(
-                    self.vcu_calib_table1, self.pd_index, self.pd_columns
-                )
 
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
-                        "tables/instant_table_ddpg-vb-"
+                        "tables/instant_table_rdpg-vb-"
                         + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                         + "e-"
                         + str(epi_cnt)
@@ -758,33 +802,253 @@ class RealtimeRDPG(object):
                         + ".csv"
                     )
                     with open(curr_table_store_path, "wb") as f:
-                        pds_curr_table.to_csv(curr_table_store_path)
+                        self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
-                    self.logd.info(
+                    logger_flash.info(
                         f"E{epi_cnt} done with record instant table: {step_count}",
                         extra=self.dictLogger,
                     )
 
-                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                # tf.print('calib table:', table, output_stream=output_path)
-                self.logc.info(f"flash starts", extra=self.dictLogger)
-                returncode = kvaser_send_float_array(vcu_act_list, sw_diff=True)
+                logger_flash.info(f"flash starts", extra=self.dictLogger)
+                returncode = kvaser_send_float_array(
+                    self.vcu_calib_table1, sw_diff=True
+                )
                 # time.sleep(1.0)
+
                 if returncode != 0:
-                    self.logc.error(
+                    logger_flash.error(
                         f"kvaser_send_float_array failed: {returncode}",
                         extra=self.dictLogger,
                     )
                 else:
-                    self.logc.info(
+                    logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
                     )
                     flash_count += 1
                 # watch(flash_count)
 
-        self.logc.info(f"flash_vcu dies!!!", extra=self.dictLogger)
+        logger_flash.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
-    def remote_get_truck_status(self, evt_epi_done):
+    def remote_get_handler(
+        self, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+    ):
+
+        th_exit = False
+        logger_remote_get = self.logger.getChild("remote_get")
+        logger_remote_get.propagate = True
+
+        while not th_exit:
+            with self.hmi_lock:
+                if self.program_exit:
+                    th_exit = self.program_exit
+                    continue
+                episode_end = self.episode_end
+            if episode_end is True:
+                logger_remote_get.info(
+                    f"Episode ends and wait for evt_remote_get!",
+                    extra=self.dictLogger,
+                )
+                evt_remote_get.clear()
+                # continue
+
+            logger_remote_get.info(f"wait for remote get trigger", extra=self.dictLogger)
+            evt_remote_get.wait()
+
+            # after long wait, need to refresh state machine
+            with self.hmi_lock:
+                th_exit = self.program_exit
+                episode_end = self.episode_end
+
+            if episode_end is True:
+                logger_remote_get.info(f"Episode ends after evt_remote_get without get_signals!", extra=self.dictLogger)
+                evt_remote_get.clear()
+                continue
+
+            # if episode is done, sleep for the extension time
+            # cancel wait as soon as waking up
+            timeout=self.truck.CloudUnitNumber+5
+            logger_remote_get.info(f"Wake up to fetch remote data, duration={self.truck.CloudUnitNumber}s timeout={timeout}s", extra=self.dictLogger)
+            with self.remoteClient_lock:
+                (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
+                    duration=self.truck.CloudUnitNumber, timeout=timeout
+                )  # timeout is 1 second longer than duration
+
+            if not isinstance(remotecan_data, dict):
+                logger_remote_get.critical(
+                    f"udp sending wrong data type!",
+                    extra=self.dictLogger,
+                )
+                raise TypeError("udp sending wrong data type!")
+            try:
+                if signal_success == 0:
+
+                    with self.hmi_lock:
+                        th_exit = self.program_exit
+                        episode_end = self.episode_end
+                    if episode_end is True:
+                        logger_remote_get.info(
+                            f"Episode ends, not waiting for evt_remote_flash and continue!",
+                            extra=self.dictLogger,
+                        )
+                        evt_remote_get.clear()
+                        continue
+
+                    try:
+                        signal_freq = self.truck.CloudSignalFrequency
+                        gear_freq = self.truck.CloudGearFrequency
+                        unit_duration = self.truck.CloudUnitDuration
+                        unit_ob_num = unit_duration * signal_freq
+                        unit_gear_num = unit_duration * gear_freq
+                        unit_num = self.truck.CloudUnitNumber
+                        for key, value in remotecan_data.items():
+                            if key == "result":
+                                logger_remote_get.info(
+                                    "convert observation state to array.",
+                                    extra=self.dictLogger,
+                                )
+                                # timestamp processing
+                                timestamps = []
+                                separators = "--T::."  # adaption separators of the raw intest string
+                                start_century = "20"
+                                for ts in value["timestamps"]:
+                                    # create standard iso string datetime format
+                                    ts_substrings = [
+                                        ts[i : i + 2] for i in range(0, len(ts), 2)
+                                    ]
+                                    ts_iso = start_century
+                                    for i, sep in enumerate(separators):
+                                        ts_iso = ts_iso + ts_substrings[i] + sep
+                                    ts_iso = ts_iso + ts_substrings[-1]
+                                    timestamps.append(ts_iso)
+                                timestamps_units = (
+                                    (np.array(timestamps).astype("datetime64[ms]") - np.timedelta64(8, "h"))  # convert to UTC+8
+                                    .astype("int")  # convert to int
+                                )
+                                if len(timestamps_units) != unit_num:
+                                    raise ValueError(
+                                        f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                                    )
+                                # upsample gears from 2Hz to 50Hz
+                                timestamps_seconds = list(timestamps_units)  # in ms
+                                sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                                timestamps = [
+                                    i + j * sampling_interval
+                                    for i in timestamps_seconds
+                                    for j in np.arange(unit_ob_num)
+                                ]
+                                timestamps = np.array(timestamps).reshape(
+                                    (self.truck.CloudUnitNumber, -1)
+                                )
+                                current = ragged_nparray_list_interp(
+                                    value["list_current_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                voltage = ragged_nparray_list_interp(
+                                    value["list_voltage_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                thrust = ragged_nparray_list_interp(
+                                    value["list_pedal_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                brake = ragged_nparray_list_interp(
+                                    value["list_brake_pressure_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                velocity = ragged_nparray_list_interp(
+                                    value["list_speed_1s"],
+                                    ob_num=unit_ob_num,
+                                )
+                                gears = ragged_nparray_list_interp(
+                                    value["list_gears"],
+                                    ob_num=unit_gear_num,
+                                )
+                                # upsample gears from 2Hz to 50Hz
+                                gears = np.repeat(
+                                    gears,
+                                    (signal_freq // gear_freq),
+                                    axis=1,
+                                )
+
+                                motion_power = np.c_[
+                                    timestamps.reshape(-1, 1),
+                                    velocity.reshape(-1, 1),
+                                    thrust.reshape(-1, 1),
+                                    brake.reshape(-1, 1),
+                                    gears.reshape(-1, 1),
+                                    current.reshape(-1, 1),
+                                    voltage.reshape(-1, 1),
+                                ]  # 1 + 3 + 1 + 2  : im 7
+
+                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
+                                # average concept
+                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
+                                #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                                # here upper bound rule adopted
+                                vel_max = np.amax(velocity)
+                                if vel_max < 20:
+                                    self.vcu_calib_table_row_start = 0
+                                elif vel_max < 30:
+                                    self.vcu_calib_table_row_start = 1
+                                elif vel_max < 120:
+                                    self.vcu_calib_table_row_start = (
+                                        math.floor((vel_max - 30) / 10) + 2
+                                    )
+                                else:
+                                    logger_remote_get.warning(
+                                        f"cycle higher than 120km/h!",
+                                        extra=self.dictLogger,
+                                    )
+                                    self.vcu_calib_table_row_start = 16
+
+                                logger_remote_get.info(
+                                    f"Cycle velocity: Aver{np.mean(velocity):.2f},Min{np.amin(velocity):.2f},Max{np.amax(velocity):.2f},StartIndex{self.vcu_calib_table_row_start}!",
+                                    extra=self.dictLogger,
+                                )
+
+                                with self.captureQ_lock:
+                                    self.motionpowerQueue.put(motion_power)
+
+                                logger_remote_get.info(
+                                    f"Get one record, wait for remote_flash!!!", extra=self.dictLogger
+                                )
+                                # as long as one observation is received, always waiting for flash
+                                evt_remote_flash.wait()
+                                logger_remote_get.info(
+                                    f"evt_remote_flash wakes up, reset inner lock, restart remote_get!!!",
+                                    extra=self.dictLogger,
+                                )
+                                evt_remote_flash.clear()
+                            else:
+                                # self.logger.info(
+                                #     f"show status: {key}:{value}",
+                                #     extra=self.dictLogger,
+                                # )
+                                pass
+                    except Exception as X:
+                        logger_remote_get.error(
+                            f"Observation Corrupt! Status exception {X}",
+                            extra=self.dictLogger,
+                        )
+                else:
+                    logger_remote_get.error(
+                        f"get_signals failed: {remotecan_data}",
+                        extra=self.dictLogger,
+                    )
+
+            except Exception as X:
+                logger_remote_get.info(
+                    f"Break due to Exception: {X}",
+                    extra=self.dictLogger,
+                )
+
+            evt_remote_get.clear()
+
+        logger_remote_get.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
+
+    def remote_hmi_state_machine(
+        self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+    ):
         """
         This function is used to get the truck status
         from remote can module
@@ -792,17 +1056,19 @@ class RealtimeRDPG(object):
 
         th_exit = False
 
+        logger_hmi_sm = self.logger.getChild("hmi_sm")
+        logger_hmi_sm.propagate = True
         #  Get the HMI control command from UDP, but not the data from KvaserCAN
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        self.logc.info(f"Socket Initialization Done!", extra=self.dictLogger)
+        logger_hmi_sm.info(f"Socket Initialization Done!", extra=self.dictLogger)
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
-                    self.logger.info(
+                    logger_hmi_sm.info(
                         "%s",
                         "Capture thread exit due to processing request!!!",
                         extra=self.dictLogger,
@@ -815,7 +1081,7 @@ class RealtimeRDPG(object):
             data_type = type(pop_data)
             # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
-                self.logd.critical(
+                logger_hmi_sm.critical(
                     f"udp sending wrong data type!", extra=self.dictLogger
                 )
                 raise TypeError("udp sending wrong data type!")
@@ -823,52 +1089,66 @@ class RealtimeRDPG(object):
             for key, value in pop_data.items():
                 if key == "status":  # state machine chores
                     # print(candata)
+                    # self.logc.info(
+                    #     f"Status data: key={key},value={value}!!!!!!", extra=self.dictLogger
+                    # )
                     if value == "begin":
                         self.get_truck_status_start = True
-                        self.logc.info(
+                        logger_hmi_sm.info(
                             "%s", "Episode will start!!!", extra=self.dictLogger
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
+                        evt_remote_get.clear()
+                        evt_remote_flash.clear()
+                        logger_hmi_sm.info(f"Episode start! clear remote_flash and remote_get!", extra=self.dictLogger)
 
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
-                        self.vel_hist_dQ.clear()
+                        with self.captureQ_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
                     elif value == "end_valid":
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+
+                        logger_hmi_sm.info("End Valid!!!!!!", extra=self.dictLogger)
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
 
                         # set flag for countdown thread
                         evt_epi_done.set()
-                        self.logc.info(f"Episode end starts countdown!")
+                        logger_hmi_sm.info(f"Episode end starts countdown!")
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
                     elif value == "end_invalid":
                         self.get_truck_status_start = False
-                        self.logc.info(
+                        logger_hmi_sm.info(
                             f"Episode is interrupted!!!", extra=self.dictLogger
                         )
                         self.get_truck_status_motpow_t = []
-                        self.vel_hist_dQ.clear()
                         # motionpowerQueue.queue.clear()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue has {motionpowerQueue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+                        with self.captureQ_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info(
                         #     f"Episode motionpowerQueue gets cleared!", extra=self.dictLogger
                         # )
                         th_exit = False
+
+                        # remote_get_handler exit
+                        evt_remote_get.set()
+                        evt_remote_flash.set()
+                        logger_hmi_sm.info(f"end_invalid! free remote_flash and remote_get!", extra=self.dictLogger)
+
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = True
@@ -876,9 +1156,14 @@ class RealtimeRDPG(object):
                     elif value == "exit":
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
-                        self.vel_hist_dQ.clear()
-                        while not self.motionpowerQueue.empty():
-                            self.motionpowerQueue.get()
+
+                        evt_remote_get.set()
+                        evt_remote_flash.set()
+                        logger_hmi_sm.info(f"Program exit!!!! free remote_flash and remote_get!", extra=self.dictLogger)
+
+                        with self.captureQ_lock:
+                            while not self.motionpowerQueue.empty():
+                                self.motionpowerQueue.get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
@@ -893,208 +1178,61 @@ class RealtimeRDPG(object):
                         # time.sleep(0.1)
                 elif key == "data":
                     #  instead of get kvasercan, we get remotecan data here!
-                    try:
-                        if self.get_truck_status_start:  # starts episode
-
-                            (
-                                signal_success,
-                                remotecan_data,
-                            ) = self.remotecan_client.get_signals(
-                                duration=self.truck.CloudUnitNumber
-                            )
-                            if not isinstance(remotecan_data, dict):
-                                self.logd.critical(
-                                    f"udp sending wrong data type!",
-                                    extra=self.dictLogger,
-                                )
-                                raise TypeError("udp sending wrong data type!")
-
-                            if signal_success is 0:
-                                try:
-                                    signal_freq = self.truck.CloudSignalFrequency
-                                    gear_freq = self.truck.CloudGearFrequency
-                                    unit_duration = self.truck.CloudUnitDuration
-                                    unit_ob_num = unit_duration * signal_freq
-                                    unit_gear_num = unit_duration * gear_freq
-                                    unit_num = self.truck.CloudUnitNumber
-                                    timestamp_upsample_rate = (
-                                        self.truck.CloudSignalFrequency
-                                        * self.truck.CloudUnitDuration
-                                    )
-                                    for key, value in remotecan_data.items():
-                                        if key == "result":
-                                            self.logd.info(
-                                                "convert observation state to array.",
-                                                extra=self.dictLogger,
-                                            )
-                                            # timestamp processing
-                                            timestamps = []
-                                            separators = "--T::."  # adaption separators of the raw intest string
-                                            start_century = "20"
-                                            timezone = "+0800"
-                                            for ts in value["timestamps"]:
-                                                # create standard iso string datetime format
-                                                ts_substrings = [
-                                                    ts[i : i + 2]
-                                                    for i in range(0, len(ts), 2)
-                                                ]
-                                                ts_iso = start_century
-                                                for i, sep in enumerate(separators):
-                                                    ts_iso = (
-                                                        ts_iso + ts_substrings[i] + sep
-                                                    )
-                                                ts_iso = (
-                                                    ts_iso
-                                                    + ts_substrings[-1]
-                                                    + timezone
-                                                )
-                                                timestamps.append(ts_iso)
-                                            timestamps_units = (
-                                                np.array(timestamps)
-                                                .astype("datetime64[ms]")
-                                                .astype("int")  # convert to int
-                                            )
-                                            if len(timestamps_units) != unit_num:
-                                                raise ValueError(
-                                                    f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
-                                                )
-                                            # upsample gears from 2Hz to 50Hz
-                                            timestamps_seconds = list(
-                                                timestamps_units
-                                            )  # in ms
-                                            sampling_interval = (
-                                                1.0 / signal_freq * 1000
-                                            )  # in ms
-                                            timestamps = [
-                                                i + j * sampling_interval
-                                                for i in timestamps_seconds
-                                                for j in np.arange(unit_ob_num)
-                                            ]
-                                            timestamps = np.array(timestamps).reshape(
-                                                (self.truck.CloudUnitNumber, -1)
-                                            )
-                                            current = ragged_nparray_list_interp(
-                                                value["list_current_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            voltage = ragged_nparray_list_interp(
-                                                value["list_voltage_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            thrust = ragged_nparray_list_interp(
-                                                value["list_pedal_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            brake = ragged_nparray_list_interp(
-                                                value["list_brake_pressure_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            velocity = ragged_nparray_list_interp(
-                                                value["list_speed_1s"],
-                                                ob_num=unit_ob_num,
-                                            )
-                                            gears = ragged_nparray_list_interp(
-                                                value["list_gears"],
-                                                ob_num=unit_gear_num,
-                                            )
-                                            # upsample gears from 2Hz to 50Hz
-                                            gears = np.repeat(
-                                                gears,
-                                                (signal_freq // gear_freq),
-                                                axis=1,
-                                            )
-
-                                            motion_power = np.c_[
-                                                timestamps.reshape(-1, 1),
-                                                velocity.reshape(-1, 1),
-                                                thrust.reshape(-1, 1),
-                                                brake.reshape(-1, 1),
-                                                gears.reshape(-1, 1),
-                                                current.reshape(-1, 1),
-                                                voltage.reshape(-1, 1),
-                                            ]  # 1 + 3 + 1 + 2  : im 7
-
-                                            # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
-                                            # average concept
-                                            # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
-                                            #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                                            # here upper bound rule adopted
-                                            vel_max = np.amax(velocity)
-                                            if vel_max < 20:
-                                                self.vcu_calib_table_row_start = 0
-                                            elif vel_max < 30:
-                                                self.vcu_calib_table_row_start = 1
-                                            elif vel_max < 120:
-                                                self.vcu_calib_table_row_start = (
-                                                    math.floor((vel_max - 30) / 10) + 2
-                                                )
-                                            else:
-                                                self.logc.warning(
-                                                    f"cycle higher than 120km/h!",
-                                                    extra=self.dictLogger,
-                                                )
-                                                self.vcu_calib_table_row_start = 16
-
-                                            self.logd.info(
-                                                f"Cycle velocity: Aver{np.mean(velocity):.2f},Min{np.amin(velocity):.2f},Max{np.amax(velocity):.2f},StartIndex{self.vcu_calib_table_row_start}!",
-                                                extra=self.dictLogger,
-                                            )
-
-                                            self.motionpowerQueue.put(motion_power)
-                                        else:
-                                            self.logger.info(
-                                                f"show status: {key}:{value}",
-                                                extra=self.dictLogger,
-                                            )
-
-                                except Exception as X:
-                                    self.logger.error(
-                                        f"show status: exception {X}, data corruption.",
-                                        extra=self.dictLogger,
-                                    )
-                            else:
-                                self.logd.error(
-                                    f"get_signals failed: {remotecan_data}",
-                                    extra=self.dictLogger,
-                                )
-
-                    except Exception as X:
-                        self.logc.info(
-                            X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
-                            extra=self.dictLogger,
-                        )
-                        break
+                    if self.get_truck_status_start:  # starts episode
+                        # set flag for remote_get thread
+                        evt_remote_get.set()
+                        # self.logc.info(f"Kick off remoteget!!")
                 else:
-                    self.logc.warning(
+                    logger_hmi_sm.warning(
                         f"udp sending message with key: {key}; value: {value}!!!"
                     )
 
                     break
 
         s.close()
-        self.logger.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+        logger_hmi_sm.info(f"get_truck_status dies!!!", extra=self.dictLogger)
 
-    def remote_flash_vcu(self):
-
+    def remote_flash_vcu(self, evt_remote_flash: threading.Event):
+        """
+        trigger 1: tableQueue is not empty
+        trigger 2: remote client is available as signaled by the remote_get thread
+        """
         flash_count = 0
         th_exit = False
 
-        self.logc.info(f"Initialization Done!", extra=self.dictLogger)
+        logger_flash = self.logger.getChild("flash")
+        logger_flash.propagate = True
+        logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
         while not th_exit:
             # time.sleep(0.1)
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
-                epi_cnt = self.epi_countdown
+                epi_cnt = self.episode_count
                 step_count = self.step_count
                 if self.program_exit:
                     th_exit = True
                     continue
+
+            # self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
                 # print("1 tablequeue size: {}".format(tablequeue.qsize()))
-                table = self.tableQueue.get(
-                    block=False, timeout=1
-                )  # default block = True
-                # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+                with self.tableQ_lock:
+                    table = self.tableQueue.get(
+                        block=False, timeout=1
+                    )  # default block = True
+                    # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+
+                with self.hmi_lock:
+                    th_exit = self.program_exit
+                    episode_end = self.episode_end
+
+                if episode_end is True:
+                    evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
+                    logger_flash.info(
+                        f"Episode ends, skipping remote_flash and continue!",
+                        extra=self.dictLogger,
+                    )
+                    continue
             except queue.Empty:
                 pass
             else:
@@ -1126,13 +1264,10 @@ class RealtimeRDPG(object):
                 )
 
                 # create updated complete pedal map, only update the first few rows
-                self.vcu_calib_table1[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
-                    :,
+                # vcu_calib_table1 keeps changing as the cache of the changing pedal map
+                self.vcu_calib_table1.iloc[
+                    table_start : self.vcu_calib_table_row_reduced + table_start
                 ] = vcu_calib_table_reduced.numpy()
-                pds_curr_table = pd.DataFrame(
-                    self.vcu_calib_table1, self.pd_index, self.pd_columns
-                )
 
                 if args.record_table:
                     curr_table_store_path = self.dataroot.joinpath(
@@ -1145,70 +1280,107 @@ class RealtimeRDPG(object):
                         + ".csv"
                     )
                     with open(curr_table_store_path, "wb") as f:
-                        pds_curr_table.to_csv(curr_table_store_path)
+                        self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
-                    self.logd.info(
-                        f"E{epi_cnt} done with record instant table: {step_count}",
-                        extra=self.dictLogger,
-                    )
+                    # self.logd.info(
+                    #     f"E{epi_cnt} done with record instant table: {step_count}",
+                    #     extra=self.dictLogger,
+                    # )
 
-                vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                # tf.print('calib table:', table, output_stream=output_path)
-                self.logc.info(f"flash starts", extra=self.dictLogger)
-                returncode = self.remotecan_client.send_torque_map(
-                    pedalmap=vcu_act_list,
-                    k=table_start,
-                    N=self.vcu_calib_table_row_reduced,
-                    abswitch=False,
-                )
+
+                # with self.hmi_lock:
+                #     th_exit = self.program_exit
+                #     episode_end = self.episode_end
+                #
+                # if episode_end is True:
+                #     evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
+                #     self.logc.info(
+                #         f"Episode ends, skipping remote_flash and continue!",
+                #         extra=self.dictLogger,
+                #     )
+                #     continue
+
+                # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
+                timeout = self.vcu_calib_table_row_reduced + 5
+                logger_flash.info(f"flash starts, timeout={timeout}s", extra=self.dictLogger)
+                # lock doesn't control the logic explictitly
+                # competetion is not desired
+                with self.remoteClient_lock:
+                    returncode = self.remotecan_client.send_torque_map(
+                        pedalmap=self.vcu_calib_table1.iloc[
+                            table_start : self.vcu_calib_table_row_reduced + table_start
+                        ],
+                        swap=False,
+                        timeout=timeout,
+                    )
                 # time.sleep(1.0)
 
                 if returncode != 0:
-                    self.logc.error(
-                        f"send_torque_map failed: {returncode}",
+                    logger_flash.error(
+                        f"send_torque_map failed and retry: {returncode}",
                         extra=self.dictLogger,
                     )
                 else:
-                    self.logc.info(
+                    logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
                     )
                     flash_count += 1
+
+                # flash is done and unlock remote_get
+                evt_remote_flash.set()
+
                 # watch(flash_count)
 
+        logger_flash.info(f"Save the last table!!!!", extra=self.dictLogger)
+
+        last_table_store_path = (
+            self.dataroot.joinpath(  #  there's no slash in the end of the string
+                "last_table_ddpg-"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + ".csv"
+            )
+        )
+        with open(last_table_store_path, "wb") as f:
+            self.vcu_calib_table1.to_csv(last_table_store_path)
         # motionpowerQueue.join()
         self.logc.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
 
     # @eye
     def run(self):
-        # global episode_count
-        # global program_exit
-        # global motionpowerQueue
-        # global pd_index, pd_columns
-        # global episode_done, episode_end
-        # global vcu_calib_table_row_start
 
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
+        evt_remote_get = threading.Event()
+        evt_remote_flash = threading.Event()
         thr_countdown = Thread(
-            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done]
+            target=self.capture_countdown_handler, name="countdown", args=[evt_epi_done, evt_remote_get, evt_remote_flash]
         )
         thr_observe = Thread(
-            target=self.get_truck_status, name="observe", args=[evt_epi_done]
+            target=self.get_truck_status,
+            name="observe",
+            args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
-        thr_flash = Thread(target=self.flash_vcu, name="flash", args=())
+
+        thr_remoteget = Thread(
+            target=self.remote_get_handler,
+            name="remoteget",
+            args=[evt_remote_get, evt_remote_flash],
+        )
+        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
         thr_countdown.start()
         thr_observe.start()
+        if self.cloud:
+            thr_remoteget.start()
         thr_flash.start()
 
         """
         ## train
         """
         running_reward = 0
-        episode_reward = 0
         th_exit = False
         epi_cnt_local = 0
 
-        self.logger.info(f"main Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"main Initialization done!", extra=self.dictLogger)
         while not th_exit:  # run until solved or program exit; th_exit is local
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 th_exit = self.program_exit  # if program_exit is False,
@@ -1219,7 +1391,8 @@ class RealtimeRDPG(object):
                 continue
 
             step_count = 0
-            wh1 = 0  # initialize odd step wh
+            self.h_t = []
+            episode_reward = 0
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
@@ -1228,14 +1401,11 @@ class RealtimeRDPG(object):
                 extra=self.dictLogger,
             )
 
-            timestamp0 = datetime.now()
-            observation_length = 0
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
                     not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
-                    # TODO l045a define round done (time, distance, defined end event)
                     with self.hmi_lock:  # wait for tester to interrupt or to exit
                         th_exit = (
                             self.program_exit
@@ -1246,10 +1416,11 @@ class RealtimeRDPG(object):
                         )  # this class member episode_done is driving action (maneuver) done
                         table_start = self.vcu_calib_table_row_start
                         self.step_count = step_count
-                    self.logc.info(
-                        f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}"
-                    )
-                    if epi_end and done and (self.motionpowerQueue.qsize() > 2):
+
+                    with self.captureQ_lock:
+                        motionpowerqueue_size = self.motionpowerQueue.qsize()
+                    # self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
+                    if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
                             f"Residue in Queue is a sign of disordered sequence, interrupted!"
@@ -1257,18 +1428,19 @@ class RealtimeRDPG(object):
                         done = (
                             False  # this local done is true done with data exploitation
                         )
-                        epi_end = True
 
                     if epi_end:  # stop observing and inferring
                         continue
 
                     try:
-                        self.logc.info(
-                            f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
-                        )
-                        motionpower = self.motionpowerQueue.get(
-                            block=True, timeout=1.55
-                        )
+                        # self.logc.info(
+                        #     f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
+                        # )
+
+                        with self.captureQ_lock:
+                            motionpower = self.motionpowerQueue.get(
+                                block=True, timeout=1.55
+                            )
                     except queue.Empty:
                         self.logc.info(
                             f"E{epi_cnt} No data in the Queue!!!",
@@ -1287,9 +1459,12 @@ class RealtimeRDPG(object):
                         motionpower
                     )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
                     if self.cloud:
-                        ts, o_t0, gr_t, pow_t = tf.split(
+                        out = tf.split(
                             motpow_t, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
+                        (ts, o_t0, gr_t, pow_t) = [
+                            tf.squeeze(x) for x in out
+                        ]
                         o_t = tf.reshape(o_t0, -1)
                     else:
                         o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
@@ -1312,197 +1487,96 @@ class RealtimeRDPG(object):
                         extra=self.dictLogger,
                     )
 
-                    if (
-                        step_count % 2
-                    ) == 0:  # only for even observation/reward take an action
-                        # k_cycle = 1000  # TODO determine the ratio
-                        # cycle_reward += k_cycle * motion_magnitude.numpy()[0] # TODO add velocitoy sum as reward
-                        # wh0 = wh  # add velocitoy sum as reward
-                        prev_r_t = (wh1 + wh) * (
-                            -1.0
-                        )  # most recent odd and even indexed reward
-                        episode_reward += prev_r_t
-                        # TODO add speed sum as positive reward
 
-                        if step_count > 0:
-                            if self.cloud == False:  # local buffer needs array
-                                if step_count == 2:  # first even step has $r_0$
-                                    self.h_t = [
-                                        np.hstack([prev_o_t, prev_a_t, prev_r_t])
-                                    ]
-                                else:
-                                    self.h_t.append(
-                                        np.hstack([prev_o_t, prev_a_t, prev_r_t])
-                                    )
+                    # motion states o_t is 30*3/50*3 matrix
+                    a_t = self.rdpg.actor_predict(o_t, int(step_count / 2))
+                    # self.logd.info(
+                    #     f"E{epi_cnt} step{int(step_count/2)},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
+                    #     extra=self.dictLogger,
+                    # )
+                    self.logd.info(
+                        f"E{epi_cnt} inference done with reduced action space!",
+                        extra=self.dictLogger,
+                    )
 
-                                self.logd.info(
-                                    f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
-                                    extra=self.dictLogger,
-                                )
-                            else:  # cloud need dict and list
-                                if step_count == 2:  # first even step has $r_0$
-                                    self.h_t = [
-                                        {
-                                            "states": prev_o_t.tolist(),
-                                            "actions": prev_a_t.tolist(),
-                                            "reward": prev_r_t,
-                                        }
-                                    ]
-                                else:
-                                    self.h_t.append(
-                                        {
-                                            "states": prev_o_t.tolist(),
-                                            "actions": prev_a_t.tolist(),
-                                            "reward": prev_r_t,
-                                        }
-                                    )
-
-                                self.logd.info(
-                                    f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
-                                    extra=self.dictLogger,
-                                )
-
-                        else:
-                            timestamp0 = datetime.fromtimestamp(ts[0] / 1000.0)
-                            observation_length = o_t0.shape[0]
-                        # predict action probabilities and estimated future rewards
-                        # from environment state
-                        # for causal rl, the odd indexed observation/reward are caused by last action
-                        # skip the odd indexed observation/reward for policy to make it causal
-                        self.logc.info(
-                            f"E{epi_cnt} before inference!",
-                            extra=self.dictLogger,
-                        )
-                        # motion states o_t is 30*3/50*3 matrix
-                        # with tf.device('/GPU:0'):
-                        #     a_t = self.rdpg.actor_predict(o_t, step_count / 2)
-
-                        a_t = self.rdpg.actor_predict(o_t, int(step_count / 2))
-                        # self.logd.info(
-                        #     f"E{epi_cnt} step{int(step_count/2)},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
-                        #     extra=self.dictLogger,
-                        # )
-
-                        prev_o_t = o_t
-                        prev_a_t = a_t
-
-                        self.logd.info(
-                            f"E{epi_cnt} inference done with reduced action space!",
-                            extra=self.dictLogger,
-                        )
-
-                        vcu_calib_table_reduced = tf.reshape(
-                            a_t,
-                            [
-                                self.vcu_calib_table_row_reduced,
-                                self.vcu_calib_table_col,
-                            ],
-                        )
-                        # self.logger.info(
-                        #     f"vcu action table reduced generated!", extra=self.dictLogger
-                        # )
-                        # vcu_action_table_reduced_s = [f"{col:.3f},"
-                        #                               for row in vcu_calib_table_reduced
-                        #                               for col in row]
-                        # self.logger.info(
-                        #     f"vcu action table: {vcu_action_table_reduced_s}",
-                        #     extra=self.dictLogger,
-                        # )
-
-                        # get change budget : % of initial table
-                        vcu_calib_table_reduced = (
-                            vcu_calib_table_reduced * self.action_budget
-                        )
-                        # vcu_calib_table_reduced = tf.math.multiply(
-                        #     vcu_calib_table_reduced * vcu_calib_table_budget,
-                        #     vcu_calib_table0_reduced,
-                        # )
-                        # add changes to the default value
-                        # vcu_calib_table_min_reduced = 0.8 * vcu_calib_table0_reduced
-
-                        # dynamically change table row start index
-                        vcu_calib_table0_reduced = self.vcu_calib_table0[
-                            table_start : self.vcu_calib_table_row_reduced
-                            + table_start,
-                            :,
-                        ]
-                        vcu_calib_table_min_reduced = (
-                            vcu_calib_table0_reduced - self.action_budget
-                        )
-                        vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
-
-                        vcu_calib_table_reduced = tf.clip_by_value(
-                            vcu_calib_table_reduced + vcu_calib_table0_reduced,
-                            clip_value_min=vcu_calib_table_min_reduced,
-                            clip_value_max=vcu_calib_table_max_reduced,
-                        )
-
-                        # create updated complete pedal map, only update the first few rows
-                        self.vcu_calib_table1[
-                            table_start : self.vcu_calib_table_row_reduced
-                            + table_start,
-                            :,
-                        ] = vcu_calib_table_reduced.numpy()
-                        pds_curr_table = pd.DataFrame(
-                            self.vcu_calib_table1, self.pd_index, self.pd_columns
-                        )
-                        # self.logc.info(
-                        #     f"E{epi_cnt} start record instant table: {step_count}",
-                        #     extra=self.dictLogger,
-                        # )
-                                        "action_start_row": prev_table_start,
-                                        "action_start_row":  prev_table_start,
-
-                        if args.record_table:
-                            curr_table_store_path = self.dataroot.joinpath(
-                                "tables/instant_table_rdpg-vb"
-                                + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                                + "e-"
-                                + str(epi_cnt)
-                                + "-"
-                                + str(step_count)
-                                + ".csv"
-                            )
-                            with open(curr_table_store_path, "wb") as f:
-                                pds_curr_table.to_csv(curr_table_store_path)
-                                # np.save(last_table_store_path, vcu_calib_table1)
-                            self.logd.info(
-                                f"E{epi_cnt} done with record instant table: {step_count}",
-                                extra=self.dictLogger,
-                            )
-
-                        vcu_act_list = self.vcu_calib_table1.reshape(-1).tolist()
-                        # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
-                        self.tableQueue.put(vcu_act_list)
+                    with self.tableQ_lock:
+                        self.tableQueue.put(a_t)
                         self.logd.info(
                             f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
                         )
-                        self.logc.info(
-                            f"E{epi_cnt} Finish Step: {step_count}",
-                            extra=self.dictLogger,
-                        )
+                    self.logc.info(
+                        f"E{epi_cnt} Finish Inference Step: {step_count}",
+                        extra=self.dictLogger,
+                    )
+
+                    # !!!no parallel even!!!
+                    cycle_reward = wh * (-1.0)
+                    episode_reward += cycle_reward
+
+                    if step_count > 0:
+                        if self.cloud == True:  # cloud need dict and list
+                            if step_count == 1:  # first even step has $r_0$
+                                self.h_t = [
+                                    {
+                                        "states": prev_o_t.numpy().tolist(),
+                                        "actions": prev_a_t.numpy().tolist(),
+                                        "action_start_row": prev_table_start,
+                                        "reward": cycle_reward.numpy().tolist(),
+                                    }
+                                ]
+                            else:
+                                self.h_t.append(
+                                    {
+                                        "states": prev_o_t.numpy().tolist(),
+                                        "actions": prev_a_t.numpy().tolist(),
+                                        "action_start_row":  prev_table_start,
+                                        "reward": cycle_reward.numpy().tolist(),
+                                    }
+                                )
+
+                            self.logc.info(
+                                f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
+                                extra=self.dictLogger,
+                            )
+                        else: # local buffer needs array
+                            if step_count == 1:  # first even step has $r_0$
+                                self.h_t = [
+                                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
+                                ]
+                            else:
+                                self.h_t.append(
+                                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
+                                )
+
+                            self.logd.info(
+                                f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
+                                extra=self.dictLogger,
+                            )
+                    else:
+                        timestamp0 = datetime.fromtimestamp(ts[0] / 1000.0)
+                        observation_length = o_t0.shape[0]
+                    # predict action probabilities and estimated future rewards
+                    # from environment state
+                    # for causal rl, the odd indexed observation/reward are caused by last action
+                    # skip the odd indexed observation/reward for policy to make it causal
+                    self.logc.info(
+                        f"E{epi_cnt} before inference!",
+                        extra=self.dictLogger,
+                    )
+
+                    prev_o_t = o_t
+                    prev_a_t = a_t
+                    prev_table_start = table_start
+
+                    self.logc.info(
+                        f"E{epi_cnt} Finish Step: {step_count}",
+                        extra=self.dictLogger,
+                    )
 
                     # during odd steps, old action remains effective due to learn and flash delay
                     # so ust record the reward history
                     # motion states (observation) are not used later for backpropagation
-                    else:
-                        # cycle_reward = (wh0 + wh) * (-1.0)  # odd + even indexed reward
-                        # Bugfix: the reward recorded in the first even step is not causal
-                        # cycle_reward should include the most recent even wh in the even step
-                        # record the odd step wh
-                        wh1 = wh
-
-                        # TODO add speed sum as positive reward
-                        self.logc.info(
-                            f"E{epi_cnt} Step done: {step_count}",
-                            extra=self.dictLogger,
-                        )
-
-                        # motion_states = tf.stack([motion_states0, motion_states])
-                        # motion_states_history was not used for back propagation
-                        # 60 frames, but never used again
-                        # motion_states_history.append(motion_states)
 
                     # step level
                     step_count += 1
@@ -1514,8 +1588,6 @@ class RealtimeRDPG(object):
                     f"E{epi_cnt} interrupted, waits for next episode to kick off!",
                     extra=self.dictLogger,
                 )
-                episode_reward = 0.0
-                self.h_t = []
                 continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
@@ -1554,8 +1626,6 @@ class RealtimeRDPG(object):
 
             else:
                 self.rdpg.add_to_replay(self.h_t)
-
-            self.h_t = []
 
             if self.infer:
                 (actor_loss, critic_loss) = self.rdpg.notrain()
@@ -1600,7 +1670,7 @@ class RealtimeRDPG(object):
                     "Calibration Table", plot_to_image(fig), step=epi_cnt_local
                 )
                 tf.summary.histogram(
-                    "Calibration Table Hist", vcu_act_list, step=epi_cnt_local
+                    "Calibration Table Hist", self.vcu_calib_table1.to_numpy().tolist(), step=epi_cnt_local
                 )
                 # tf.summary.trace_export(
                 #     name="veos_trace", step=epi_cnt_local, profiler_outdir=self.train_log_dir
@@ -1609,12 +1679,11 @@ class RealtimeRDPG(object):
             epi_cnt_local += 1
             plt.close(fig)
 
-            self.logd.info(
+            self.logc.info(
                 f"E{epi_cnt} Episode Reward: {episode_reward}",
                 extra=self.dictLogger,
             )
 
-            episode_reward = 0
             self.logc.info(
                 f"E{epi_cnt} done, waits for next episode to kick off!",
                 extra=self.dictLogger,
@@ -1635,28 +1704,15 @@ class RealtimeRDPG(object):
         #         step=epi_cnt_local,
         #         profiler_outdir=self.train_log_dir,
         #     )
-        thr_countdown.join()
         thr_observe.join()
+        thr_remoteget.join()
         thr_flash.join()
+        thr_countdown.join()
 
-        # TODOt  test restore last table
-        self.logc.info(f"Save the last table!!!!", extra=self.dictLogger)
+        if self.cloud is False:
+            self.rdpg.save_replay_buffer()
+        #  for database, just exit no need to cleanup.
 
-        pds_last_table = pd.DataFrame(
-            self.vcu_calib_table1, self.pd_index, self.pd_columns
-        )
-
-        last_table_store_path = (
-            self.dataroot.joinpath(  #  there's no slash in the end of the string
-                "last_table_rdpg-"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-                + ".csv"
-            )
-        )
-        with open(last_table_store_path, "wb") as f:
-            pds_last_table.to_csv(last_table_store_path)
-
-        self.rdpg.save_replay_buffer()
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 
 
