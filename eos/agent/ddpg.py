@@ -138,6 +138,9 @@ class Buffer:
         datafolder="./",
         cloud=False,
     ):
+
+        self.logger = logger.getChild("main").getChild("ddpg")
+        self.logger.propagate = True
         # Number of "experiences" to store at max
         # Num of tuples to train on.
         self.batch_size = batch_size
@@ -164,7 +167,7 @@ class Buffer:
                 debug=False,
             )
             self.buffer_counter = self.pool.count_items()
-            logger.info(
+            self.logger.info(
                 f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
                 extra=dictLogger,
             )
@@ -199,7 +202,7 @@ class Buffer:
         assert result.acknowledged == True
         rec_inserted = self.pool.find_item(result.inserted_id)
         assert rec_inserted == rec
-        logger.info(f"Pool has {self.pool.count_items()} records", extra=dictLogger)
+        self.logger.info(f"Pool has {self.pool.count_items()} records", extra=dictLogger)
 
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):
@@ -349,7 +352,7 @@ class Buffer:
 
         else:
             # get sampling range, if not enough data, batch is small
-            logger.info(
+            self.logger.info(
                 f"start test_pool_sample of size {self.batch_size}.",
                 extra=dictLogger,
             )
@@ -370,7 +373,7 @@ class Buffer:
                 reward_batch = tf.cast(reward_batch, dtype=tf.float32)
                 next_state_batch = tf.convert_to_tensor(np.array(next_state))
             else:
-                logger.info(f"pool is empty, skip learning.", extra=dictLogger)
+                self.logger.info(f"pool is empty, skip learning.", extra=dictLogger)
                 return 0, 0
 
         critic_loss, actor_loss = self.update(
@@ -403,7 +406,7 @@ class Buffer:
             critic_value = self.critic_model([state_batch, action_batch], training=True)
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        logger.info(f"No update Calulate reward done.", extra=dictLogger)
+        self.logger.info(f"No update Calulate reward done.", extra=dictLogger)
 
         # critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
         # self.critic_optimizer.apply_gradients(
@@ -442,7 +445,7 @@ class Buffer:
             )
 
         else:
-            logger.info(
+            self.logger.info(
                 f"start test_pool_sample of size {self.batch_size}.",
                 extra=dictLogger,
             )
