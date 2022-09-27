@@ -1496,7 +1496,6 @@ class RealtimeDDPG(object):
         ## train
         """
         running_reward = 0
-        episode_reward = 0
         th_exit = False
         epi_cnt_local = 0
 
@@ -1511,7 +1510,7 @@ class RealtimeDDPG(object):
                 continue
 
             step_count = 0
-            wh0 = 0  # initialize odd step wh
+            episode_reward = 0
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
@@ -1720,7 +1719,6 @@ class RealtimeDDPG(object):
                     f"E{epi_cnt} interrupted, waits for next episode to kick off!",
                     extra=self.dictLogger,
                 )
-                episode_reward = 0.0
                 continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
@@ -1798,7 +1796,7 @@ class RealtimeDDPG(object):
                     "Calibration Table", plot_to_image(fig), step=epi_cnt_local
                 )
                 tf.summary.histogram(
-                    "Calibration Table Hist", self.vcu_calib_table1, step=epi_cnt_local
+                    "Calibration Table Hist", self.vcu_calib_table1.to_numpy().tolist(), step=epi_cnt_local
                 )
                 # tf.summary.trace_export(
                 #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
@@ -1833,9 +1831,10 @@ class RealtimeDDPG(object):
         #         step=epi_cnt_local,
         #         profiler_outdir=self.train_log_dir,
         #     )
-        thr_countdown.join()
         thr_observe.join()
+        thr_remoteget.join()
         thr_flash.join()
+        thr_countdown.join()
 
         if self.cloud is False:
             self.buffer.save()
