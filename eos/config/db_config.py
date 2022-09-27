@@ -140,7 +140,6 @@ rec_schema_list = [
                 "actions": {
                     "action_row_number": int,
                     "action_column_number": int,
-                    "action_start_row": int,
                 },
                 "rewards": {
                     "reward_unit": "wh",
@@ -150,6 +149,7 @@ rec_schema_list = [
                 "timestamps": datetime,
                 "state": [float],  # [(velocity, thrust, brake)]
                 "action": [float],  # [row0, row1, row2, row3, row4]
+                "action_start_row": int,
                 "reward": float,
                 "next_state": [float],  # [(velocity, thrust, brake)]
             },
@@ -173,7 +173,6 @@ rec_schema_list = [
                 "actions": {
                     "action_row_number": int,
                     "action_column_number": int,
-                    "action_start_row": int,
                 },
                 "rewards": {
                     "reward_unit": "wh",
@@ -183,6 +182,7 @@ rec_schema_list = [
                 "timestamps": datetime,
                 "state": {"velocity": [float], "thrust": [float], "brake": [float]},
                 "action": [float],
+                "action_start_row": int,
                 "reward": float,
                 "next_state": {
                     "velocity": [float],
@@ -243,7 +243,6 @@ epi_schema_list = [
                 "actions": {
                     "action_row_number": int,
                     "action_column_number": int,
-                    "action_start_row": int,
                 },
                 "rewards": {
                     "reward_unit": "wh",
@@ -253,6 +252,7 @@ epi_schema_list = [
                 {
                     "states": [float],  # velocity, thrust, brake
                     "actions": [float],  # pedal map of reduced_row_number
+                    "action_start_row": int,  # scalar
                     "reward": float,  # scalar
                 }
             ],

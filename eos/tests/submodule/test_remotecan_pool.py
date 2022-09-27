@@ -207,13 +207,13 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         action_row_number = batch_4[0]["plot"]["actions"]["action_row_number"]
         action_column_number = batch_4[0]["plot"]["actions"]["action_column_number"]
-        action_start_row = batch_4[0]["plot"]["actions"]["action_start_row"]
         action_length = action_column_number * action_row_number
         self.logger.info(
             f"state length: {state_length}, action length: {action_length}.",
             extra=self.dictLogger,
         )
         # test codecs
+        # reward series
         r_n_t = [
             [history["reward"] for history in episode["history"]]
             for episode in batch_24
@@ -224,8 +224,9 @@ class TestRemoteCanPool(unittest.TestCase):
             dtype="float32",
             value=-10000,
         )
-
         self.logger.info("done decoding reward.", extra=self.dictLogger)
+
+        # states series
         o_n_l0 = [
             [history["states"] for history in episode["history"]]
             for episode in batch_24
@@ -256,6 +257,19 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.error("Ragged observation state o_n_l1!", extra=self.dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
         self.logger.info("done decoding states.", extra=self.dictLogger)
+
+        # starting row series, not used for now
+        a_n_start_t = [
+            [history["action_start_row"] for history in episode["history"]]
+            for episode in batch_24
+        ]
+        a_n_start_t1 = pad_sequences(
+            a_n_start_t,
+            padding="post",
+            dtype="float32",
+            value=-10000,
+        )
+        self.logger.info("done decoding starting row.", extra=self.dictLogger)
 
         a_n_l0 = [
             [history["actions"] for history in episode["history"]]
@@ -531,7 +545,6 @@ class TestRemoteCanPool(unittest.TestCase):
                     "actions": {
                         "action_row_number": int,
                         "action_column_number": int,
-                        "action_start_row": int,
                     },
                     "rewards": {
                         "reward_unit": "wh",
@@ -541,6 +554,7 @@ class TestRemoteCanPool(unittest.TestCase):
                     {
                         "states": [float],  # velocity, thrust, brake
                         "actions": [float],  # pedal map of reduced_row_number
+                        "action_start_row": int,
                         "reward": float,  # scalar
                     }
                 ],
@@ -598,7 +612,6 @@ class TestRemoteCanPool(unittest.TestCase):
                     "actions": {
                         "action_row_number": int,
                         "action_column_number": int,
-                        "action_start_row": int,
                     },
                     "rewards": {
                         "reward_unit": "wh",
@@ -608,6 +621,7 @@ class TestRemoteCanPool(unittest.TestCase):
                     "timestamps": datetime,
                     "state": [float],  # [(velocity, thrust, brake)]
                     "action": [float],  # [row0, row1, row2, row3, row4]
+                    "action_start_row": int,
                     "reward": float,
                     "next_state": [float],  # [(velocity, thrust, brake)]
                 },
@@ -668,6 +682,7 @@ class TestRemoteCanPool(unittest.TestCase):
                             {
                                 "states": prev_o_t.tolist(),
                                 "actions": prev_a_t,
+                                "action_start_row": action_start_row,
                                 "reward": prev_r_t,
                             }
                         ]
@@ -676,6 +691,7 @@ class TestRemoteCanPool(unittest.TestCase):
                             {
                                 "states": prev_o_t.tolist(),
                                 "actions": prev_a_t,
+                                "action_start_row": action_start_row,
                                 "reward": prev_r_t,
                             }
                         )
@@ -706,7 +722,6 @@ class TestRemoteCanPool(unittest.TestCase):
                 "actions": {
                     "action_row_number": action_row_number,
                     "action_column_number": action_column_number,
-                    "action_start_row": action_start_row,
                 },
                 "rewards": {
                     "reward_unit": "wh",

@@ -1666,7 +1666,6 @@ class RealtimeDDPG(object):
                                     "actions": {
                                         "action_row_number": self.vcu_calib_table_row_reduced,
                                         "action_column_number": self.vcu_calib_table_col,
-                                        "action_start_row": prev_table_start,
                                     },
                                     "reward": {
                                         "reward_unit": "wh",
@@ -1675,6 +1674,7 @@ class RealtimeDDPG(object):
                                 "observation": {
                                     "state": prev_motion_states.numpy().tolist(),
                                     "action": prev_action,
+                                    "action_start_row": prev_table_start,
                                     "reward": cycle_reward.numpy().tolist(),
                                     "next_state": motion_states.numpy().tolist(),
                                 },

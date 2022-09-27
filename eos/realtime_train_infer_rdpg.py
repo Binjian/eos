@@ -1450,6 +1450,8 @@ class RealtimeRDPG(object):
                         #     f"E{epi_cnt} start record instant table: {step_count}",
                         #     extra=self.dictLogger,
                         # )
+                                        "action_start_row": prev_table_start,
+                                        "action_start_row":  prev_table_start,
 
                         if args.record_table:
                             curr_table_store_path = self.dataroot.joinpath(
@@ -1541,7 +1543,6 @@ class RealtimeRDPG(object):
                         "actions": {
                             "action_row_number": self.vcu_calib_table_row_reduced,
                             "action_column_number": self.vcu_calib_table_col,
-                            "action_start_row": table_start,
                         },
                         "reward": {
                             "reward_unit": "wh",

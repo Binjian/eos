@@ -385,13 +385,14 @@ class RDPG:
         states_length = batch[0]["plot"]["states"]["length"]
         action_row_number = batch[0]["plot"]["actions"]["action_row_number"]
         action_column_number = batch[0]["plot"]["actions"]["action_column_number"]
-        action_start_row = batch[0]["plot"]["actions"]["action_start_row"]
 
         assert (
             self.state_len == states_length * self.num_observations
         )  # (3s*50)*3(obs_num))=450
         assert self.action_len == action_row_number * action_column_number
 
+        # decode and padding rewards, states and actions
+        ## decode reward series
         r_n_t = [
             [history["reward"] for history in episode["history"]] for episode in batch
         ]  # list of lists
