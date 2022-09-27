@@ -190,11 +190,12 @@ class RealtimeDDPG(object):
         logfilename = self.logroot.joinpath(
             "eos-rt-ddpg-vb-" + datetime.now().isoformat().replace(":", "-") + ".log"
         )
-        formatter = logging.Formatter(
-            "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+        formatter = logging.basicConfig(
+            format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S.%f",
         )
         json_file_formatter = jsonlogger.JsonFormatter(
-            "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+            "%(created)f %(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
         )
 
         fh = logging.FileHandler(logfilename)
