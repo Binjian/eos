@@ -158,11 +158,11 @@ class RDPG:
         self._padding_value = padding_value
         self._gamma = tf.cast(gamma, dtype=tf.float32)
         self.cloud = cloud
+        self._datafolder = datafolder
         # new data
         if self.cloud == False:
             # Instead of list of tuples as the exp.replay concept go
             # We use different np.arrays for each tuple element
-            self._datafolder = datafolder
             self.file_replay = datafolder + "/replay_buffer.npy"
             # Its tells us num of times record() was called.
             self.load_replay_buffer()
@@ -181,7 +181,7 @@ class RDPG:
                 debug=False,
             )
             self.logger.info(
-                f"Connected to MongoDB {self.db_name}, collection {self.collection_name}"
+                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}"
             )
             self.buffer_counter = self.pool.count_items()
 
@@ -332,7 +332,7 @@ class RDPG:
         """
 
         self.logger.info("Start deposit an episode", extra=self.dictLogger)
-        self.pool.deposit_item(episode)
+        result = self.pool.deposit_item(episode)
         self.logger.info("Episode inserted.", extra=self.dictLogger)
         self.assertEqual(result.acknowledged, True)
         self.logger.info(
@@ -450,7 +450,7 @@ class RDPG:
         # decode starting row series, not used for now
         a_n_start_t = [
             [history["action_start_row"] for history in episode["history"]]
-            for episode in batch_24
+            for episode in batch
         ]
         a_n_start_t1 = pad_sequences(
             a_n_start_t,

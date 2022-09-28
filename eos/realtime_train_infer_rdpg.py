@@ -46,7 +46,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 # tf.debugging.set_log_device_placement(True)
 # visualization import
-import pandas as pd
 import tensorflow as tf
 from git import Repo
 from pythonjsonlogger import jsonlogger
@@ -186,7 +185,7 @@ class RealtimeRDPG(object):
 
         logfilename = self.logroot.joinpath(
             "eos-rt-rdpg-vb7"
-            + datetime.datetime.now().isoformat().replace(":", "-")
+            + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
         formatter = logging.basicConfig(
@@ -516,7 +515,9 @@ class RealtimeRDPG(object):
             # raise Exception("reset capture to stop")
         logger_countdown.info(f"Coutndown dies!!!", extra=self.dictLogger)
 
-    def kvaser_get_truck_status(self, evt_epi_done, evt_remote_get):
+    def kvaser_get_truck_status(
+            self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+    ):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
@@ -701,7 +702,7 @@ class RealtimeRDPG(object):
                                     f"Cycle velocity: Aver{vel_aver:.2f},Min{vel_min:.2f},Max{vel_max:.2f},StartIndex{self.vcu_calib_table_row_start}!",
                                     extra=self.dictLogger,
                                 )
-                                # self.logd.info(
+                                # self.logc.info(
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
 
@@ -729,7 +730,7 @@ class RealtimeRDPG(object):
 
     # this is the calibration table consumer for flashing
     # @eye
-    def kvaser_flash_vcu(self):
+    def kvaser_flash_vcu(self, evt_remote_flash: threading.Event):
 
         flash_count = 0
         th_exit = False
@@ -1282,7 +1283,7 @@ class RealtimeRDPG(object):
                     with open(curr_table_store_path, "wb") as f:
                         self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
-                    # self.logd.info(
+                    # self.logc.info(
                     #     f"E{epi_cnt} done with record instant table: {step_count}",
                     #     extra=self.dictLogger,
                     # )
@@ -1470,7 +1471,7 @@ class RealtimeRDPG(object):
                         o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
                         o_t = tf.reshape(o_t0, -1)
 
-                    self.logd.info(
+                    self.logc.info(
                         f"E{epi_cnt} tensor convert and split!",
                         extra=self.dictLogger,
                     )
@@ -1482,7 +1483,7 @@ class RealtimeRDPG(object):
                     #     f"ui_sum: {ui_sum}",
                     #     extra=self.dictLogger,
                     # )
-                    self.logd.info(
+                    self.logc.info(
                         f"wh: {wh}",
                         extra=self.dictLogger,
                     )
@@ -1490,18 +1491,18 @@ class RealtimeRDPG(object):
 
                     # motion states o_t is 30*3/50*3 matrix
                     a_t = self.rdpg.actor_predict(o_t, int(step_count / 2))
-                    # self.logd.info(
+                    # self.logc.info(
                     #     f"E{epi_cnt} step{int(step_count/2)},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
                     #     extra=self.dictLogger,
                     # )
-                    self.logd.info(
+                    self.logc.info(
                         f"E{epi_cnt} inference done with reduced action space!",
                         extra=self.dictLogger,
                     )
 
                     with self.tableQ_lock:
                         self.tableQueue.put(a_t)
-                        self.logd.info(
+                        self.logc.info(
                             f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
                         )
@@ -1549,8 +1550,8 @@ class RealtimeRDPG(object):
                                     np.hstack([prev_o_t, prev_a_t, cycle_reward])
                                 )
 
-                            self.logd.info(
-                                f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, prev_r_t.shape: {prev_r_t.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
+                            self.logc.info(
+                                f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, cycle_reward: {cycle_reward.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
                                 extra=self.dictLogger,
                             )
                     else:
@@ -1629,15 +1630,15 @@ class RealtimeRDPG(object):
 
             if self.infer:
                 (actor_loss, critic_loss) = self.rdpg.notrain()
-                self.logd.info("No Learning, just calculating loss")
+                self.logc.info("No Learning, just calculating loss")
             else:
-                self.logd.info("Learning and soft updating")
+                self.logc.info("Learning and soft updating")
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
                     (actor_loss, critic_loss) = self.rdpg.train()
-                    # self.logd.info("Learning and soft updating")
-                    # logd.info(f"BP{k} done.", extra=dictLogger)
-                    self.logd.info(
+                    # self.logc.info("Learning and soft updating")
+                    # self.logc.info(f"BP{k} done.", extra=dictLogger)
+                    self.logc.info(
                         f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
                         extra=dictLogger,
                     )
@@ -1647,7 +1648,7 @@ class RealtimeRDPG(object):
                 # Checkpoint manager save model
                 self.rdpg.save_ckpt()
 
-            self.logd.info(
+            self.logc.info(
                 f"E{epi_cnt}BP 6 times critic loss: {critic_loss}; actor loss: {actor_loss}",
                 extra=self.dictLogger,
             )
@@ -1729,7 +1730,7 @@ if __name__ == "__main__":
         "--cloud",
         default=False,
         help="Use cloud mode, default is False",
-        action="store_false",
+        action="store_true",
     )
 
     parser.add_argument(
@@ -1776,9 +1777,9 @@ if __name__ == "__main__":
             logger,
         )
     except TypeError as e:
-        logger.error(f"Project Exeception TypeError: {e}", extra=logger.dictLogger)
+        logger.error(f"Project Exeception TypeError: {e}", extra=dictLogger)
         sys.exit(1)
     except Exception as e:
-        logger.error(e, extra=logger.dictLogger)
+        logger.error(e, extra=dictLogger)
         sys.exit(1)
     app.run()

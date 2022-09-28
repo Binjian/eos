@@ -46,7 +46,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 # tf.debugging.set_log_device_placement(True)
 # visualization import
-import pandas as pd
 import tensorflow as tf
 from git import Repo
 from pythonjsonlogger import jsonlogger
@@ -635,7 +634,9 @@ class RealtimeDDPG(object):
             # raise Exception("reset capture to stop")
         logger_countdown.info(f"Coutndown dies!!!", extra=self.dictLogger)
 
-    def kvaser_get_truck_status(self, evt_epi_done, evt_remote_get):
+    def kvaser_get_truck_status(
+            self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+    ):
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
@@ -848,7 +849,7 @@ class RealtimeDDPG(object):
 
     # this is the calibration table consumer for flashing
     # @eye
-    def kvaser_flash_vcu(self):
+    def kvaser_flash_vcu(self, evt_remote_flash: threading.Event):
 
         flash_count = 0
         th_exit = False
