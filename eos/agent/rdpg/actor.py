@@ -148,7 +148,7 @@ class ActorNet:
         return sampled_action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)]
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
     )
     def predict_step(self, state):
         """Predict the action given the state.
@@ -166,7 +166,7 @@ class ActorNet:
         return last_action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)]
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
     )
     def evaluate_actions(self, state):
         """Evaluate the action given the state.

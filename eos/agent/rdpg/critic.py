@@ -117,8 +117,8 @@ class CriticNet:
 
     @tf.function(
         input_signature=[
-            tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32),
-            tf.TensorSpec(shape=[None, None, 85], dtype=tf.float32),
+            tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32),
+            tf.TensorSpec(shape=[None, None, 68], dtype=tf.float32),
         ]
     )
     def evaluate_q(self, state, action):

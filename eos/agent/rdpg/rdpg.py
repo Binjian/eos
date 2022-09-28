@@ -309,7 +309,7 @@ class RDPG:
         return action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 90], dtype=tf.float32)]
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
     )
     def actor_predict_step(self, obs):
         """
