@@ -148,6 +148,7 @@ class RDPG:
 
         self.logger = logger.getChild("main").getChild("rdpg")
         self.logger.propagate = True
+        self.dictLogger = dictLogger
 
         self._num_observations = num_observations
         self._obs_len = obs_len
@@ -334,15 +335,15 @@ class RDPG:
         self.logger.info("Start deposit an episode", extra=self.dictLogger)
         result = self.pool.deposit_item(episode)
         self.logger.info("Episode inserted.", extra=self.dictLogger)
-        self.assertEqual(result.acknowledged, True)
+        assert result.acknowledged is True, "deposit result not acknowledged"
         self.logger.info(
             f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
         )
         epi_inserted = self.pool.find_item(result.inserted_id)
         self.logger.info("episode found.", extra=self.dictLogger)
-        self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
-        self.assertEqual(epi_inserted["plot"], self.episode["plot"])
-        self.assertEqual(epi_inserted["history"], self.episode["history"])
+        assert epi_inserted["timestamp"] == episode["timestamp"], "timestamp mismatch"
+        assert epi_inserted["plot"] == episode["plot"], "plot mismatch"
+        assert epi_inserted["history"] == episode["history"], "history mismatch"
 
     def add_to_replay(self, h_t):
         """Add the current h_t to the replay buffer.

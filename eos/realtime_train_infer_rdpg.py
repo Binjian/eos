@@ -1394,6 +1394,7 @@ class RealtimeRDPG(object):
             step_count = 0
             self.h_t = []
             episode_reward = 0
+            timestamp0 = 0.0   # datetime.now().timestamp()
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
@@ -1555,7 +1556,7 @@ class RealtimeRDPG(object):
                                 extra=self.dictLogger,
                             )
                     else:
-                        timestamp0 = datetime.fromtimestamp(ts[0] / 1000.0)
+                        timestamp0 = datetime.fromtimestamp(ts[0].numpy() / 1000.0)
                         observation_length = o_t0.shape[0]
                     # predict action probabilities and estimated future rewards
                     # from environment state
@@ -1611,7 +1612,7 @@ class RealtimeRDPG(object):
                             "velocity_unit": "kmph",
                             "thrust_unit": "percentage",
                             "brake_unit": "percentage",
-                            "length": observation_length,
+                            "length": self.observation_len,
                         },
                         "actions": {
                             "action_row_number": self.vcu_calib_table_row_reduced,
