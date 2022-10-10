@@ -28,6 +28,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# --cloud -t -p testremote -r
 udpfileName = (
     os.getcwd()
     + "/../../data/udp-pcap/realtime_rdpg-"
@@ -44,6 +45,7 @@ if pid == 0:  # copy process
             "python",
             "../realtime_train_infer_rdpg.py",
             "--resume",
+            "--cloud",
             "--path",
             args.path,
             "--record_table",
@@ -54,6 +56,7 @@ if pid == 0:  # copy process
             "python",
             "python",
             "../realtime_train_infer_rdpg.py",
+            "--cloud",
             "--path",
             args.path,
             "--record_table",

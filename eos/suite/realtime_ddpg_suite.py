@@ -34,6 +34,7 @@ udpfileName = (
     + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     + ".pcap"
 )
+# --cloud -t -p testremote -r
 portNum = 8002  # port number
 pid = os.fork()
 if pid == 0:  # copy process
@@ -55,8 +56,8 @@ if pid == 0:  # copy process
             "python",
             "python",
             "../realtime_train_infer_ddpg.py",
-            "--path",
             "--cloud",
+            "--path",
             args.path,
             "--record_table",
         )  #  run Simulation

@@ -986,7 +986,7 @@ class RealtimeDDPG(object):
 
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
-            timeout=self.truck.CloudUnitNumber+5
+            timeout=self.truck.CloudUnitNumber+3
             logger_remote_get.info(f"Wake up to fetch remote data, duration={self.truck.CloudUnitNumber}s timeout={timeout}s", extra=self.dictLogger)
             with self.remoteClient_lock:
                 (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
@@ -999,6 +999,9 @@ class RealtimeDDPG(object):
                     extra=self.dictLogger,
                 )
                 raise TypeError("udp sending wrong data type!")
+            else:
+                logger_remote_get.info(f"Get remote data, signal_success={signal_success}!", extra=self.dictLogger)
+
             try:
                 if signal_success == 0:
 
@@ -1421,7 +1424,7 @@ class RealtimeDDPG(object):
                 #     continue
 
                 # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
-                timeout = self.vcu_calib_table_row_reduced + 5
+                timeout = self.vcu_calib_table_row_reduced + 3
                 logger_flash.info(f"flash starts, timeout={timeout}s", extra=self.dictLogger)
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
