@@ -24,9 +24,9 @@ include = ["eos/*", "*.csv" ]
 #virtualenvs.in-project = true
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.11"
+python = ">=3.10,<3.11"
 poetry = "*"
-tensorflow = ">=2.9.0"
+tensorflow = ">=2.10.0"
 tensorflow-estimator = ">=2.8.0"
 tensorflow-probability = ">=0.16.0"
 tensorboard = ">=2.8.0"
