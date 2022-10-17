@@ -87,6 +87,7 @@ Truck = namedtuple(
     "Truck",
     [
         "TruckName",  # Name of the truck: VB7, M2, MP2, etc.
+        "RemoteCANHost",  # IP address of the remote CAN host
         "VIN",  # Vehicle Identification Number
         "Plate",  # License plate number
         "Maturity",  # "VB", "MULE", "MP"
@@ -113,6 +114,7 @@ Truck = namedtuple(
 truck_list = [
     Truck(
         TruckName="VB7",
+        RemoteCANHost="10.0.64.78",  # IP address of the remote CAN host
         VIN="HMZABAAH7MF011058",
         Plate="77777777",
         Maturity="VB",
@@ -137,6 +139,7 @@ truck_list = [
     ),
     Truck(
         TruckName="VB6",
+        RemoteCANHost="10.0.64.78",  # IP address of the remote CAN host
         VIN="HMZABAAH5MF011057",
         Plate="66666666",
         Maturity="VB",
@@ -161,6 +164,7 @@ truck_list = [
     ),
     Truck(
         TruckName="M2",
+        RemoteCANHost="10.0.64.78",  # IP address of the remote CAN host
         VIN=None,  # "987654321654321M4"
         Plate="2222222",
         Maturity="MULE",
@@ -185,6 +189,7 @@ truck_list = [
     ),
     Truck(
         TruckName="HQB",
+        RemoteCANHost="10.0.64.78",  # IP address of the remote CAN host
         VIN="NEWRIZON020220328",
         Plate="00000000",
         Maturity="VB",

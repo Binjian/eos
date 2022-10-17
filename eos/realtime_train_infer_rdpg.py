@@ -873,6 +873,14 @@ class RealtimeRDPG(object):
                 (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
                     duration=self.truck.CloudUnitNumber, timeout=timeout
                 )  # timeout is 1 second longer than duration
+                if signal_success != 0: # in case of failure, ping server
+                    logger_remote_get.warning(f"RemoteCAN failure! return state={signal_success}s, return_code={remotecan_data}", extra=self.dictLogger)
+                    hostname = self.truck.RemoteCANHost
+                    response = os.system("ping -c 1 " + hostname)
+                    if response == 0:
+                        logger_remote_get.info(f"{hostname} is up!", extra=self.dictLogger)
+                    else:
+                        logger_remote_get.info(f"{hostname} is down!", extra=self.dictLogger)
 
             if not isinstance(remotecan_data, dict):
                 logger_remote_get.critical(
@@ -1321,6 +1329,12 @@ class RealtimeRDPG(object):
                         f"send_torque_map failed and retry: {returncode}",
                         extra=self.dictLogger,
                     )
+                    hostname = self.truck.RemoteCANHost
+                    response = os.system("ping -c 1 " + hostname)
+                    if response == 0:
+                        logger_flash.info(f"{hostname} is up!", extra=self.dictLogger)
+                    else:
+                        logger_flash.info(f"{hostname} is down!", extra=self.dictLogger)
                 else:
                     logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
