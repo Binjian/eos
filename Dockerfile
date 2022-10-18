@@ -41,9 +41,9 @@ WORKDIR /app
 RUN poetry install
 # RUN #poetry shell
 
-ENTRYPOINT ["bash"]
+ENTRYPOINT ["/bin/bash"]
 #ENTRYPOINT ["bash", "poetry", "shell"]
-#ENTRYPOINT ["poetry", "shell"]
+# ENTRYPOINT ["poetry", "shell"]
 #ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_ddpg.py", "--cloud -r -t -p cloudtest"]
 # install depnedencies
 # RUN pip install -r requirements.txt
