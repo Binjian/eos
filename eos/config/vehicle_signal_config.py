@@ -114,7 +114,7 @@ Truck = namedtuple(
 truck_list = [
     Truck(
         TruckName="VB7",
-        RemoteCANHost="10.0.64.78",  # IP address of the remote CAN host
+        RemoteCANHost="10.0.48.78",  # IP address of the remote CAN host
         VIN="HMZABAAH7MF011058",
         Plate="77777777",
         Maturity="VB",
@@ -139,7 +139,7 @@ truck_list = [
     ),
     Truck(
         TruckName="VB6",
-        RemoteCANHost="10.0.64.78",  # IP address of the remote CAN host
+        RemoteCANHost="10.0.48.78",  # IP address of the remote CAN host
         VIN="HMZABAAH5MF011057",
         Plate="66666666",
         Maturity="VB",

@@ -116,7 +116,7 @@ class TestRemoteCanGet(unittest.TestCase):
     def test_native_get(self):
         self.logger.info("Start test_native_get", extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
         )
         self.logger.info("Set client", extra=self.dictLogger)
         self.native_get()
@@ -125,7 +125,7 @@ class TestRemoteCanGet(unittest.TestCase):
     def test_native_send(self):
         self.logger.info("Start test_native_send", extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
         )
         self.logger.info("Set client", extra=self.dictLogger)
 

@@ -172,8 +172,9 @@ class RealtimeRDPG(object):
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
+        hostname = self.truck.RemoteCANHost
         self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+            truckname=self.truck.TruckName, url=hostname
         )
 
     def set_logger(self):
