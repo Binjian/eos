@@ -388,6 +388,16 @@ class TestRemoteCanPool(unittest.TestCase):
             truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
         )
 
+        hostname = self.truck.RemoteCANHost
+        hostip = hostname.split(":")[0]
+        response = os.system("ping -c 1 " + hostip)
+        if response == 0:
+            self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
+        else:
+            self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
+        response_telnet = os.system(f"curl -v telnet://{hostname}")
+        self.logger.info(f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger)
+
         self.logger.info("Start observation test", extra=self.dictLogger)
         for rec_cnt in range(3):
 
@@ -439,9 +449,19 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_consecutive_flash_test(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://10.0.64.78:5000/"
+            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
         )
         # self.generate_record_schemas()
+        hostname = self.truck.RemoteCANHost
+        hostip = hostname.split(":")[0]
+        response = os.system("ping -c 1 " + hostip)
+        if response == 0:
+            self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
+        else:
+            self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
+        response_telnet = os.system(f"curl -v telnet://{hostname}")
+        self.logger.info(f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger)
+
         self.rec_sch = self.record_schemas["record_deep"]
         self.db = self.dbs_record["local"]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
@@ -456,7 +476,6 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
-        # # flashing the whole calibration table
         # map2d = self.vcu_calib_table_default
         # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
         # returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
