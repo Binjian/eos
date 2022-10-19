@@ -998,11 +998,14 @@ class RealtimeDDPG(object):
                 if signal_success != 0: # in case of failure, ping server
                     logger_remote_get.warning(f"RemoteCAN failure! return state={signal_success}s, return_code={remotecan_data}", extra=self.dictLogger)
                     hostname = self.truck.RemoteCANHost
-                    response = os.system("ping -c 1 " + hostname)
+                    hostip = hostname.split(":")[0]
+                    response = os.system("ping -c 1 " + hostip)
                     if response == 0:
-                        logger_remote_get.info(f"{hostname} is up!", extra=self.dictLogger)
+                        logger_remote_get.info(f"{hostip} is up!", extra=self.dictLogger)
                     else:
-                        logger_remote_get.info(f"{hostname} is down!", extra=self.dictLogger)
+                        logger_remote_get.info(f"{hostip} is down!", extra=self.dictLogger)
+                    response_telnet = os.system(f"curl -v telnet://{hostname}")
+                    logger_remote_get.info(f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger)
 
             if not isinstance(remotecan_data, dict):
                 logger_remote_get.critical(
@@ -1455,11 +1458,14 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
                     hostname = self.truck.RemoteCANHost
-                    response = os.system("ping -c 1 " + hostname)
+                    hostip = hostname.split(":")[0]
+                    response = os.system("ping -c 1 " + hostip)
                     if response == 0:
-                        logger_flash.info(f"{hostname} is up!", extra=self.dictLogger)
+                        logger_flash.info(f"{hostip} is up!", extra=self.dictLogger)
                     else:
-                        logger_flash.info(f"{hostname} is down!", extra=self.dictLogger)
+                        logger_flash.info(f"{hostip} is down!", extra=self.dictLogger)
+                    response_telnet = os.system(f"curl -v telnet://{hostname}")
+                    logger_flash.info(f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger)
                 else:
                     logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
