@@ -157,6 +157,9 @@ class RealtimeDDPG(object):
         self.logc.info(
             f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
         )
+        gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logger.info(
