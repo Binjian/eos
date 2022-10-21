@@ -52,6 +52,7 @@ cutelog = ">=2.0.6"
 pymongoarrow = ">=0.5.0"
 pyarrow = ">=9.0.0"
 gitpython = ">=3.1.27"
+rocketmq = ">=0.4.4"
 
 
 

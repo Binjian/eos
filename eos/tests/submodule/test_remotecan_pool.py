@@ -13,6 +13,7 @@ import numpy as np
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
+
 # from pymongoarrow.api import Schema
 from bson import ObjectId
 from keras.utils import pad_sequences
@@ -20,8 +21,7 @@ from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
 from eos.comm import generate_vcu_calibration
-from eos.config import (dbs_episode, dbs_record, episode_schemas,
-                        record_schemas, trucks)
+from eos.config import dbs_episode, dbs_record, episode_schemas, record_schemas, trucks
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 
@@ -340,8 +340,6 @@ class TestRemoteCanPool(unittest.TestCase):
         reward = [rec["observation"]["reward"] for rec in batch_24]
         next_state = [rec["observation"]["next_state"] for rec in batch_24]
 
-
-
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
@@ -396,7 +394,9 @@ class TestRemoteCanPool(unittest.TestCase):
         else:
             self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
         response_telnet = os.system(f"curl -v telnet://{hostname}")
-        self.logger.info(f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger)
+        self.logger.info(
+            f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        )
 
         self.logger.info("Start observation test", extra=self.dictLogger)
         for rec_cnt in range(3):
@@ -406,7 +406,9 @@ class TestRemoteCanPool(unittest.TestCase):
                 f"Get and deposit Observation No. {rec_cnt}", extra=self.dictLogger
             )
 
-        self.logger.info("Done with get consecutive observation test", extra=self.dictLogger)
+        self.logger.info(
+            "Done with get consecutive observation test", extra=self.dictLogger
+        )
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_records(self):
@@ -444,7 +446,9 @@ class TestRemoteCanPool(unittest.TestCase):
             # ]
             # self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dictLogger)
 
-        self.logger.info("Done with consecutive getting record test", extra=self.dictLogger)
+        self.logger.info(
+            "Done with consecutive getting record test", extra=self.dictLogger
+        )
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_consecutive_flash_test(self):
@@ -460,7 +464,9 @@ class TestRemoteCanPool(unittest.TestCase):
         else:
             self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
         response_telnet = os.system(f"curl -v telnet://{hostname}")
-        self.logger.info(f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger)
+        self.logger.info(
+            f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        )
 
         self.rec_sch = self.record_schemas["record_deep"]
         self.db = self.dbs_record["local"]
@@ -510,7 +516,9 @@ class TestRemoteCanPool(unittest.TestCase):
             extra=self.dictLogger,
         )
         timeout = N0 + 9
-        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False, timeout=timeout)
+        returncode = self.client.send_torque_map(
+            pedalmap=map2d_5rows, swap=False, timeout=timeout
+        )
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
             extra=self.dictLogger,
@@ -973,7 +981,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     def native_get(self):
 
-        timeout = self.truck.CloudUnitNumber+9
+        timeout = self.truck.CloudUnitNumber + 9
         signal_success, remotecan_data = self.client.get_signals(
             duration=self.truck.CloudUnitNumber, timeout=timeout
         )
@@ -1025,9 +1033,11 @@ class TestRemoteCanPool(unittest.TestCase):
                             ts_iso = ts_iso + ts_substrings[-1]
                             timestamps.append(ts_iso)
                         timestamps_units = (
-                            (np.array(timestamps).astype("datetime64[ms]") - np.timedelta64(8, "h"))  # convert to UTC+8
-                            .astype("int")  # convert to int
-                        )
+                            np.array(timestamps).astype("datetime64[ms]")
+                            - np.timedelta64(8, "h")
+                        ).astype(  # convert to UTC+8
+                            "int"
+                        )  # convert to int
                         if len(timestamps_units) != unit_num:
                             raise ValueError(
                                 f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"

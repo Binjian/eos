@@ -76,6 +76,7 @@ import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
 import tensorflow as tf
+
 # from pymongoarrow.api import Schema
 from bson import ObjectId
 from keras import layers
@@ -202,7 +203,9 @@ class Buffer:
         assert result.acknowledged == True
         rec_inserted = self.pool.find_item(result.inserted_id)
         assert rec_inserted == rec
-        self.logger.info(f"Pool has {self.pool.count_items()} records", extra=dictLogger)
+        self.logger.info(
+            f"Pool has {self.pool.count_items()} records", extra=dictLogger
+        )
 
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):

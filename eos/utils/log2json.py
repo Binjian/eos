@@ -29,8 +29,8 @@ with open(logfile) as f:
         l = l.strip("\n")
         # string to dict
         l = json.loads(l)
-        created = datetime.fromisoformat(l['asctime'].replace(',', '.'))
-        l['created'] = created.timestamp()
+        created = datetime.fromisoformat(l["asctime"].replace(",", "."))
+        l["created"] = created.timestamp()
         # append dict
         result.append(l)
 
