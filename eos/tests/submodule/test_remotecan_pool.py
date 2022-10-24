@@ -383,7 +383,7 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.truck.RemoteCANHost+"/"
         )
 
         hostname = self.truck.RemoteCANHost
@@ -453,7 +453,7 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_consecutive_flash_test(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.truck.RemoteCANHost+"/"
         )
         # self.generate_record_schemas()
         hostname = self.truck.RemoteCANHost
