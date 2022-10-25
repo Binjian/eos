@@ -50,6 +50,18 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
 COPY . /app
 # set the working directory in the container
 WORKDIR /app
+RUN mkdir -p /app/data/udp-pcap &&\
+    cp ./eos/config/*.csv /app/data/ &&\
+    mkdir -p /app/data/testremote/py_logs &&\
+    mkdir -p /app/data/testremote/tables &&\
+    mkdir -p /app/data/testremote/tf_logs-vb/ddpg &&\
+    mkdir -p /app/data/testremote/tf_logs-vb/rdpg &&\
+    mkdir -p /app/data/testremote/tf_ckpts-vb/l045a_ddpg_actor &&\
+    mkdir -p /app/data/testremote/tf_ckpts-vb/l045a_ddpg_critic &&\
+    mkdir -p /app/data/testremote/vb_checkpoints/rdpg_actor &&\
+    mkdir -p /app/data/testremote/vb_checkpoints/rdpg_critic &&\
+    cp ./eos/config/*.csv /app/data/testremote
+
 #
 #RUN python3 -c 'import urllib3; http = urllib3.PoolManager(maxsize=100)'
 # copy the code to the working directory
