@@ -1246,14 +1246,16 @@ class RealtimeDDPG(object):
         rocket_consumer = PullConsumer('CID_EPI_ROCKET')
         rocket_consumer.set_namesrv_addr(self.truck.TripControlHost)
         rocket_consumer.start()
+
         logger_webhmi_sm.info(f"Start RocketMQ client on {self.truck.TripControlHost}!", extra=self.dictLogger)
 
-        msg_topic = "drivercircle_action"
+        msg_topic = "drivecircle_action"
+
         broker_msgs = rocket_consumer.pull(msg_topic)
         logger_webhmi_sm.info(f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!", extra=self.dictLogger)
         all(broker_msgs)  # exhaust history messages
 
-        logger_webhmi_sm.info(f"Socket Initialization Done!", extra=self.dictLogger)
+        logger_webhmi_sm.info(f"RocketMQ client Initialization Done!", extra=self.dictLogger)
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1265,7 +1267,8 @@ class RealtimeDDPG(object):
                     )
                     th_exit = True
                     continue
-            for msg in rocket_consumer.pull(msg_topic):
+            msgs = rocket_consumer.pull(msg_topic)
+            for msg in msgs:
                 msg_body = json.loads(msg.body)
                 if not isinstance(msg_body, dict):
                     logger_webhmi_sm.critical(
@@ -1312,10 +1315,6 @@ class RealtimeDDPG(object):
                         self.episode_done = False  # TODO delay episode_done to make main thread keep running
                         self.episode_end = False
                 elif msg_body['code'] == 3:  # invalid stop
-                    with self.hmi_lock:
-                        self.hmi_state = "invalid"
-                        self.hmi_state_change = True
-
                     self.get_truck_status_start = False
                     logger_webhmi_sm.info(
                         f"Episode is interrupted!!!", extra=self.dictLogger
@@ -1347,10 +1346,6 @@ class RealtimeDDPG(object):
                         self.episode_end = True
                         self.episode_count += 1  # invalid round increments
                 elif msg_body['code'] == 4:  # "exit"
-                    with self.hmi_lock:
-                        self.hmi_state = "exit"
-                        self.hmi_state_change = True
-
                     self.get_truck_status_start = False
                     self.get_truck_status_motpow_t = []
 
@@ -1382,6 +1377,8 @@ class RealtimeDDPG(object):
             time.sleep(0.05)  # sleep for 50ms to update state machine
             if self.get_truck_status_start:
                 evt_remote_get.set()
+
+        rocket_consumer.shutdown()
         logger_webhmi_sm.info(f"get_truck_status dies!!!", extra=self.dictLogger)
 
 
@@ -2106,7 +2103,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--cloud",
-        default=False,
+        default=True,
         help="Use cloud mode, default is False",
         action="store_true",
     )
@@ -2114,7 +2111,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-w",
         "--web",
-        default=False,
+        default=True,
         help="Use web interface",
         action="store_true",
     )
@@ -2122,7 +2119,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-r",
         "--resume",
-        default=False,
+        default=True,
         help="resume the last training with restored model, checkpoint and pedal map",
         action="store_true",
     )
