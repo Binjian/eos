@@ -36,7 +36,9 @@ RUN apt-get update -y --no-install-recommends &&\
 #
 #RUN which python
 #RUN python3 -m ensurepip --upgrade
-RUN apt-get install -y python3-pip &&\
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
+    pip config set global.timeout 1000 &&\
+    apt-get install -y python3-pip &&\
     pip install --upgrade pip &&\
     pip install 'poetry==1.2'
 ##RUN mkdir -p /etc/poetry
@@ -83,4 +85,4 @@ RUN poetry install
 # 'poetry run python eos/realtime_train_infer_ddpg.py --cloud -t -p testremote -r'
 # docker container run -it --rm --gpus all --network host  \
 #    -p 27017:27017 -p 19996:19996 eos-gpu:latest /bin/sh -c  \
-#    'poetry run python eos/realtime_train_infer_ddpg.py --cloud -t -p testremote -r
+#    'poetry run python eos/realtime_train_infer_ddpg.py --cloud -t -p testremote -r'
