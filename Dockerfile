@@ -8,6 +8,7 @@ ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV NVIDIA_REQUIRE_CUDA "cuda>=11.0 driver>=450"
 ENV TZ=Asia/Shanghai
+ENV PIP_DEFAULT_TIMEOUT=600
 
 # ENV HTTP_PROXY=http://127.0.0.1:20171
 # ENV HTTPS_PROXY=http://127.0.0.1:20171
@@ -37,10 +38,11 @@ RUN apt-get update -y --no-install-recommends &&\
 #RUN which python
 #RUN python3 -m ensurepip --upgrade
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
-    pip config set global.timeout 1000 &&\
+    pip config set global.timeout 150 &&\
     apt-get install -y python3-pip &&\
     pip install --upgrade pip &&\
-    pip install 'poetry==1.2'
+    pip install 'poetry==1.2.2' &&\
+    poetry config installer.max-workers 4
 ##RUN mkdir -p /etc/poetry
 ##RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/etc/poetry python3 -
 ##ENV PATH="$PATH:/etc/poetry/bin"
