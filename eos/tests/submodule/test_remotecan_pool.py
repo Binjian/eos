@@ -393,10 +393,10 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
         else:
             self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
-        response_telnet = os.system(f"curl -v telnet://{hostname}")
-        self.logger.info(
-            f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
-        )
+        # response_telnet = os.system(f"curl -v telnet://{hostname}")
+        # self.logger.info(
+        #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        # )
 
         self.logger.info("Start observation test", extra=self.dictLogger)
         for rec_cnt in range(3):
@@ -463,10 +463,10 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
         else:
             self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
-        response_telnet = os.system(f"curl -v telnet://{hostname}")
-        self.logger.info(
-            f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
-        )
+        # response_telnet = os.system(f"curl -v telnet://{hostname}")
+        # self.logger.info(
+        #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        # )
 
         self.rec_sch = self.record_schemas["record_deep"]
         self.db = self.dbs_record["local"]
