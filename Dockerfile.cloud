@@ -1,0 +1,37 @@
+# set base image (host S)
+FROM registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0
+
+LABEL maintainer="binjian.xin@newrizon.com"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV NVIDIA_REQUIRE_CUDA "cuda>=11.0 driver>=450"
+ENV TZ=Asia/Shanghai
+
+RUN apt-get update -y --no-install-recommends \
+    && apt-get install -y software-properties-common \
+    && add-apt-repository "deb http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ jammy main restricted multiverse" \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get install apt-utils \
+    && apt-get install debconf \
+    && apt-get install -y --no-install-recommends python3.10 \
+    && apt-get install -y --no-install-recommends python3-pip \
+    && apt-get install -y --no-install-recommends git \
+    && apt-get install -y --no-install-recommends curl \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
+    && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get -y autoremove \
+    && apt-get clean 
+
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip config set global.timeout 1000 \
+    && pip install --upgrade pip \
+    && pip install 'poetry==1.2'
+
+COPY . /app
+# set the working directory in the container
+WORKDIR /app
+
+RUN poetry install
