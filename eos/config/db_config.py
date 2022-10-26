@@ -8,7 +8,8 @@ DB = namedtuple(
     [
         "SRVName",  # name of the server
         "DatabaseName",  # name of the database
-        "CollName",  # name of the collection
+        "RecCollName",  # name of the collection
+        "EpiCollName",  # name of the collection
         "Url",  # url for the database server
         "Port",  # port for the database server
         "Username",  # username for the database server
@@ -16,11 +17,12 @@ DB = namedtuple(
         "Proxy",  # proxy for the database server
     ],
 )
-db_record_list = [
+db_list = [
     DB(
         SRVName="local",  # name of the database
         DatabaseName="eos",  # name of the database
-        CollName="record",  # name of the collection
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
         Url="127.0.0.1",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
@@ -30,7 +32,8 @@ db_record_list = [
     DB(
         SRVName="ivy",  # name of the database
         DatabaseName="eos",  # name of the database
-        CollName="record",  # name of the collection
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
         Url="10.10.10.31",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
@@ -40,7 +43,8 @@ db_record_list = [
     DB(
         SRVName="dill",  # name of the database
         DatabaseName="eos",  # name of the database
-        CollName="record",  # name of the collection
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
         Url="10.10.10.13",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
@@ -50,59 +54,28 @@ db_record_list = [
     DB(
         SRVName="remote_sloppy",  # name of the database
         DatabaseName="eos",  # name of the database
-        CollName="record",  # name of the collection
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
         Url="10.0.64.64",  # url for the database server
         Port="30116",  # port for the database server
         Username="root",  # username for the database server
         Password="Newrizon123",  # password for the database server
         Proxy="",  # proxy for the database server
     ),
-]
-db_episode_list = [
     DB(
-        SRVName="local",  # name of the database
+        SRVName="baiduyun_k8s",  # name of the database
         DatabaseName="eos",  # name of the database
-        CollName="episode",  # name of the collection
-        Url="127.0.0.1",  # url for the database server
-        Port=27017,  # port for the database server
-        Username="",  # username for the database server
-        Password="",  # password for the database server
-        Proxy="",  # proxy for the database server
-    ),
-    DB(
-        SRVName="ivy",  # name of the database
-        DatabaseName="eos",  # name of the database
-        CollName="episode",  # name of the collection
-        Url="10.10.10.31",  # url for the database server
-        Port=27017,  # port for the database server
-        Username="",  # username for the database server
-        Password="",  # password for the database server
-        Proxy="",  # proxy for the database server
-    ),
-    DB(
-        SRVName="dill",  # name of the database
-        DatabaseName="eos",  # name of the database
-        CollName="episode",  # name of the collection
-        Url="10.10.10.13",  # url for the database server
-        Port=27017,  # port for the database server
-        Username="",  # username for the database server
-        Password="",  # password for the database server
-        Proxy="",  # proxy for the database server
-    ),
-    DB(
-        SRVName="remote_sloppy",  # name of the database
-        DatabaseName="eos",  # name of the database
-        CollName="episode",  # name of the collection
-        Url="10.0.64.64",  # url for the database server
-        Port="30116",  # port for the database server
-        Username="root",  # username for the database server
-        Password="Newrizon123",  # password for the database server
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
+        Url="10.10.0.4",  # url for the database server
+        Port=23000,  # port for the database server
+        Username="veos",  # username for the database server
+        Password="KypC06rnRwR6",  # password for the database server
         Proxy="",  # proxy for the database server
     ),
 ]
 
-dbs_record = dict(zip([db.SRVName for db in db_record_list], db_record_list))
-dbs_episode = dict(zip([db.SRVName for db in db_episode_list], db_episode_list))
+db_servers = dict(zip([db.SRVName for db in db_list], db_list))
 
 SCHEMA = namedtuple(
     "SCHEMA",

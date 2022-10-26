@@ -69,7 +69,7 @@ from eos.agent import (
     update_target,
 )
 from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, trucks
+from eos.config import PEDAL_SCALES, trucks, can_servers, trip_servers
 from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
 
@@ -192,9 +192,17 @@ class RealtimeDDPG(object):
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
+        self.can_server_name = "newrizon_test"
+        self.can_server = can_servers[self.can_server_name]
+        self.assertEqual(self.can_server_name, self.can_server.SRVName)
+
         self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.truck.RemoteCANHost+"/"
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+"/",
         )
+
+        self.trip_server_name = "newrizon_test"
+        self.trip_server = trip_servers[self.trip_server_name]
+        self.assertEqual(self.trip_server_name, self.trip_server.SRVName)
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
         try:
@@ -1031,8 +1039,7 @@ class RealtimeDDPG(object):
                         f"RemoteCAN failure! return state={signal_success}s, return_code={remotecan_data}",
                         extra=self.dictLogger,
                     )
-                    hostname = self.truck.RemoteCANHost
-                    hostip = hostname.split(":")[0]
+                    hostip = self.can_server.Url
                     response = os.system("ping -c 1 " + hostip)
                     if response == 0:
                         logger_remote_get.info(
@@ -1042,11 +1049,6 @@ class RealtimeDDPG(object):
                         logger_remote_get.info(
                             f"{hostip} is down!", extra=self.dictLogger
                         )
-                    response_telnet = os.system(f"curl -v telnet://{hostname}")
-                    logger_remote_get.info(
-                        f"Telnet {hostname} response: {response_telnet}!",
-                        extra=self.dictLogger,
-                    )
 
             if not isinstance(remotecan_data, dict):
                 logger_remote_get.critical(
@@ -1244,7 +1246,7 @@ class RealtimeDDPG(object):
         logger_webhmi_sm.propagate = True
         th_exit = False
         rocket_consumer = PullConsumer('CID_EPI_ROCKET')
-        rocket_consumer.set_namesrv_addr(self.truck.TripControlHost)
+        rocket_consumer.set_namesrv_addr(self.trip_server.url+':'+self.trip_server.port)
         rocket_consumer.start()
 
         logger_webhmi_sm.info(f"Start RocketMQ client on {self.truck.TripControlHost}!", extra=self.dictLogger)

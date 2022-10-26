@@ -21,7 +21,7 @@ from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
 from eos.comm import generate_vcu_calibration
-from eos.config import dbs_episode, dbs_record, episode_schemas, record_schemas, trucks
+from eos.config import db_servers, can_servers, episode_schemas, record_schemas, trucks
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 
@@ -61,8 +61,14 @@ class TestRemoteCanPool(unittest.TestCase):
         self.trucks = trucks
         self.truck_name = "VB7"
 
-        self.dbs_record = dbs_record
-        self.dbs_episode = dbs_episode
+        self.db_server_name = "local"
+        self.db_server = db_servers[self.db_server_name]
+        self.assertEqual(self.db_server_name, self.db_server.SRVName)
+
+        self.can_server_name = "newrizon_test"
+        self.can_server = can_servers[self.can_server_name]
+        self.assertEqual(self.can_server_name, self.can_server.SRVName)
+
         self.record_schemas = record_schemas
         self.episode_schemas = episode_schemas
 
@@ -123,20 +129,24 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_episode(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
         self.epi_sch = self.episode_schemas["episode_deep"]
-        self.db = self.dbs_episode["local"]
+
+        self.db_server_name = "local"
+        self.db_server = db_servers[self.db_server_name]
+        self.assertEqual(self.db_server_name, self.db_server.SRVName)
+        # self.db = self.db["local"]
         # self.generate_epi_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            url=self.db.Url,
-            username=self.db.Username,
-            password=self.db.Password,
+            url=self.db_server.Url,
+            username=self.db_server.Username,
+            password=self.db_server.Password,
             schema=self.epi_sch.STRUCTURE,
-            db_name=self.db.DatabaseName,
-            coll_name=self.db.CollName,
+            db_name=self.db_server.DatabaseName,
+            coll_name=self.db_server.EpiCollName,
             debug=True,
         )
         self.logger.info(
@@ -168,20 +178,24 @@ class TestRemoteCanPool(unittest.TestCase):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
 
         self.epi_sch = self.episode_schemas["episode_deep"]
-        self.db = self.dbs_episode["local"]
+        self.db_server_name = "local"
+        self.db_server = db_servers[self.db_server_name]
+        self.assertEqual(self.db_server_name, self.db_server.SRVName)
+        # self.db = self.db["local"]
         # self.generate_epi_schemas()
+        # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            url=self.db.Url,
-            username=self.db.Username,
-            password=self.db.Password,
+            url=self.db_server.Url,
+            username=self.db_server.Username,
+            password=self.db_server.Password,
             schema=self.epi_sch.STRUCTURE,
-            db_name=self.db.DatabaseName,
-            coll_name=self.db.CollName,
+            db_name=self.db_server.DatabaseName,
+            coll_name=self.db_server.EpiCollName,
             debug=True,
         )
         self.logger.info(
@@ -304,19 +318,24 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
-        self.db = self.dbs_record["local"]
+        self.db_server_name = "local"
+        self.db_server = db_servers[self.db_server_name]
+        self.assertEqual(self.db_server_name, self.db_server.SRVName)
+        # self.db = self.db["local"]
+        # self.generate_epi_schemas()
+        # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            url=self.db.Url,
-            username=self.db.Username,
-            password=self.db.Password,
-            schema=self.rec_sch.STRUCTURE,
-            db_name=self.db.DatabaseName,
-            coll_name=self.db.CollName,
+            url=self.db_server.Url,
+            username=self.db_server.Username,
+            password=self.db_server.Password,
+            schema=self.epi_sch.STRUCTURE,
+            db_name=self.db_server.DatabaseName,
+            coll_name=self.db_server.RecCollName,
             debug=True,
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
@@ -344,20 +363,21 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
         # test schema[0]
-        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.db = self.dbs_record["local"]
+        self.db_server_name = "local"
+        self.db_server = db_servers[self.db_server_name]
+        self.assertEqual(self.db_server_name, self.db_server.SRVName)
         self.pool = Pool(
-            url=self.db.Url,
-            username=self.db.Username,
-            password=self.db.Password,
-            schema=self.rec_sch.STRUCTURE,
-            db_name=self.db.DatabaseName,
-            coll_name=self.db.CollName,
+            url=self.db_server.Url,
+            username=self.db_server.Username,
+            password=self.db_server.Password,
+            schema=self.epi_sch.STRUCTURE,
+            db_name=self.db_server.DatabaseName,
+            coll_name=self.db_server.RecCollName,
             debug=True,
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
@@ -383,11 +403,10 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.truck.RemoteCANHost+"/"
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
 
-        hostname = self.truck.RemoteCANHost
-        hostip = hostname.split(":")[0]
+        hostip = self.can_server.Url
         response = os.system("ping -c 1 " + hostip)
         if response == 0:
             self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
@@ -413,19 +432,20 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
-        self.db = self.dbs_record["local"]
-        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
+        self.db_server_name = "local"
+        self.db_server = db_servers[self.db_server_name]
+        self.assertEqual(self.db_server_name, self.db_server.SRVName)
         self.pool = Pool(
-            url=self.db.Url,
-            username=self.db.Username,
-            password=self.db.Password,
-            schema=self.rec_sch.STRUCTURE,
-            db_name=self.db.DatabaseName,
-            coll_name=self.db.CollName,
+            url=self.db_server.Url,
+            username=self.db_server.Username,
+            password=self.db_server.Password,
+            schema=self.epi_sch.STRUCTURE,
+            db_name=self.db_server.DatabaseName,
+            coll_name=self.db_server.RecCollName,
             debug=True,
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
@@ -451,13 +471,12 @@ class TestRemoteCanPool(unittest.TestCase):
         )
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_consecutive_flash_test(self):
+    def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.truck.RemoteCANHost+"/"
+            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
         )
         # self.generate_record_schemas()
-        hostname = self.truck.RemoteCANHost
-        hostip = hostname.split(":")[0]
+        hostip = self.can_server.Url
         response = os.system("ping -c 1 " + hostip)
         if response == 0:
             self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
@@ -468,19 +487,20 @@ class TestRemoteCanPool(unittest.TestCase):
         #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
         # )
 
-        self.rec_sch = self.record_schemas["record_deep"]
-        self.db = self.dbs_record["local"]
-        # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
-        self.pool = Pool(
-            url=self.db.Url,
-            username=self.db.Username,
-            password=self.db.Password,
-            schema=self.rec_sch.STRUCTURE,
-            db_name=self.db.DatabaseName,
-            coll_name=self.db.CollName,
-            debug=True,
-        )
-        self.logger.info("Set client and pool", extra=self.dictLogger)
+        # self.rec_sch = self.record_schemas["record_deep"]
+        # self.db_server_name = "local"
+        # self.db_server = db_servers[self.db_server_name]
+        # self.assertEqual(self.db_server_name, self.db_server.SRVName)
+        # self.pool = Pool(
+        #     url=self.db_server.Url,
+        #     username=self.db_server.Username,
+        #     password=self.db_server.Password,
+        #     schema=self.epi_sch.STRUCTURE,
+        #     db_name=self.db_server.DatabaseName,
+        #     coll_name=self.db_server.RecCollName,
+        #     debug=True,
+        # )
+        # self.logger.info("Set client and pool", extra=self.dictLogger)
 
         # map2d = self.vcu_calib_table_default
         # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
