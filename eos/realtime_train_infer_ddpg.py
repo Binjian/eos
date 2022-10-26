@@ -111,13 +111,16 @@ class RealtimeDDPG(object):
         infer=False,
         record=True,
         path=".",
+        vehicle="VB7",
+        driver="Longfei.Zheng",
         proj_root=Path("."),
         vlogger=None,
     ):
         self.cloud = cloud
         self.web = web
         self.trucks = trucks
-        self.truck_name = "VB7"  # 0: VB7, 1: VB6
+        self.truck_name = vehicle  # 0: VB7, 1: VB6
+        self.driver = driver
         self.projroot = proj_root
         self.logger = vlogger
         self.dictLogger = dictLogger
@@ -450,6 +453,7 @@ class RealtimeDDPG(object):
         # try buffer size with 1,000,000
 
         self.buffer = Buffer(
+            self.truck,
             self.actor_model,
             self.critic_model,
             self.target_actor,
@@ -478,18 +482,18 @@ class RealtimeDDPG(object):
         # add checkpoints manager
         if self.resume:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_actor"
+                "tf_ckpts-ddpg/l045a_ddpg_actor"
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_critic"
+                "tf_ckpts-ddpg/l045a_ddpg_critic"
             )
         else:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_actor"
+                "tf_ckpts-ddpg/l045a_ddpg_actor"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_critic"
+                "tf_ckpts-ddpg/l045a_ddpg_critic"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
         try:
@@ -2190,6 +2194,20 @@ if __name__ == "__main__":
         default=".",
         help="relative path to be saved, for create subfolder for different drivers",
     )
+    parser.add_argument(
+        "-v",
+        "--vehicle",
+        type=str,
+        default=".",
+        help="vehicle ID like 'VB7' or 'MP3'",
+    )
+    parser.add_argument(
+        "-d",
+        "--driver",
+        type=str,
+        default=".",
+        help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
+    )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
@@ -2202,6 +2220,8 @@ if __name__ == "__main__":
         args.infer,
         args.record_table,
         args.path,
+        args.vehicle,
+        args.driver,
         projroot,
         logger,
     )
