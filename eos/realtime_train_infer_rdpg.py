@@ -915,7 +915,7 @@ class RealtimeRDPG(object):
 
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
-            timeout = self.truck.CloudUnitNumber + 3
+            timeout = self.truck.CloudUnitNumber + 7
             logger_remote_get.info(
                 f"Wake up to fetch remote data, duration={self.truck.CloudUnitNumber}s timeout={timeout}s",
                 extra=self.dictLogger,
