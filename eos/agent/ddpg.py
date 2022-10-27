@@ -85,7 +85,7 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 from eos import Pool, dictLogger, logger
-from eos.config import dbs_record, record_schemas
+from eos.config import db_servers, record_schemas
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
@@ -154,7 +154,7 @@ class Buffer:
         self.data_folder = datafolder
         self.cloud = cloud
         if cloud is True:
-            self.db = dbs_record["local"]
+            self.db = db_servers["local"]
             self.db_schema = record_schemas["record_deep"]
             # self.db_name = "ddpg_db"
             # self.collection_name = "record_coll"
@@ -164,12 +164,12 @@ class Buffer:
                 password=self.db.Password,
                 schema=self.db_schema.STRUCTURE,
                 db_name=self.db.DatabaseName,
-                coll_name=self.db.CollName,
+                coll_name=self.db.RecCollName,
                 debug=False,
             )
             self.buffer_counter = self.pool.count_items()
             self.logger.info(
-                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
+                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.RecCollName}",
                 extra=dictLogger,
             )
         else:

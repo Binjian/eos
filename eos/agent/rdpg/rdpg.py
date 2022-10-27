@@ -115,7 +115,7 @@ patch_all()
 
 # local imports
 from eos import Pool, dictLogger, logger
-from eos.config import dbs_episode, episode_schemas
+from eos.config import db_servers, episode_schemas
 from eos.utils.exception import ReadOnlyError
 
 from .actor import ActorNet
@@ -172,7 +172,7 @@ class RDPG:
             self.buffer_counter = len(self.R)
             self._buffer_capacity = buffer_capacity
         else:
-            self.db = dbs_episode["local"]
+            self.db = db_servers["local"]
             self.db_schema = episode_schemas["episode_deep"]
             self.pool = Pool(
                 url=self.db.Url,
@@ -180,11 +180,11 @@ class RDPG:
                 password=self.db.Password,
                 schema=self.db_schema.STRUCTURE,
                 db_name=self.db.DatabaseName,
-                coll_name=self.db.CollName,
+                coll_name=self.db.EpiCollName,
                 debug=False,
             )
             self.logger.info(
-                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}"
+                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.EpiCollName}"
             )
             self.buffer_counter = self.pool.count_items()
 

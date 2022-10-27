@@ -150,7 +150,7 @@ class TestRemoteCanPool(unittest.TestCase):
             debug=True,
         )
         self.logger.info(
-            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
+            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.EpiCollName}",
             extra=self.dictLogger,
         )
         self.logger.info("Set client", extra=self.dictLogger)
@@ -199,7 +199,7 @@ class TestRemoteCanPool(unittest.TestCase):
             debug=True,
         )
         self.logger.info(
-            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.CollName}",
+            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.EpiCollName}",
             extra=self.dictLogger,
         )
 

@@ -182,15 +182,16 @@ class RealtimeRDPG(object):
         os.environ["http_proxy"] = ""
         self.can_server_name = "newrizon_test"
         self.can_server = can_servers[self.can_server_name]
-        self.assertEqual(self.can_server_name, self.can_server.SRVName)
+        assert self.can_server_name == self.can_server.SRVName
 
         self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+"/",
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
 
         self.trip_server_name = "newrizon_test"
         self.trip_server = trip_servers[self.trip_server_name]
-        self.assertEqual(self.trip_server_name, self.trip_server.SRVName)
+        assert self.trip_server_name == self.trip_server.SRVName
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -1098,10 +1099,10 @@ class RealtimeRDPG(object):
         logger_remote_get.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
 
     def remote_webhmi_state_machine(
-            self,
-            evt_epi_done: threading.Event,
-            evt_remote_get: threading.Event,
-            evt_remote_flash: threading.Event,
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1110,18 +1111,28 @@ class RealtimeRDPG(object):
         logger_webhmi_sm = self.logger.getChild("webhmi_sm")
         logger_webhmi_sm.propagate = True
         th_exit = False
-        rocket_consumer = PullConsumer('CID_EPI_ROCKET')
-        rocket_consumer.set_namesrv_addr(self.trip_server.url+':'+self.trip_server.port)
+        rocket_consumer = PullConsumer("CID_EPI_ROCKET")
+        rocket_consumer.set_namesrv_addr(
+            self.trip_server.Url + ":" + self.trip_server.Port
+        )
         rocket_consumer.start()
-        logger_webhmi_sm.info(f"Start RocketMQ client on {self.truck.TripControlHost}!", extra=self.dictLogger)
+        logger_webhmi_sm.info(
+            f"Start RocketMQ client on {self.trip_server.Url}!",
+            extra=self.dictLogger,
+        )
 
         msg_topic = "drivecircle_action"
 
         broker_msgs = rocket_consumer.pull(msg_topic)
-        logger_webhmi_sm.info(f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!", extra=self.dictLogger)
+        logger_webhmi_sm.info(
+            f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+            extra=self.dictLogger,
+        )
         all(broker_msgs)  # exhaust history messages
 
-        logger_webhmi_sm.info(f"RocketMQ client Initialization Done!", extra=self.dictLogger)
+        logger_webhmi_sm.info(
+            f"RocketMQ client Initialization Done!", extra=self.dictLogger
+        )
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1138,13 +1149,14 @@ class RealtimeRDPG(object):
                 msg_body = json.loads(msg.body)
                 if not isinstance(msg_body, dict):
                     logger_webhmi_sm.critical(
-                        f"rocketmq server sending wrong data type!", extra=self.dictLogger
+                        f"rocketmq server sending wrong data type!",
+                        extra=self.dictLogger,
                     )
                     raise TypeError("rocketmq server sending wrong data type!")
                 logger_webhmi_sm.info(f"Get message {msg_body}!", extra=self.dictLogger)
-                if msg_body['vin'] != self.truck.VIN or msg_body['name'] != "longfei":
+                if msg_body["vin"] != self.truck.VIN or msg_body["name"] != "longfei":
                     continue
-                if msg_body['code'] == 1:  # start
+                if msg_body["code"] == 1:  # start
 
                     self.get_truck_status_start = True
                     logger_webhmi_sm.info(
@@ -1165,7 +1177,7 @@ class RealtimeRDPG(object):
                     with self.hmi_lock:
                         self.episode_done = False
                         self.episode_end = False
-                elif msg_body['code'] == 2:  # valid stop
+                elif msg_body["code"] == 2:  # valid stop
 
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
@@ -1182,7 +1194,7 @@ class RealtimeRDPG(object):
                         # self.episode_count += 1  # valid round increments self.epi_countdown = False
                         self.episode_done = False  # TODO delay episode_done to make main thread keep running
                         self.episode_end = False
-                elif msg_body['code'] == 3:  # invalid stop
+                elif msg_body["code"] == 3:  # invalid stop
 
                     self.get_truck_status_start = False
                     logger_webhmi_sm.info(
@@ -1214,7 +1226,7 @@ class RealtimeRDPG(object):
                         self.episode_done = False
                         self.episode_end = True
                         self.episode_count += 1  # invalid round increments
-                elif msg_body['code'] == 4:  # "exit"
+                elif msg_body["code"] == 4:  # "exit"
                     self.get_truck_status_start = False
                     self.get_truck_status_motpow_t = []
 
@@ -1241,7 +1253,9 @@ class RealtimeRDPG(object):
                     break
                     # time.sleep(0.1)
                 else:
-                    logger_webhmi_sm.warning(f"Unknown message {msg_body}!", extra=self.dictLogger)
+                    logger_webhmi_sm.warning(
+                        f"Unknown message {msg_body}!", extra=self.dictLogger
+                    )
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
             if self.get_truck_status_start:
