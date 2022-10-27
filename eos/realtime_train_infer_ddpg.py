@@ -1403,6 +1403,10 @@ class RealtimeDDPG(object):
                     evt_epi_done.set()
                     break
                     # time.sleep(0.1)
+                elif msg_body["code"] == 5:  # "config/start"
+                    logger_webhmi_sm.info(
+                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!", extra=self.dictLogger
+                    )
                 else:
                     logger_webhmi_sm.warning(
                         f"Unknown message {msg_body}!", extra=self.dictLogger
