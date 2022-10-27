@@ -258,6 +258,11 @@ class RealtimeDDPG(object):
         self.tflog.addHandler(skh)
         self.tflog.addHandler(strh)
 
+        self.tableroot = self.dataroot.joinpath("tables")
+        try:
+            os.makedirs(self.tableroot)
+        except FileExistsError:
+            print("Table folder exists, just resume!")
     def set_data_path(self):
         # Create folder for ckpts loggings.
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -948,8 +953,8 @@ class RealtimeDDPG(object):
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
-                    curr_table_store_path = self.dataroot.joinpath(
-                        "tables/instant_table_ddpg-vb-"
+                    curr_table_store_path = self.tableroot.joinpath(
+                        "instant_table_ddpg-vb-"
                         + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                         + "e-"
                         + str(epi_cnt)
@@ -983,6 +988,16 @@ class RealtimeDDPG(object):
                     flash_count += 1
                 # watch(flash_count)
 
+        logger_flash.info(f"Save the last table!!!!", extra=self.dictLogger)
+        last_table_store_path = (
+            self.dataroot.joinpath(  #  there's no slash in the end of the string
+                "last_table_ddpg-"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + ".csv"
+            )
+        )
+        with open(last_table_store_path, "wb") as f:
+            self.vcu_calib_table1.to_csv(last_table_store_path)
         logger_flash.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
     def remote_get_handler(
@@ -1636,8 +1651,8 @@ class RealtimeDDPG(object):
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
-                    curr_table_store_path = self.dataroot.joinpath(
-                        "tables/instant_table_ddpg-vb-"
+                    curr_table_store_path = self.tableroot.joinpath(
+                        "instant_table_ddpg-vb-"
                         + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                         + "e-"
                         + str(epi_cnt)
