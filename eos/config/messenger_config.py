@@ -47,4 +47,3 @@ tripserver_list = [
     ),
 ]
 trip_servers = dict(zip([srv.SRVName for srv in tripserver_list], tripserver_list))
-

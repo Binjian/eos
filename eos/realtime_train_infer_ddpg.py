@@ -1306,7 +1306,7 @@ class RealtimeDDPG(object):
                     )
                     raise TypeError("rocketmq server sending wrong data type!")
                 logger_webhmi_sm.info(f"Get message {msg_body}!", extra=self.dictLogger)
-                if msg_body["vin"] != self.truck.VIN or msg_body["name"] != "longfei":
+                if msg_body["vin"] != self.truck.VIN:
                     continue
                 if msg_body["code"] == 1:  # start
 

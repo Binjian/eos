@@ -129,7 +129,8 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_episode(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
         self.epi_sch = self.episode_schemas["episode_deep"]
 
@@ -178,7 +179,8 @@ class TestRemoteCanPool(unittest.TestCase):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
 
         self.epi_sch = self.episode_schemas["episode_deep"]
@@ -318,7 +320,8 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -363,7 +366,8 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_record(self):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -403,7 +407,8 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
 
         hostip = self.can_server.Url
@@ -432,7 +437,8 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -473,7 +479,8 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName, url="http://"+self.can_server.Url+":"+self.can_server.Port+'/',
+            truckname=self.truck.TruckName,
+            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         hostip = self.can_server.Url
