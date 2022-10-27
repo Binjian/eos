@@ -9,6 +9,8 @@ from .vehicle_signal_config import (
     trucks,
 )
 
+from .vcu_calib_generator import generate_lookup_table, generate_vcu_calibration
+
 __all__ = [
     "Truck",
     "trucks",
@@ -22,4 +24,6 @@ __all__ = [
     "trip_servers",
     "record_schemas",
     "episode_schemas",
+    "generate_vcu_calibration",
+    "generate_lookup_table",
 ]

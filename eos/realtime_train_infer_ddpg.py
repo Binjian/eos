@@ -68,8 +68,8 @@ from eos.agent import (
     policy,
     update_target,
 )
-from eos.comm import RemoteCan, generate_vcu_calibration, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, trucks, can_servers, trip_servers
+from eos.comm import RemoteCan, kvaser_send_float_array
+from eos.config import PEDAL_SCALES, trucks, can_servers, trip_servers, generate_vcu_calibration
 from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
 
