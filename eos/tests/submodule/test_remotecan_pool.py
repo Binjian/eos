@@ -20,7 +20,7 @@ from keras.utils import pad_sequences
 from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
-from eos.comm import generate_vcu_calibration
+from eos.config import generate_vcu_calibration
 from eos.config import db_servers, can_servers, episode_schemas, record_schemas, trucks
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
