@@ -69,7 +69,13 @@ from eos.agent import (
     update_target,
 )
 from eos.comm import RemoteCan, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, trucks, can_servers, trip_servers, generate_vcu_calibration
+from eos.config import (
+    PEDAL_SCALES,
+    trucks,
+    can_servers,
+    trip_servers,
+    generate_vcu_calibration,
+)
 from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
 
@@ -263,6 +269,7 @@ class RealtimeDDPG(object):
             os.makedirs(self.tableroot)
         except FileExistsError:
             print("Table folder exists, just resume!")
+
     def set_data_path(self):
         # Create folder for ckpts loggings.
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1405,7 +1412,8 @@ class RealtimeDDPG(object):
                     # time.sleep(0.1)
                 elif msg_body["code"] == 5:  # "config/start"
                     logger_webhmi_sm.info(
-                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!", extra=self.dictLogger
+                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
+                        extra=self.dictLogger,
                     )
                 else:
                     logger_webhmi_sm.warning(
