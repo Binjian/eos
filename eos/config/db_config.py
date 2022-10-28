@@ -21,8 +21,8 @@ db_list = [
     DB(
         SRVName="local",  # name of the database
         DatabaseName="eos",  # name of the database
-        RecCollName="record",  # name of the collection
-        EpiCollName="episode",  # name of the collection
+        RecCollName="record2",  # name of the collection
+        EpiCollName="episode2",  # name of the collection
         Url="127.0.0.1",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server

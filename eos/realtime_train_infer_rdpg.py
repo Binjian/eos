@@ -5,6 +5,7 @@ Date created: 2022/05/16
 Last modified: 2022/05/16
 Description: Implement realtime RDPG algorithm for training and inference
 """
+
 """
 ## Introduction
 
@@ -57,7 +58,7 @@ from pythonjsonlogger import jsonlogger
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
-from rocketmq.client import PullConsumer
+from rocketmq.client import PullConsumer,Message,Producer
 
 from eos import dictLogger, logger, projroot
 from eos.agent import RDPG
@@ -165,16 +166,17 @@ class RealtimeRDPG(object):
         )
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
-        self.logger.info(
+        self.logc.info(
             f"tensorflow device lib:\n{device_lib.list_local_devices()}\n",
             extra=self.dictLogger,
         )
-        self.logger.info(f"Tensorflow Imported!", extra=self.dictLogger)
+        self.logc.info(f"Tensorflow Imported!", extra=self.dictLogger)
 
         self.init_vehicle()
         self.build_actor_critic()
         self.touch_gpu()
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
+
         self.init_threads_data()
         self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
 
@@ -192,6 +194,22 @@ class RealtimeRDPG(object):
         self.trip_server_name = "newrizon_test"
         self.trip_server = trip_servers[self.trip_server_name]
         assert self.trip_server_name == self.trip_server.SRVName
+
+        # Create RocketMQ consumer
+        self.rmq_consumer = PullConsumer("CID_EPI_ROCKET")
+        self.rmq_consumer.set_namesrv_addr(
+            self.trip_server.Url + ":" + self.trip_server.Port
+        )
+
+        # Create RocketMQ producer
+        self.rmq_message_ready = Message('update_ready_state')
+        self.rmq_message_ready.set_keys('what is keys mean')
+        self.rmq_message_ready.set_tags('tags ------')
+        self.rmq_message_ready.set_body(json.dumps({'vin':self.truck.VIN, 'is_ready':True}))
+        # self.rmq_message_ready.set_keys('trip_server')
+        # self.rmq_message_ready.set_tags('tags')
+        self.rmq_producer = Producer('PID-EPI_ROCKET')
+        self.rmq_producer.set_namesrv_addr(self.trip_server.Url + ':' + self.trip_server.Port)
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -468,6 +486,7 @@ class RealtimeRDPG(object):
 
         # initial status of the switches
         self.program_exit = False
+        self.program_start = False
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
@@ -1129,11 +1148,8 @@ class RealtimeRDPG(object):
         logger_webhmi_sm = self.logger.getChild("webhmi_sm")
         logger_webhmi_sm.propagate = True
         th_exit = False
-        rocket_consumer = PullConsumer("CID_EPI_ROCKET")
-        rocket_consumer.set_namesrv_addr(
-            self.trip_server.Url + ":" + self.trip_server.Port
-        )
-        rocket_consumer.start()
+        self.rmq_consumer.start()
+        self.rmq_producer.start()
         logger_webhmi_sm.info(
             f"Start RocketMQ client on {self.trip_server.Url}!",
             extra=self.dictLogger,
@@ -1141,7 +1157,7 @@ class RealtimeRDPG(object):
 
         msg_topic = "drivecircle_action"
 
-        broker_msgs = rocket_consumer.pull(msg_topic)
+        broker_msgs = self.rmq_consumer.pull(msg_topic)
         logger_webhmi_sm.info(
             f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
             extra=self.dictLogger,
@@ -1162,7 +1178,7 @@ class RealtimeRDPG(object):
                     )
                     th_exit = True
                     continue
-            msgs = rocket_consumer.pull(msg_topic)
+            msgs = self.rmq_consumer.pull(msg_topic)
             for msg in msgs:
                 msg_body = json.loads(msg.body)
                 if not isinstance(msg_body, dict):
@@ -1174,7 +1190,26 @@ class RealtimeRDPG(object):
                 logger_webhmi_sm.info(f"Get message {msg_body}!", extra=self.dictLogger)
                 if msg_body["vin"] != self.truck.VIN:
                     continue
-                if msg_body["code"] == 1:  # start
+
+
+                if msg_body["code"] == 5:  # "config/start testing"
+                    logger_webhmi_sm.info(
+                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!", extra=self.dictLogger
+                    )
+
+                    # send ready signal to trip server
+                    ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+                    logger_webhmi_sm.info(f"Sending ready signal to trip server:"
+                                     f"status={ret.status};"
+                                     f"msg-id={ret.msg_id};"
+                                     f"offset={ret.offset}.",
+                                     extra=self.dictLogger)
+
+                    with self.hmi_lock:
+                        self.program_start = True
+
+
+                elif msg_body["code"] == 1:  # start episode
 
                     self.get_truck_status_start = True
                     logger_webhmi_sm.info(
@@ -1266,14 +1301,11 @@ class RealtimeRDPG(object):
                         self.episode_done = False
                         self.episode_end = True
                         self.program_exit = True
+                        self.program_start = False
                         self.episode_count += 1
                     evt_epi_done.set()
                     break
                     # time.sleep(0.1)
-                elif msg_body["code"] == 5:  # "config/start"
-                    logger_webhmi_sm.info(
-                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!", extra=self.dictLogger
-                    )
                 else:
                     logger_webhmi_sm.warning(
                         f"Unknown message {msg_body}!", extra=self.dictLogger
@@ -1282,6 +1314,9 @@ class RealtimeRDPG(object):
             time.sleep(0.05)  # sleep for 50ms to update state machine
             if self.get_truck_status_start:
                 evt_remote_get.set()
+
+        self.rmq_consumer.shutdown()
+        self.rmq_producer.shutdown()
         logger_webhmi_sm.info(f"get_truck_status dies!!!", extra=self.dictLogger)
 
     def remote_hmi_state_machine(
@@ -1455,6 +1490,12 @@ class RealtimeRDPG(object):
         logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
         while not th_exit:
             # time.sleep(0.1)
+
+            with self.hmi_lock:
+                program_start = self.program_start
+            if program_start is False:
+                continue
+
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
                 epi_cnt = self.episode_count
@@ -1580,11 +1621,6 @@ class RealtimeRDPG(object):
                         logger_flash.info(f"{hostip} is up!", extra=self.dictLogger)
                     else:
                         logger_flash.info(f"{hostip} is down!", extra=self.dictLogger)
-                    response_telnet = os.system(f"curl -v telnet://{hostname}")
-                    logger_flash.info(
-                        f"Telnet {hostname} response: {response_telnet}!",
-                        extra=self.dictLogger,
-                    )
                 else:
                     logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
@@ -1653,6 +1689,10 @@ class RealtimeRDPG(object):
                 th_exit = self.program_exit  # if program_exit is False,
                 epi_cnt = self.episode_count  # get episode counts
                 epi_end = self.episode_end
+                program_start = self.program_start
+
+            if program_start is False:
+                continue
             if epi_end:  # if episode_end is True, wait for start of episode
                 # self.logger.info(f'wait for start!', extra=self.dictLogger)
                 continue
@@ -1853,6 +1893,13 @@ class RealtimeRDPG(object):
                     f"E{epi_cnt} interrupted, waits for next episode to kick off!",
                     extra=self.dictLogger,
                 )
+                # send ready signal to trip server
+                ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+                self.logc.info(f"Sending ready signal to trip server:"
+                                      f"status={ret.status};"
+                                      f"msg-id={ret.msg_id};"
+                                      f"offset={ret.offset}.",
+                                      extra=self.dictLogger)
                 continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
@@ -1964,7 +2011,14 @@ class RealtimeRDPG(object):
                 )
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
-            # TODO terminate condition to be defined: reward > limit (percentage); time too long
+            # send ready signal to trip server
+            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+            self.logger.info(f"Sending ready signal to trip server:"
+                             f"status={ret.status};"
+                             f"msg-id={ret.msg_id};"
+                             f"offset={ret.offset}.",
+                             extra=self.dictLogger)
+        # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # with self.train_summary_writer.as_default():
         #     tf.summary.trace_export(
         #         name="veos_trace",
