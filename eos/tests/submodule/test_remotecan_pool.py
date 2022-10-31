@@ -336,7 +336,7 @@ class TestRemoteCanPool(unittest.TestCase):
             url=self.db_server.Url,
             username=self.db_server.Username,
             password=self.db_server.Password,
-            schema=self.epi_sch.STRUCTURE,
+            schema=self.rec_sch.STRUCTURE,
             db_name=self.db_server.DatabaseName,
             coll_name=self.db_server.RecCollName,
             debug=True,
