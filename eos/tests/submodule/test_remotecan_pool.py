@@ -348,12 +348,18 @@ class TestRemoteCanPool(unittest.TestCase):
         #     self.add_to_record_pool(pool_size=16)
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
-        batch_4 = self.pool.sample_batch_items(batch_size=4, vehicle_id="VB7")
+
+        dt_start = datetime.fromisoformat("2022-10-25T11:30:00.000")  # start from 2022-01-01T08:00:00.000
+        dt_end = datetime.fromisoformat("2022-10-25T11:37:00.000")  # start from 2022-01-01T08:00:00.000
+        batch_4 = self.pool.sample_batch_items(batch_size=4, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end)
         self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_items(batch_size=24, vehicle_id="VB1")
+        batch_24 = self.pool.sample_batch_items(batch_size=24, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end)
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
+        batch_64 = self.pool.sample_batch_items(batch_size=64, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end)
+        self.logger.info("done test_pool_sample of size 64.", extra=self.dictLogger)
+        self.assertEqual(len(batch_64), 24)
 
         # test decoding
         state = [rec["observation"]["state"] for rec in batch_24]
