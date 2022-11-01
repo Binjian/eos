@@ -317,26 +317,25 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.error("Ragged action state a_n_l1!", extra=self.dictLogger)
         self.logger.info("done decoding actions.", extra=self.dictLogger)
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
-        self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
-        )
+        # self.client = RemoteCan(
+        #     truckname=self.truck.TruckName,
+        #     url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+        # )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
         self.db_server_name = "local"
         self.db_server = db_servers[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
-        # self.db = self.db["local"]
-        # self.generate_epi_schemas()
+        # self.generate_record_schemas()
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
             url=self.db_server.Url,
             username=self.db_server.Username,
             password=self.db_server.Password,
-            schema=self.epi_sch.STRUCTURE,
+            schema=self.rec_sch.STRUCTURE,
             db_name=self.db_server.DatabaseName,
             coll_name=self.db_server.RecCollName,
             debug=True,
@@ -344,15 +343,15 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
         rec_cnt = self.pool.count_items()
-        if rec_cnt < 4:
-            self.logger.info("Start creating record pool", extra=self.dictLogger)
-            self.add_to_record_pool(pool_size=16)
+        # if rec_cnt < 4:
+        #     self.logger.info("Start creating record pool", extra=self.dictLogger)
+        #     self.add_to_record_pool(pool_size=16)
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
-        batch_4 = self.pool.sample_batch_items(batch_size=4)
+        batch_4 = self.pool.sample_batch_items(batch_size=4, vehicle_id="VB7")
         self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_items(batch_size=24)
+        batch_24 = self.pool.sample_batch_items(batch_size=24, vehicle_id="VB1")
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
 
@@ -404,7 +403,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
@@ -476,7 +475,7 @@ class TestRemoteCanPool(unittest.TestCase):
             "Done with consecutive getting record test", extra=self.dictLogger
         )
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
