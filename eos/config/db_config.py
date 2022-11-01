@@ -91,7 +91,7 @@ rec_schema_list = [
         STRUCTURE={
             "_id": ObjectId,
             "timestamp": datetime,
-            "plot": {"character": str, "when": datetime, "where": str},
+            "plot": {"character": str, "when": datetime, "where": str, "driver": str},
             "observation": [float],
         },  # structure of the schema
     ),
@@ -102,6 +102,7 @@ rec_schema_list = [
             "timestamp": datetime,
             "plot": {
                 "character": str,
+                "driver": str,
                 "when": datetime,
                 "where": str,
                 "states": {
@@ -135,6 +136,7 @@ rec_schema_list = [
             "timestamp": datetime,
             "plot": {
                 "character": str,
+                "driver": str,
                 "when": datetime,
                 "where": str,
                 "states": {
@@ -176,6 +178,7 @@ epi_schema_list = [
             "timestamp": datetime,
             "plot": {
                 "character": str,
+                "driver": str,
                 "when": datetime,
                 "where": str,
                 "length": int,
@@ -204,6 +207,7 @@ epi_schema_list = [
             "timestamp": datetime,
             "plot": {
                 "character": str,
+                "driver": str,
                 "when": datetime,
                 "where": str,
                 "length": int,

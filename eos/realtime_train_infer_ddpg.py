@@ -1284,7 +1284,8 @@ class RealtimeDDPG(object):
             extra=self.dictLogger,
         )
 
-        msg_topic = "drivecircle_action"
+        # msg_topic = "drivecircle_action"
+        msg_topic = self.truck.VIN + '_' + self.driver
 
         broker_msgs = rocket_consumer.pull(msg_topic)
         logger_webhmi_sm.info(
@@ -1946,6 +1947,7 @@ class RealtimeDDPG(object):
                                 ),  # from ms to s
                                 "plot": {
                                     "character": self.truck.TruckName,
+                                    "driver": self.driver,
                                     "when": datetime.fromtimestamp(
                                         prev_timestamp.numpy()[0] / 1000.0
                                     ),

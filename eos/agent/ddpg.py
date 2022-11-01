@@ -358,7 +358,7 @@ class Buffer:
         else:
             # get sampling range, if not enough data, batch is small
             self.logger.info(
-                f"start test_pool_sample of size {self.batch_size}.",
+                f"start test_pool_sample of size {self.batch_size, self.truck.TruckName}.",
                 extra=dictLogger,
             )
             if self.pool.count_items() > 0:
