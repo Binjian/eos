@@ -21,7 +21,7 @@ from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
 from eos.config import generate_vcu_calibration
-from eos.config import db_servers, can_servers, episode_schemas, record_schemas, trucks
+from eos.config import db_servers, can_servers, episode_schemas, record_schemas, trucks_by_vin, trucks_by_name
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 
@@ -58,7 +58,7 @@ class TestRemoteCanPool(unittest.TestCase):
             "https": "http://127.0.0.1:34663",
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
-        self.trucks = trucks
+        self.trucks_by_name = trucks_by_name
         self.truck_name = "VB7"
 
         self.db_server_name = "local"
@@ -80,7 +80,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.propagate = False
         self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
-        self.truck = self.trucks[self.truck_name]
+        self.truck = self.trucks_by_name[self.truck_name]
         self.set_logger(projroot)
 
         # check if the truck is valid

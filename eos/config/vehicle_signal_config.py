@@ -257,4 +257,5 @@ truck_list = [
     ),  # HQ Bench
 ]
 
-trucks = dict(zip([truck.TruckName for truck in truck_list], truck_list))
+trucks_by_name = dict(zip([truck.TruckName for truck in truck_list], truck_list))
+trucks_by_vin = dict(zip([truck.VIN for truck in truck_list], truck_list))

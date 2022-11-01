@@ -38,6 +38,7 @@ import sys
 import threading
 import time
 import warnings
+import re
 
 # third party imports
 from collections import deque
@@ -65,7 +66,8 @@ from eos.agent import RDPG
 from eos.comm import RemoteCan, kvaser_send_float_array
 from eos.config import (
     PEDAL_SCALES,
-    trucks,
+    trucks_by_name,
+    trucks_by_vin,
     can_servers,
     trip_servers,
     generate_vcu_calibration,
@@ -103,15 +105,44 @@ class RealtimeRDPG(object):
         infer=False,
         record=True,
         path=".",
-        vehicle="VB7",
+        vehicle="HMZABAAH7MF011058", # "VB7",
         driver="Longfei.Zheng",
         proj_root=Path("."),
         vlogger=None,
     ):
         self.cloud = cloud
         self.web = web
-        self.trucks = trucks
-        self.truck_name = vehicle  # 0: VB7, 1: VB6
+        self.trucks_by_name = trucks_by_name
+        self.trucks_by_vin = trucks_by_vin
+        self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
+        assert type(vehicle) == str
+        # Regex for VIN: HMZABAAH\dMF\d{6}
+        p = re.compile(r"^HMZABAAH\dMF\d{6}$")
+        if p.match(vehicle):
+            # validate truck id
+            # assert self.vehicle in self.trucks_by_vin.keys()
+            try:
+                self.truck = self.trucks_by_vin[self.vehicle]
+            except KeyError as e:
+                self.logger.error(
+                    f"{e}. No Truck with VIN {self.vehicle}", extra=self.dictLogger
+                )
+                sys.exit(1)
+            self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
+        else:
+            self.logger.info(
+                f"Input is not VIN. Try with truck name {self.vehicle}", extra=self.dictLogger
+            )
+            # validate truck id
+            # assert self.vehicle in self.trucks_by_name.keys()
+            try:
+                self.truck = self.trucks_by_name[self.vehicle]
+            except KeyError as e:
+                self.logger.error(
+                    f"{e}. No Truck with name {self.vehicle}", extra=self.dictLogger
+                )
+                sys.exit(1)
+            self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         self.driver = driver
         self.projroot = proj_root
         self.logger = vlogger
@@ -126,9 +157,9 @@ class RealtimeRDPG(object):
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if resume:
-            self.dataroot = projroot.joinpath("data/" + self.truck_name +"−" + self.driver + self.path)
+            self.dataroot = projroot.joinpath("data/"+self.truck.VIN+"−" + self.driver + self.path)
         else:
-            self.dataroot = projroot.joinpath("data/scratch/" + self.path)
+            self.dataroot = projroot.joinpath("data/scratch/"+self.truck.VIN+"−" + self.driver + self.path)
 
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
@@ -137,20 +168,6 @@ class RealtimeRDPG(object):
             extra=self.dictLogger,
         )
 
-        # validate truck id
-        # assert self.truck_name in self.trucks.keys()
-        try:
-            self.truck = self.trucks[self.truck_name]
-        except KeyError as e:
-            self.logger.error(
-                f"{e}. No Truck with name {self.truck_name}", extra=self.dictLogger
-            )
-            sys.exit(1)
-
-        # if self.truck.TruckName != "VB7":
-        #     raise TruckIDError("Truck is not VB7")
-        # else:
-        #     self.logger.info(f"Truck is VB7", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -434,6 +451,7 @@ class RealtimeRDPG(object):
         # Initialize networks
         self.rdpg = RDPG(
             self.truck,
+            self.driver,
             self.num_observations,
             self.observation_len,
             self.seq_len,

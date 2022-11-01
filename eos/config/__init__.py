@@ -6,14 +6,16 @@ from .vehicle_signal_config import (
     VELOCITY_SCALES_MULE,
     VELOCITY_SCALES_VB,
     Truck,
-    trucks,
+    trucks_by_name,
+    trucks_by_vin,
 )
 
 from .vcu_calib_generator import generate_lookup_table, generate_vcu_calibration
 
 __all__ = [
     "Truck",
-    "trucks",
+    "trucks_by_name",
+    "trucks_by_vin",
     "PEDAL_SCALES",
     "TRIANGLE_TEST_CASE_TARGET_VELOCITIES",
     "VELOCITY_SCALES_MULE",

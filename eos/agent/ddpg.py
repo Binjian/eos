@@ -119,6 +119,7 @@ class Buffer:
     def __init__(
         self,
         truck,
+        driver,
         actor_model,
         critic_model,
         target_actor,
@@ -150,6 +151,7 @@ class Buffer:
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
         self.truck = truck
+        self.driver = driver
         self.num_observations = num_observations
         self.sequence_len = sequence_len
         self.num_actions = num_actions
@@ -358,11 +360,11 @@ class Buffer:
         else:
             # get sampling range, if not enough data, batch is small
             self.logger.info(
-                f"start test_pool_sample of size {self.batch_size, self.truck.TruckName}.",
+                f"start test_pool_sample of size {self.batch_size, self.truck.TruckName, self.driver}.",
                 extra=dictLogger,
             )
             if self.pool.count_items() > 0:
-                batch = self.pool.sample_batch_items(batch_size=self.batch_size, vehicle_id=self.truck.TruckName)
+                batch = self.pool.sample_batch_items(batch_size=self.batch_size, vehicle_id=self.truck.TruckName, driver_id=self.driver)
                 assert len(batch) == self.batch_size
 
                 # convert to tensors

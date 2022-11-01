@@ -126,6 +126,7 @@ class RDPG:
     def __init__(
         self,
         truck,
+        driver,
         num_observations,
         obs_len,
         seq_len,
@@ -154,6 +155,7 @@ class RDPG:
         self.dictLogger = dictLogger
 
         self.truck = truck
+        self.driver = driver
         self._num_observations = num_observations
         self._obs_len = obs_len
         self._state_len = num_observations * obs_len  # 3 * 30
@@ -378,7 +380,7 @@ class RDPG:
         )
 
         item_cnt = self.pool.count_items()
-        batch = self.pool.sample_batch_items(self.batch_size, self.truck.TruckName)
+        batch = self.pool.sample_batch_items(batch_size=self.batch_size, vehicle_id=self.truck.TruckName, driver_id=self.driver)
         assert len(batch) == self.batch_size
         self.logger.info(
             f"{self.batch_size} Episodes sampled from {item_cnt}.",
