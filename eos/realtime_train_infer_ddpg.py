@@ -69,7 +69,13 @@ from eos.agent import (
     update_target,
 )
 from eos.comm import RemoteCan, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, trucks, can_servers, trip_servers, generate_vcu_calibration
+from eos.config import (
+    PEDAL_SCALES,
+    trucks,
+    can_servers,
+    trip_servers,
+    generate_vcu_calibration,
+)
 from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
 
@@ -105,13 +111,16 @@ class RealtimeDDPG(object):
         infer=False,
         record=True,
         path=".",
+        vehicle="VB7",
+        driver="Longfei.Zheng",
         proj_root=Path("."),
         vlogger=None,
     ):
         self.cloud = cloud
         self.web = web
         self.trucks = trucks
-        self.truck_name = "VB7"  # 0: VB7, 1: VB6
+        self.truck_name = vehicle  # 0: VB7, 1: VB6
+        self.driver = driver
         self.projroot = proj_root
         self.logger = vlogger
         self.dictLogger = dictLogger
@@ -125,7 +134,7 @@ class RealtimeDDPG(object):
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if resume:
-            self.dataroot = projroot.joinpath("data/" + self.path)
+            self.dataroot = projroot.joinpath("data/" + self.truck_name +"−" + self.driver + self.path)
         else:
             self.dataroot = projroot.joinpath("data/scratch/" + self.path)
 
@@ -263,6 +272,7 @@ class RealtimeDDPG(object):
             os.makedirs(self.tableroot)
         except FileExistsError:
             print("Table folder exists, just resume!")
+
     def set_data_path(self):
         # Create folder for ckpts loggings.
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -443,6 +453,7 @@ class RealtimeDDPG(object):
         # try buffer size with 1,000,000
 
         self.buffer = Buffer(
+            self.truck,
             self.actor_model,
             self.critic_model,
             self.target_actor,
@@ -471,18 +482,18 @@ class RealtimeDDPG(object):
         # add checkpoints manager
         if self.resume:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_actor"
+                "tf_ckpts-ddpg/l045a_ddpg_actor"
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_critic"
+                "tf_ckpts-ddpg/l045a_ddpg_critic"
             )
         else:
             checkpoint_actor_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_actor"
+                "tf_ckpts-ddpg/l045a_ddpg_actor"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = self.dataroot.joinpath(
-                "tf_ckpts-vb/l045a_ddpg_critic"
+                "tf_ckpts-ddpg/l045a_ddpg_critic"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
         try:
@@ -1405,7 +1416,8 @@ class RealtimeDDPG(object):
                     # time.sleep(0.1)
                 elif msg_body["code"] == 5:  # "config/start"
                     logger_webhmi_sm.info(
-                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!", extra=self.dictLogger
+                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
+                        extra=self.dictLogger,
                     )
                 else:
                     logger_webhmi_sm.warning(
@@ -2182,6 +2194,20 @@ if __name__ == "__main__":
         default=".",
         help="relative path to be saved, for create subfolder for different drivers",
     )
+    parser.add_argument(
+        "-v",
+        "--vehicle",
+        type=str,
+        default=".",
+        help="vehicle ID like 'VB7' or 'MP3'",
+    )
+    parser.add_argument(
+        "-d",
+        "--driver",
+        type=str,
+        default=".",
+        help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
+    )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
@@ -2194,6 +2220,8 @@ if __name__ == "__main__":
         args.infer,
         args.record_table,
         args.path,
+        args.vehicle,
+        args.driver,
         projroot,
         logger,
     )

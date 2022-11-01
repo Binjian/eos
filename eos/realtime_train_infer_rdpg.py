@@ -58,12 +58,18 @@ from pythonjsonlogger import jsonlogger
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
-from rocketmq.client import PullConsumer,Message,Producer
+from rocketmq.client import PullConsumer, Message, Producer
 
 from eos import dictLogger, logger, projroot
 from eos.agent import RDPG
 from eos.comm import RemoteCan, kvaser_send_float_array
-from eos.config import PEDAL_SCALES, trucks, can_servers, trip_servers, generate_vcu_calibration
+from eos.config import (
+    PEDAL_SCALES,
+    trucks,
+    can_servers,
+    trip_servers,
+    generate_vcu_calibration,
+)
 from eos.utils import ragged_nparray_list_interp
 from eos.visualization import plot_3d_figure, plot_to_image
 
@@ -97,13 +103,16 @@ class RealtimeRDPG(object):
         infer=False,
         record=True,
         path=".",
+        vehicle="VB7",
+        driver="Longfei.Zheng",
         proj_root=Path("."),
         vlogger=None,
     ):
         self.cloud = cloud
         self.web = web
         self.trucks = trucks
-        self.truck_name = "VB7"  # 0: VB7, 1: VB6
+        self.truck_name = vehicle  # 0: VB7, 1: VB6
+        self.driver = driver
         self.projroot = proj_root
         self.logger = vlogger
         self.dictLogger = dictLogger
@@ -117,7 +126,7 @@ class RealtimeRDPG(object):
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if resume:
-            self.dataroot = projroot.joinpath("data/" + self.path)
+            self.dataroot = projroot.joinpath("data/" + self.truck_name +"−" + self.driver + self.path)
         else:
             self.dataroot = projroot.joinpath("data/scratch/" + self.path)
 
@@ -202,14 +211,18 @@ class RealtimeRDPG(object):
         )
 
         # Create RocketMQ producer
-        self.rmq_message_ready = Message('update_ready_state')
-        self.rmq_message_ready.set_keys('what is keys mean')
-        self.rmq_message_ready.set_tags('tags ------')
-        self.rmq_message_ready.set_body(json.dumps({'vin':self.truck.VIN, 'is_ready':True}))
+        self.rmq_message_ready = Message("update_ready_state")
+        self.rmq_message_ready.set_keys("what is keys mean")
+        self.rmq_message_ready.set_tags("tags ------")
+        self.rmq_message_ready.set_body(
+            json.dumps({"vin": self.truck.VIN, "is_ready": True})
+        )
         # self.rmq_message_ready.set_keys('trip_server')
         # self.rmq_message_ready.set_tags('tags')
-        self.rmq_producer = Producer('PID-EPI_ROCKET')
-        self.rmq_producer.set_namesrv_addr(self.trip_server.Url + ':' + self.trip_server.Port)
+        self.rmq_producer = Producer("PID-EPI_ROCKET")
+        self.rmq_producer.set_namesrv_addr(
+            self.trip_server.Url + ":" + self.trip_server.Port
+        )
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -420,6 +433,7 @@ class RealtimeRDPG(object):
 
         # Initialize networks
         self.rdpg = RDPG(
+            self.truck,
             self.num_observations,
             self.observation_len,
             self.seq_len,
@@ -1191,23 +1205,24 @@ class RealtimeRDPG(object):
                 if msg_body["vin"] != self.truck.VIN:
                     continue
 
-
                 if msg_body["code"] == 5:  # "config/start testing"
                     logger_webhmi_sm.info(
-                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!", extra=self.dictLogger
+                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
+                        extra=self.dictLogger,
                     )
 
                     # send ready signal to trip server
                     ret = self.rmq_producer.send_sync(self.rmq_message_ready)
-                    logger_webhmi_sm.info(f"Sending ready signal to trip server:"
-                                     f"status={ret.status};"
-                                     f"msg-id={ret.msg_id};"
-                                     f"offset={ret.offset}.",
-                                     extra=self.dictLogger)
+                    logger_webhmi_sm.info(
+                        f"Sending ready signal to trip server:"
+                        f"status={ret.status};"
+                        f"msg-id={ret.msg_id};"
+                        f"offset={ret.offset}.",
+                        extra=self.dictLogger,
+                    )
 
                     with self.hmi_lock:
                         self.program_start = True
-
 
                 elif msg_body["code"] == 1:  # start episode
 
@@ -1895,11 +1910,13 @@ class RealtimeRDPG(object):
                 )
                 # send ready signal to trip server
                 ret = self.rmq_producer.send_sync(self.rmq_message_ready)
-                self.logc.info(f"Sending ready signal to trip server:"
-                                      f"status={ret.status};"
-                                      f"msg-id={ret.msg_id};"
-                                      f"offset={ret.offset}.",
-                                      extra=self.dictLogger)
+                self.logc.info(
+                    f"Sending ready signal to trip server:"
+                    f"status={ret.status};"
+                    f"msg-id={ret.msg_id};"
+                    f"offset={ret.offset}.",
+                    extra=self.dictLogger,
+                )
                 continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
@@ -2013,11 +2030,13 @@ class RealtimeRDPG(object):
 
             # send ready signal to trip server
             ret = self.rmq_producer.send_sync(self.rmq_message_ready)
-            self.logger.info(f"Sending ready signal to trip server:"
-                             f"status={ret.status};"
-                             f"msg-id={ret.msg_id};"
-                             f"offset={ret.offset}.",
-                             extra=self.dictLogger)
+            self.logger.info(
+                f"Sending ready signal to trip server:"
+                f"status={ret.status};"
+                f"msg-id={ret.msg_id};"
+                f"offset={ret.offset}.",
+                extra=self.dictLogger,
+            )
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # with self.train_summary_writer.as_default():
         #     tf.summary.trace_export(
@@ -2089,6 +2108,20 @@ if __name__ == "__main__":
         default=".",
         help="relative path to be saved, for create subfolder for different drivers",
     )
+    parser.add_argument(
+        "-v",
+        "--vehicle",
+        type=str,
+        default=".",
+        help="vehicle ID like 'VB7' or 'MP3'",
+    )
+    parser.add_argument(
+        "-d",
+        "--driver",
+        type=str,
+        default=".",
+        help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
+    )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
@@ -2101,6 +2134,8 @@ if __name__ == "__main__":
             args.infer,
             args.record_table,
             args.path,
+            args.vehicle,
+            args.driver,
             projroot,
             logger,
         )

@@ -118,6 +118,7 @@ the maximum predicted value as seen by the Critic, for a given state.
 class Buffer:
     def __init__(
         self,
+        truck,
         actor_model,
         critic_model,
         target_actor,
@@ -148,6 +149,7 @@ class Buffer:
 
         # Instead of list of tuples as the exp.replay concept go
         # We use different np.arrays for each tuple element
+        self.truck = truck
         self.num_observations = num_observations
         self.sequence_len = sequence_len
         self.num_actions = num_actions
@@ -360,7 +362,7 @@ class Buffer:
                 extra=dictLogger,
             )
             if self.pool.count_items() > 0:
-                batch = self.pool.sample_batch_items(batch_size=self.batch_size)
+                batch = self.pool.sample_batch_items(batch_size=self.batch_size, vehicle_id=self.truck.TruckName)
                 assert len(batch) == self.batch_size
 
                 # convert to tensors

@@ -125,6 +125,7 @@ from .critic import CriticNet
 class RDPG:
     def __init__(
         self,
+        truck,
         num_observations,
         obs_len,
         seq_len,
@@ -152,6 +153,7 @@ class RDPG:
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
+        self.truck = truck
         self._num_observations = num_observations
         self._obs_len = obs_len
         self._state_len = num_observations * obs_len  # 3 * 30
@@ -253,7 +255,7 @@ class RDPG:
     def init_ckpt(self):
         # Actor create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_actor_dir = self._datafolder + "/vb_checkpoints/rdpg_actor"
+        self._ckpt_actor_dir = self._datafolder + "/tf_ckpts-rdpg/actor"
         try:
             os.makedirs(self._ckpt_actor_dir)
             self.logger.info(
@@ -270,7 +272,7 @@ class RDPG:
 
         # critic create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_critic_dir = self._datafolder + "/vb_checkpoints/rdpg_critic"
+        self._ckpt_critic_dir = self._datafolder + "/tf_ckpts-rdpg/critic"
         try:
             os.makedirs(self._ckpt_critic_dir)
             self.logger.info(
@@ -376,7 +378,7 @@ class RDPG:
         )
 
         item_cnt = self.pool.count_items()
-        batch = self.pool.sample_batch_items(self.batch_size)
+        batch = self.pool.sample_batch_items(self.batch_size, self.truck.TruckName)
         assert len(batch) == self.batch_size
         self.logger.info(
             f"{self.batch_size} Episodes sampled from {item_cnt}.",
