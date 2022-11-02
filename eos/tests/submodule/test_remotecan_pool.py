@@ -182,7 +182,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit records", extra=self.dictLogger)
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_episode(self):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
@@ -209,24 +209,40 @@ class TestRemoteCanPool(unittest.TestCase):
             debug=True,
         )
         self.logger.info(
-            f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.EpiCollName}",
+            f"Connected to MongoDB {self.db_server.DatabaseName}, collection {self.db_server.EpiCollName}",
             extra=self.dictLogger,
         )
 
+        dt_start = datetime.fromisoformat(
+            "2022-10-28T11:30:00.000"
+        )  # start from 2022-01-01T08:00:00.000
+        dt_end = datetime.fromisoformat(
+            "2022-10-31T11:37:00.000"
+        )  # start from 2022-01-01T08:00:00.000
+        self.logger.info("start count_times.", extra=self.dictLogger)
         rec_cnt = self.pool.count_items(
-            vehicle_id=self.truck.TruckName, driver_id="longfei"
+            vehicle_id=self.truck.TruckName, driver_id="longfei", dt_start=dt_start, dt_end=dt_end
         )
-        if rec_cnt < 8:
-            self.logger.info("Start creating record pool", extra=self.dictLogger)
-            self.add_to_episode_pool(pool_size=8)
+        self.logger.info(f"collection has {rec_cnt} episodes", extra=self.dictLogger)
+        # if rec_cnt < 8:
+        #     self.logger.info("Start creating record pool", extra=self.dictLogger)
+        #     self.add_to_episode_pool(pool_size=8)
+
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
-        batch_4 = self.pool.sample_batch_items(batch_size=4)
+        # batch_4 = self.pool.sample_batch_items(batch_size=4)
+        batch_4 = self.pool.sample_batch_items(
+            batch_size=4, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
+        )
         self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_items(batch_size=24)
-        self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
-        self.assertEqual(len(batch_24), 24)
+        # batch_24 = self.pool.sample_batch_items(batch_size=24)
+        self.logger.info("start test_pool_sample of size 30.", extra=self.dictLogger)
+        batch_30 = self.pool.sample_batch_items(
+            batch_size=30, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
+        )
+        self.logger.info("done test_pool_sample of size 30.", extra=self.dictLogger)
+        self.assertEqual(len(batch_30), 30)
         # get dimension of the history
         state_length = (
             batch_4[0]["plot"]["states"]["length"] * self.truck.ObservationNumber
@@ -242,7 +258,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # reward series
         r_n_t = [
             [history["reward"] for history in episode["history"]]
-            for episode in batch_24
+            for episode in batch_30
         ]
         r_n_t1 = pad_sequences(
             r_n_t,
@@ -255,7 +271,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # states series
         o_n_l0 = [
             [history["states"] for history in episode["history"]]
-            for episode in batch_24
+            for episode in batch_30
         ]
         o_n_l1 = [
             [[step[i] for step in state] for state in o_n_l0]
@@ -287,7 +303,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # starting row series, not used for now
         a_n_start_t = [
             [history["action_start_row"] for history in episode["history"]]
-            for episode in batch_24
+            for episode in batch_30
         ]
         a_n_start_t1 = pad_sequences(
             a_n_start_t,
@@ -299,7 +315,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         a_n_l0 = [
             [history["actions"] for history in episode["history"]]
-            for episode in batch_24
+            for episode in batch_30
         ]
         a_n_l1 = [
             [[step[i] for step in act] for act in a_n_l0]
@@ -432,7 +448,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
