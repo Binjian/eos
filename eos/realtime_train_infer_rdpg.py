@@ -1199,8 +1199,7 @@ class RealtimeRDPG(object):
             extra=self.dictLogger,
         )
 
-        # msg_topic = "drivecircle_action"
-        msg_topic = self.truck.VIN + "_" + self.driver
+        msg_topic =  self.driver + "_" + self.truck.VIN
 
         broker_msgs = self.rmq_consumer.pull(msg_topic)
         logger_webhmi_sm.info(
