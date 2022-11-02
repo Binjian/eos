@@ -1197,9 +1197,22 @@ class RealtimeRDPG(object):
         )
         all(broker_msgs)  # exhaust history messages
 
+        # send ready signal to trip server
+        ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+        logger_webhmi_sm.info(
+            f"Sending ready signal to trip server:"
+            f"status={ret.status};"
+            f"msg-id={ret.msg_id};"
+            f"offset={ret.offset}.",
+            extra=self.dictLogger,
+        )
+        with self.hmi_lock:
+            self.program_start = True
+
         logger_webhmi_sm.info(
             f"RocketMQ client Initialization Done!", extra=self.dictLogger
         )
+
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1226,17 +1239,7 @@ class RealtimeRDPG(object):
 
                 if msg_body["code"] == 5:  # "config/start testing"
                     logger_webhmi_sm.info(
-                        f"Start/Configuration message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
-                        extra=self.dictLogger,
-                    )
-
-                    # send ready signal to trip server
-                    ret = self.rmq_producer.send_sync(self.rmq_message_ready)
-                    logger_webhmi_sm.info(
-                        f"Sending ready signal to trip server:"
-                        f"status={ret.status};"
-                        f"msg-id={ret.msg_id};"
-                        f"offset={ret.offset}.",
+                        f"Restart/Reconfigure message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
                         extra=self.dictLogger,
                     )
 
