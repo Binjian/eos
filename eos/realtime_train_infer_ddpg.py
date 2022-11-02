@@ -167,13 +167,9 @@ class RealtimeDDPG(object):
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if resume:
-            self.dataroot = projroot.joinpath(
-                "data/" + self.truck.VIN + "−" + self.driver + self.path
-            )
+            self.dataroot = projroot.joinpath("data/" + self.truck.VIN + "−" + self.driver).joinpath(self.path)
         else:
-            self.dataroot = projroot.joinpath(
-                "data/scratch/" + self.truck.VIN + "−" + self.driver + self.path
-            )
+            self.dataroot = projroot.joinpath("data/scratch/" + self.truck.VIN + "−" + self.driver).joinpath(self.path)
 
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
