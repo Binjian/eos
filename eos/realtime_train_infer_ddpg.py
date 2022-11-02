@@ -1344,7 +1344,15 @@ class RealtimeDDPG(object):
         all(broker_msgs)  # exhaust history messages
 
         # send ready signal to trip server
-        ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+        self.rmq_producer.start()
+        try:
+            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+        except Exception as e:
+            logger_webhmi_sm.error(
+                f"send_sync failed: {e}",
+                extra=self.dictLogger,
+            )
+            return
         logger_webhmi_sm.info(
             f"Sending ready signal to trip server:"
             f"status={ret.status};"
