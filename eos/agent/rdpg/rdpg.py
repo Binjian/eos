@@ -190,7 +190,9 @@ class RDPG:
             self.logger.info(
                 f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.EpiCollName}"
             )
-            self.buffer_counter = self.pool.count_items()
+            self.buffer_counter = self.pool.count_items(
+                vehicle_id=self.truck.TruckName, driver_id=self.driver
+            )
 
         # Number of "experiences" to store     at max
         self._ckpt_interval = ckpt_interval
@@ -342,8 +344,9 @@ class RDPG:
         result = self.pool.deposit_item(episode)
         self.logger.info("Episode inserted.", extra=self.dictLogger)
         assert result.acknowledged is True, "deposit result not acknowledged"
+        self.buffer_counter = self.pool.count_items(self.truck.TruckName, self.driver)
         self.logger.info(
-            f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
+            f"Pool has {self.buffer_counter} records", extra=self.dictLogger
         )
         epi_inserted = self.pool.find_item(result.inserted_id)
         self.logger.info("episode found.", extra=self.dictLogger)
@@ -379,11 +382,17 @@ class RDPG:
             "Start sampling a mini batch from the database.", extra=self.dictLogger
         )
 
-        item_cnt = self.pool.count_items()
-        batch = self.pool.sample_batch_items(batch_size=self.batch_size, vehicle_id=self.truck.TruckName, driver_id=self.driver)
-        assert len(batch) == self.batch_size
+        assert self.buffer_counter > 0, "pool is empty!"
+        batch = self.pool.sample_batch_items(
+            batch_size=self.batch_size,
+            vehicle_id=self.truck.TruckName,
+            driver_id=self.driver,
+        )
+        assert (
+            len(batch) == self.batch_size
+        ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
         self.logger.info(
-            f"{self.batch_size} Episodes sampled from {item_cnt}.",
+            f"{self.batch_size} Episodes sampled from {self.buffer_counter}.",
             extra=self.dictLogger,
         )
 
@@ -395,8 +404,10 @@ class RDPG:
 
         assert (
             self.state_len == states_length * self.num_observations
-        )  # (3s*50)*3(obs_num))=450
-        assert self.action_len == action_row_number * action_column_number
+        ), f"state_len {self.state_len} doesn't match config {states_length} * {self.num_observations}"  # (3s*50)*3(obs_num))=450
+        assert (
+            self.action_len == action_row_number * action_column_number
+        ), f"action_len {self.action_len} doesn't match config {action_row_number} * {action_column_number}"  # (3s*50)*3(obs_num))=450
 
         # decode and padding rewards, states and actions
         ## decode reward series

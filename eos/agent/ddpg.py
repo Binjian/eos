@@ -171,7 +171,9 @@ class Buffer:
                 coll_name=self.db.RecCollName,
                 debug=False,
             )
-            self.buffer_counter = self.pool.count_items()
+            self.buffer_counter = self.pool.count_items(
+                vehicle_id=self.truck.TruckName, driver_id=self.driver
+            )
             self.logger.info(
                 f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.RecCollName}",
                 extra=dictLogger,
@@ -207,9 +209,10 @@ class Buffer:
         assert result.acknowledged == True
         rec_inserted = self.pool.find_item(result.inserted_id)
         assert rec_inserted == rec
-        self.logger.info(
-            f"Pool has {self.pool.count_items()} records", extra=dictLogger
+        self.buffer_counter = self.pool.count_items(
+            vehicle_id=self.truck.TruckName, driver_id=self.driver
         )
+        self.logger.info(f"Pool has {self.buffer_counter} records", extra=dictLogger)
 
     # Takes (s,a,r,s') obervation tuple as input
     def record(self, obs_tuple: tuple):
@@ -363,25 +366,28 @@ class Buffer:
                 f"start test_pool_sample of size {self.batch_size, self.truck.TruckName, self.driver}.",
                 extra=dictLogger,
             )
-            if self.pool.count_items() > 0:
-                batch = self.pool.sample_batch_items(batch_size=self.batch_size, vehicle_id=self.truck.TruckName, driver_id=self.driver)
-                assert len(batch) == self.batch_size
+            assert self.buffer_counter > 0, "pool is empty"
+            batch = self.pool.sample_batch_items(
+                batch_size=self.batch_size,
+                vehicle_id=self.truck.TruckName,
+                driver_id=self.driver,
+            )
+            assert (
+                len(batch) == self.batch_size
+            ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
-                # convert to tensors
-                state = [rec["observation"]["state"] for rec in batch]
-                action = [rec["observation"]["action"] for rec in batch]
-                reward = [rec["observation"]["reward"] for rec in batch]
-                next_state = [rec["observation"]["next_state"] for rec in batch]
+            # convert to tensors
+            state = [rec["observation"]["state"] for rec in batch]
+            action = [rec["observation"]["action"] for rec in batch]
+            reward = [rec["observation"]["reward"] for rec in batch]
+            next_state = [rec["observation"]["next_state"] for rec in batch]
 
-                # the shape of the tensor is the same as the buffer
-                state_batch = tf.convert_to_tensor(np.array(state))
-                action_batch = tf.convert_to_tensor(np.array(action))
-                reward_batch = tf.convert_to_tensor(np.array(reward))
-                reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-                next_state_batch = tf.convert_to_tensor(np.array(next_state))
-            else:
-                self.logger.info(f"pool is empty, skip learning.", extra=dictLogger)
-                return 0, 0
+            # the shape of the tensor is the same as the buffer
+            state_batch = tf.convert_to_tensor(np.array(state))
+            action_batch = tf.convert_to_tensor(np.array(action))
+            reward_batch = tf.convert_to_tensor(np.array(reward))
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(np.array(next_state))
 
         critic_loss, actor_loss = self.update(
             state_batch, action_batch, reward_batch, next_state_batch

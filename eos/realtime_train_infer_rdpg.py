@@ -105,7 +105,7 @@ class RealtimeRDPG(object):
         infer=False,
         record=True,
         path=".",
-        vehicle="HMZABAAH7MF011058", # "VB7",
+        vehicle="HMZABAAH7MF011058",  # "VB7",
         driver="Longfei.Zheng",
         proj_root=Path("."),
         vlogger=None,
@@ -131,7 +131,8 @@ class RealtimeRDPG(object):
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         else:
             self.logger.info(
-                f"Input is not VIN. Try with truck name {self.vehicle}", extra=self.dictLogger
+                f"Input is not VIN. Try with truck name {self.vehicle}",
+                extra=self.dictLogger,
             )
             # validate truck id
             # assert self.vehicle in self.trucks_by_name.keys()
@@ -157,9 +158,13 @@ class RealtimeRDPG(object):
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if resume:
-            self.dataroot = projroot.joinpath("data/"+self.truck.VIN+"−" + self.driver + self.path)
+            self.dataroot = projroot.joinpath(
+                "data/" + self.truck.VIN + "−" + self.driver + self.path
+            )
         else:
-            self.dataroot = projroot.joinpath("data/scratch/"+self.truck.VIN+"−" + self.driver + self.path)
+            self.dataroot = projroot.joinpath(
+                "data/scratch/" + self.truck.VIN + "−" + self.driver + self.path
+            )
 
         self.set_logger()
         self.logger.info(f"Start Logging", extra=self.dictLogger)
@@ -167,7 +172,6 @@ class RealtimeRDPG(object):
             f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
-
 
         self.eps = np.finfo(
             np.float32
@@ -1188,7 +1192,7 @@ class RealtimeRDPG(object):
         )
 
         # msg_topic = "drivecircle_action"
-        msg_topic = self.truck.VIN + '_' + self.driver
+        msg_topic = self.truck.VIN + "_" + self.driver
 
         broker_msgs = self.rmq_consumer.pull(msg_topic)
         logger_webhmi_sm.info(
@@ -1212,7 +1216,6 @@ class RealtimeRDPG(object):
         logger_webhmi_sm.info(
             f"RocketMQ client Initialization Done!", extra=self.dictLogger
         )
-
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit

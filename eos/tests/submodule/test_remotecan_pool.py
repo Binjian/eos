@@ -21,7 +21,14 @@ from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
 from eos.config import generate_vcu_calibration
-from eos.config import db_servers, can_servers, episode_schemas, record_schemas, trucks_by_vin, trucks_by_name
+from eos.config import (
+    db_servers,
+    can_servers,
+    episode_schemas,
+    record_schemas,
+    trucks_by_vin,
+    trucks_by_name,
+)
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 
@@ -162,9 +169,10 @@ class TestRemoteCanPool(unittest.TestCase):
         result = self.pool.deposit_item(self.episode)
         self.logger.info("Episode inserted.", extra=self.dictLogger)
         self.assertEqual(result.acknowledged, True)
-        self.logger.info(
-            f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
+        pool_count = self.pool.count_items(
+            truck_id=self.truck.TruckName, driver_id="longfei"
         )
+        self.logger.info(f"Pool has {pool_count} records", extra=self.dictLogger)
         epi_inserted = self.pool.find_item(result.inserted_id)
 
         self.logger.info("episode found.", extra=self.dictLogger)
@@ -205,7 +213,9 @@ class TestRemoteCanPool(unittest.TestCase):
             extra=self.dictLogger,
         )
 
-        rec_cnt = self.pool.count_items()
+        rec_cnt = self.pool.count_items(
+            vehicle_id=self.truck.TruckName, driver_id="longfei"
+        )
         if rec_cnt < 8:
             self.logger.info("Start creating record pool", extra=self.dictLogger)
             self.add_to_episode_pool(pool_size=8)
@@ -342,22 +352,34 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
-        rec_cnt = self.pool.count_items()
+        rec_cnt = self.pool.count_items(
+            vehicle_id=self.truck.TruckName, driver_id="longfei"
+        )
         # if rec_cnt < 4:
         #     self.logger.info("Start creating record pool", extra=self.dictLogger)
         #     self.add_to_record_pool(pool_size=16)
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
 
-        dt_start = datetime.fromisoformat("2022-10-25T11:30:00.000")  # start from 2022-01-01T08:00:00.000
-        dt_end = datetime.fromisoformat("2022-10-25T11:37:00.000")  # start from 2022-01-01T08:00:00.000
-        batch_4 = self.pool.sample_batch_items(batch_size=4, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end)
+        dt_start = datetime.fromisoformat(
+            "2022-10-25T11:30:00.000"
+        )  # start from 2022-01-01T08:00:00.000
+        dt_end = datetime.fromisoformat(
+            "2022-10-25T11:37:00.000"
+        )  # start from 2022-01-01T08:00:00.000
+        batch_4 = self.pool.sample_batch_items(
+            batch_size=4, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
+        )
         self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
-        batch_24 = self.pool.sample_batch_items(batch_size=24, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end)
+        batch_24 = self.pool.sample_batch_items(
+            batch_size=24, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
+        )
         self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
-        batch_64 = self.pool.sample_batch_items(batch_size=64, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end)
+        batch_64 = self.pool.sample_batch_items(
+            batch_size=64, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
+        )
         self.logger.info("done test_pool_sample of size 64.", extra=self.dictLogger)
         self.assertEqual(len(batch_64), 24)
 
@@ -397,9 +419,10 @@ class TestRemoteCanPool(unittest.TestCase):
             result = self.pool.deposit_item(rec)
             self.logger.info("Record inserted.", extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
-            self.logger.info(
-                f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
+            rec_cnt = self.pool.count_items(
+                vehicle_id=self.truck.TruckName, driver_id="longfei"
             )
+            self.logger.info(f"Pool has {rec_cnt} records", extra=self.dictLogger)
             rec_inserted = self.pool.find_item(result.inserted_id)
 
             self.logger.info("record found.", extra=self.dictLogger)
@@ -461,8 +484,10 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info("Set client and pool", extra=self.dictLogger)
 
-        rec_cnt = self.pool.count_items()
-        self.logger.info("Start observation test", extra=self.dictLogger)
+        rec_count = self.pool.count_items(
+            truck_id=self.truck.TruckName, driver_id="longfei"
+        )
+        self.logger.info(f"Start observation test wth {rec_count} records", extra=self.dictLogger)
         for rec_cnt in range(16):
 
             self.get_ddpg_record()
@@ -697,8 +722,9 @@ class TestRemoteCanPool(unittest.TestCase):
             result = self.pool.deposit_item(self.episode)
             self.logger.info("Record inserted.", extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
+            pool_size = self.pool.count_items(truck_id=self.truck.TruckName, driver_id="longfei")
             self.logger.info(
-                f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
+                f"Pool has {pool_size} records", extra=self.dictLogger
             )
             epi_inserted = self.pool.find_item(result.inserted_id)
             self.logger.info("episode found.", extra=self.dictLogger)
@@ -1007,9 +1033,10 @@ class TestRemoteCanPool(unittest.TestCase):
             self.get_ddpg_record()
             self.pool.deposit_item(self.ddpg_record)
 
-        self.logger.info(
-            f"Pool has {self.pool.count_items()} records", extra=self.dictLogger
-        )
+            pool_size = self.pool.count_items(truck_id=self.truck.TruckName, driver_id="longfei")
+            self.logger.info(
+                f"Pool has {pool_size} records", extra=self.dictLogger
+            )
 
     def native_get(self):
 
