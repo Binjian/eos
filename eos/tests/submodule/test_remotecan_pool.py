@@ -381,7 +381,7 @@ class TestRemoteCanPool(unittest.TestCase):
             batch_size=64, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
         )
         self.logger.info("done test_pool_sample of size 64.", extra=self.dictLogger)
-        self.assertEqual(len(batch_64), 24)
+        self.assertEqual(len(batch_64), 64)
 
         # test decoding
         state = [rec["observation"]["state"] for rec in batch_24]
