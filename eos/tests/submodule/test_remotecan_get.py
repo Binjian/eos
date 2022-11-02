@@ -12,10 +12,9 @@ import numpy as np
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
 from eos import RemoteCan, projroot
-from eos.comm import generate_vcu_calibration
-from eos.config import trucks
+from eos.config import trucks_by_name, trucks_by_vin, trip_servers, can_servers
 from eos.utils import ragged_nparray_list_interp
-from eos.utils.exception import TruckIDError
+from eos.config import generate_vcu_calibration
 
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
@@ -112,24 +111,24 @@ class TestRemoteCanGet(unittest.TestCase):
     #     )
     #     self.native_send()
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_get(self):
-        self.logger.info("Start test_native_get", extra=self.dictLogger)
-        self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
-        )
-        self.logger.info("Set client", extra=self.dictLogger)
-        self.native_get()
+    # @unittest.skipIf(site == "internal", "skip for internal test")
+    # def test_native_get(self):
+    #     self.logger.info("Start test_native_get", extra=self.dictLogger)
+    #     self.client = RemoteCan(
+    #         truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+    #     )
+    #     self.logger.info("Set client", extra=self.dictLogger)
+    #     self.native_get()
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
-    def test_native_send(self):
-        self.logger.info("Start test_native_send", extra=self.dictLogger)
-        self.client = RemoteCan(
-            truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
-        )
-        self.logger.info("Set client", extra=self.dictLogger)
-
-        self.native_send()
+    # def test_native_send(self):
+    #     self.logger.info("Start test_native_send", extra=self.dictLogger)
+    #     self.client = RemoteCan(
+    #         truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+    #     )
+    #     self.logger.info("Set client", extra=self.dictLogger)
+    #
+    #     self.native_send()
 
     def native_get(self):
 
@@ -290,9 +289,9 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: from {minvel} kmph to the {maxvel} kmph row.",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
+        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
         self.logger.info(
-            f"finish sending torque map from {minvel} kmph to the {maxvel} kmph row.: returncode={returncode}.",
+            f"finish sending torque map from {minvel} kmph to the {maxvel} kmph row.: returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,
         )
 
@@ -300,9 +299,9 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: {N0} rows from row {k0} .",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=True)
+        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d_5rows, swap=True)
         self.logger.info(
-            f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}.",
+            f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,
         )
 
@@ -314,18 +313,18 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
         )
-        returncode = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
+        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
         self.logger.info(
-            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
+            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,
         )
 
         # flashing the whole calibration table
         map2d = self.vcu_calib_table_default
         self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
+        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         self.logger.info(
-            f"finish sending torque map: returncode={returncode}.",
+            f"finish sending torque map: returncode={returncode}, ret_str={ret_str}",
             extra=self.dictLogger,
         )
 

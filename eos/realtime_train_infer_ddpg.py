@@ -383,15 +383,17 @@ class RealtimeDDPG(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            returncode = self.remotecan_client.send_torque_map(
+            returncode, ret_str = self.remotecan_client.send_torque_map(
                 pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
+            self.logger.info(
+                f"Done flash initial table. returncode: {returncode}, ret_str: {ret_str}", extra=self.dictLogger
+            )
         else:
             returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
-
-        self.logger.info(
-            f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
-        )
+            self.logger.info(
+                f"Done flash initial table. returncode: {returncode}", extra=self.dictLogger
+            )
 
         # TQD_trqTrqSetECO_MAP_v
 
@@ -1115,15 +1117,14 @@ class RealtimeDDPG(object):
                         f"RemoteCAN failure! return state={signal_success}s, return_code={remotecan_data}",
                         extra=self.dictLogger,
                     )
-                    hostip = self.can_server.Url
-                    response = os.system("ping -c 1 " + hostip)
+                    response = os.system("ping -c 1 " + self.can_server.Url)
                     if response == 0:
                         logger_remote_get.info(
-                            f"{hostip} is up!", extra=self.dictLogger
+                            f"{self.can_server.Url} is up!", extra=self.dictLogger
                         )
                     else:
                         logger_remote_get.info(
-                            f"{hostip} is down!", extra=self.dictLogger
+                            f"{self.can_server.Url} is down!", extra=self.dictLogger
                         )
 
             if not isinstance(remotecan_data, dict):
@@ -1778,7 +1779,7 @@ class RealtimeDDPG(object):
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
-                    returncode = self.remotecan_client.send_torque_map(
+                    returncode, ret_str = self.remotecan_client.send_torque_map(
                         pedalmap=self.vcu_calib_table1.iloc[
                             table_start : self.vcu_calib_table_row_reduced + table_start
                         ],
@@ -1789,21 +1790,19 @@ class RealtimeDDPG(object):
 
                 if returncode != 0:
                     logger_flash.error(
-                        f"send_torque_map failed and retry: {returncode}",
+                        f"send_torque_map failed and retry: {returncode}, ret_str: {ret_str}",
                         extra=self.dictLogger,
                     )
-                    hostname = self.truck.RemoteCANHost
-                    hostip = hostname.split(":")[0]
-                    response = os.system("ping -c 1 " + hostip)
+                    response = os.system("ping -c 1 " + self.can_server.Url)
                     if response == 0:
-                        logger_flash.info(f"{hostip} is up!", extra=self.dictLogger)
+                        logger_flash.info(f"{self.can_server.Url} is up!", extra=self.dictLogger)
                     else:
-                        logger_flash.info(f"{hostip} is down!", extra=self.dictLogger)
-                    response_telnet = os.system(f"curl -v telnet://{hostname}")
-                    logger_flash.info(
-                        f"Telnet {hostname} response: {response_telnet}!",
-                        extra=self.dictLogger,
-                    )
+                        logger_flash.info(f"{self.can_server.Url} is down!", extra=self.dictLogger)
+                    # response_telnet = os.system(f"curl -v telnet://{hostname}")
+                    # logger_flash.info(
+                    #     f"Telnet {hostname} response: {response_telnet}!",
+                    #     extra=self.dictLogger,
+                    # )
                 else:
                     logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger

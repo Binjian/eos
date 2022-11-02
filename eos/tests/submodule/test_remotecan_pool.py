@@ -327,7 +327,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.error("Ragged action state a_n_l1!", extra=self.dictLogger)
         self.logger.info("done decoding actions.", extra=self.dictLogger)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
         # self.client = RemoteCan(
         #     truckname=self.truck.TruckName,
@@ -432,7 +432,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
@@ -541,7 +541,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         # map2d = self.vcu_calib_table_default
         # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        # returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
+        # returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         # self.logger.info(
         #     f"finish sending torque map: returncode={returncode}.",
         #     extra=self.dictLogger,
@@ -556,7 +556,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # # flashing the whole calibration table
         # map2d = self.vcu_calib_table_default
         # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
-        # returncode = self.client.send_torque_map(pedalmap=map2d, swap=False)
+        # returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         # self.logger.info(
         #     f"finish sending torque map: returncode={returncode}.",
         #     extra=self.dictLogger,
@@ -573,11 +573,11 @@ class TestRemoteCanPool(unittest.TestCase):
             extra=self.dictLogger,
         )
         timeout = N0 + 9
-        returncode = self.client.send_torque_map(
+        returncode, ret_str = self.client.send_torque_map(
             pedalmap=map2d_5rows, swap=False, timeout=timeout
         )
         self.logger.info(
-            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}.",
+            f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,
         )
 
