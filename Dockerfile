@@ -101,7 +101,7 @@ RUN poetry install
 #    -p 27017:27017 -p 19996:19996 eos-gpu:latest /bin/sh -c  \
 #    'poetry run python eos/realtime_train_infer_ddpg.py --cloud -t -p testremote -r'
 
- docker container run -it --rm --gpus all --network host  \
-    -p 27017:27017 -p 19996:19996 -p 6006:6006 eos:latest /bin/sh -c  \
-    'poetry run python eos/realtime_train_infer_ddpg.py --cloud -t -v "HMZABAAH7MF011058" -d "longfei" -p testremote -r'
+# docker container run -it --rm --gpus all --network host  \
+#    -p 27017:27017 -p 19996:19996 -p 6006:6006 eos:latest /bin/sh -c  \
+#    'poetry run python eos/realtime_train_infer_ddpg.py --cloud -t -v "HMZABAAH7MF011058" -d "longfei" -p testremote -r'
 
