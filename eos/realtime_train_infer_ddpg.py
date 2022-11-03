@@ -34,6 +34,7 @@ import os
 import queue
 import socket
 import sys
+import subprocess
 import threading
 import time
 import warnings
@@ -1113,15 +1114,35 @@ class RealtimeDDPG(object):
                         f"RemoteCAN failure! return state={signal_success}s, return_code={remotecan_data}",
                         extra=self.dictLogger,
                     )
-                    response = os.system("ping -c 1 " + self.can_server.Url)
-                    if response == 0:
+                    # ping test
+                    try:
+                        response_ping = subprocess.check_output("ping -c 1 " + self.can_server.Url, shell=True)
+                    except subprocess.CalledProcessError as e:
                         logger_remote_get.info(
-                            f"{self.can_server.Url} is up!", extra=self.dictLogger
+                            f"{self.can_server.Url} is down, responds: {response_ping}"
+                            f"return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
                         )
-                    else:
+                    logger_remote_get.info(
+                        f"{self.can_server.Url} is up, responds: {response_ping}!", extra=self.dictLogger
+                    )
+
+                    # telnet test
+                    try:
+                        response_telnet = subprocess.check_output(f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}", shell=True)
                         logger_remote_get.info(
-                            f"{self.can_server.Url} is down!", extra=self.dictLogger
+                            f"Telnet {self.can_server.Url} responds: {response_telnet}!", extra=self.dictLogger
                         )
+                    except subprocess.CalledProcessError as e:
+                        logger_remote_get.info(
+                            f"telnet {self.can_server.Url} return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+                        )
+                    except subprocess.TimeoutExpired as e:
+                        logger_remote_get.info(
+                            f"telnet {self.can_server.Url} timeout"
+                            f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!", extra=self.dictLogger
+                        )
+
+
 
             if not isinstance(remotecan_data, dict):
                 logger_remote_get.critical(
@@ -1796,16 +1817,33 @@ class RealtimeDDPG(object):
                         f"send_torque_map failed and retry: {returncode}, ret_str: {ret_str}",
                         extra=self.dictLogger,
                     )
-                    response = os.system("ping -c 1 " + self.can_server.Url)
-                    if response == 0:
-                        logger_flash.info(f"{self.can_server.Url} is up!", extra=self.dictLogger)
-                    else:
-                        logger_flash.info(f"{self.can_server.Url} is down!", extra=self.dictLogger)
-                    # response_telnet = os.system(f"curl -v telnet://{hostname}")
-                    # logger_flash.info(
-                    #     f"Telnet {hostname} response: {response_telnet}!",
-                    #     extra=self.dictLogger,
-                    # )
+                    # ping test
+                    try:
+                        response_ping = subprocess.check_output("ping -c 1 " + self.can_server.Url, shell=True)
+                    except subprocess.CalledProcessError as e:
+                        logger_flash.info(
+                            f"{self.can_server.Url} is down, responds: {response_ping}"
+                            f"return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+                        )
+                    logger_flash.info(
+                        f"{self.can_server.Url} is up, responds: {response_ping}!", extra=self.dictLogger
+                    )
+
+                    # telnet test
+                    try:
+                        response_telnet = subprocess.check_output(f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}", shell=True)
+                        logger_flash.info(
+                            f"Telnet {self.can_server.Url} responds: {response_telnet}!", extra=self.dictLogger
+                        )
+                    except subprocess.CalledProcessError as e:
+                        logger_flash.info(
+                            f"telnet {self.can_server.Url} return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+                        )
+                    except subprocess.TimeoutExpired as e:
+                        logger_flash.info(
+                            f"telnet {self.can_server.Url} timeout"
+                            f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!", extra=self.dictLogger
+                        )
                 else:
                     logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
