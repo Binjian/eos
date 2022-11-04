@@ -1396,7 +1396,7 @@ class RealtimeRDPG(object):
 
         self.rmq_consumer.shutdown()
         self.rmq_producer.shutdown()
-        logger_webhmi_sm.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+        logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
     def remote_hmi_state_machine(
         self,
@@ -1554,7 +1554,7 @@ class RealtimeRDPG(object):
                     break
 
         s.close()
-        logger_hmi_sm.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+        logger_hmi_sm.info(f"remote hmi dies!!!", extra=self.dictLogger)
 
     def remote_flash_vcu(self, evt_remote_flash: threading.Event):
         """
