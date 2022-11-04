@@ -289,7 +289,9 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: from {minvel} kmph to the {maxvel} kmph row.",
             extra=self.dictLogger,
         )
-        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
+        returncode, ret_str = self.client.send_torque_map(
+            pedalmap=map2d_5rows, swap=False
+        )
         self.logger.info(
             f"finish sending torque map from {minvel} kmph to the {maxvel} kmph row.: returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,
@@ -299,7 +301,9 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: {N0} rows from row {k0} .",
             extra=self.dictLogger,
         )
-        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d_5rows, swap=True)
+        returncode, ret_str = self.client.send_torque_map(
+            pedalmap=map2d_5rows, swap=True
+        )
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,
@@ -313,7 +317,9 @@ class TestRemoteCanGet(unittest.TestCase):
             f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
             extra=self.dictLogger,
         )
-        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d_5rows, swap=False)
+        returncode, ret_str = self.client.send_torque_map(
+            pedalmap=map2d_5rows, swap=False
+        )
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}, ret_str={ret_str}.",
             extra=self.dictLogger,

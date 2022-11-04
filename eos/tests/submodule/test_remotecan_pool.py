@@ -234,13 +234,15 @@ class TestRemoteCanPool(unittest.TestCase):
         )  # start from 2022-01-01T08:00:00.000
         self.logger.info("start count_times.", extra=self.dictLogger)
         rec_cnt = self.pool.count_items(
-            vehicle_id=self.truck.TruckName, driver_id="longfei", dt_start=dt_start, dt_end=dt_end
+            vehicle_id=self.truck.TruckName,
+            driver_id="longfei",
+            dt_start=dt_start,
+            dt_end=dt_end,
         )
         self.logger.info(f"collection has {rec_cnt} episodes", extra=self.dictLogger)
         # if rec_cnt < 8:
         #     self.logger.info("Start creating record pool", extra=self.dictLogger)
         #     self.add_to_episode_pool(pool_size=8)
-
 
         self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
         # batch_4 = self.pool.sample_batch_items(batch_size=4)
@@ -481,32 +483,43 @@ class TestRemoteCanPool(unittest.TestCase):
 
         # response = os.system("ping -c 1 " + self.can_server.Url)
         try:
-            response_ping = subprocess.check_output("ping -c 1 " + self.can_server.Url, shell=True, timeout=1)
+            response_ping = subprocess.check_output(
+                "ping -c 1 " + self.can_server.Url, shell=True, timeout=1
+            )
         except subprocess.CalledProcessError as e:
             self.logger.info(
                 f"{self.can_server.Url} is down, responds: {response_ping}"
-                f"return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+                f"return code: {e.returncode}, output: {e.output}!",
+                extra=self.dictLogger,
             )
         self.logger.info(
-            f"{self.can_server.Url} is up, responds: {response_ping}!", extra=self.dictLogger
+            f"{self.can_server.Url} is up, responds: {response_ping}!",
+            extra=self.dictLogger,
         )
 
         try:
-            response_telnet = subprocess.check_output(f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}", shell=True)
+            response_telnet = subprocess.check_output(
+                f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}",
+                shell=True,
+            )
             self.logger.info(
-                f"Telnet {self.can_server.Url} responds: {response_telnet}!", extra=self.dictLogger
+                f"Telnet {self.can_server.Url} responds: {response_telnet}!",
+                extra=self.dictLogger,
             )
         except subprocess.CalledProcessError as e:
             self.logger.info(
-                f"{self.can_server.Url} return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+                f"{self.can_server.Url} return code: {e.returncode}, output: {e.output}!",
+                extra=self.dictLogger,
             )
         except subprocess.TimeoutExpired as e:
             self.logger.info(
-                f"{self.can_server.Url} timeout. cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!", extra=self.dictLogger
+                f"{self.can_server.Url} timeout. cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
+                extra=self.dictLogger,
             )
 
             self.logger.info(
-                f"{self.can_server.Url} is up, responds: {response_telnet}!", extra=self.dictLogger
+                f"{self.can_server.Url} is up, responds: {response_telnet}!",
+                extra=self.dictLogger,
             )
 
         self.logger.info("Start observation test", extra=self.dictLogger)
@@ -546,7 +559,9 @@ class TestRemoteCanPool(unittest.TestCase):
         rec_count = self.pool.count_items(
             truck_id=self.truck.TruckName, driver_id="longfei"
         )
-        self.logger.info(f"Start observation test wth {rec_count} records", extra=self.dictLogger)
+        self.logger.info(
+            f"Start observation test wth {rec_count} records", extra=self.dictLogger
+        )
         for rec_cnt in range(16):
 
             self.get_ddpg_record()
@@ -781,10 +796,10 @@ class TestRemoteCanPool(unittest.TestCase):
             result = self.pool.deposit_item(self.episode)
             self.logger.info("Record inserted.", extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
-            pool_size = self.pool.count_items(truck_id=self.truck.TruckName, driver_id="longfei")
-            self.logger.info(
-                f"Pool has {pool_size} records", extra=self.dictLogger
+            pool_size = self.pool.count_items(
+                truck_id=self.truck.TruckName, driver_id="longfei"
             )
+            self.logger.info(f"Pool has {pool_size} records", extra=self.dictLogger)
             epi_inserted = self.pool.find_item(result.inserted_id)
             self.logger.info("episode found.", extra=self.dictLogger)
             self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
@@ -1092,10 +1107,10 @@ class TestRemoteCanPool(unittest.TestCase):
             self.get_ddpg_record()
             self.pool.deposit_item(self.ddpg_record)
 
-            pool_size = self.pool.count_items(truck_id=self.truck.TruckName, driver_id="longfei")
-            self.logger.info(
-                f"Pool has {pool_size} records", extra=self.dictLogger
+            pool_size = self.pool.count_items(
+                truck_id=self.truck.TruckName, driver_id="longfei"
             )
+            self.logger.info(f"Pool has {pool_size} records", extra=self.dictLogger)
 
     def native_get(self):
 
