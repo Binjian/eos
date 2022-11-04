@@ -4,6 +4,7 @@ import datetime
 import inspect
 import logging
 import os
+import subprocess
 import unittest
 import warnings
 from datetime import datetime
@@ -66,7 +67,7 @@ class TestRemoteCanPool(unittest.TestCase):
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
         self.trucks_by_name = trucks_by_name
-        self.truck_name = "VB7"
+        self.truck_name = "VB1"
 
         self.db_server_name = "local"
         self.db_server = db_servers[self.db_server_name]
@@ -89,6 +90,18 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.truck = self.trucks_by_name[self.truck_name]
         self.set_logger(projroot)
+        self.logger.info(
+            f"Truck: {self.truck.TruckName}-{self.truck.VIN}",
+            extra=self.dictLogger,
+        )
+        self.logger.info(
+            f"DB server: {self.db_server.SRVName}",
+            extra=self.dictLogger,
+        )
+        self.logger.info(
+            f"Can server: {self.can_server.SRVName}",
+            extra=self.dictLogger,
+        )
 
         # check if the truck is valid
         self.assertEqual(self.truck_name, self.truck.TruckName)
@@ -182,7 +195,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit records", extra=self.dictLogger)
 
-    # @unittest.skipIf(site == "internal", "skip for internal test")
+    @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_episode(self):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
@@ -448,23 +461,53 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("End test deposit redords", extra=self.dictLogger)
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
             url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
         )
 
-        hostip = self.can_server.Url
-        response = os.system("ping -c 1 " + hostip)
-        if response == 0:
-            self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
-        else:
-            self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
-        # response_telnet = os.system(f"curl -v telnet://{hostname}")
-        # self.logger.info(
-        #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
-        # )
+        # hostip = self.can_server.Url
+        # response = os.system("ping -c 1 " + hostip)
+        # if response == 0:
+        #     self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
+        # else:
+        #     self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
+        # # response_telnet = os.system(f"curl -v telnet://{hostname}")
+        # # self.logger.info(
+        # #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        # # )
+
+        # response = os.system("ping -c 1 " + self.can_server.Url)
+        try:
+            response_ping = subprocess.check_output("ping -c 1 " + self.can_server.Url, shell=True, timeout=1)
+        except subprocess.CalledProcessError as e:
+            self.logger.info(
+                f"{self.can_server.Url} is down, responds: {response_ping}"
+                f"return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+            )
+        self.logger.info(
+            f"{self.can_server.Url} is up, responds: {response_ping}!", extra=self.dictLogger
+        )
+
+        try:
+            response_telnet = subprocess.check_output(f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}", shell=True)
+            self.logger.info(
+                f"Telnet {self.can_server.Url} responds: {response_telnet}!", extra=self.dictLogger
+            )
+        except subprocess.CalledProcessError as e:
+            self.logger.info(
+                f"{self.can_server.Url} return code: {e.returncode}, output: {e.output}!", extra=self.dictLogger
+            )
+        except subprocess.TimeoutExpired as e:
+            self.logger.info(
+                f"{self.can_server.Url} timeout. cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!", extra=self.dictLogger
+            )
+
+            self.logger.info(
+                f"{self.can_server.Url} is up, responds: {response_telnet}!", extra=self.dictLogger
+            )
 
         self.logger.info("Start observation test", extra=self.dictLogger)
         for rec_cnt in range(3):
