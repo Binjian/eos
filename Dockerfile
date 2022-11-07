@@ -138,6 +138,8 @@ ENTRYPOINT ["/bin/sh", "-c", "poetry shell | poetry run python eos/realtime_trai
 # entrypoint
 # ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_ddpg.py", "--cloud -r -t -p cloudtest"]
 
+# docker container run -it --gpus all --network host --mount source=eosdata,target=/app/data eos:local
+
 # volume
 # VOLUME /app/data
 
