@@ -60,12 +60,13 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
 COPY . /app
 WORKDIR /app
 # set the working directory in the container
-VOLUME /app/data
+#VOLUME /app/data
 
 #
 RUN poetry install
 
-ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_ddpg.py", "-v", "HMZABAAH7MF011058", "-d", "longfei"]
+#ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
+ENTRYPOINT ["/bin/sh", "-c", "poetry shell | poetry run python eos/realtime_train_infer_rdpg.py -v HMZABAAH7MF011058 -d longfei"]
 
 #RUN mkdir -p /app/data/udp-pcap &&\
 #    cp ./eos/config/*.csv /app/data/ &&\
