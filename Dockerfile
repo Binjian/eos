@@ -139,7 +139,7 @@ ENTRYPOINT ["/bin/sh", "-c", "poetry shell | poetry run python eos/realtime_trai
 # ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_ddpg.py", "--cloud -r -t -p cloudtest"]
 
 # docker container run -it --gpus all --network host --mount source=eosdata,target=/app/data eos:local
-
+# docker run -it --gpus all --network host --mount source=eosdata,target=/app/data --entrypoint "/bin/sh" eos:local -c 'poetry shell | poetry run python eos/realtime_train_infer_ddpg.py -v "HMZABAAH7MF011058" -d "longfei"'
 # volume
 # VOLUME /app/data
 
