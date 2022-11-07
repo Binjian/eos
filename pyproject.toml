@@ -43,7 +43,6 @@ scipy = ">=1.8.0"
 seaborn = ">=0.11.2"
 scikit-learn = ">=1.0.2"
 matplotlib = ">=3.5.1"
-tqdm = ">=4.64"
 pytest = ">=7.1"
 reportlab = ">=3.6.9"
 pymongo = ">=4.1.1"
@@ -53,7 +52,8 @@ pymongoarrow = ">=0.5.0"
 pyarrow = ">=9.0.0"
 gitpython = ">=3.1.27"
 rocketmq = ">=0.4.4"
-# truststore = ">=0.5.0"
+#truststore = ">=0.5.0"
+#tqdm = ">=4.64"
 
 
 
