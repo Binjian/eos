@@ -101,7 +101,7 @@ Truck = namedtuple(
         "VelocityScale",  # scale number of velocity 14 or 21
         "VelocityScaleList",  # scale list of velocity
         "ObservationNumber",  # number of observation, 3: velocity, throttle, brake
-        "KvaserObservationNumber",  # Kvaser nunmber of one observation unit: 30 as count number
+        "KvaserObservationNumber",  # Kvaser number of one observation unit: 30 as count number
         "KvaserObservationFrequency",  # Kvaser observation frequency: 20 Hz
         "KvaserCountdownTime",  # Kvaser countdown time: 3 seconds
         "ActionBudget",  # maximal delta torque to be overlapped on the torque map 250 in Nm
