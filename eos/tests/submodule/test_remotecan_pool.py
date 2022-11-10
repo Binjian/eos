@@ -24,7 +24,7 @@ from eos import Pool, RemoteCan, projroot
 from eos.config import generate_vcu_calibration
 from eos.config import (
     db_servers,
-    can_servers,
+    can_servers_by_name,
     episode_schemas,
     record_schemas,
     trucks_by_vin,
@@ -74,7 +74,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
 
         self.can_server_name = "newrizon_test"
-        self.can_server = can_servers[self.can_server_name]
+        self.can_server = can_servers_by_name[self.can_server_name]
         self.assertEqual(self.can_server_name, self.can_server.SRVName)
 
         self.record_schemas = record_schemas
@@ -150,7 +150,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
         self.epi_sch = self.episode_schemas["episode_deep"]
 
@@ -162,7 +162,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            url=self.db_server.Url,
+            url=self.db_server.Host,
             username=self.db_server.Username,
             password=self.db_server.Password,
             schema=self.epi_sch.STRUCTURE,
@@ -201,7 +201,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # db_name = "test_episode_db"
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
 
         self.epi_sch = self.episode_schemas["episode_deep"]
@@ -213,7 +213,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            url=self.db_server.Url,
+            url=self.db_server.Host,
             username=self.db_server.Username,
             password=self.db_server.Password,
             schema=self.epi_sch.STRUCTURE,
@@ -362,7 +362,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_sample_record(self):
         # self.client = RemoteCan(
         #     truckname=self.truck.TruckName,
-        #     url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+        #     url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         # )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -373,7 +373,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # test schema[0]
         # self.pool = RecordPool(schema=self.schema[0], username="root", password="Newrizon123",url="mongodb://10.0.64.64:30116/", db_name="record_db", debug=True)
         self.pool = Pool(
-            url=self.db_server.Url,
+            url=self.db_server.Host,
             username=self.db_server.Username,
             password=self.db_server.Password,
             schema=self.rec_sch.STRUCTURE,
@@ -425,7 +425,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -434,7 +434,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.db_server = db_servers[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         self.pool = Pool(
-            url=self.db_server.Url,
+            url=self.db_server.Host,
             username=self.db_server.Username,
             password=self.db_server.Password,
             schema=self.epi_sch.STRUCTURE,
@@ -467,7 +467,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
 
         # hostip = self.can_server.Url
@@ -484,41 +484,41 @@ class TestRemoteCanPool(unittest.TestCase):
         # response = os.system("ping -c 1 " + self.can_server.Url)
         try:
             response_ping = subprocess.check_output(
-                "ping -c 1 " + self.can_server.Url, shell=True, timeout=1
+                "ping -c 1 " + self.can_server.Host, shell=True, timeout=1
             )
         except subprocess.CalledProcessError as e:
             self.logger.info(
-                f"{self.can_server.Url} is down, responds: {response_ping}"
+                f"{self.can_server.Host} is down, responds: {response_ping}"
                 f"return code: {e.returncode}, output: {e.output}!",
                 extra=self.dictLogger,
             )
         self.logger.info(
-            f"{self.can_server.Url} is up, responds: {response_ping}!",
+            f"{self.can_server.Host} is up, responds: {response_ping}!",
             extra=self.dictLogger,
         )
 
         try:
             response_telnet = subprocess.check_output(
-                f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}",
+                f"timeout 1 telnet {self.can_server.Host} {self.can_server.Port}",
                 shell=True,
             )
             self.logger.info(
-                f"Telnet {self.can_server.Url} responds: {response_telnet}!",
+                f"Telnet {self.can_server.Host} responds: {response_telnet}!",
                 extra=self.dictLogger,
             )
         except subprocess.CalledProcessError as e:
             self.logger.info(
-                f"{self.can_server.Url} return code: {e.returncode}, output: {e.output}!",
+                f"{self.can_server.Host} return code: {e.returncode}, output: {e.output}!",
                 extra=self.dictLogger,
             )
         except subprocess.TimeoutExpired as e:
             self.logger.info(
-                f"{self.can_server.Url} timeout. cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
+                f"{self.can_server.Host} timeout. cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
                 extra=self.dictLogger,
             )
 
             self.logger.info(
-                f"{self.can_server.Url} is up, responds: {response_telnet}!",
+                f"{self.can_server.Host} is up, responds: {response_telnet}!",
                 extra=self.dictLogger,
             )
 
@@ -538,7 +538,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -546,7 +546,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.db_server = db_servers[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         self.pool = Pool(
-            url=self.db_server.Url,
+            url=self.db_server.Host,
             username=self.db_server.Username,
             password=self.db_server.Password,
             schema=self.epi_sch.STRUCTURE,
@@ -584,10 +584,10 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
-        hostip = self.can_server.Url
+        hostip = self.can_server.Host
         response = os.system("ping -c 1 " + hostip)
         if response == 0:
             self.logger.info(f"{hostip} is up!", extra=self.dictLogger)

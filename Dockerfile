@@ -139,7 +139,7 @@ ENTRYPOINT ["/bin/sh", "-c", "poetry shell | poetry run python eos/realtime_trai
 # ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_ddpg.py", "--cloud -r -t -p cloudtest"]
 
 # docker container run -it --gpus all --network host --mount source=eosdata,target=/app/data eos:local
-# docker run -it --gpus all --network host --mount source=eosdata,target=/app/data --entrypoint "/bin/sh" eos:local -c 'poetry shell | poetry run python eos/realtime_train_infer_ddpg.py -v "HMZABAAH7MF011058" -d "longfei"'
+# docker run -it --gpus all --network host --mount source=eosdata,target=/app/data --entrypoint "/bin/sh" eos:baiduyun -c 'poetry shell | poetry run python eos/realtime_train_infer_rdpg.py -v "HMZABAAH7MF011058" -d "longfei" -m "10.0.64.78:5000" -u "10.0.64.78:9876"'
 # volume
 # VOLUME /app/data
 
@@ -151,4 +151,4 @@ ENTRYPOINT ["/bin/sh", "-c", "poetry shell | poetry run python eos/realtime_trai
 #docker build --network=host --build-tag BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos .
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER:docker
-#docker build --network=host --build-arg BASE_IMAGE=registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0 -t eos:aliyun https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
+#docker build --network=host --build-arg BASE_IMAGE=registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0 -t eos:baiduyun https://gitlab.newrizon.work/its/ai/eos.git#DOCKER

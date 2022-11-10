@@ -1,5 +1,10 @@
 from .db_config import db_servers, episode_schemas, record_schemas
-from .messenger_config import can_servers, trip_servers
+from .messenger_config import (
+    can_servers_by_name,
+    trip_servers_by_name,
+    can_servers_by_host,
+    trip_servers_by_host,
+)
 from .vehicle_signal_config import (
     PEDAL_SCALES,
     TRIANGLE_TEST_CASE_TARGET_VELOCITIES,
@@ -22,8 +27,10 @@ __all__ = [
     "VELOCITY_SCALES_VB",
     "PEDAL_SCALES",
     "db_servers",
-    "can_servers",
-    "trip_servers",
+    "can_servers_by_name",
+    "trip_servers_by_name",
+    "can_servers_by_host",
+    "trip_servers_by_host",
     "record_schemas",
     "episode_schemas",
     "generate_vcu_calibration",

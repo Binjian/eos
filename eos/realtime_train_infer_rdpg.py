@@ -69,8 +69,10 @@ from eos.config import (
     PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
-    can_servers,
-    trip_servers,
+    can_servers_by_name,
+    can_servers_by_host,
+    trip_servers_by_name,
+    trip_servers_by_host,
     generate_vcu_calibration,
 )
 from eos.utils import ragged_nparray_list_interp
@@ -108,6 +110,8 @@ class RealtimeRDPG(object):
         path=".",
         vehicle="HMZABAAH7MF011058",  # "VB7",
         driver="Longfei.Zheng",
+        remotecan_srv="10.0.64.78:5000",
+        webui_srv="10.0.64.78:9876",
         proj_root=Path("."),
         vlogger=None,
     ):
@@ -116,6 +120,8 @@ class RealtimeRDPG(object):
         self.trucks_by_name = trucks_by_name
         self.trucks_by_vin = trucks_by_vin
         self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
+        self.remotecan_srv = remotecan_srv
+        self.webui_srv = webui_srv
         assert type(vehicle) == str
         # Regex for VIN: HMZABAAH\dMF\d{6}
         p = re.compile(r"^HMZABAAH\dMF\d{6}$")
@@ -125,24 +131,17 @@ class RealtimeRDPG(object):
             try:
                 self.truck = self.trucks_by_vin[self.vehicle]
             except KeyError as e:
-                self.logger.error(
-                    f"{e}. No Truck with VIN {self.vehicle}", extra=self.dictLogger
-                )
+                print(f"{e}. No Truck with VIN {self.vehicle}")
                 sys.exit(1)
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         else:
-            self.logger.info(
-                f"Input is not VIN. Try with truck name {self.vehicle}",
-                extra=self.dictLogger,
-            )
+            print(f"Input is not VIN. Try with truck name {self.vehicle}")
             # validate truck id
             # assert self.vehicle in self.trucks_by_name.keys()
             try:
                 self.truck = self.trucks_by_name[self.vehicle]
             except KeyError as e:
-                self.logger.error(
-                    f"{e}. No Truck with name {self.vehicle}", extra=self.dictLogger
-                )
+                print(f"{e}. No Truck with name {self.vehicle}")
                 sys.exit(1)
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         self.driver = driver
@@ -173,6 +172,8 @@ class RealtimeRDPG(object):
             f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
+        self.logger.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
+        self.logger.info(f"driver: {self.driver}", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -214,22 +215,32 @@ class RealtimeRDPG(object):
     def init_cloud(self):
         os.environ["http_proxy"] = ""
         self.can_server_name = "newrizon_test"
-        self.can_server = can_servers[self.can_server_name]
-        assert self.can_server_name == self.can_server.SRVName
+        self.can_server = can_servers_by_host[self.remotecan_srv.split(":")[0]]
+        assert self.remotecan_srv.split(":")[
+            0
+        ] == self.can_server.Host and self.remotecan_srv.split(":")[1] == str(
+            self.can_server.Port
+        )
+        self.logger.info(f"CAN Server: {self.can_server}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Url + ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         )
 
         self.trip_server_name = "newrizon_test"
-        self.trip_server = trip_servers[self.trip_server_name]
-        assert self.trip_server_name == self.trip_server.SRVName
+        self.trip_server = trip_servers_by_host[self.webui_srv.split(":")[0]]
+        assert self.webui_srv.split(":")[
+            0
+        ] == self.trip_server.Host and self.webui_srv.split(":")[1] == str(
+            self.trip_server.Port
+        )
+        self.logger.info(f"Trip Server: {self.trip_server}", extra=self.dictLogger)
 
         # Create RocketMQ consumer
         self.rmq_consumer = PullConsumer("CID_EPI_ROCKET")
         self.rmq_consumer.set_namesrv_addr(
-            self.trip_server.Url + ":" + self.trip_server.Port
+            self.trip_server.Host+ ":" + self.trip_server.Port
         )
 
         # Create RocketMQ producer
@@ -243,7 +254,7 @@ class RealtimeRDPG(object):
         # self.rmq_message_ready.set_tags('tags')
         self.rmq_producer = Producer("PID-EPI_ROCKET")
         self.rmq_producer.set_namesrv_addr(
-            self.trip_server.Url + ":" + self.trip_server.Port
+            self.trip_server.Host+ ":" + self.trip_server.Port
         )
 
     def set_logger(self):
@@ -992,37 +1003,37 @@ class RealtimeRDPG(object):
                     # ping test
                     try:
                         response_ping = subprocess.check_output(
-                            "ping -c 1 " + self.can_server.Url, shell=True
+                            "ping -c 1 " + self.can_server.Host, shell=True
                         )
                     except subprocess.CalledProcessError as e:
                         logger_remote_get.info(
-                            f"{self.can_server.Url} is down, responds: {response_ping}"
+                            f"{self.can_server.Host} is down, responds: {response_ping}"
                             f"return code: {e.returncode}, output: {e.output}!",
                             extra=self.dictLogger,
                         )
                     logger_remote_get.info(
-                        f"{self.can_server.Url} is up, responds: {response_ping}!",
+                        f"{self.can_server.Host} is up, responds: {response_ping}!",
                         extra=self.dictLogger,
                     )
 
                     # telnet test
                     try:
                         response_telnet = subprocess.check_output(
-                            f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}",
+                            f"timeout 1 telnet {self.can_server.Host} {self.can_server.Port}",
                             shell=True,
                         )
                         logger_remote_get.info(
-                            f"Telnet {self.can_server.Url} responds: {response_telnet}!",
+                            f"Telnet {self.can_server.Host} responds: {response_telnet}!",
                             extra=self.dictLogger,
                         )
                     except subprocess.CalledProcessError as e:
                         logger_remote_get.info(
-                            f"telnet {self.can_server.Url} return code: {e.returncode}, output: {e.output}!",
+                            f"telnet {self.can_server.Host} return code: {e.returncode}, output: {e.output}!",
                             extra=self.dictLogger,
                         )
                     except subprocess.TimeoutExpired as e:
                         logger_remote_get.info(
-                            f"telnet {self.can_server.Url} timeout"
+                            f"telnet {self.can_server.Host} timeout"
                             f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
                             extra=self.dictLogger,
                         )
@@ -1219,7 +1230,7 @@ class RealtimeRDPG(object):
         self.rmq_consumer.start()
         self.rmq_producer.start()
         logger_webhmi_sm.info(
-            f"Start RocketMQ client on {self.trip_server.Url}!",
+            f"Start RocketMQ client on {self.trip_server.Host}!",
             extra=self.dictLogger,
         )
 
@@ -1691,37 +1702,37 @@ class RealtimeRDPG(object):
                     # ping test
                     try:
                         response_ping = subprocess.check_output(
-                            "ping -c 1 " + self.can_server.Url, shell=True
+                            "ping -c 1 " + self.can_server.Host, shell=True
                         )
                     except subprocess.CalledProcessError as e:
                         logger_flash.info(
-                            f"{self.can_server.Url} is down, responds: {response_ping}"
+                            f"{self.can_server.Host} is down, responds: {response_ping}"
                             f"return code: {e.returncode}, output: {e.output}!",
                             extra=self.dictLogger,
                         )
                     logger_flash.info(
-                        f"{self.can_server.Url} is up, responds: {response_ping}!",
+                        f"{self.can_server.Host} is up, responds: {response_ping}!",
                         extra=self.dictLogger,
                     )
 
                     # telnet test
                     try:
                         response_telnet = subprocess.check_output(
-                            f"timeout 1 telnet {self.can_server.Url} {self.can_server.Port}",
+                            f"timeout 1 telnet {self.can_server.Host} {self.can_server.Port}",
                             shell=True,
                         )
                         logger_flash.info(
-                            f"Telnet {self.can_server.Url} responds: {response_telnet}!",
+                            f"Telnet {self.can_server.Host} responds: {response_telnet}!",
                             extra=self.dictLogger,
                         )
                     except subprocess.CalledProcessError as e:
                         logger_flash.info(
-                            f"telnet {self.can_server.Url} return code: {e.returncode}, output: {e.output}!",
+                            f"telnet {self.can_server.Host} return code: {e.returncode}, output: {e.output}!",
                             extra=self.dictLogger,
                         )
                     except subprocess.TimeoutExpired as e:
                         logger_flash.info(
-                            f"telnet {self.can_server.Url} timeout"
+                            f"telnet {self.can_server.Host} timeout"
                             f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
                             extra=self.dictLogger,
                         )
@@ -2212,6 +2223,20 @@ if __name__ == "__main__":
         default=".",
         help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
     )
+    parser.add_argument(
+        "-m",
+        "--remotecan",
+        type=str,
+        default="10.0.64.78:5000",
+        help="url for remote can server, e.g. remotecan.veos.srv:5000",
+    )
+    parser.add_argument(
+        "-u",
+        "--webui",
+        type=str,
+        default="10.0.64.78:9876",
+        help="url for web ui server, e.g. aidriver.veos.srv:5001",
+    )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
@@ -2226,6 +2251,8 @@ if __name__ == "__main__":
             args.path,
             args.vehicle,
             args.driver,
+            args.remotecan,
+            args.webui,
             projroot,
             logger,
         )

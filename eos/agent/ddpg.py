@@ -163,7 +163,7 @@ class Buffer:
             # self.db_name = "ddpg_db"
             # self.collection_name = "record_coll"
             self.pool = Pool(
-                url=self.db.Url,
+                url=self.db.Host,
                 username=self.db.Username,
                 password=self.db.Password,
                 schema=self.db_schema.STRUCTURE,

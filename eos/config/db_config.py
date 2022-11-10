@@ -10,7 +10,7 @@ DB = namedtuple(
         "DatabaseName",  # name of the database
         "RecCollName",  # name of the collection
         "EpiCollName",  # name of the collection
-        "Url",  # url for the database server
+        "Host",  # host name for the database server
         "Port",  # port for the database server
         "Username",  # username for the database server
         "Password",  # password for the database server
@@ -23,7 +23,7 @@ db_list = [
         DatabaseName="eos",  # name of the database
         RecCollName="record2",  # name of the collection
         EpiCollName="episode2",  # name of the collection
-        Url="127.0.0.1",  # url for the database server
+        Host="127.0.0.1",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
         Password="",  # password for the database server
@@ -34,7 +34,7 @@ db_list = [
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
-        Url="10.10.10.31",  # url for the database server
+        Host="10.10.10.31",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
         Password="",  # password for the database server
@@ -45,7 +45,7 @@ db_list = [
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
-        Url="10.10.10.13",  # url for the database server
+        Host="10.10.10.13",  # url for the database server
         Port=27017,  # port for the database server
         Username="",  # username for the database server
         Password="",  # password for the database server
@@ -56,7 +56,7 @@ db_list = [
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
-        Url="10.0.64.64",  # url for the database server
+        Host="10.0.64.64",  # url for the database server
         Port="30116",  # port for the database server
         Username="root",  # username for the database server
         Password="Newrizon123",  # password for the database server
@@ -67,7 +67,7 @@ db_list = [
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
-        Url="10.10.0.4",  # url for the database server
+        Host="10.10.0.4",  # url for the database server
         Port=23000,  # port for the database server
         Username="veos",  # username for the database server
         Password="KypC06rnRwR6",  # password for the database server
