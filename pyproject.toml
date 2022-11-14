@@ -70,9 +70,9 @@ build-backend = "poetry.core.masonry.api"
 [[tool.poetry.source]]
 name = "official"
 url = "https://pypi.org/simple"
-default = true
+secondary = true
 
 [[tool.poetry.source]]
 name = "aliyun"
 url = "https://mirrors.aliyun.com/pypi/simple"
-secondary = true
+default = true
