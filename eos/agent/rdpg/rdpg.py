@@ -256,6 +256,9 @@ class RDPG:
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
 
+    def drop_mongo_client(self):
+        self.pool.drop_mongo()
+
     def init_ckpt(self):
         # Actor create or restore from checkpoint
         # add checkpoints manager

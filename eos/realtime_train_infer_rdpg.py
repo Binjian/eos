@@ -2180,7 +2180,9 @@ class RealtimeRDPG(object):
 
         if self.cloud is False:
             self.rdpg.save_replay_buffer()
-        #  for database, just exit no need to cleanup.
+
+        # WRONG: for database, just exit no need to cleanup.
+        self.rdpg.drop_mongo_client()
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 

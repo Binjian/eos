@@ -201,6 +201,9 @@ class Buffer:
         self.critic_optimizer = critic_optimizer
         self.gamma = gamma
 
+    def drop_mongo_client(self):
+        self.pool.drop_mongo()
+
     def deposit(self, rec: dict):
         """
         Record a new experience in the pool (database).

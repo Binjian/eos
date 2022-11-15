@@ -580,7 +580,7 @@ class TestRemoteCanPool(unittest.TestCase):
             "Done with consecutive getting record test", extra=self.dictLogger
         )
 
-    @unittest.skipIf(site == "internal", "skip for internal test")
+    # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,

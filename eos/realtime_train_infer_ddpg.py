@@ -2323,7 +2323,8 @@ class RealtimeDDPG(object):
 
         if self.cloud is False:
             self.buffer.save()
-        #  for database, just exit no need to cleanup.
+        # WRONG: for database, just exit no need to cleanup.
+        self.buffer.drop_mongo_client()
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 
