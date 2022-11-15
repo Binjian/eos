@@ -425,7 +425,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -538,7 +538,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
@@ -584,7 +584,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
         # self.generate_record_schemas()
         hostip = self.can_server.Host
