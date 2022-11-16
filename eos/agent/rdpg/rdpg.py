@@ -651,7 +651,7 @@ class RDPG:
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
-            logger.info(f"start critic evaluate_q")
+            self.logger.info(f"start critic evaluate_q")
             t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
             self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
 
