@@ -2056,31 +2056,35 @@ class RealtimeRDPG(object):
             actor_loss = 0
             # add episode history to agent replay buffer
             if self.cloud:
-                self.episode = {
-                    "timestamp": timestamp0,
-                    "plot": {
-                        "character": self.truck.TruckName,
-                        "driver": self.driver,
-                        "when": timestamp0,
-                        "where": "campus",
-                        "length": len(self.h_t),
-                        "states": {
-                            "velocity_unit": "kmph",
-                            "thrust_unit": "percentage",
-                            "brake_unit": "percentage",
-                            "length": self.observation_len,
+                if not self.h_t:
+                    self.episode = {
+                        "timestamp": timestamp0,
+                        "plot": {
+                            "character": self.truck.TruckName,
+                            "driver": self.driver,
+                            "when": timestamp0,
+                            "where": "campus",
+                            "length": len(self.h_t),
+                            "states": {
+                                "velocity_unit": "kmph",
+                                "thrust_unit": "percentage",
+                                "brake_unit": "percentage",
+                                "length": self.observation_len,
+                            },
+                            "actions": {
+                                "action_row_number": self.vcu_calib_table_row_reduced,
+                                "action_column_number": self.vcu_calib_table_col,
+                            },
+                            "reward": {
+                                "reward_unit": "wh",
+                            },
                         },
-                        "actions": {
-                            "action_row_number": self.vcu_calib_table_row_reduced,
-                            "action_column_number": self.vcu_calib_table_col,
-                        },
-                        "reward": {
-                            "reward_unit": "wh",
-                        },
-                    },
-                    "history": self.h_t,
-                }
-                self.rdpg.add_to_db(self.episode)
+                        "history": self.h_t,
+                    }
+                    self.rdpg.add_to_db(self.episode)
+                else:
+                    self.logc.info(f"Episode done but history is empty or no observation received!")
+                    continue
 
             else:
                 self.rdpg.add_to_replay(self.h_t)
