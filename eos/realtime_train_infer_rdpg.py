@@ -1787,7 +1787,7 @@ class RealtimeRDPG(object):
         with open(last_table_store_path, "wb") as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
         # motionpowerQueue.join()
-        self.logc.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
+        logger_flash.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
 
     # @eye
     def run(self):
