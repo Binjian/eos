@@ -52,8 +52,7 @@ pymongoarrow = ">=0.5.0"
 pyarrow = ">=9.0.0"
 gitpython = ">=3.1.27"
 rocketmq = ">=0.4.4"
-#truststore = ">=0.5.0"
-#tqdm = ">=4.64"
+tqdm = ">=4.64"
 
 
 
@@ -76,3 +75,6 @@ secondary = true
 name = "aliyun"
 url = "https://mirrors.aliyun.com/pypi/simple"
 default = true
+
+[tool.poetry2conda]
+name = "eos-conda"
