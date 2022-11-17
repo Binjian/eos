@@ -2248,7 +2248,7 @@ if __name__ == "__main__":
         "--vehicle",
         type=str,
         default=".",
-        help="vehicle ID like 'VB7' or 'MP3'",
+        help="vehicle ID like 'VB7' or 'MP3' or VIN 'HMZABAAH1MF011055'",
     )
     parser.add_argument(
         "-d",
