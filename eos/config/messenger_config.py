@@ -27,8 +27,8 @@ canserver_list = [
     ),
     CANMessenger(
         SRVName="baiduyun_k8s",  # name of the database
-        Host="retmotecan.veos.srv",  # url for the database server
-        Port="5000",  # port for the database server
+        Host="10.10.0.7",  # url for the database server
+        Port="30865",  # port for the database server
     ),
 ]
 
@@ -43,8 +43,8 @@ tripserver_list = [
     ),
     TripMessenger(
         SRVName="baiduyun_k8s",  # name of the database
-        Host="aidriver.veos.srv",  # url for the database server
-        Port="5001",  # port for the database server
+        Host="10.10.0.13",  # url for the database server
+        Port="9876",  # port for the database server
     ),
 ]
 trip_servers_by_name = dict(
