@@ -2079,7 +2079,7 @@ class RealtimeRDPG(object):
             actor_loss = 0
             # add episode history to agent replay buffer
             if self.cloud:
-                if not self.h_t:
+                if self.h_t != []:
                     self.episode = {
                         "timestamp": timestamp0,
                         "plot": {
