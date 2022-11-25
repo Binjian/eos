@@ -184,9 +184,10 @@ class RealtimeRDPG(object):
             # reset proxy (internal site force no proxy)
             self.init_cloud()
             if self.web is True:
-                self.logger.info(f"Web is True", extra=self.dictLogger)
+                self.logger.info(f"Use WebUI!", extra=self.dictLogger)
                 self.get_truck_status = self.remote_webhmi_state_machine
             else:
+                self.logger.info(f"Use local UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_hmi_state_machine
             self.flash_vcu = self.remote_flash_vcu
         else:
@@ -527,6 +528,7 @@ class RealtimeRDPG(object):
     def init_threads_data(self):
         # multithreading initialization
         self.hmi_lock = Lock()
+        self.state_machine_lock = Lock()
         self.tableQ_lock = Lock()
         self.captureQ_lock = Lock()
         self.remoteClient_lock = Lock()
@@ -1239,25 +1241,26 @@ class RealtimeRDPG(object):
         logger_webhmi_sm = self.logger.getChild("webhmi_sm")
         logger_webhmi_sm.propagate = True
         th_exit = False
-        self.rmq_consumer.start()
-        self.rmq_producer.start()
-        logger_webhmi_sm.info(
-            f"Start RocketMQ client on {self.trip_server.Host}!",
-            extra=self.dictLogger,
-        )
 
-        msg_topic = self.driver + "_" + self.truck.VIN
-
-        broker_msgs = self.rmq_consumer.pull(msg_topic)
-        logger_webhmi_sm.info(
-            f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
-            extra=self.dictLogger,
-        )
-        all(broker_msgs)  # exhaust history messages
-
-        # send ready signal to trip server
-        self.rmq_producer.start()
         try:
+            self.rmq_consumer.start()
+            self.rmq_producer.start()
+            logger_webhmi_sm.info(
+                f"Start RocketMQ client on {self.trip_server.Host}!",
+                extra=self.dictLogger,
+            )
+
+            msg_topic = self.driver + "_" + self.truck.VIN
+
+            broker_msgs = self.rmq_consumer.pull(msg_topic)
+            logger_webhmi_sm.info(
+                f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                extra=self.dictLogger,
+            )
+            all(broker_msgs)  # exhaust history messages
+
+            # send ready signal to trip server
+            self.rmq_producer.start()
             ret = self.rmq_producer.send_sync(self.rmq_message_ready)
         except Exception as e:
             logger_webhmi_sm.error(
@@ -1265,19 +1268,26 @@ class RealtimeRDPG(object):
                 extra=self.dictLogger,
             )
             return
-        logger_webhmi_sm.info(
-            f"Sending ready signal to trip server:"
-            f"status={ret.status};"
-            f"msg-id={ret.msg_id};"
-            f"offset={ret.offset}.",
-            extra=self.dictLogger,
-        )
-        with self.hmi_lock:
-            self.program_start = True
+        try:
+            logger_webhmi_sm.info(
+                f"Sending ready signal to trip server:"
+                f"status={ret.status};"
+                f"msg-id={ret.msg_id};"
+                f"offset={ret.offset}.",
+                extra=self.dictLogger,
+            )
+            with self.state_machine_lock:
+                self.program_start = True
 
-        logger_webhmi_sm.info(
-            f"RocketMQ client Initialization Done!", extra=self.dictLogger
-        )
+            logger_webhmi_sm.info(
+                f"RocketMQ client Initialization Done!", extra=self.dictLogger
+            )
+        except Exception as e:
+            logger_webhmi_sm.error(
+                f"Fatal Failure!: {e}",
+                extra=self.dictLogger,
+            )
+            return
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1308,9 +1318,18 @@ class RealtimeRDPG(object):
                         extra=self.dictLogger,
                     )
 
-                    with self.hmi_lock:
+                    with self.state_machine_lock:
                         self.program_start = True
 
+                    # send ready signal to trip server
+                    ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+                    logger_webhmi_sm.info(
+                        f"Sending ready signal to trip server:"
+                        f"status={ret.status};"
+                        f"msg-id={ret.msg_id};"
+                        f"offset={ret.offset}.",
+                        extra=self.dictLogger,
+                    )
                 elif msg_body["code"] == 1:  # start episode
 
                     self.get_truck_status_start = True
@@ -1593,7 +1612,7 @@ class RealtimeRDPG(object):
         while not th_exit:
             # time.sleep(0.1)
 
-            with self.hmi_lock:
+            with self.state_machine_lock:
                 program_start = self.program_start
             if program_start is False:
                 continue
@@ -1801,22 +1820,24 @@ class RealtimeRDPG(object):
             name="countdown",
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
+        thr_countdown.start()
+
         thr_observe = Thread(
             target=self.get_truck_status,
             name="observe",
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
-
-        thr_remoteget = Thread(
-            target=self.remote_get_handler,
-            name="remoteget",
-            args=[evt_remote_get, evt_remote_flash],
-        )
-        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
-        thr_countdown.start()
         thr_observe.start()
+
         if self.cloud:
+            thr_remoteget = Thread(
+                target=self.remote_get_handler,
+                name="remoteget",
+                args=[evt_remote_get, evt_remote_flash],
+            )
             thr_remoteget.start()
+
+        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
         thr_flash.start()
 
         """
@@ -1832,10 +1853,12 @@ class RealtimeRDPG(object):
                 th_exit = self.program_exit  # if program_exit is False,
                 epi_cnt = self.episode_count  # get episode counts
                 epi_end = self.episode_end
-                program_start = self.program_start
 
+            with self.state_machine_lock:
+                program_start = self.program_start
             if program_start is False:
                 continue
+
             if epi_end:  # if episode_end is True, wait for start of episode
                 # self.logger.info(f'wait for start!', extra=self.dictLogger)
                 continue

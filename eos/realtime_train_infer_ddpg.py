@@ -654,6 +654,7 @@ class RealtimeDDPG(object):
     def init_threads_data(self):
         # multithreading initialization
         self.hmi_lock = Lock()
+        self.state_machine_lock = Lock()
         self.tableQ_lock = Lock()
         self.captureQ_lock = Lock()
         self.remoteClient_lock = Lock()
@@ -665,6 +666,7 @@ class RealtimeDDPG(object):
 
         # initial status of the switches
         self.program_exit = False
+        self.program_start = False
         self.episode_done = False
         self.episode_end = False
         self.episode_count = 0
@@ -1404,7 +1406,7 @@ class RealtimeDDPG(object):
             f"offset={ret.offset}.",
             extra=self.dictLogger,
         )
-        with self.hmi_lock:
+        with self.state_machine_lock:
             self.program_start = True
 
         logger_webhmi_sm.info(
@@ -1439,6 +1441,9 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
 
+                    with self.state_machine_lock:
+                        self.program_start = True
+
                     # send ready signal to trip server
                     ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                     logger_webhmi_sm.info(
@@ -1449,8 +1454,6 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
 
-                    with self.hmi_lock:
-                        self.program_start = True
                 elif msg_body["code"] == 1:  # start
 
                     self.get_truck_status_start = True
@@ -1472,6 +1475,7 @@ class RealtimeDDPG(object):
                     with self.hmi_lock:
                         self.episode_done = False
                         self.episode_end = False
+
                 elif msg_body["code"] == 2:  # valid stop
 
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
@@ -1729,6 +1733,11 @@ class RealtimeDDPG(object):
         logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
         while not th_exit:
             # time.sleep(0.1)
+            with self.state_machine_lock:
+                program_start = self.program_start
+            if program_start is False:
+                continue
+
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
                 epi_cnt = self.episode_count
@@ -1966,6 +1975,12 @@ class RealtimeDDPG(object):
                 th_exit = self.program_exit  # if program_exit is False,
                 epi_cnt = self.episode_count  # get episode counts
                 epi_end = self.episode_end
+
+            with self.state_machine_lock:
+                program_start = self.program_start
+            if program_start is False:
+                continue
+
             if epi_end:  # if episode_end is True, wait for start of episode
                 # self.logger.info(f'wait for start!', extra=self.dictLogger)
                 continue
