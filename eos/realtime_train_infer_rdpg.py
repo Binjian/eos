@@ -1422,7 +1422,6 @@ class RealtimeRDPG(object):
                         self.episode_done = False
                         self.episode_end = True
                         self.program_exit = True
-                        # self.program_start = False
                         self.episode_count += 1
                     evt_epi_done.set()
                     break
