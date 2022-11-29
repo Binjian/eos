@@ -56,19 +56,36 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER ueos-env-lock.txt /tmp/ueos-env-lock.txt
 RUN micromamba install -n base -f /tmp/ueos-env-lock.txt -c conda-forge &&\
     micromamba clean --all --yes
 
+#RUN micromamba install -n ueos -c conda-forge -f /tmp/ueos-env-lock.txt &&\
+#    micromamba clean --all --yes
+
 RUN micromamba --version &&\
     python --version &&\
     pip --version &&\
     micromamba list
 
+#RUN micromamba update tensorflow-gpu=2.10.0 -c conda-forge -y &&\
+#    micromamba clean --all --yes
+
 COPY . /app
-# set the working directory in the container
 WORKDIR /app
+# set the working directory in the container
 #VOLUME /app/data
 # SHELL ["/bin/bash", "--login", "-c"]
 
-ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
 
+# RUN echo Y | /root/.local/bin/micromamba create -f ueos-env.yaml
+
+
+# RUN /root/.local/bin/micromamba activate ueos | /root/.local/bin/micromamba install tensorflow-gpu cudatoolkit cudnn
+#
+# RUN poetry install
+# RUN source /root/.bashrc &&\
+#     rm -rf /root/micromamba &&\
+#    /root/.local/bin/micromamba create -f ueos-env.yaml
+# RUN | /root/.local/bin/micromamba install  -f ueos-env.yaml
+# RUN echo Y | /root/.local/bin/micromamba install  -f ueos-env.yaml
+#    micromamba install -y -f ueos-env.yaml
 
 #ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
 #ENTRYPOINT ["/bin/sh", "-c", "micromamba activate ueos | python eos/realtime_train_infer_rdpg.py -v HMZABAAH7MF011058 -d longfei"]
@@ -157,11 +174,4 @@ ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "run", "python", "eos/realtime_trai
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER:docker
 #docker build --network=host --build-arg BASE_IMAGE=registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0 -t eos:baiduyun https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
-# build ueos:
-# 1. local micromamba env build
-# 2. conda list --explicit --md5 >ueos-env-lock.txt
-# 3. docker build --network=host -t ueos:lock -f Dockerfile.umamba .
-# run container from image ueos:
-# 1. docker container run -it --gpus all --network host -u $(id -u):$(id -g) -e USER=$USER  ueos:lock /bin/bash
-#
-#docker build --network=host -t ueos:lock -f Dockerfile .
+#docker build -f Dockerfile.umamba -t eos:umamba .

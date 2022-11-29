@@ -1,5 +1,5 @@
 ## set base image (host S)
-ARG BASE_IMAGE=mambaorg/micromamba:1-jammy-cuda-11.8.0
+ARG BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 FROM ${BASE_IMAGE}
 ARG BASE_IMAGE
 RUN echo "BASE_IMAGE=${BASE_IMAGE}"
@@ -18,7 +18,10 @@ ENV NVIDIA_REQUIRE_CUDA "cuda>=11.0 driver>=450"
 ENV TZ=Asia/Shanghai
 ENV PIP_DEFAULT_TIMEOUT=600
 
-USER root
+# ENV HTTP_PROXY=http://127.0.0.1:20171
+# ENV HTTPS_PROXY=http://127.0.0.1:20171
+# RUN add-apt-repository "deb http://archive.ubuntu.com/ubuntu jammy universe"
+
 # set local time zone to Shanghai
 RUN apt-get update -y --no-install-recommends &&\
     apt-get install -y software-properties-common &&\
@@ -36,42 +39,34 @@ RUN apt-get update -y --no-install-recommends &&\
     apt-get -y autoremove &&\
     apt-get clean
 
+## select base image (host S) according to the build argument
+#RUN if [ "$BASE_IMAGE" = "nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04" ] ; then  \
+#      echo 'base image is really nvidia!' ;  \
+#      # set the working directory in the container
+#    elif [ "$BASE_IMAGE" = "registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0" ] ; then  \
+#      echo 'base image is indedd baiducloud!' ;  \
+#      # set the working directory in the container
+#    else \
+#      echo 'base image is unknown!' ; \
+#    fi
 
-#RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
-#    pip config set global.timeout 150 &&\
-RUN  apt-get install -y python3-pip &&\
-     pip install --upgrade pip
 
-
-USER 1001
-
-ARG MAMBA_DOCKERFILE_ACTIVATE=1
-RUN micromamba self-update --yes -c conda-forge
-
-#COPY --chown=$MAMBA_USER:$MAMBA_USER ueos-env.yaml /tmp/ueos-env.yaml
-#RUN micromamba install -n base -f /tmp/ueos-env.yaml -c conda-forge &&\
-#    micromamba clean --all --yes
-
-COPY --chown=$MAMBA_USER:$MAMBA_USER ueos-env-lock.txt /tmp/ueos-env-lock.txt
-RUN micromamba install -n base -f /tmp/ueos-env-lock.txt -c conda-forge &&\
-    micromamba clean --all --yes
-
-RUN micromamba --version &&\
-    python --version &&\
-    pip --version &&\
-    micromamba list
-
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
+    pip config set global.timeout 150 &&\
+    apt-get install -y python3-pip &&\
+    pip install --upgrade pip &&\
+    pip install 'poetry==1.2.2' &&\
+    poetry config installer.max-workers 4
 COPY . /app
-# set the working directory in the container
 WORKDIR /app
+# set the working directory in the container
 #VOLUME /app/data
-# SHELL ["/bin/bash", "--login", "-c"]
 
-ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
-
+#
+RUN poetry install
 
 #ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
-#ENTRYPOINT ["/bin/sh", "-c", "micromamba activate ueos | python eos/realtime_train_infer_rdpg.py -v HMZABAAH7MF011058 -d longfei"]
+ENTRYPOINT ["/bin/sh", "-c", "poetry shell | poetry run python eos/realtime_train_infer_rdpg.py -v HMZABAAH7MF011058 -d longfei"]
 
 #RUN mkdir -p /app/data/udp-pcap &&\
 #    cp ./eos/config/*.csv /app/data/ &&\
@@ -157,11 +152,3 @@ ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "run", "python", "eos/realtime_trai
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER:docker
 #docker build --network=host --build-arg BASE_IMAGE=registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0 -t eos:baiduyun https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
-# build ueos:
-# 1. local micromamba env build
-# 2. conda list --explicit --md5 >ueos-env-lock.txt
-# 3. docker build --network=host -t ueos:lock -f Dockerfile.umamba .
-# run container from image ueos:
-# 1. docker container run -it --gpus all --network host -u $(id -u):$(id -g) -e USER=$USER  ueos:lock /bin/bash
-#
-#docker build --network=host -t ueos:lock -f Dockerfile .
