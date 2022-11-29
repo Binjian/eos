@@ -123,8 +123,8 @@ class RealtimeRDPG(object):
         self.remotecan_srv = remotecan_srv
         self.webui_srv = webui_srv
         assert type(vehicle) == str
-        # Regex for VIN: HMZABAAH\dMF\d{6}
-        p = re.compile(r"^HMZABAAH\dMF\d{6}$")
+        # Regex for VIN: HMZABAAH\wMF\d{6}
+        p = re.compile(r"^HMZABAAH\wMF\d{6}$")
         if p.match(vehicle):
             # validate truck id
             # assert self.vehicle in self.trucks_by_vin.keys()

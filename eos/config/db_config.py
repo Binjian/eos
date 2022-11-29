@@ -63,6 +63,17 @@ db_list = [
         Proxy="",  # proxy for the database server
     ),
     DB(
+        SRVName="remote_sloppy2",  # name of the database
+        DatabaseName="eos",  # name of the database
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
+        Host="10.10.0.7",  # url for the database server
+        Port="30116",  # port for the database server
+        Username="",  # username for the database server
+        Password="",  # password for the database server
+        Proxy="",  # proxy for the database server
+    ),
+    DB(
         SRVName="baiduyun_k8s",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection

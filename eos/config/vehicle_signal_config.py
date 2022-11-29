@@ -112,6 +112,30 @@ Truck = namedtuple(
 )
 truck_list = [
     Truck(
+        TruckName="VB4",
+        VIN="HMZABAAHXMF011054",
+        Plate="77777777",
+        Maturity="VB1",
+        CloudSignalFrequency=50,
+        CloudGearFrequency=2,
+        CloudUnitDuration=1,
+        CloudUnitNumber=4,
+        PedalRange=[0.0, 1.0],
+        PedalScale=17,
+        PedalScaleList=PEDAL_SCALES,
+        VelocityRange=[0.0, 120],
+        VelocityScale=14,
+        VelocityScaleList=VELOCITY_SCALES_VB,
+        ObservationNumber=3,
+        KvaserObservationNumber=30,
+        KvaserObservationFrequency=20,
+        KvaserCountdownTime=3,
+        ActionBudget=250,  # 250 Nm
+        ActionLowerBound=0.8,  # 80%
+        ActionUpperBound=1.0,  # 100%
+        ActionBias=0.0,  # No bias
+    ),
+    Truck(
         TruckName="VB1",
         VIN="HMZABAAH1MF011055",
         Plate="77777777",
@@ -136,7 +160,7 @@ truck_list = [
         ActionBias=0.0,  # No bias
     ),
     Truck(
-        TruckName="SUBD",
+        TruckName="SU_BDC8937",
         VIN="HMZABAAH4MF014497",
         Plate="SU-BDC8937",
         Maturity="VB",
