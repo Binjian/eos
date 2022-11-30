@@ -1,4 +1,4 @@
-from .db_config import db_servers, episode_schemas, record_schemas
+from .db_config import db_servers_by_name, db_servers_by_host, episode_schemas, record_schemas
 from .messenger_config import (
     can_servers_by_name,
     trip_servers_by_name,
@@ -26,7 +26,8 @@ __all__ = [
     "VELOCITY_SCALES_MULE",
     "VELOCITY_SCALES_VB",
     "PEDAL_SCALES",
-    "db_servers",
+    "db_servers_by_name",
+    "db_servers_by_host",
     "can_servers_by_name",
     "trip_servers_by_name",
     "can_servers_by_host",

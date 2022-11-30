@@ -21,10 +21,10 @@ db_list = [
     DB(
         SRVName="local",  # name of the database
         DatabaseName="eos",  # name of the database
-        RecCollName="record2",  # name of the collection
-        EpiCollName="episode2",  # name of the collection
+        RecCollName="record3",  # name of the collection
+        EpiCollName="episode3",  # name of the collection
         Host="127.0.0.1",  # url for the database server
-        Port=27017,  # port for the database server
+        Port="27017",  # port for the database server
         Username="",  # username for the database server
         Password="",  # password for the database server
         Proxy="",  # proxy for the database server
@@ -35,7 +35,7 @@ db_list = [
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
         Host="10.10.10.31",  # url for the database server
-        Port=27017,  # port for the database server
+        Port="27017",  # port for the database server
         Username="",  # username for the database server
         Password="",  # password for the database server
         Proxy="",  # proxy for the database server
@@ -46,7 +46,7 @@ db_list = [
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
         Host="10.10.10.13",  # url for the database server
-        Port=27017,  # port for the database server
+        Port="27017",  # port for the database server
         Username="",  # username for the database server
         Password="",  # password for the database server
         Proxy="",  # proxy for the database server
@@ -79,14 +79,15 @@ db_list = [
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
         Host="10.10.0.4",  # url for the database server
-        Port=23000,  # port for the database server
+        Port="23000",  # port for the database server
         Username="veos",  # username for the database server
         Password="KypC06rnRwR6",  # password for the database server
         Proxy="",  # proxy for the database server
     ),
 ]
 
-db_servers = dict(zip([db.SRVName for db in db_list], db_list))
+db_servers_by_name = dict(zip([db.SRVName for db in db_list], db_list))
+db_servers_by_host = dict(zip([db.Host for db in db_list], db_list))
 
 SCHEMA = namedtuple(
     "SCHEMA",
