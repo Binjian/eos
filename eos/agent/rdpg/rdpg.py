@@ -115,7 +115,7 @@ patch_all()
 
 # local imports
 from eos import Pool, dictLogger, logger
-from eos.config import db_servers, episode_schemas
+from eos.config import db_servers_by_name, db_servers_by_host, episode_schemas
 from eos.utils.exception import ReadOnlyError
 
 from .actor import ActorNet
@@ -142,6 +142,7 @@ class RDPG:
         datafolder="./",
         ckpt_interval="5",
         cloud=False,
+        db_server="local",
     ):
         """Initialize the RDPG agent.
 
@@ -166,6 +167,7 @@ class RDPG:
         self._gamma = tf.cast(gamma, dtype=tf.float32)
         self.cloud = cloud
         self._datafolder = datafolder
+        self.db_server = db_server
         # new data
         if self.cloud == False:
             # Instead of list of tuples as the exp.replay concept go
@@ -176,7 +178,12 @@ class RDPG:
             self.buffer_counter = len(self.R)
             self._buffer_capacity = buffer_capacity
         else:
-            self.db = db_servers["local"]
+            self.db = db_servers_by_name.get(self.db_server)
+            if self.db is None:
+                self.db = db_servers_by_host.get(self.db_server.split(":")[0])
+                assert self.db is not None, f"Can't find db server {self.db_server}!"
+                assert self.db["Port"] == self.db_server.split(":")[1], f"Port mismatch for db server {self.db_server}!"
+            self.logger.info(f"Using db server {self.db_server} for episode replay buffer...")
             self.db_schema = episode_schemas["episode_deep"]
             self.pool = Pool(
                 url=self.db.Host,

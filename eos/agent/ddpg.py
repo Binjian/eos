@@ -85,7 +85,7 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 from eos import Pool, dictLogger, logger
-from eos.config import db_servers, record_schemas
+from eos.config import db_servers_by_name, db_servers_by_host, record_schemas
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
@@ -140,6 +140,7 @@ class Buffer:
         file_bc=None,
         datafolder="./",
         cloud=False,
+        db_server="local",
     ):
 
         self.logger = logger.getChild("main").getChild("ddpg")
@@ -157,11 +158,15 @@ class Buffer:
         self.num_actions = num_actions
         self.data_folder = datafolder
         self.cloud = cloud
+        self.db_server = db_server
         if cloud is True:
-            self.db = db_servers["local"]
+            self.db = db_servers_by_name.get(self.db_server)
+            if self.db is None:
+                self.db = db_servers_by_host[self.db_server.split(":")[0]]
+                assert self.db is not None, f"Can't find db server {self.db_server}!"
+                assert self.db_server.split(":")[1] == self.db["Port"], f"Port mismatch for db server {self.db_server}!"
+            self.logger.info(f"Using db server {self.db_server} for record replay buffer...")
             self.db_schema = record_schemas["record_deep"]
-            # self.db_name = "ddpg_db"
-            # self.collection_name = "record_coll"
             self.pool = Pool(
                 url=self.db.Host,
                 username=self.db.Username,

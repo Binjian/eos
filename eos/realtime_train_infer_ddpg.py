@@ -76,7 +76,9 @@ from eos.config import (
     trucks_by_name,
     trucks_by_vin,
     can_servers_by_host,
+    can_servers_by_name,
     trip_servers_by_host,
+    trip_servers_by_name,
     generate_vcu_calibration,
 )
 from eos.utils import ragged_nparray_list_interp
@@ -118,6 +120,7 @@ class RealtimeDDPG(object):
         driver="Longfei.Zheng",
         remotecan_srv="10.0.64.78:5000",
         webui_srv="10.0.64.78:9876",
+        mongo_srv="127.0.0.1:27017",
         proj_root=Path("."),
         vlogger=None,
     ):
@@ -128,6 +131,7 @@ class RealtimeDDPG(object):
         self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
         self.remotecan_srv = remotecan_srv
         self.webui_srv = webui_srv
+        self.mongo_srv = mongo_srv
         assert type(vehicle) == str
 
         # Regex for VIN: HMZABAAH\wMF\d{6}
@@ -223,28 +227,24 @@ class RealtimeDDPG(object):
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
-        self.can_server_name = "newrizon_test"
-        self.can_server = can_servers_by_host[self.remotecan_srv.split(":")[0]]
-        assert self.remotecan_srv.split(":")[
-                   0
-               ] == self.can_server.Host and self.remotecan_srv.split(":")[1] == str(
-            self.can_server.Port
-        )
-        self.logger.info(f"CAN Server: {self.can_server}", extra=self.dictLogger)
+        self.can_server = can_servers_by_name.get(self.remotecan_srv)
+        if self.can_server is None:
+            self.can_server = can_servers_by_host.get(self.remotecan_srv.split(":")[0])
+            assert self.can_server is not None, f"No such remotecan host{self.remotecan_srv} found!"
+            assert self.remotecan_srv.split(":")[1] == self.can_server["Port"], f"Port mismatch for remotecan host {self.remotecan_srv}!"
+        self.logger.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
             url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
 
-        self.trip_server_name = "newrizon_test"
-        self.trip_server = trip_servers_by_host[self.webui_srv.split(":")[0]]
-        assert self.webui_srv.split(":")[
-                   0
-               ] == self.trip_server.Host and self.webui_srv.split(":")[1] == str(
-            self.trip_server.Port
-        )
-        self.logger.info(f"Trip Server: {self.trip_server}", extra=self.dictLogger)
+        self.trip_server = trip_servers_by_name.get(self.webui_srv)
+        if self.trip_server is None:
+            self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
+            assert self.trip_server is not None, f"No such trip server {self.webui_srv} found"
+            assert self.webui_srv.split(":")[1] == self.trip_server["Port"], f"Port mismatch for trip host {self.webui_srv}!"
+        self.logger.info(f"Trip Server found: {self.webui_srv}", extra=self.dictLogger)
 
         # Create RocketMQ consumer
         self.rmq_consumer = PullConsumer("CID_EPI_ROCKET")
@@ -525,6 +525,7 @@ class RealtimeDDPG(object):
             gamma=self.gamma,
             datafolder=str(self.dataroot),
             cloud=self.cloud,
+            mongo_srv=self.mongo_srv,
         )
 
         # ou_noise is a row vector sdfof num_actions dimension
@@ -2402,7 +2403,7 @@ if __name__ == "__main__":
         "--vehicle",
         type=str,
         default=".",
-        help="vehicle ID like 'VB7' or 'MP3'",
+        help="vehicle ID like 'VB7' or 'MP3' or VIN 'HMZABAAH1MF011055'",
     )
     parser.add_argument(
         "-d",
@@ -2416,14 +2417,21 @@ if __name__ == "__main__":
         "--remotecan",
         type=str,
         default="10.0.64.78:5000",
-        help="url for remote can server, e.g. remotecan.veos.srv:5000",
+        help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test",
     )
     parser.add_argument(
         "-u",
         "--webui",
         type=str,
         default="10.0.64.78:9876",
-        help="url for web ui server, e.g. aidriver.veos.srv:5001",
+        help="url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test",
+    )
+    parser.add_argument(
+        "-o",
+        "--mongodb",
+        type=str,
+        default="10.10.0.7:30116",
+        help="url for mongodb server, e.g. 10.10.0.7:30116, or name, e.g. baiduyun_k8s, remote_sloppy2",
     )
     args = parser.parse_args()
 
@@ -2441,6 +2449,7 @@ if __name__ == "__main__":
         args.driver,
         args.remotecan,
         args.webui,
+        args.mongodb,
         projroot,
         logger,
     )
