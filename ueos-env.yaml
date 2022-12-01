@@ -10,8 +10,9 @@
 name: ueos
 channels:
   - conda-forge
+  - nvidia
 dependencies:
-  - python
+  - python >=3.10
   - mypy
   - pylint
   - poetry
@@ -37,13 +38,12 @@ dependencies:
   - reportlab
   - pymongo
   - pyarrow
+  - pymongoarrow
   - gitpython
   - tqdm
-  - pip
+  - cuda-python
   - pip:
-    - poetry2conda
-    - cuda-python
     - rocketmq
-    - cutelog
-    - pymongoarrow
     - pyqt5
+    - cutelog
+    - poetry2conda
