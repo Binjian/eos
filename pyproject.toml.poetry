@@ -1,0 +1,84 @@
+[tool.poetry]
+name = "eos"
+version = "0.0.3"
+description="Electric Optimization System: A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
+authors = ["binjian.xin <binjian.xin@newrizon.com>"]
+maintainers = ["binjian.xin <binjian.xin@newrizon.com>"]
+readme = "README.md"
+license = "LICENSE"
+repository = "ssh://git@gitlab.newrizon.work:2222/its/ai/eos.git"
+keywords = ["deep learning", "deep reinforcement learning", "electric powertrain", "energy saving", "policy"]
+classifiers = [
+    "Frameworks :: Pytest",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+include = ["eos/*", "*.csv" ]
+#virtualenvs.in-project = true
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+mypy = ">=0.991"
+pylint = ">=2.15.6"
+poetry = "*"
+tensorflow-gpu = ">=2.10.0, <2.11.0"
+tensorflow-estimator = ">=2.8.0"
+tensorflow-probability = ">=0.16.0"
+tensorboard = ">=2.8.0"
+python-json-logger = ">=2.0.2"
+plotly = ">=5.7.0"
+Pillow = ">=9.1.0"
+pandas = ">=1.4.2"
+opt-einsum = ">=3.3"
+jupyterlab = ">=3.3.4"
+keras = ">=2.8"
+cuda-python = ">=11.8.1"
+nvidia-cudnn-cu11 = ">=8.6.0.163"
+numpy = ">=1.22.3"
+scipy = ">=1.8.0"
+seaborn = ">=0.11.2"
+scikit-learn = ">=1.0.2"
+matplotlib = ">=3.5.1"
+pytest = ">=7.1"
+reportlab = ">=3.6.9"
+pymongo = ">=4.1.1"
+pyqt5 = ">=5.15.6"
+cutelog = ">=2.0.6"
+pymongoarrow = ">=0.5.0"
+pyarrow = ">=9.0.0"
+gitpython = ">=3.1.27"
+rocketmq = ">=0.4.4"
+tqdm = ">=4.64"
+poetry2conda =">=0.3.0"
+
+
+
+[tool.poetry.dev-dependencies]
+pytest = ">=7.1"
+
+[tool.poetry.scripts]
+my-script = "eos.eos.realtime_train_infer_ddpg:__main__"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "official"
+url = "https://pypi.org/simple"
+default = true
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple"
+secondary = true
+
+[tool.poetry2conda]
+name = "eos-conda"
