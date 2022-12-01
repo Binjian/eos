@@ -21,12 +21,12 @@ TripMessenger = namedtuple(
 )
 canserver_list = [
     CANMessenger(
-        SRVName="newrizon_test",  # name of the database
+        SRVName="can_intra",  # name of the database
         Host="10.0.64.78",  # url for the database server
         Port="5000",  # port for the database server
     ),
     CANMessenger(
-        SRVName="baiduyun_k8s",  # name of the database
+        SRVName="can_cloud",  # name of the database
         Host="10.10.0.6",  # url for the database server
         Port="30865",  # port for the database server
     ),
@@ -37,12 +37,17 @@ can_servers_by_host = dict(zip([srv.Host for srv in canserver_list], canserver_l
 
 tripserver_list = [
     TripMessenger(
-        SRVName="newrizon_test",  # name of the database
+        SRVName="rocket_intra",  # name of the database
+        Host="10.0.64.78",  # url for the database server
+        Port="9876",  # port for the database server
+    ),
+    TripMessenger(
+        SRVName="rocket_cloud",  # name of the database
         Host="10.0.64.122",  # url for the database server
         Port="9876",  # port for the database server
     ),
     TripMessenger(
-        SRVName="baiduyun_k8s",  # name of the database
+        SRVName="rocket_cluster",  # name of the database
         Host="10.10.0.13",  # url for the database server
         Port="9876",  # port for the database server
     ),

@@ -19,7 +19,7 @@ DB = namedtuple(
 )
 db_list = [
     DB(
-        SRVName="local",  # name of the database
+        SRVName="mongo_local",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record3",  # name of the collection
         EpiCollName="episode3",  # name of the collection
@@ -30,7 +30,7 @@ db_list = [
         Proxy="",  # proxy for the database server
     ),
     DB(
-        SRVName="ivy",  # name of the database
+        SRVName="mongo_ivy",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
@@ -41,7 +41,7 @@ db_list = [
         Proxy="",  # proxy for the database server
     ),
     DB(
-        SRVName="dill",  # name of the database
+        SRVName="mongo_dill",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
@@ -52,7 +52,7 @@ db_list = [
         Proxy="",  # proxy for the database server
     ),
     DB(
-        SRVName="remote_sloppy",  # name of the database
+        SRVName="mongo_intra_sloppy",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
@@ -63,7 +63,7 @@ db_list = [
         Proxy="",  # proxy for the database server
     ),
     DB(
-        SRVName="remote_sloppy2",  # name of the database
+        SRVName="mongo_cloud",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
@@ -74,7 +74,7 @@ db_list = [
         Proxy="",  # proxy for the database server
     ),
     DB(
-        SRVName="baiduyun_k8s",  # name of the database
+        SRVName="mongo_cluster",  # name of the database
         DatabaseName="eos",  # name of the database
         RecCollName="record",  # name of the collection
         EpiCollName="episode",  # name of the collection
