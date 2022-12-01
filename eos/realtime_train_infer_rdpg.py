@@ -221,7 +221,7 @@ class RealtimeRDPG(object):
         if self.can_server is None:
             self.can_server = can_servers_by_host.get(self.remotecan_srv.split(":")[0])
             assert self.can_server is not None, f"No such remotecan host {self.remotecan_srv} found!"
-            assert self.remotecan_srv.split(":")[1] == self.can_server["Port"], f"Port mismatch for remotecan host {self.remotecan_srv}!"
+            assert self.remotecan_srv.split(":")[1] == self.can_server.Port, f"Port mismatch for remotecan host {self.remotecan_srv}!"
         self.logger.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
@@ -233,7 +233,7 @@ class RealtimeRDPG(object):
         if self.trip_server is None:
             self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
             assert self.trip_server is not None, f"No such trip server {self.webui_srv} found!"
-            assert self.webui_srv.split(":")[1] == self.trip_server["Port"], f"Port mismatch for trip host {self.webui_srv}!"
+            assert self.webui_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.webui_srv}!"
         self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
 
         # Create RocketMQ consumer
@@ -486,7 +486,7 @@ class RealtimeRDPG(object):
             datafolder=str(self.dataroot),
             ckpt_interval=self.ckpt_interval,
             cloud=self.cloud,
-            mongo_srv=self.mongo_srv,
+            db_server=self.mongo_srv,
         )
 
     def touch_gpu(self):
@@ -2296,7 +2296,7 @@ if __name__ == "__main__":
         "-o",
         "--mongodb",
         type=str,
-        default="10.10.0.7:30116",
+        default="local",
         help="url for mongodb server, e.g. 10.10.0.7:30116, or name, e.g. baiduyun_k8s, remote_sloppy2",
     )
     args = parser.parse_args()

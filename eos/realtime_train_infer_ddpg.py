@@ -231,7 +231,7 @@ class RealtimeDDPG(object):
         if self.can_server is None:
             self.can_server = can_servers_by_host.get(self.remotecan_srv.split(":")[0])
             assert self.can_server is not None, f"No such remotecan host{self.remotecan_srv} found!"
-            assert self.remotecan_srv.split(":")[1] == self.can_server["Port"], f"Port mismatch for remotecan host {self.remotecan_srv}!"
+            assert self.remotecan_srv.split(":")[1] == self.can_server.Port, f"Port mismatch for remotecan host {self.remotecan_srv}!"
         self.logger.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
@@ -243,7 +243,7 @@ class RealtimeDDPG(object):
         if self.trip_server is None:
             self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
             assert self.trip_server is not None, f"No such trip server {self.webui_srv} found"
-            assert self.webui_srv.split(":")[1] == self.trip_server["Port"], f"Port mismatch for trip host {self.webui_srv}!"
+            assert self.webui_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.webui_srv}!"
         self.logger.info(f"Trip Server found: {self.webui_srv}", extra=self.dictLogger)
 
         # Create RocketMQ consumer
@@ -525,7 +525,7 @@ class RealtimeDDPG(object):
             gamma=self.gamma,
             datafolder=str(self.dataroot),
             cloud=self.cloud,
-            mongo_srv=self.mongo_srv,
+            db_server=self.mongo_srv,
         )
 
         # ou_noise is a row vector sdfof num_actions dimension

@@ -164,7 +164,7 @@ class Buffer:
             if self.db is None:
                 self.db = db_servers_by_host[self.db_server.split(":")[0]]
                 assert self.db is not None, f"Can't find db server {self.db_server}!"
-                assert self.db_server.split(":")[1] == self.db["Port"], f"Port mismatch for db server {self.db_server}!"
+                assert self.db_server.split(":")[1] == self.db.Port, f"Port mismatch for db server {self.db_server}!"
             self.logger.info(f"Using db server {self.db_server} for record replay buffer...")
             self.db_schema = record_schemas["record_deep"]
             self.pool = Pool(
