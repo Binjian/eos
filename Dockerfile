@@ -1,5 +1,5 @@
 ## set base image (host S)
-ARG BASE_IMAGE=mambaorg/micromamba:1-jammy-cuda-11.8.0
+ARG BASE_IMAGE=mambaorg/micromamba:1.1-jammy-cuda-11.8.0
 FROM ${BASE_IMAGE}
 ARG BASE_IMAGE
 RUN echo "BASE_IMAGE=${BASE_IMAGE}"
@@ -9,6 +9,14 @@ ARG builder=binjian.xin
 ARG version=1.0.0
 LABEL builder=$builder
 LABEL base_image = $BASE_IMAGE
+
+# Micromamba environment
+ARG MAMBA_USER=mamba
+ARG MAMBA_USER_ID=1000
+ARG MAMBA_USER_GID=1000
+ENV MAMBA_USER=$MAMBA_USER
+ENV MAMBA_ROOT_PREFIX="/opt/conda"
+ENV MAMBA_EXE="/bin/micromamba"
 
 #RUN echo set debconf to Noninteractive",
 ENV DEBIAN_FRONTEND=noninteractive
@@ -34,27 +42,31 @@ RUN apt-get update -y --no-install-recommends &&\
     apt-get install -y --no-install-recommends tzdata &&\
     rm -rf /var/lib/apt/lists/* &&\
     apt-get -y autoremove &&\
-    apt-get clean
+    apt-get clean &&\
+    pip install --upgrade pip
+
 
 
 #RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple &&\
 #    pip config set global.timeout 150 &&\
-RUN  apt-get install -y python3-pip &&\
-     pip install --upgrade pip
 
 
-USER 1001
+#SHELL ["/bin/bash", "--login", "-c"]
 
-ARG MAMBA_DOCKERFILE_ACTIVATE=1
-RUN micromamba self-update --yes -c conda-forge
+#RUN micromamba self-update --yes -c conda-forge
 
 #COPY --chown=$MAMBA_USER:$MAMBA_USER ueos-env.yaml /tmp/ueos-env.yaml
 #RUN micromamba install -n base -f /tmp/ueos-env.yaml -c conda-forge &&\
 #    micromamba clean --all --yes
+USER $MAMBA_USER
+
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER ueos-env-lock.txt /tmp/ueos-env-lock.txt
-RUN micromamba install -n base -f /tmp/ueos-env-lock.txt -c conda-forge &&\
+RUN micromamba install -n base -f /tmp/ueos-env-lock.txt -c conda-forge -c nvidia &&\
     micromamba clean --all --yes
+
+RUN pip install rocketmq pyqt5 cutelog poetry2conda
 
 RUN micromamba --version &&\
     python --version &&\
@@ -64,10 +76,17 @@ RUN micromamba --version &&\
 COPY . /app
 # set the working directory in the container
 WORKDIR /app
-#VOLUME /app/data
-# SHELL ["/bin/bash", "--login", "-c"]
 
-ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
+RUN ["git", "config", "--global", "--add", "safe.directory", "/app"]
+
+RUN pip install -e .
+#VOLUME /app/data
+
+RUN python -c 'import tensorflow as tf; print(tf.__version__); print(tf.config.list_physical_devices("GPU")); print(tf.test.is_built_with_cuda()); print(tf.__file__)'
+#RUN ["micromamba", "run", "python", "import tensorflow as tf; print(tf.__version__); print(tf.config.list_physical_devices("GPU")); print(tf.test.is_built_with_cuda()); print(tf.__file__)"]
+#ENTRYPOINT ["/usr/local/bin/_entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer_rdpg.py", "-v", "VB7", "-d", "longfei", "-m", "can_intra", "-u",  "rocket_intra", "-o", "mongo_local"]
+# ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
 
 
 #ENTRYPOINT ["poetry", "run", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
@@ -157,11 +176,18 @@ ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "run", "python", "eos/realtime_trai
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER:docker
 #docker build --network=host --build-arg BASE_IMAGE=registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0 -t eos:baiduyun https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
+#docker build --network=host -t ueos:cloud https://gitlab.newrizon.work/its/ai/eos.git#DOCKER_TEST
+
 # build ueos:
 # 1. local micromamba env build
+# 1.1 poetry update/lock/build eos,
+# 1.1 activate micromamba env,
 # 2. conda list --explicit --md5 >ueos-env-lock.txt
 # 3. docker build --network=host -t ueos:lock -f Dockerfile.umamba .
 # run container from image ueos:
 # 1. docker container run -it --gpus all --network host -u $(id -u):$(id -g) -e USER=$USER  ueos:lock /bin/bash
+# 2. docker run -it --gpus all --network host --mount source=eosdata,target=/app/data  -u $(id -u):$(id -g) -e USER=$USER --entrypoint "/bin/sh" ueos:local -c 'python eos/realtime_train_infer_rdpg.py -v "HMZABAAH7MF011058" -d "longfei" -m "10.0.64.78:5000" -u "10.0.64.78:9876" -o "ivy"'
+# 3. docker run -it --gpus all --network host --mount source=eosdata,target=/app/data  -u $(id -u):$(id -g) -e USER=$USER --entrypoint "/bin/sh" ueos:local -c 'python eos/realtime_train_infer_rdpg.py -v "HMZABAAH7MF011058" -d "longfei" -m "10.0.64.78:5000" -u "10.0.64.78:9876" -o "ivy"'
 #
 #docker build --network=host -t ueos:lock -f Dockerfile .
+#docker build --network=host -t ueos:cloud https://gitlab.newrizon.work/its/ai/eos.git#DOCKER_TEST
