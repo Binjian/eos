@@ -176,7 +176,7 @@ ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
 #docker build --network=host --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04 -t eos https://gitlab.newrizon.work/its/ai/eos.git#DOCKER:docker
 #docker build --network=host --build-arg BASE_IMAGE=registry.cn-shanghai.aliyuncs.com/tengfeiwu/nvidia-cuda:11.8.0 -t eos:baiduyun https://gitlab.newrizon.work/its/ai/eos.git#DOCKER
-#docker build --network=host -t ueos:cloud https://gitlab.newrizon.work/its/ai/eos.git#DOCKER_TEST
+#docker build --network=host -t ueos:cloud https://gitlab.newrizon.work/its/ai/eos.git#DOCKER_TEST | tee docker-build-cloud.txt
 
 # build ueos:
 # 1. local micromamba env build
