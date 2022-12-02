@@ -64,13 +64,13 @@ from rocketmq.client import PullConsumer, Message, Producer
 
 from eos import dictLogger, logger, projroot
 from eos.agent import RDPG
-from eos.comm import RemoteCan, kvaser_send_float_array
+from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.config import (
     PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
-    can_servers_by_name,
     can_servers_by_host,
+    can_servers_by_name,
     trip_servers_by_name,
     trip_servers_by_host,
     generate_vcu_calibration,
@@ -199,6 +199,9 @@ class RealtimeRDPG(object):
         self.logc.info(
             f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
         )
+        gpus = tf.config.experimental.list_physical_devices(device_type="GPU")
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logc.info(
@@ -211,7 +214,6 @@ class RealtimeRDPG(object):
         self.build_actor_critic()
         self.touch_gpu()
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
-
         self.init_threads_data()
         self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
 
@@ -226,7 +228,7 @@ class RealtimeRDPG(object):
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
+            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
 
         self.trip_server = trip_servers_by_name.get(self.webui_srv)
@@ -237,9 +239,9 @@ class RealtimeRDPG(object):
         self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
 
         # Create RocketMQ consumer
-        self.rmq_consumer = PullConsumer("CID_EPI_ROCKET")
+        self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
         self.rmq_consumer.set_namesrv_addr(
-            self.trip_server.Host+ ":" + self.trip_server.Port
+            self.trip_server.Host + ":" + self.trip_server.Port
         )
 
         # Create RocketMQ producer
@@ -253,7 +255,7 @@ class RealtimeRDPG(object):
         # self.rmq_message_ready.set_tags('tags')
         self.rmq_producer = Producer("PID-EPI_ROCKET")
         self.rmq_producer.set_namesrv_addr(
-            self.trip_server.Host+ ":" + self.trip_server.Port
+            self.trip_server.Host + ":" + self.trip_server.Port
         )
 
     def set_logger(self):
@@ -264,7 +266,7 @@ class RealtimeRDPG(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-rdpg-vb7" + datetime.now().isoformat().replace(":", "-") + ".log"
+            "eos-rt-rdpg-" + self.truck.TruckName + datetime.now().isoformat().replace(":", "-") + ".log"
         )
         formatter = logging.basicConfig(
             format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
@@ -941,8 +943,6 @@ class RealtimeRDPG(object):
         )
         with open(last_table_store_path, "wb") as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
-        # motionpowerQueue.join()
-
         logger_flash.info(f"flash_vcu dies!!!", extra=self.dictLogger)
 
     def remote_get_handler(
@@ -1057,6 +1057,12 @@ class RealtimeRDPG(object):
                     extra=self.dictLogger,
                 )
                 raise TypeError("udp sending wrong data type!")
+            else:
+                logger_remote_get.info(
+                    f"Get remote data, signal_success={signal_success}!",
+                    extra=self.dictLogger,
+                )
+
             try:
                 if signal_success == 0:
 
@@ -1253,14 +1259,17 @@ class RealtimeRDPG(object):
 
             broker_msgs = self.rmq_consumer.pull(msg_topic)
             logger_webhmi_sm.info(
-                f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                f"Before clearing history: Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                extra=self.dictLogger,
+            )
+            self.rmq_consumer.clear_history(msg_topic)
+            broker_msgs = self.rmq_consumer.pull(msg_topic)
+            logger_webhmi_sm.info(
+                f"After clearing history: Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
                 extra=self.dictLogger,
             )
             all(broker_msgs)  # exhaust history messages
 
-            # send ready signal to trip server
-            self.rmq_producer.start()
-            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
         except Exception as e:
             logger_webhmi_sm.error(
                 f"send_sync failed: {e}",
@@ -1268,6 +1277,8 @@ class RealtimeRDPG(object):
             )
             return
         try:
+            # send ready signal to trip server
+            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
             logger_webhmi_sm.info(
                 f"Sending ready signal to trip server:"
                 f"status={ret.status};"
@@ -2205,9 +2216,9 @@ class RealtimeRDPG(object):
 
         if self.cloud is False:
             self.rdpg.save_replay_buffer()
-
-        # WRONG: for database, just exit no need to cleanup.
-        self.rdpg.drop_mongo_client()
+        else:
+            # WRONG: for database, just exit no need to cleanup.
+            self.rdpg.drop_mongo_client()
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 

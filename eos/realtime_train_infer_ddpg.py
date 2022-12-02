@@ -70,15 +70,15 @@ from eos.agent import (
     policy,
     update_target,
 )
-from eos.comm import RemoteCan, kvaser_send_float_array
+from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.config import (
     PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
     can_servers_by_host,
     can_servers_by_name,
-    trip_servers_by_host,
     trip_servers_by_name,
+    trip_servers_by_host,
     generate_vcu_calibration,
 )
 from eos.utils import ragged_nparray_list_interp
@@ -146,7 +146,7 @@ class RealtimeDDPG(object):
                 sys.exit(1)
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         else:
-            print(f"Input ist not VIN. Try with truck name {self.vehicle}")
+            print(f"Input is not VIN. Try with truck name {self.vehicle}")
             # validate truck id
             # assert self.vehicle in self.trucks_by_name.keys()
             try:
@@ -194,9 +194,10 @@ class RealtimeDDPG(object):
             # reset proxy (internal site force no proxy)
             self.init_cloud()
             if self.web is True:
-                self.logger.info(f"Web is True", extra=self.dictLogger)
+                self.logger.info(f"Use WebUI!", extra=self.dictLogger)
                 self.get_truck_status = self.remote_webhmi_state_machine
             else:
+                self.logger.info(f"Use local UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_hmi_state_machine
             self.flash_vcu = self.remote_flash_vcu
         else:
@@ -211,11 +212,11 @@ class RealtimeDDPG(object):
 
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
-        self.logger.info(
+        self.logc.info(
             f"tensorflow device lib:\n{device_lib.list_local_devices()}\n",
             extra=self.dictLogger,
         )
-        self.logger.info(f"Tensorflow Imported!", extra=self.dictLogger)
+        self.logc.info(f"Tensorflow Imported!", extra=self.dictLogger)
 
         self.init_vehicle()
         self.build_actor_critic()
@@ -230,7 +231,7 @@ class RealtimeDDPG(object):
         self.can_server = can_servers_by_name.get(self.remotecan_srv)
         if self.can_server is None:
             self.can_server = can_servers_by_host.get(self.remotecan_srv.split(":")[0])
-            assert self.can_server is not None, f"No such remotecan host{self.remotecan_srv} found!"
+            assert self.can_server is not None, f"No such remotecan host {self.remotecan_srv} found!"
             assert self.remotecan_srv.split(":")[1] == self.can_server.Port, f"Port mismatch for remotecan host {self.remotecan_srv}!"
         self.logger.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
@@ -242,12 +243,12 @@ class RealtimeDDPG(object):
         self.trip_server = trip_servers_by_name.get(self.webui_srv)
         if self.trip_server is None:
             self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
-            assert self.trip_server is not None, f"No such trip server {self.webui_srv} found"
+            assert self.trip_server is not None, f"No such trip server {self.webui_srv} found!"
             assert self.webui_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.webui_srv}!"
-        self.logger.info(f"Trip Server found: {self.webui_srv}", extra=self.dictLogger)
+        self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
 
         # Create RocketMQ consumer
-        self.rmq_consumer = PullConsumer("CID_EPI_ROCKET")
+        self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
         self.rmq_consumer.set_namesrv_addr(
             self.trip_server.Host + ":" + self.trip_server.Port
         )
@@ -274,7 +275,7 @@ class RealtimeDDPG(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-ddpg-vb-" + datetime.now().isoformat().replace(":", "-") + ".log"
+            "eos-rt-ddpg-" + self.truck.TruckName + datetime.now().isoformat().replace(":", "-") + ".log"
         )
         formatter = logging.basicConfig(
             format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
@@ -1113,7 +1114,7 @@ class RealtimeDDPG(object):
 
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
-            timeout = self.truck.CloudUnitNumber + 3
+            timeout = self.truck.CloudUnitNumber + 7
             logger_remote_get.info(
                 f"Wake up to fetch remote data, duration={self.truck.CloudUnitNumber}s timeout={timeout}s",
                 extra=self.dictLogger,
@@ -1370,49 +1371,58 @@ class RealtimeDDPG(object):
         logger_webhmi_sm = self.logger.getChild("webhmi_sm")
         logger_webhmi_sm.propagate = True
         th_exit = False
-        rocket_consumer = PullConsumer("CID_EPI_ROCKET")
-        rocket_consumer.set_namesrv_addr(
-            self.trip_server.Host + ":" + self.trip_server.Port
-        )
-        rocket_consumer.start()
 
-        logger_webhmi_sm.info(
-            f"Start RocketMQ client on {self.trip_server.Host}!",
-            extra=self.dictLogger,
-        )
-
-        msg_topic = self.driver + "_" + self.truck.VIN
-
-        broker_msgs = rocket_consumer.pull(msg_topic)
-        logger_webhmi_sm.info(
-            f"Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
-            extra=self.dictLogger,
-        )
-        all(broker_msgs)  # exhaust history messages
-
-        # send ready signal to trip server
-        self.rmq_producer.start()
         try:
-            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+            self.rmq_consumer.start()
+            self.rmq_producer.start()
+            logger_webhmi_sm.info(
+                f"Start RocketMQ client on {self.trip_server.Host}!",
+                extra=self.dictLogger,
+            )
+
+            msg_topic = self.driver + "_" + self.truck.VIN
+
+            broker_msgs = self.rmq_consumer.pull(msg_topic)
+            logger_webhmi_sm.info(
+                f"Before clearing history: Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                extra=self.dictLogger,
+            )
+            self.rmq_consumer.clear_history(msg_topic)
+            broker_msgs = self.rmq_consumer.pull(msg_topic)
+            logger_webhmi_sm.info(
+                f"After clearing history: Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                extra=self.dictLogger,
+            )
+            all(broker_msgs)  # exhaust history messages
+
         except Exception as e:
             logger_webhmi_sm.error(
                 f"send_sync failed: {e}",
                 extra=self.dictLogger,
             )
             return
-        logger_webhmi_sm.info(
-            f"Sending ready signal to trip server:"
-            f"status={ret.status};"
-            f"msg-id={ret.msg_id};"
-            f"offset={ret.offset}.",
-            extra=self.dictLogger,
-        )
-        with self.state_machine_lock:
-            self.program_start = True
+        try:
+            # send ready signal to trip server
+            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+            logger_webhmi_sm.info(
+                f"Sending ready signal to trip server:"
+                f"status={ret.status};"
+                f"msg-id={ret.msg_id};"
+                f"offset={ret.offset}.",
+                extra=self.dictLogger,
+            )
+            with self.state_machine_lock:
+                self.program_start = True
 
-        logger_webhmi_sm.info(
-            f"RocketMQ client Initialization Done!", extra=self.dictLogger
-        )
+            logger_webhmi_sm.info(
+                f"RocketMQ client Initialization Done!", extra=self.dictLogger
+            )
+        except Exception as e:
+            logger_webhmi_sm.error(
+                f"Fatal Failure!: {e}",
+                extra=self.dictLogger,
+            )
+            return
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1424,7 +1434,7 @@ class RealtimeDDPG(object):
                     )
                     th_exit = True
                     continue
-            msgs = rocket_consumer.pull(msg_topic)
+            msgs = self.rmq_consumer.pull(msg_topic)
             for msg in msgs:
                 msg_body = json.loads(msg.body)
                 if not isinstance(msg_body, dict):
@@ -1436,6 +1446,7 @@ class RealtimeDDPG(object):
                 logger_webhmi_sm.info(f"Get message {msg_body}!", extra=self.dictLogger)
                 if msg_body["vin"] != self.truck.VIN:
                     continue
+
                 if msg_body["code"] == 5:  # "config/start testing"
                     logger_webhmi_sm.info(
                         f"Restart/Reconfigure message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
@@ -1454,8 +1465,7 @@ class RealtimeDDPG(object):
                         f"offset={ret.offset}.",
                         extra=self.dictLogger,
                     )
-
-                elif msg_body["code"] == 1:  # start
+                elif msg_body["code"] == 1:  # start episode
 
                     self.get_truck_status_start = True
                     logger_webhmi_sm.info(
@@ -1476,7 +1486,6 @@ class RealtimeDDPG(object):
                     with self.hmi_lock:
                         self.episode_done = False
                         self.episode_end = False
-
                 elif msg_body["code"] == 2:  # valid stop
 
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
@@ -1495,6 +1504,7 @@ class RealtimeDDPG(object):
                         self.episode_done = False  # TODO delay episode_done to make main thread keep running
                         self.episode_end = False
                 elif msg_body["code"] == 3:  # invalid stop
+
                     self.get_truck_status_start = False
                     logger_webhmi_sm.info(
                         f"Episode is interrupted!!!", extra=self.dictLogger
@@ -1560,8 +1570,9 @@ class RealtimeDDPG(object):
             if self.get_truck_status_start:
                 evt_remote_get.set()
 
-        rocket_consumer.shutdown()
-        logger_webhmi_sm.info(f"webhmi client dies!!!", extra=self.dictLogger)
+        self.rmq_consumer.shutdown()
+        self.rmq_producer.shutdown()
+        logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
     def remote_hmi_state_machine(
         self,
@@ -1719,7 +1730,7 @@ class RealtimeDDPG(object):
                     break
 
         s.close()
-        logger_hmi_sm.info(f"remote hmi client dies!!!", extra=self.dictLogger)
+        logger_hmi_sm.info(f"remote hmi dies!!!", extra=self.dictLogger)
 
     def remote_flash_vcu(self, evt_remote_flash: threading.Event):
         """
@@ -1734,6 +1745,7 @@ class RealtimeDDPG(object):
         logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
         while not th_exit:
             # time.sleep(0.1)
+
             with self.state_machine_lock:
                 program_start = self.program_start
             if program_start is False:
@@ -1804,6 +1816,7 @@ class RealtimeDDPG(object):
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
+
                     curr_table_store_path = self.tableroot.joinpath(
                         "instant_table_ddpg-vb-"
                         + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
@@ -1816,7 +1829,7 @@ class RealtimeDDPG(object):
                     with open(curr_table_store_path, "wb") as f:
                         self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
-                    # self.logd.info(
+                    # self.logc.info(
                     #     f"E{epi_cnt} done with record instant table: {step_count}",
                     #     extra=self.dictLogger,
                     # )
@@ -1931,7 +1944,7 @@ class RealtimeDDPG(object):
         with open(last_table_store_path, "wb") as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
         # motionpowerQueue.join()
-        self.logc.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
+        logger_flash.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
 
     # @eye
     def run(self):
@@ -1945,22 +1958,24 @@ class RealtimeDDPG(object):
             name="countdown",
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
+        thr_countdown.start()
+
         thr_observe = Thread(
             target=self.get_truck_status,
             name="observe",
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
-
-        thr_remoteget = Thread(
-            target=self.remote_get_handler,
-            name="remoteget",
-            args=[evt_remote_get, evt_remote_flash],
-        )
-        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
-        thr_countdown.start()
         thr_observe.start()
+
         if self.cloud:
+            thr_remoteget = Thread(
+                target=self.remote_get_handler,
+                name="remoteget",
+                args=[evt_remote_get, evt_remote_flash],
+            )
             thr_remoteget.start()
+
+        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
         thr_flash.start()
 
         """
@@ -2302,7 +2317,6 @@ class RealtimeDDPG(object):
                 extra=self.dictLogger,
             )
 
-            episode_reward = 0
             self.logc.info(
                 f"E{epi_cnt} done, waits for next episode to kick off!",
                 extra=self.dictLogger,
@@ -2338,9 +2352,10 @@ class RealtimeDDPG(object):
         thr_countdown.join()
 
         if self.cloud is False:
-            self.buffer.save()
-        # WRONG: for database, just exit no need to cleanup.
-        self.buffer.drop_mongo_client()
+            self.rdpg.save_replay_buffer()
+        else:
+            # WRONG: for database, just exit no need to cleanup.
+            self.rdpg.drop_mongo_client()
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 
@@ -2430,33 +2445,33 @@ if __name__ == "__main__":
         "-o",
         "--mongodb",
         type=str,
-        default="10.10.0.7:30116",
+        default="local",
         help="url for mongodb server, e.g. 10.10.0.7:30116, or name, e.g. baiduyun_k8s, remote_sloppy2",
     )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
 
-    # try:
-    app = RealtimeDDPG(
-        args.cloud,
-        args.web,
-        args.resume,
-        args.infer,
-        args.record_table,
-        args.path,
-        args.vehicle,
-        args.driver,
-        args.remotecan,
-        args.webui,
-        args.mongodb,
-        projroot,
-        logger,
-    )
-    # except TypeError as e:
-    #     logger.error(f"Project Exeception TypeError: {e}", extra=dictLogger)
-    #     sys.exit(1)
-    # except Exception as e:
-    #     logger.error(e, extra=dictLogger)
-    #     sys.exit(1)
+    try:
+        app = RealtimeDDPG(
+            args.cloud,
+            args.web,
+            args.resume,
+            args.infer,
+            args.record_table,
+            args.path,
+            args.vehicle,
+            args.driver,
+            args.remotecan,
+            args.webui,
+            args.mongodb,
+            projroot,
+            logger,
+        )
+    except TypeError as e:
+        logger.error(f"Project Exeception TypeError: {e}", extra=dictLogger)
+        sys.exit(1)
+    except Exception as e:
+        logger.error(e, extra=dictLogger)
+        sys.exit(1)
     app.run()
