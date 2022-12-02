@@ -1,0 +1,333 @@
+:PROPERTIES:
+:ID:       077609d9-c061-437a-948c-4c7ceeb10fc9
+:END:
+#+title: veos adp training data ingestion interface
+#+STARTUP: latexpreview
+#+LATEX_COMPILER: xelatex
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [a4paper, 11pt]
+##+OPTIONS: ^:{}
+
+* Release Notes
+
+** eos 0.0.3
+1. fix cuda driver for tensorflow-gpu
+2. eos process ends elegantly
+3. server specification can take either names or urls. The list of current servers see below.
+4. add mongodb server option on the command line. Current interface example:
+#+BEGIN_SRC python
+python eos/realtime_train_infer_rdpg.py -v "VB7" -d "longfei" -m "can_intra" -u "rocket_intra" -o "mongo_local"
+#+END_SRC
+
+5. update trip control client with ClearablePushConsumer
+6. build docker image with micromamba with changed docker hub image from micromamba
+** current server list
+*** remotecan servers
+| Name      |       Host |  Port |
+|-----------+------------+-------|
+| can_intra | 10.0.64.78 |  5000 |
+| can_cloud |  10.10.0.6 | 30865 |
+|           |            |       |
+*** trip control servers
+| Name           |        Host | Port |
+|----------------+-------------+------|
+| rocket_intra   |  10.0.64.78 | 9876 |
+| rocket_cloud   | 10.0.64.122 | 9876 |
+| rocket_cluster |  10.10.0.13 | 9876 |
+|                |             |      |
+*** MongoDB servers:
+| Name               |       Host |  Port |
+|--------------------+------------+-------|
+| mongo_local        |  127.0.0.1 | 27017 |
+| mongo_intra_sloppy | 10.0.64.64 | 30116 |
+| mongo_cloud        |  10.10.0.7 | 30116 |
+| mongo_cluster      |  10.10.0.4 | 23000 |
+|                    |            |       |
+** current vehicle list
+| Name       | VIN               |
+|------------+-------------------|
+| VB7        | HMZABAAH7MF011058 |
+| SU_BDC8937 | HMZABAAH4MF014497 |
+| VB1        | HMZABAAH1MF011055 |
+| VB4        | HMZABAAHXMF011054 |
+|            |                   |
+
+
+* Preamble
+
+This document serves as a README for VEOS ADP data interface. It covers the specification of data streams from receiving uploaded raw data streams, to pre-process the raw data to generate records, store records in a data pool, and finally to index and get minibatches for training purpose from the pool.
+
+* Upload
+** Raw streams
+Raw streams are time series of raw observations (/timestamped/ vehicle velocity, acceleration pedal opening, brake pedal opening, battery voltage, battery current) and actions (changed and flashed pedal map) applied on the vehicle.
+** Preprocessing
+Raw streams will be transformed into timestamped [[*Record][Record]] after preprocessing and stored in [[*Pool][Pool]].
+* Record
+- Record is the uploading unit of remote-CAN module
+** It's a timestamped [[quadruple][/quadruple/]], which is a tuple of 4 elements $(s_t, a_t, r_t, s'_t)$ with a timestamp $t$
+- A record without timestamp is called a quadruple<<quadruple>>
+- The sequence of records consist of an [[*Episode][/episode/]]
+
+** The structure of the record
+
+#+CAPTION[Record]: The timestamped quadruple
+|                 | $s_t$                           | $a_t$                | $r_t$                 | $s'_t$                             |
+|-----------------+---------------------------------+----------------------+-----------------------+------------------------------------|
+| $t$ (timestamp) | $V_0$, $A_0$, $B_0$             |                      |                       | $V'_0$, $A'_0$, $B'_0$             |
+|                 | $V_1$, $A_1$, $B_1$             |                      | ...                   | $V'_1$, $A'_1$, $B'_1$             |
+|                 | ...                             |                      | $U_{r_0}$ , $I_{r_0}$ |                                    |
+|                 | ...                             |                      | ...                   |                                    |
+|                 | $V_k$, $A_k$, $B_k$             |                      | $U_{r_k}$ , $I_{r_k}$ | $V'_k$, $A'_k$, $B'_k$             |
+|                 | ...                             |                      | ...                   | ...                                |
+|                 | $V_{K-1}$, $A_{K-1}$, $B_{K-1}$ | $[PM_{5\times17}]^t$ | $U_{r_K}$ , $I_{r_K}$ | $V'_{K-1}$, $A'_{K-1}$, $B'_{K-1}$ |
+*** $s_t$
+state at timestamp $t$
+- $V_k$: velocity of the vehicle
+- $A_k$: acceleration pedal position in percentage
+- $B_k$: brake pedal position in percentage
+- $K$: number of frames within a single record. A record starts from timestamp $t$, contains $K$ CAN frames and ends by the end of the last frame
+  - each line in a record is referred to as a single frame, whose information can be extracted from multiple CAN frames at the same moment
+  - rows within a record is contiguous in time starting from the timestamp $t$
+  - in case of frame loss, a loss token needs to be inserted as a lost frame state at the next timestamp of $t$, that is $t+1$
+*** $s'_t$
+the next state following $s_t$
+- The state according to which the next decsion $a_t$ will be made.
+- In case of previous assumption, this state will contain the next adjacent 30 frames of state $s_t$.
+- $s'_t$ must be contiguous in time to $s_t$
+*** $a_t$
+action at timestamp $t$
+- It's the decision of what pedal map will be applied after observing the state $s_t$ by the agent
+- The action $a_t$ of VEOS system is the pedal map $[PM_{5\times17}]^t$ at timestamp $t$. It's currently 5 consecutive rows in the full pedal map corresponding to the current state $s_t$, 17 is the current discretization level of the throttle pedal percentage. Each element of the pedal map is the requested torque given the vehicle velocity and the throttle pedal position
+- The real effective time of $a_t$ could be delayed by $\Delta t$ due to transmission and flashing latency, i.e. $a_t$ will be applied at $t+\Delta t$
+- $a_t$ must precede $s'_t$, that is $t+\Delta t < t+1$ so that the next state $s'_t$ is the result of applying $a_t$
+*** $r_t$
+reward at timestamp $t$
+- It's the electricity consumption effected by the action $a_t$
+- It's computed by accumlating the product of battery voltage $U_{r_k}$ and current values $I_{r_k}$ at the frames after the current action $a_t$ is applied and before the next action $a_{t+1}$ becomes effective, that is to say, the voltage and current values after the moment $r_0$  when flashing the pedal map is done and in effect, until after the last effective moment $r_K$  when the next action $a_{t+1}$ is applied (flashed and in effect)
+
+* Episode
+
+An episode is a consecutive sequence of [[*Record][records]] with a start and a termination state which typically represents a driving route/task or a test case and the vehicle operates on routinely.
+
+- *Triple*: Since the sequence is consecutive, the next state $s'_t$ is the next adjacent state $s_{t+1}$ and thus not required in the tuple. Therefore one record is reduced to a triple.
+- *Null elements*: Care needs to be taken to insert null elements in the sequence in case of absent records.
+- *Ragged*: $T$ is the total time steps of the episode. Episodes have different sequence length, since the termination of an episode could mean reaching the destination with different speeds or events. Therefore the [[episode_pool][episode pool]] is ususally ragged.
+
+$e_T=[(s_0,a_0,r_0),(s_1,a_1,r_1), ...,(s_{T-1},a_{T-1},r_{T-1})]$
+
+* Pool
+The pool stores the experience history. It entails two kinds of forms: it stores either timestamped [[*Record][records]] which is called /record pool/ or the whole sequence of records defined as [[*Episode][episodes]] which is called /episode pool/.
+
+** Record pool<<record_pool>>
+The record pool is the aggregation of all the [[*Record][records]], ordered by timestamps. It has a /record deposit interface/ to deposit a record of [[quadruple][quadruple]] and a /record minibatch sample interface/ to get a record minibatch of designated size randomly from the pool.
+
+*** Record deposit interface
+The record deposit interface serves as the method to append a [[*Record][record]] in the pool. Please refer to the following Python code snippet.
+
+#+BEGIN_SRC python
+#pool could be a python list containing all the records
+pool.deposit_record(
+	(current_timestamp,
+	 state,
+	 action,
+	 reward,
+	 next_state,
+	 )
+)
+#+END_SRC
+
+*** Record minibatch sample interface
+A record minibatch<<record_minibatch>> is a batch of [[*Record][records]] by random sampling the record pool with designated batch size, see the following Python code snippet as an example for random sampling via src_python[:exports code]{numpy.random.choice} API.
+
+#+BEGIN_SRC python
+import numpy as np
+
+#pool could be a python list containing all the records
+batch_size = 64
+index = np.random.choice(len(pool),batch_size)
+minibatch = pool(index)
+#+END_SRC
+
+** Episode pool<<episode_pool>>
+The episode pool is the aggregation of all the [[*Episode][episodes]], ordered by timestamps of the episodes. It has an /episode deposit interface/ to deposit an episode and an /episode minibatch sample interface/ to get an episode minibatch of designated size randomly from the pool.
+
+*** Episode deposit interface
+The episode deposit interface serves as the method to append a complete [[*Episode][episode]] to the pool
+
+#+BEGIN_SRC python
+#pool could be a python list containing all the episodes
+#e_T is collected sequence of triples of an episode as defined above
+pool.deposit_episode(e_T)
+#+END_SRC
+
+*** Episode minibatch sample interface
+An episode minibatch<<episode_minibatch>> is a batch of [[*Episode][episodes]] by random sampling the episode pool with designated batch size, see the following Python code snippet as an example for random sampling via src_python[:exports code]{numpy.random.choice} API.
+
+#+BEGIN_SRC python
+import numpy as np
+
+#pool could be a python list containing all the episodes
+batch_size = 64
+index = np.random.choice(len(pool),batch_size)
+minibatch = pool(index)
+#+END_SRC
+
+* Flashing
+
+The flashing interface will take pedal-torque map data to be flashed on VBU. The interface took a list of pedal-torque map, the starting row index and the row number to be flashed. It returns the status code of the flashing. In case of success, the status code is 0, see the following Python code snippet:
+
+#+BEGIN_SRC python
+from typing import List
+import pandas as pd
+
+def send_pedaltorque_map(
+		pedaltorque_map: List[float],
+		starting_row: int,
+		row_num: int) -> int:
+
+	# implementation of remotecan flashing
+	returncode = 0 # 0 is success as defined by unix process
+
+	return returncode
+
+default_table_path = ".\somewhere.csv"
+pedaltorque_map = pd.read_csv(default_table_path).to_numpy()
+
+pedialtorque_map_list = pedaltorque_map.reshape(-1).tolist()
+#flashing the whole pedal map
+returncode = send_pedaltorque_map(pedaltorque_map, 0, 14)
+
+#flashing the 4 rows of pedal map, starting from 3rd row
+pedaltorque_map_3_7 = pedaltorque_map[3:7, :].reshape(-1).tolist()
+returncode = send_pedaltorque_map(pedaltorque_map_3_7, 3, 4)
+
+#+END_SRC
+* Dataflow
+
+#+CAPTION[Dataflow]: Dataflow
+#+NAME: Fig. Dataflow
+#+begin_src mermaid :file ./img/adp_data_flow_seq_block.png
+graph BT
+  subgraph "vehicle (CAN)"
+  VBU(VBU)-->TBox(TBox)
+  TBox-->VBU
+  end
+  subgraph "Cloud (Sync API)"
+    direction LR
+    TBox--"BW/Latency (Intest)"-->Buffer("Buffer (OSS)")
+    Buffer--"BW/Latency (Internal)"-->RemoteCAN(RemoteCAN)
+    RemoteCAN--"BW/Latency (Internal)"-->TSP(TSP Service)
+  end
+  TSP--"BW/Latency (Intest)"-->TBox
+  VEOS(VEOS)-->RemoteCAN(RemoteCAN)
+  RemoteCAN-->VEOS
+  RemoteCAN-.configure.->Buffer
+  linkStyle 1 stroke-width:3px,stroke:red
+  linkStyle 4 stroke-width:3px,stroke:red
+  linkStyle 5 stroke-width:3px,stroke:red
+  linkStyle 6 stroke-width:3px,stroke:red
+#+end_src
+
+#+CAPTION[Dataflow]: Dataflow
+#+RESULTS: Fig. Dataflow
+
+
+
+** Upload (Observe)
+- the arrows with black link
+- system state
+  - velocity
+  - battery voltage
+  - battery current
+  - acceleration pedal
+  - brake pedal
+- VBU parameters/Pedal Map(PM)
+- the communication should have flags START/STOP to enable streaming interface for the master on the cloud (VEOS), so that the master can get the full observation of an episode which is usually more than 20 seconds and can last over 10 miniutes.
+  - The master (VEOS) set START flag to start uploading,
+  - The mobile edge device (TBox) will upload observation data voluntarily and incessantly after receiving START flag and before STOP flag,
+  - The master (VEOS) set STOP flag to stop uploading,
+  - The mobile edge device (TBox) will stop uploading of observation immediately once it receives the STOP flag.
+
+
+** Download (flash)
+- the arrow with red link
+- VBU parameter/Pedal Map(PM)
+** Communication Performance Index
+- bandwidth: expected/upper bound/lowerbound for both Intest & Internal interface
+- latency: expected/upper bound/lowerbound for both Intest & Internal interface
+
+#+BEGIN_COMMENT
+#+begin_src mermaid :file adp_data_flow_seq_block.png
+graph LR
+  subgraph Cloud Interfaces
+    direction TB
+    subgraph upload
+      direction LR
+      B(TBox)--?-->C("Buffer (OSS)")
+    end
+    subgraph download
+      direction RL
+      C--?-->D(RemoteCAN)
+      D==?==>E(TSP Service)
+      E==?==>B
+    end
+  end
+  E-.->C
+  A(VBU)-->B
+  B==>A
+  D-->F(VEOS)
+  F==>D
+#+end_src
+#+END_COMMENT
+
+#+BEGIN_COMMENT
+#+begin_src mermaid :file adp_data_flow_seq.png
+graph LR
+  direction LR
+  VBU(VBU)-->TBOX(TBox)
+  TBOX-->VBU
+  TBOX--"BW/Latency (Intest)"-->BUFFER("Buffer (OSS)")
+  BUFFER--"BW/Latency (Intertnal)"-->RemoteCAN(RemoteCAN)
+  RemoteCAN-->VEOS(VEOS)
+  VEOS-->RemoteCAN
+  RemoteCAN--"BW/Latency (Internal)"-->TSP(TSP Service)
+  TSP--"BW/Latency (Intest)"-->TBOX
+  RemoteCAN-.configure.->BUFFER
+  linkStyle 5 stroke-width:3px,stroke:red
+  linkStyle 6 stroke-width:3px,stroke:red
+  linkStyle 7 stroke-width:3px,stroke:red
+  linkStyle 1 stroke-width:3px,stroke:red
+#+end_src
+#+END_COMMENT
+
+
+#+BEGIN_COMMENT
+#+begin_src plantuml :file ./img/theme-uml.png
+ !theme spacelab
+ title Authenticatin sequence
+ a -> b
+ b -> c
+#+end_src
+
+ #+RESULTS:
+ [[file:./img/theme-uml.png]]
+
+#+begin_src plantuml :file ./img/mindmap-uml.png
+
+ @startmindmap
+ caption Fig. 1 My mindmap cap
+ title My Mindmap
+
+ * <&flag>Debian
+ ** <&globe>Ubuntu
+ *** Linux Mint
+ ** LMDE
+ ** SolydXK
+ ** SteamOS
+ @endmindmap
+#+end_src
+
+#+RESULTS:
+[[file:./img/mindmap-uml.png]]
+
+#+END_COMMENT
