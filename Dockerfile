@@ -185,9 +185,9 @@ ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer
 # 2. conda list --explicit --md5 >ueos-env-lock.txt
 # 3. docker build --network=host -t ueos:lock -f Dockerfile.umamba .
 # run container from image ueos:
-# 1. docker container run -it --gpus all --network host -u $(id -u):$(id -g) -e USER=$USER  ueos:lock /bin/bash
-# 2. docker run -it --gpus all --network host --mount source=eosdata,target=/app/data  -u $(id -u):$(id -g) -e USER=$USER --entrypoint "/bin/sh" ueos:local -c 'python eos/realtime_train_infer_rdpg.py -v "HMZABAAH7MF011058" -d "longfei" -m "10.0.64.78:5000" -u "10.0.64.78:9876" -o "ivy"'
-# 3. docker run -it --gpus all --network host --mount source=eosdata,target=/app/data  -u $(id -u):$(id -g) -e USER=$USER --entrypoint "/bin/sh" ueos:local -c 'python eos/realtime_train_infer_rdpg.py -v "HMZABAAH7MF011058" -d "longfei" -m "10.0.64.78:5000" -u "10.0.64.78:9876" -o "ivy"'
+# 1. docker container run -it --gpus all --network host ueos:cloud /bin/bash
+# 2. docker run -it --gpus all --network host --mount source=eosdata,target=/app/data  --entrypoint "/bin/bash" ueos:cloud
+# 3. docker run -it --gpus all --network host --mount source=eosdata,target=/app/data  --entrypoint "/bin/sh" ueos:cloud -c 'python eos/realtime_train_infer_rdpg.py -v "HMZABAAH7MF011058" -d "longfei" -m "10.0.64.78:5000" -u "10.0.64.78:9876" -o "ivy"'
 #
 #docker build --network=host -t ueos:lock -f Dockerfile .
-#docker build --network=host -t ueos:cloud https://gitlab.newrizon.work/its/ai/eos.git#DOCKER_TEST
+#docker build --network=host -t ueos:cloud https://gitlab.newrizon.work/its/ai/eos.git#DOCKER_TEST | tee docker-build-cloud.log
