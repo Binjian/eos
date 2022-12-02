@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "eos"
+version = "0.0.3"
+description="Electric Optimization System: A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
+authors = ["binjian.xin <binjian.xin@newrizon.com>"]
+maintainers = ["binjian.xin <binjian.xin@newrizon.com>"]
+readme = "README.md"
+license = "LICENSE"
+repository = "ssh://git@gitlab.newrizon.work:2222/its/ai/eos.git"
+keywords = ["deep learning", "deep reinforcement learning", "electric powertrain", "energy saving", "policy"]
+classifiers = [
+    "Frameworks :: Pytest",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+include = ["eos/*", "*.csv" ]
+#virtualenvs.in-project = true
+
+[tool.poetry.dependencies]
+
+
+[tool.poetry.dev-dependencies]
+pytest = ">=7.1"
+
+[tool.poetry.scripts]
+my-script = "eos.eos.realtime_train_infer_ddpg:__main__"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.source]]
+name = "official"
+url = "https://pypi.org/simple"
+default = true
+
+[[tool.poetry.source]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple"
+secondary = true
+
+[tool.poetry2conda]
+name = "eos-conda"
