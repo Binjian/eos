@@ -30,6 +30,11 @@ canserver_list = [
         Host="10.10.0.6",  # url for the database server
         Port="30865",  # port for the database server
     ),
+    CANMessenger(
+        SRVName="can_cloud_svc",  # name of the database
+        Host="remotecan.veos:5000",  # url for the database server
+        Port="5000",  # port for the database server
+    ),
 ]
 
 can_servers_by_name = dict(zip([srv.SRVName for srv in canserver_list], canserver_list))
