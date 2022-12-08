@@ -168,7 +168,7 @@ class Buffer:
             self.logger.info(f"Using db server {self.db_server} for record replay buffer...")
             self.db_schema = record_schemas["record_deep"]
             self.pool = Pool(
-                url=self.db.Host,
+                url="mongodb://" + self.db.Host + ":" + self.db.Port,
                 username=self.db.Username,
                 password=self.db.Password,
                 schema=self.db_schema.STRUCTURE,
