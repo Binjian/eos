@@ -23,7 +23,7 @@ from pymongoarrow.monkey import patch_all
 from eos import Pool, RemoteCan, projroot
 from eos.config import generate_vcu_calibration
 from eos.config import (
-    db_servers,
+    db_servers_by_name,
     can_servers_by_name,
     episode_schemas,
     record_schemas,
@@ -70,7 +70,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.truck_name = "VB1"
 
         self.db_server_name = "local"
-        self.db_server = db_servers[self.db_server_name]
+        self.db_server = db_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
 
         self.can_server_name = "newrizon_test"
@@ -155,7 +155,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.epi_sch = self.episode_schemas["episode_deep"]
 
         self.db_server_name = "local"
-        self.db_server = db_servers[self.db_server_name]
+        self.db_server = db_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         # self.db = self.db["local"]
         # self.generate_epi_schemas()
@@ -206,7 +206,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.epi_sch = self.episode_schemas["episode_deep"]
         self.db_server_name = "local"
-        self.db_server = db_servers[self.db_server_name]
+        self.db_server = db_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         # self.db = self.db["local"]
         # self.generate_epi_schemas()
@@ -367,7 +367,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
         self.db_server_name = "local"
-        self.db_server = db_servers[self.db_server_name]
+        self.db_server = db_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         # self.generate_record_schemas()
         # test schema[0]
@@ -431,7 +431,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.rec_sch = self.record_schemas["record_deep"]
         # test schema[0]
         self.db_server_name = "local"
-        self.db_server = db_servers[self.db_server_name]
+        self.db_server = db_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         self.pool = Pool(
             url=self.db_server.Host,
@@ -543,7 +543,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas["record_deep"]
         self.db_server_name = "local"
-        self.db_server = db_servers[self.db_server_name]
+        self.db_server = db_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         self.pool = Pool(
             url=self.db_server.Host,
