@@ -140,7 +140,7 @@ class Buffer:
         file_bc=None,
         datafolder="./",
         cloud=False,
-        db_server="local",
+        db_server="mongo_local",
     ):
 
         self.logger = logger.getChild("main").getChild("ddpg")
@@ -162,9 +162,18 @@ class Buffer:
         if cloud is True:
             self.db = db_servers_by_name.get(self.db_server)
             if self.db is None:
-                self.db = db_servers_by_host[self.db_server.split(":")[0]]
-                assert self.db is not None, f"Can't find db server {self.db_server}!"
-                assert self.db_server.split(":")[1] == self.db.Port, f"Port mismatch for db server {self.db_server}!"
+                account_server = [s.split(":") for s in self.db_server.split("@")]
+                flat_account_server = [s for l in account_server for s in l]
+                assert account_server is not None \
+                       and len(account_server)==2 \
+                       and len(flat_account_server)==4, \
+                    f"Wrong format for db server {self.db_server}!"
+                self.db = db_servers_by_host.get(flat_account_server[2])
+                assert self.db is not None \
+                       and self.db.Port == self.db_server.split(":")[1] \
+                       and self.db.Username==flat_account_server[0] \
+                       and self.db.Password==flat_account_server[1], \
+                    f"Config mismatch for db server {self.db_server}!"
             self.logger.info(f"Using db server {self.db_server} for record replay buffer...")
             self.db_schema = record_schemas["record_deep"]
             self.pool = Pool(

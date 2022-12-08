@@ -120,7 +120,7 @@ class RealtimeDDPG(object):
         driver="Longfei.Zheng",
         remotecan_srv="10.0.64.78:5000",
         webui_srv="10.0.64.78:9876",
-        mongo_srv="127.0.0.1:27017",
+        mongo_srv="mongo_local",
         proj_root=Path("."),
         vlogger=None,
     ):
@@ -2446,7 +2446,7 @@ if __name__ == "__main__":
         "--mongodb",
         type=str,
         default="local",
-        help="url for mongodb server, e.g. 10.10.0.7:30116, or name, e.g. baiduyun_k8s, remote_sloppy2",
+        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local",
     )
     args = parser.parse_args()
 

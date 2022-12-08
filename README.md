@@ -1,46 +1,46 @@
 
 # Table of Contents
 
-1.  [Release Notes](#org6ea13c6)
-    1.  [eos 0.0.3](#orge109912)
-    2.  [current server list](#orgb82daff)
-        1.  [remotecan servers](#orgac2fca1)
-        2.  [trip control servers](#orgdcacfd7)
-        3.  [MongoDB servers:](#org8f1dda2)
-    3.  [current vehicle list](#org5af8325)
-2.  [Preamble](#org10a4f45)
-3.  [Upload](#org8904e73)
-    1.  [Raw streams](#org08b510f)
-    2.  [Preprocessing](#orga79a87a)
-4.  [Record](#orga91f205)
-    1.  [It&rsquo;s a timestamped *quadruple*, which is a tuple of 4 elements $(s_t, a_t, r_t, s'_t)$ with a timestamp $t$](#org9978150)
-    2.  [The structure of the record](#org091d171)
-        1.  [$s_t$](#org912ed0d)
-        2.  [$s'_t$](#org40780cf)
-        3.  [$a_t$](#orgf1d7700)
-        4.  [$r_t$](#org5240d5e)
-5.  [Episode](#org7ab9e1f)
-6.  [Pool](#orgff389a2)
-    1.  [Record pool](#org87516b2)
-        1.  [Record deposit interface](#org3c5c9c8)
-        2.  [Record minibatch sample interface](#org5288b93)
-    2.  [Episode pool](#org5d438aa)
-        1.  [Episode deposit interface](#orgae702cf)
-        2.  [Episode minibatch sample interface](#org2de3939)
-7.  [Flashing](#orgaee0211)
-8.  [Dataflow](#org3ed8a6b)
-    1.  [Upload (Observe)](#org0fcd802)
-    2.  [Download (flash)](#orgd0194f8)
-    3.  [Communication Performance Index](#org53ad594)
+1.  [Release Notes](#org97d32d9)
+    1.  [eos 0.0.3](#orgf984602)
+    2.  [current server list](#orgf042148)
+        1.  [remotecan servers](#orgdc63d93)
+        2.  [trip control servers](#orgd881062)
+        3.  [MongoDB servers:](#orgb9aec9d)
+    3.  [current vehicle list](#orgb77a5f9)
+2.  [Preamble](#org69a656e)
+3.  [Upload](#org55b364a)
+    1.  [Raw streams](#orgbf6a7b9)
+    2.  [Preprocessing](#org1b4a651)
+4.  [Record](#org8a195fe)
+    1.  [It&rsquo;s a timestamped *quadruple*, which is a tuple of 4 elements $(s_t, a_t, r_t, s'_t)$ with a timestamp $t$](#org6123ff8)
+    2.  [The structure of the record](#org4acb5bd)
+        1.  [$s_t$](#orgdbb33e0)
+        2.  [$s'_t$](#orged304d3)
+        3.  [$a_t$](#org3dea361)
+        4.  [$r_t$](#orgc0a9ecc)
+5.  [Episode](#orgf011b3d)
+6.  [Pool](#orgbf18ee9)
+    1.  [Record pool](#org4ffe19d)
+        1.  [Record deposit interface](#orgc5735a9)
+        2.  [Record minibatch sample interface](#org74a1ca3)
+    2.  [Episode pool](#org50425d6)
+        1.  [Episode deposit interface](#orgc387cf2)
+        2.  [Episode minibatch sample interface](#orgec17a7d)
+7.  [Flashing](#org044d18b)
+8.  [Dataflow](#orgfc8f922)
+    1.  [Upload (Observe)](#org0ed6a32)
+    2.  [Download (flash)](#org7faeb0a)
+    3.  [Communication Performance Index](#orge51d693)
 
 
 
-<a id="org6ea13c6"></a>
+<a id="org97d32d9"></a>
 
 # Release Notes
 
 
-<a id="orge109912"></a>
+<a id="orgf984602"></a>
 
 ## eos 0.0.3
 
@@ -54,12 +54,12 @@
 6.  build docker image with micromamba with changed docker hub image from micromamba
 
 
-<a id="orgb82daff"></a>
+<a id="orgf042148"></a>
 
 ## current server list
 
 
-<a id="orgac2fca1"></a>
+<a id="orgdc63d93"></a>
 
 ### remotecan servers
 
@@ -105,7 +105,7 @@
 </table>
 
 
-<a id="orgdcacfd7"></a>
+<a id="orgd881062"></a>
 
 ### trip control servers
 
@@ -151,7 +151,7 @@
 </table>
 
 
-<a id="org8f1dda2"></a>
+<a id="orgb9aec9d"></a>
 
 ### MongoDB servers:
 
@@ -164,12 +164,18 @@
 <col  class="org-right" />
 
 <col  class="org-right" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
 </colgroup>
 <thead>
 <tr>
 <th scope="col" class="org-left">Name</th>
 <th scope="col" class="org-right">Host</th>
 <th scope="col" class="org-right">Port</th>
+<th scope="col" class="org-left">user</th>
+<th scope="col" class="org-left">password</th>
 </tr>
 </thead>
 
@@ -178,6 +184,8 @@
 <td class="org-left">mongo_local</td>
 <td class="org-right">127.0.0.1</td>
 <td class="org-right">27017</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#xa0;</td>
 </tr>
 
 
@@ -185,6 +193,8 @@
 <td class="org-left">mongo_intra_sloppy</td>
 <td class="org-right">10.0.64.64</td>
 <td class="org-right">30116</td>
+<td class="org-left">root</td>
+<td class="org-left">Newrizon123</td>
 </tr>
 
 
@@ -192,6 +202,8 @@
 <td class="org-left">mongo_cloud</td>
 <td class="org-right">10.10.0.7</td>
 <td class="org-right">30116</td>
+<td class="org-left">&#xa0;</td>
+<td class="org-left">&#xa0;</td>
 </tr>
 
 
@@ -199,12 +211,14 @@
 <td class="org-left">mongo_cluster</td>
 <td class="org-right">10.10.0.4</td>
 <td class="org-right">23000</td>
+<td class="org-left">admint</td>
+<td class="org-left">y02ydhVqDj3QFjT</td>
 </tr>
 </tbody>
 </table>
 
 
-<a id="org5af8325"></a>
+<a id="orgb77a5f9"></a>
 
 ## current vehicle list
 
@@ -250,48 +264,48 @@
 </table>
 
 
-<a id="org10a4f45"></a>
+<a id="org69a656e"></a>
 
 # Preamble
 
 This document serves as a README for VEOS ADP data interface. It covers the specification of data streams from receiving uploaded raw data streams, to pre-process the raw data to generate records, store records in a data pool, and finally to index and get minibatches for training purpose from the pool.
 
 
-<a id="org8904e73"></a>
+<a id="org55b364a"></a>
 
 # Upload
 
 
-<a id="org08b510f"></a>
+<a id="orgbf6a7b9"></a>
 
 ## Raw streams
 
 Raw streams are time series of raw observations (*timestamped* vehicle velocity, acceleration pedal opening, brake pedal opening, battery voltage, battery current) and actions (changed and flashed pedal map) applied on the vehicle.
 
 
-<a id="orga79a87a"></a>
+<a id="org1b4a651"></a>
 
 ## Preprocessing
 
-Raw streams will be transformed into timestamped [Record](#orga91f205) after preprocessing and stored in [Pool](#orgff389a2).
+Raw streams will be transformed into timestamped [Record](#org8a195fe) after preprocessing and stored in [Pool](#orgbf18ee9).
 
 
-<a id="orga91f205"></a>
+<a id="org8a195fe"></a>
 
 # Record
 
 -   Record is the uploading unit of remote-CAN module
 
 
-<a id="org9978150"></a>
+<a id="org6123ff8"></a>
 
-## It&rsquo;s a timestamped [*quadruple*](#org9e88001), which is a tuple of 4 elements $(s_t, a_t, r_t, s'_t)$ with a timestamp $t$
+## It&rsquo;s a timestamped [*quadruple*](#org5106b35), which is a tuple of 4 elements $(s_t, a_t, r_t, s'_t)$ with a timestamp $t$
 
--   A record without timestamp is called a quadruple<a id="org9e88001"></a>
--   The sequence of records consist of an [*episode*](#org7ab9e1f)
+-   A record without timestamp is called a quadruple<a id="org5106b35"></a>
+-   The sequence of records consist of an [*episode*](#orgf011b3d)
 
 
-<a id="org091d171"></a>
+<a id="org4acb5bd"></a>
 
 ## The structure of the record
 
@@ -385,7 +399,7 @@ Raw streams will be transformed into timestamped [Record](#orga91f205) after pre
 </table>
 
 
-<a id="org912ed0d"></a>
+<a id="orgdbb33e0"></a>
 
 ### $s_t$
 
@@ -400,7 +414,7 @@ state at timestamp $t$
     -   in case of frame loss, a loss token needs to be inserted as a lost frame state at the next timestamp of $t$, that is $t+1$
 
 
-<a id="org40780cf"></a>
+<a id="orged304d3"></a>
 
 ### $s'_t$
 
@@ -411,7 +425,7 @@ the next state following $s_t$
 -   $s'_t$ must be contiguous in time to $s_t$
 
 
-<a id="orgf1d7700"></a>
+<a id="org3dea361"></a>
 
 ### $a_t$
 
@@ -423,7 +437,7 @@ action at timestamp $t$
 -   $a_t$ must precede $s'_t$, that is $t+\Delta t < t+1$ so that the next state $s'_t$ is the result of applying $a_t$
 
 
-<a id="org5240d5e"></a>
+<a id="orgc0a9ecc"></a>
 
 ### $r_t$
 
@@ -433,38 +447,38 @@ reward at timestamp $t$
 -   It&rsquo;s computed by accumlating the product of battery voltage $U_{r_k}$ and current values $I_{r_k}$ at the frames after the current action $a_t$ is applied and before the next action $a_{t+1}$ becomes effective, that is to say, the voltage and current values after the moment $r_0$  when flashing the pedal map is done and in effect, until after the last effective moment $r_K$  when the next action $a_{t+1}$ is applied (flashed and in effect)
 
 
-<a id="org7ab9e1f"></a>
+<a id="orgf011b3d"></a>
 
 # Episode
 
-An episode is a consecutive sequence of [records](#orga91f205) with a start and a termination state which typically represents a driving route/task or a test case and the vehicle operates on routinely.
+An episode is a consecutive sequence of [records](#org8a195fe) with a start and a termination state which typically represents a driving route/task or a test case and the vehicle operates on routinely.
 
 -   **Triple**: Since the sequence is consecutive, the next state $s'_t$ is the next adjacent state $s_{t+1}$ and thus not required in the tuple. Therefore one record is reduced to a triple.
 -   **Null elements**: Care needs to be taken to insert null elements in the sequence in case of absent records.
--   **Ragged**: $T$ is the total time steps of the episode. Episodes have different sequence length, since the termination of an episode could mean reaching the destination with different speeds or events. Therefore the [episode pool](#orged879c1) is ususally ragged.
+-   **Ragged**: $T$ is the total time steps of the episode. Episodes have different sequence length, since the termination of an episode could mean reaching the destination with different speeds or events. Therefore the [episode pool](#org2192a0b) is ususally ragged.
 
 $e_T=[(s_0,a_0,r_0),(s_1,a_1,r_1), ...,(s_{T-1},a_{T-1},r_{T-1})]$
 
 
-<a id="orgff389a2"></a>
+<a id="orgbf18ee9"></a>
 
 # Pool
 
-The pool stores the experience history. It entails two kinds of forms: it stores either timestamped [records](#orga91f205) which is called *record pool* or the whole sequence of records defined as [episodes](#org7ab9e1f) which is called *episode pool*.
+The pool stores the experience history. It entails two kinds of forms: it stores either timestamped [records](#org8a195fe) which is called *record pool* or the whole sequence of records defined as [episodes](#orgf011b3d) which is called *episode pool*.
 
 
-<a id="org87516b2"></a>
+<a id="org4ffe19d"></a>
 
-## Record pool<a id="org3ea0ea1"></a>
+## Record pool<a id="org35eab88"></a>
 
-The record pool is the aggregation of all the [records](#orga91f205), ordered by timestamps. It has a *record deposit interface* to deposit a record of [quadruple](#org9e88001) and a *record minibatch sample interface* to get a record minibatch of designated size randomly from the pool.
+The record pool is the aggregation of all the [records](#org8a195fe), ordered by timestamps. It has a *record deposit interface* to deposit a record of [quadruple](#org5106b35) and a *record minibatch sample interface* to get a record minibatch of designated size randomly from the pool.
 
 
-<a id="org3c5c9c8"></a>
+<a id="orgc5735a9"></a>
 
 ### Record deposit interface
 
-The record deposit interface serves as the method to append a [record](#orga91f205) in the pool. Please refer to the following Python code snippet.
+The record deposit interface serves as the method to append a [record](#org8a195fe) in the pool. Please refer to the following Python code snippet.
 
     #pool could be a python list containing all the records
     pool.deposit_record(
@@ -477,11 +491,11 @@ The record deposit interface serves as the method to append a [record](#orga91f2
     )
 
 
-<a id="org5288b93"></a>
+<a id="org74a1ca3"></a>
 
 ### Record minibatch sample interface
 
-A record minibatch<a id="orgd592837"></a> is a batch of [records](#orga91f205) by random sampling the record pool with designated batch size, see the following Python code snippet as an example for random sampling via `numpy.random.choice` API.
+A record minibatch<a id="orgc7a40c4"></a> is a batch of [records](#org8a195fe) by random sampling the record pool with designated batch size, see the following Python code snippet as an example for random sampling via `numpy.random.choice` API.
 
     import numpy as np
     
@@ -491,29 +505,29 @@ A record minibatch<a id="orgd592837"></a> is a batch of [records](#orga91f205) b
     minibatch = pool(index)
 
 
-<a id="org5d438aa"></a>
+<a id="org50425d6"></a>
 
-## Episode pool<a id="orged879c1"></a>
+## Episode pool<a id="org2192a0b"></a>
 
-The episode pool is the aggregation of all the [episodes](#org7ab9e1f), ordered by timestamps of the episodes. It has an *episode deposit interface* to deposit an episode and an *episode minibatch sample interface* to get an episode minibatch of designated size randomly from the pool.
+The episode pool is the aggregation of all the [episodes](#orgf011b3d), ordered by timestamps of the episodes. It has an *episode deposit interface* to deposit an episode and an *episode minibatch sample interface* to get an episode minibatch of designated size randomly from the pool.
 
 
-<a id="orgae702cf"></a>
+<a id="orgc387cf2"></a>
 
 ### Episode deposit interface
 
-The episode deposit interface serves as the method to append a complete [episode](#org7ab9e1f) to the pool
+The episode deposit interface serves as the method to append a complete [episode](#orgf011b3d) to the pool
 
     #pool could be a python list containing all the episodes
     #e_T is collected sequence of triples of an episode as defined above
     pool.deposit_episode(e_T)
 
 
-<a id="org2de3939"></a>
+<a id="orgec17a7d"></a>
 
 ### Episode minibatch sample interface
 
-An episode minibatch<a id="org4eec9ab"></a> is a batch of [episodes](#org7ab9e1f) by random sampling the episode pool with designated batch size, see the following Python code snippet as an example for random sampling via `numpy.random.choice` API.
+An episode minibatch<a id="org2f1a4af"></a> is a batch of [episodes](#orgf011b3d) by random sampling the episode pool with designated batch size, see the following Python code snippet as an example for random sampling via `numpy.random.choice` API.
 
     import numpy as np
     
@@ -523,7 +537,7 @@ An episode minibatch<a id="org4eec9ab"></a> is a batch of [episodes](#org7ab9e1f
     minibatch = pool(index)
 
 
-<a id="orgaee0211"></a>
+<a id="org044d18b"></a>
 
 # Flashing
 
@@ -554,14 +568,14 @@ The flashing interface will take pedal-torque map data to be flashed on VBU. The
     returncode = send_pedaltorque_map(pedaltorque_map_3_7, 3, 4)
 
 
-<a id="org3ed8a6b"></a>
+<a id="orgfc8f922"></a>
 
 # Dataflow
 
 ![img](./img/adp_data_flow_seq_block.png "Dataflow")
 
 
-<a id="org0fcd802"></a>
+<a id="org0ed6a32"></a>
 
 ## Upload (Observe)
 
@@ -580,7 +594,7 @@ The flashing interface will take pedal-torque map data to be flashed on VBU. The
     -   The mobile edge device (TBox) will stop uploading of observation immediately once it receives the STOP flag.
 
 
-<a id="orgd0194f8"></a>
+<a id="org7faeb0a"></a>
 
 ## Download (flash)
 
@@ -588,7 +602,7 @@ The flashing interface will take pedal-torque map data to be flashed on VBU. The
 -   VBU parameter/Pedal Map(PM)
 
 
-<a id="org53ad594"></a>
+<a id="orge51d693"></a>
 
 ## Communication Performance Index
 
