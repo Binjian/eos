@@ -6,7 +6,7 @@
 #+LATEX_COMPILER: xelatex
 #+LATEX_CLASS: article
 #+LATEX_CLASS_OPTIONS: [a4paper, 11pt]
-##+OPTIONS: ^:{}
+#+OPTIONS: ^:{}
 
 * Release Notes
 
@@ -15,26 +15,24 @@
 2. eos process ends elegantly
 3. server specification can take either names or urls. The list of current servers see below.
 4. add mongodb server option on the command line. Current interface example:
-#+BEGIN_SRC python
-python eos/realtime_train_infer_rdpg.py -v "VB7" -d "longfei" -m "can_intra" -u "rocket_intra" -o "mongo_local"
-#+END_SRC
-
+   #+BEGIN_SRC python
+   python eos/realtime_train_infer_rdpg.py -v "VB7" -d "longfei" -m "can_intra" -u "rocket_intra" -o "mongo_local"
+   #+END_SRC
 5. update trip control client with ClearablePushConsumer
 6. build docker image with micromamba with changed docker hub image from micromamba
 ** current server list
 *** remotecan servers
-| Name      |       Host |  Port |
-|-----------+------------+-------|
-| can_intra | 10.0.64.78 |  5000 |
-| can_cloud |  10.10.0.6 | 30865 |
-|           |            |       |
+| Name          |           Host |  Port |
+|---------------+----------------+-------|
+| can_intra     |     10.0.64.78 |  5000 |
+| can_cloud     |      10.10.0.6 | 30865 |
+| can_cloud_svc | remotecan.veos |  5000 |
 *** trip control servers
 | Name           |        Host | Port |
 |----------------+-------------+------|
 | rocket_intra   |  10.0.64.78 | 9876 |
 | rocket_cloud   | 10.0.64.122 | 9876 |
 | rocket_cluster |  10.10.0.13 | 9876 |
-|                |             |      |
 *** MongoDB servers:
 | Name               |       Host |  Port |
 |--------------------+------------+-------|
@@ -42,7 +40,6 @@ python eos/realtime_train_infer_rdpg.py -v "VB7" -d "longfei" -m "can_intra" -u 
 | mongo_intra_sloppy | 10.0.64.64 | 30116 |
 | mongo_cloud        |  10.10.0.7 | 30116 |
 | mongo_cluster      |  10.10.0.4 | 23000 |
-|                    |            |       |
 ** current vehicle list
 | Name       | VIN               |
 |------------+-------------------|
@@ -50,8 +47,6 @@ python eos/realtime_train_infer_rdpg.py -v "VB7" -d "longfei" -m "can_intra" -u 
 | SU_BDC8937 | HMZABAAH4MF014497 |
 | VB1        | HMZABAAH1MF011055 |
 | VB4        | HMZABAAHXMF011054 |
-|            |                   |
-
 
 * Preamble
 
