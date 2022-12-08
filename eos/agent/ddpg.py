@@ -164,16 +164,24 @@ class Buffer:
             if self.db is None:
                 account_server = [s.split(":") for s in self.db_server.split("@")]
                 flat_account_server = [s for l in account_server for s in l]
-                assert account_server is not None \
-                       and len(account_server)==2 \
-                       and len(flat_account_server)==4, \
+                assert (len(account_server) ==1 \
+                        and len(flat_account_server) == 2) \
+                       or (len(account_server)==2 \
+                           and len(flat_account_server)==4), \
                     f"Wrong format for db server {self.db_server}!"
-                self.db = db_servers_by_host.get(flat_account_server[2])
-                assert self.db is not None \
-                       and self.db.Port == self.db_server.split(":")[1] \
-                       and self.db.Username==flat_account_server[0] \
-                       and self.db.Password==flat_account_server[1], \
-                    f"Config mismatch for db server {self.db_server}!"
+                if len(account_server) == 1:
+                    self.db = db_servers_by_host.get(flat_account_server[0])
+                    assert self.db is not None \
+                           and self.db.Port == flat_account_server[1], \
+                        f"Config mismatch for db server {self.db_server}!"
+
+                else:
+                    self.db = db_servers_by_host.get(flat_account_server[2])
+                    assert self.db is not None \
+                           and self.db.Port == flat_account_server[3] \
+                           and self.db.Username==flat_account_server[0] \
+                           and self.db.Password==flat_account_server[1], \
+                        f"Config mismatch for db server {self.db_server}!"
             self.logger.info(f"Using db server {self.db_server} for record replay buffer...")
             self.db_schema = record_schemas["record_deep"]
             self.pool = Pool(
