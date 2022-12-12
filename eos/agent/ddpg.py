@@ -430,19 +430,12 @@ class Buffer:
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
-        with tf.GradientTape() as tape:
-            target_actions = self.target_actor(next_state_batch, training=True)
-            y = reward_batch + self.gamma * self.target_critic(
-                [next_state_batch, target_actions], training=True
-            )
-            # ? need to confirm since replay buffer will take max over the actions of Q function.:with
-            # future_rewards = self.target_critic(
-            #             #     [next_state_batch, target_actions], training=True
-            #             # )
-            # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
-            # ! the question above is not necessary, since deterministic policy is the maximum!
-            critic_value = self.critic_model([state_batch, action_batch], training=True)
-            critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
+        target_actions = self.target_actor(next_state_batch, training=True)
+        y = reward_batch + self.gamma * self.target_critic(
+            [next_state_batch, target_actions], training=True
+        )
+        critic_value = self.critic_model([state_batch, action_batch], training=True)
+        critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
         self.logger.info(f"No update Calulate reward done.", extra=dictLogger)
 
@@ -451,17 +444,12 @@ class Buffer:
         #     zip(critic_grad, self.critic_model.trainable_variables)
         # )
 
-        with tf.GradientTape() as tape:
-            actions = self.actor_model(state_batch, training=True)
-            critic_value = self.critic_model([state_batch, actions], training=True)
-            # Used `-value` as we want to maximize the value given
-            # by the critic for our actions
-            actor_loss = -tf.math.reduce_mean(critic_value)
+        actions = self.actor_model(state_batch, training=True)
+        critic_value = self.critic_model([state_batch, actions], training=True)
+        # Used `-value` as we want to maximize the value given
+        # by the critic for our actions
+        actor_loss = -tf.math.reduce_mean(critic_value)
 
-        # actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
-        # self.actor_optimizer.apply_gradients(
-        #     zip(actor_grad, self.actor_model.trainable_variables)
-        # )
         return critic_loss, actor_loss
 
     # We only compute the loss and don't update parameters
@@ -488,7 +476,9 @@ class Buffer:
                 extra=dictLogger,
             )
             batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
-            assert len(batch) == self.batch_size
+            assert (
+                    len(batch) == self.batch_size
+            ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
             # convert to tensors
             state = [rec["observation"]["state"] for rec in batch]
