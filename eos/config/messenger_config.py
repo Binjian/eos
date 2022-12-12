@@ -32,7 +32,7 @@ canserver_list = [
     ),
     CANMessenger(
         SRVName="can_cloud_svc",  # name of the database
-        Host="remotecan.veos:5000",  # url for the database server
+        Host="remotecan.veos",  # url for the database server
         Port="5000",  # port for the database server
     ),
 ]
