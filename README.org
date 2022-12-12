@@ -34,13 +34,14 @@
 | rocket_cloud   | 10.0.64.122 | 9876 |
 | rocket_cluster |  10.10.0.13 | 9876 |
 *** MongoDB servers:
-| Name                |        Host |  Port | user   | password        |
-|---------------------+-------------+-------+--------+-----------------|
-| mongo_local         |   127.0.0.1 | 27017 |        |                 |
-| mongo_intra_sloppy  |  10.0.64.64 | 30116 | root   | Newrizon123     |
-| mongo_cloud         |   10.10.0.7 | 30116 |        |                 |
-| mongo_cluster       |   10.10.0.4 | 23000 | admint | y02ydhVqDj3QFjT |
-| mongo_cluster_intra | 10.0.48.115 | 23000 | admint | y02ydhVqDj3QFjT |
+| Name                |        Host |  Port | user  | password         |
+|---------------------+-------------+-------+-------+------------------|
+| mongo_local         |   127.0.0.1 | 27017 |       |                  |
+| mongo_intra_sloppy  |  10.0.64.64 | 30116 | root  | Newrizon123      |
+| mongo_cloud         |   10.10.0.7 | 30116 |       |                  |
+| mongo_cluster       |   10.10.0.4 | 23000 | admin | ty02ydhVqDj3QFjT |
+| mongo_cluster_intra | 10.0.48.115 | 23000 | admin | ty02ydhVqDj3QFjT |
+|                     |             |       |       |                  |
 ** current vehicle list
 | Name       | VIN               |
 |------------+-------------------|

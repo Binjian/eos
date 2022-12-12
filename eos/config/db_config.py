@@ -80,8 +80,8 @@ db_list = [
         EpiCollName="episode",  # name of the collection
         Host="10.10.0.4",  # url for the database server
         Port="23000",  # port for the database server
-        Username="admint",  # username for the database server
-        Password="y02ydhVqDj3QFjT",  # password for the database server
+        Username="admin",  # username for the database server
+        Password="ty02ydhVqDj3QFjT",  # password for the database server
         Proxy="",  # proxy for the database server
     ),
     DB(
@@ -91,8 +91,8 @@ db_list = [
         EpiCollName="episode",  # name of the collection
         Host="10.0.48.115",  # url for the database server
         Port="23000",  # port for the database server
-        Username="admint",  # username for the database server
-        Password="y02ydhVqDj3QFjT",  # password for the database server
+        Username="admin",  # username for the database server
+        Password="ty02ydhVqDj3QFjT",  # password for the database server
         Proxy="",  # proxy for the database server
     ),
 ]
