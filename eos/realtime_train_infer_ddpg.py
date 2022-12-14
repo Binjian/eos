@@ -111,26 +111,26 @@ class RealtimeDDPG(object):
     def __init__(
         self,
         cloud=True,
-        hmi="cloud",
+        ui="cloud",
         resume=True,
         infer=False,
         record=True,
         path=".",
         vehicle="HMZABAAH7MF011058",  # "VB7",
         driver="Longfei.Zheng",
-        remotecan_srv="10.0.64.78:5000",
-        webui_srv="10.0.64.78:9876",
+        remotecan_srv="can_intra",
+        web_srv="rocket_intra",
         mongo_srv="mongo_local",
         proj_root=Path("."),
         vlogger=None,
     ):
         self.cloud = cloud
-        self.hmi = hmi
+        self.ui = ui
         self.trucks_by_name = trucks_by_name
         self.trucks_by_vin = trucks_by_vin
         self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
         self.remotecan_srv = remotecan_srv
-        self.webui_srv = webui_srv
+        self.web_srv = web_srv
         self.mongo_srv = mongo_srv
         assert type(vehicle) == str
 
@@ -193,14 +193,14 @@ class RealtimeDDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             self.init_cloud()
-            assert self.hmi in ["cloud", "local", "mobile"]
-            if self.hmi == "mobile" :
+            assert self.ui in ["cloud", "local", "mobile"]
+            if self.ui == "mobile" :
                 self.logger.info(f"Use phone UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_webhmi_state_machine
-            elif self.hmi == "local":
+            elif self.ui == "local":
                 self.logger.info(f"Use local UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_hmi_state_machine
-            elif self.hmi == "cloud":
+            elif self.ui == "cloud":
                 self.logger.info(f"Use cloud UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_cloudhmi_state_machine
             else:
@@ -245,12 +245,12 @@ class RealtimeDDPG(object):
             url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
 
-        if self.hmi == "mobile":
-            self.trip_server = trip_servers_by_name.get(self.webui_srv)
+        if self.ui == "mobile":
+            self.trip_server = trip_servers_by_name.get(self.web_srv)
             if self.trip_server is None:
-                self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
-                assert self.trip_server is not None, f"No such trip server {self.webui_srv} found!"
-                assert self.webui_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.webui_srv}!"
+                self.trip_server = trip_servers_by_host.get(self.web_srv.split(":")[0])
+                assert self.trip_server is not None, f"No such trip server {self.web_srv} found!"
+                assert self.web_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.web_srv}!"
             self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
 
             # Create RocketMQ consumer
@@ -2484,11 +2484,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-h",
-        "--hmi",
+        "-u",
+        "--ui",
         type=str,
         default='cloud',
-        help="User HMI Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
+        help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
 
     parser.add_argument(
@@ -2542,8 +2542,8 @@ if __name__ == "__main__":
         help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test",
     )
     parser.add_argument(
-        "-u",
-        "--webui",
+        "-w",
+        "--web",
         type=str,
         default="10.0.64.78:9876",
         help="url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test",
@@ -2562,7 +2562,7 @@ if __name__ == "__main__":
     try:
         app = RealtimeDDPG(
             args.cloud,
-            args.web,
+            args.ui,
             args.resume,
             args.infer,
             args.record_table,
@@ -2570,7 +2570,7 @@ if __name__ == "__main__":
             args.vehicle,
             args.driver,
             args.remotecan,
-            args.webui,
+            args.web,
             args.mongodb,
             projroot,
             logger,
