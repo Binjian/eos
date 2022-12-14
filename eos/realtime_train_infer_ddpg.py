@@ -448,6 +448,7 @@ class RealtimeDDPG(object):
                 1.0 / self.truck.KvaserObservationFrequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
+        self.state_len = self.observation_len * self.num_observations
         self.num_inputs = (
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
@@ -1618,7 +1619,7 @@ class RealtimeDDPG(object):
                 if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_cloudhmi_sm.info(
                         "%s",
-                        "Capture thread exit due to processing request!!!",
+                        "UI thread exit due to processing request!!!",
                         extra=self.dictLogger,
                     )
 
@@ -1636,10 +1637,10 @@ class RealtimeDDPG(object):
                         while not self.motionpowerQueue.empty():
                             self.motionpowerQueue.get()
 
-                    with self.hmi_lock:
-                        self.episode_done = False
-                        self.episode_end = True
-                        self.episode_count += 1
+                    self.episode_done = True
+                    self.episode_end = True
+                    self.episode_count += 1
+
                     evt_epi_done.set()
                     th_exit = True
                     continue
@@ -1647,10 +1648,10 @@ class RealtimeDDPG(object):
             # ts_epi_start = time.time()
             evt_remote_get.clear()
             evt_remote_flash.clear()
-            logger_cloudhmi_sm.info(
-                f"Test start! clear remote_flash and remote_get!",
-                extra=self.dictLogger,
-            )
+            # logger_cloudhmi_sm.info(
+            #     f"Test start! clear remote_flash and remote_get!",
+            #     extra=self.dictLogger,
+            # )
 
             with self.captureQ_lock:
                 while not self.motionpowerQueue.empty():
@@ -2112,6 +2113,7 @@ class RealtimeDDPG(object):
                     not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
                     if killer.kill_now:
+                        self.logc.info(f"Process is being killed!!!")
                         with self.hmi_lock:
                             self.program_exit = True
 
@@ -2312,14 +2314,15 @@ class RealtimeDDPG(object):
                     extra=self.dictLogger,
                 )
                 # send ready signal to trip server
-                ret = self.rmq_producer.send_sync(self.rmq_message_ready)
-                self.logc.info(
-                    f"Sending ready signal to trip server:"
-                    f"status={ret.status};"
-                    f"msg-id={ret.msg_id};"
-                    f"offset={ret.offset}.",
-                    extra=self.dictLogger,
-                )
+                if self.ui == 'mobile':
+                    ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+                    self.logc.info(
+                        f"Sending ready signal to trip server:"
+                        f"status={ret.status};"
+                        f"msg-id={ret.msg_id};"
+                        f"offset={ret.offset}.",
+                        extra=self.dictLogger,
+                    )
                 continue  # otherwise assuming the history is valid and back propagate
 
             self.logc.info(
@@ -2430,14 +2433,15 @@ class RealtimeDDPG(object):
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
             # send ready signal to trip server
-            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
-            self.logger.info(
-                f"Sending ready signal to trip server:"
-                f"status={ret.status};"
-                f"msg-id={ret.msg_id};"
-                f"offset={ret.offset}.",
-                extra=self.dictLogger,
-            )
+            if self.ui == 'mobile':
+                ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+                self.logger.info(
+                    f"Sending ready signal to trip server:"
+                    f"status={ret.status};"
+                    f"msg-id={ret.msg_id};"
+                    f"offset={ret.offset}.",
+                    extra=self.dictLogger,
+                )
             # TODO terminate condition to be defined: reward > limit (percentage); time too long
         # with self.train_summary_writer.as_default():
         #     tf.summary.trace_export(
@@ -2451,10 +2455,10 @@ class RealtimeDDPG(object):
         thr_countdown.join()
 
         if self.cloud is False:
-            self.rdpg.save_replay_buffer()
+            self.buffer.save_replay_buffer()
         else:
             # WRONG: for database, just exit no need to cleanup.
-            self.rdpg.drop_mongo_client()
+            self.buffer.drop_mongo_client()
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 
@@ -2496,7 +2500,7 @@ if __name__ == "__main__":
         "--infer",
         default=False,
         help="No model update and training. Only Inference",
-        action="store_false",
+        action="store_true",
     )
     parser.add_argument(
         "-t",

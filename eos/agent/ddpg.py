@@ -256,7 +256,7 @@ class Buffer:
 
         self.buffer_counter += 1
 
-    def save(self):
+    def save_replay_buffer(self):
 
         np.save(self.file_sb, self.state_buffer)
         np.save(self.file_ab, self.action_buffer)
@@ -475,7 +475,7 @@ class Buffer:
                 f"start test_pool_sample of size {self.batch_size}.",
                 extra=dictLogger,
             )
-            batch = self.pool.sample_batch_ddpg_records(batch_size=self.batch_size)
+            batch = self.pool.sample_batch_items(batch_size=self.batch_size)
             assert (
                     len(batch) == self.batch_size
             ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
