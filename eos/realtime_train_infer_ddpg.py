@@ -941,7 +941,7 @@ class RealtimeDDPG(object):
                                     f"Cycle velocity: Aver{vel_aver:.2f},Min{vel_min:.2f},Max{vel_max:.2f},StartIndex{self.vcu_calib_table_row_start}!",
                                     extra=self.dictLogger,
                                 )
-                                # self.logd.info(
+                                # self.logc.info(
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
 
@@ -1602,82 +1602,67 @@ class RealtimeDDPG(object):
             extra=self.dictLogger,
         )
 
-        killer = GracefulKiller()
 
         with self.state_machine_lock:
             self.program_start = True
 
 
+        logger_cloudhmi_sm.info(
+            "%s", "Road Test with inferring will start as one single episode!!!", extra=self.dictLogger
+        )
         while not th_exit:  # th_exit is local; program_exit is global
 
             with self.hmi_lock:  # wait for tester to kick off or to exit
+                # Check if the runner is trying to kill the process
+                # kill signal captured from main thread
                 if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_cloudhmi_sm.info(
                         "%s",
                         "Capture thread exit due to processing request!!!",
                         extra=self.dictLogger,
                     )
+
+                    self.get_truck_status_start = False
+                    self.get_truck_status_motpow_t = []
+
+                    evt_remote_get.set()
+                    evt_remote_flash.set()
+                    logger_cloudhmi_sm.info(
+                        f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
+                        extra=self.dictLogger,
+                    )
+
+                    with self.captureQ_lock:
+                        while not self.motionpowerQueue.empty():
+                            self.motionpowerQueue.get()
+
+                    with self.hmi_lock:
+                        self.episode_done = False
+                        self.episode_end = True
+                        self.episode_count += 1
+                    evt_epi_done.set()
                     th_exit = True
                     continue
-            if not killer.kill_now:
-                self.get_truck_status_start = True
-                logger_cloudhmi_sm.info(
-                    "%s", "Road Test with inferring will start as one single episode!!!", extra=self.dictLogger
-                )
-                th_exit = False
-                # ts_epi_start = time.time()
-                evt_remote_get.clear()
-                evt_remote_flash.clear()
-                logger_cloudhmi_sm.info(
-                    f"Test start! clear remote_flash and remote_get!",
-                    extra=self.dictLogger,
-                )
 
-                with self.captureQ_lock:
-                    while not self.motionpowerQueue.empty():
-                        self.motionpowerQueue.get()
-                with self.hmi_lock:
-                    self.episode_done = False
-                    self.episode_end = False
+            # ts_epi_start = time.time()
+            evt_remote_get.clear()
+            evt_remote_flash.clear()
+            logger_cloudhmi_sm.info(
+                f"Test start! clear remote_flash and remote_get!",
+                extra=self.dictLogger,
+            )
 
-            # Check if the runner is trying to kill the process
-            else:  # "exit"
-                self.get_truck_status_start = False
-                self.get_truck_status_motpow_t = []
+            with self.captureQ_lock:
+                while not self.motionpowerQueue.empty():
+                    self.motionpowerQueue.get()
+            with self.hmi_lock:
+                self.episode_done = False
+                self.episode_end = False
 
-                evt_remote_get.set()
-                evt_remote_flash.set()
-                logger_cloudhmi_sm.info(
-                    f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
-                    extra=self.dictLogger,
-                )
-
-                with self.captureQ_lock:
-                    while not self.motionpowerQueue.empty():
-                        self.motionpowerQueue.get()
-                # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
-                th_exit = True
-                # for program exit, need to set episode states
-                # final change to inform main thread
-                if self.program_exit == True:  # if program_exit is True, exit thread
-                    logger_cloudhmi_sm.info(
-                        "%s",
-                        "Capture thread exit due to processing request!!!",
-                        extra=self.dictLogger,
-                    )
-                th_exit = True
-
-                with self.hmi_lock:
-                    self.episode_done = False
-                    self.episode_end = True
-                    self.program_exit = True
-                    self.episode_count += 1
-                evt_epi_done.set()
 
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
-            if self.get_truck_status_start:
-                evt_remote_get.set()
+            evt_remote_get.set()
 
         logger_cloudhmi_sm.info(f"remote cloudhmi killed gracefully!!!", extra=self.dictLogger)
 
@@ -2092,6 +2077,9 @@ class RealtimeDDPG(object):
         th_exit = False
         epi_cnt_local = 0
 
+        # Gracefulkiller only in the main thread!
+        killer = GracefulKiller()
+
         self.logc.info(f"main Initialization done!", extra=self.dictLogger)
         while not th_exit:  # run until solved or program exit; th_exit is local
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -2123,6 +2111,10 @@ class RealtimeDDPG(object):
                 while (
                     not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
+                    if killer.kill_now:
+                        with self.hmi_lock:
+                            self.program_exit = True
+
                     with self.hmi_lock:  # wait for tester to interrupt or to exit
                         th_exit = (
                             self.program_exit
@@ -2552,7 +2544,7 @@ if __name__ == "__main__":
         "-o",
         "--mongodb",
         type=str,
-        default="local",
+        default="mongo_local",
         help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local",
     )
     args = parser.parse_args()
