@@ -59,7 +59,7 @@ from pythonjsonlogger import jsonlogger
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
-from rocketmq.client import PullConsumer, Message, Producer
+from rocketmq.client import Message, Producer
 
 from eos import dictLogger, logger, projroot
 from eos.agent import (
@@ -81,7 +81,7 @@ from eos.config import (
     trip_servers_by_host,
     generate_vcu_calibration,
 )
-from eos.utils import ragged_nparray_list_interp
+from eos.utils import ragged_nparray_list_interp, GracefulKiller
 from eos.visualization import plot_3d_figure, plot_to_image
 
 # from bson import ObjectId
@@ -111,7 +111,7 @@ class RealtimeDDPG(object):
     def __init__(
         self,
         cloud=True,
-        web=True,
+        hmi="cloud",
         resume=True,
         infer=False,
         record=True,
@@ -125,7 +125,7 @@ class RealtimeDDPG(object):
         vlogger=None,
     ):
         self.cloud = cloud
-        self.web = web
+        self.hmi = hmi
         self.trucks_by_name = trucks_by_name
         self.trucks_by_vin = trucks_by_vin
         self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
@@ -193,12 +193,18 @@ class RealtimeDDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             self.init_cloud()
-            if self.web is True:
-                self.logger.info(f"Use WebUI!", extra=self.dictLogger)
+            assert self.hmi in ["cloud", "local", "mobile"]
+            if self.hmi == "mobile" :
+                self.logger.info(f"Use phone UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_webhmi_state_machine
-            else:
+            elif self.hmi == "local":
                 self.logger.info(f"Use local UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_hmi_state_machine
+            elif self.hmi == "cloud":
+                self.logger.info(f"Use cloud UI", extra=self.dictLogger)
+                self.get_truck_status = self.remote_cloudhmi_state_machine
+            else:
+                raise ValueError("Unknown HMI type")
             self.flash_vcu = self.remote_flash_vcu
         else:
             self.get_truck_status = self.kvaser_get_truck_status
@@ -220,7 +226,6 @@ class RealtimeDDPG(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.init_checkpoint()
         self.touch_gpu()
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
@@ -240,32 +245,33 @@ class RealtimeDDPG(object):
             url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
         )
 
-        self.trip_server = trip_servers_by_name.get(self.webui_srv)
-        if self.trip_server is None:
-            self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
-            assert self.trip_server is not None, f"No such trip server {self.webui_srv} found!"
-            assert self.webui_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.webui_srv}!"
-        self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
+        if self.hmi == "mobile":
+            self.trip_server = trip_servers_by_name.get(self.webui_srv)
+            if self.trip_server is None:
+                self.trip_server = trip_servers_by_host.get(self.webui_srv.split(":")[0])
+                assert self.trip_server is not None, f"No such trip server {self.webui_srv} found!"
+                assert self.webui_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.webui_srv}!"
+            self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
 
-        # Create RocketMQ consumer
-        self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
-        self.rmq_consumer.set_namesrv_addr(
-            self.trip_server.Host + ":" + self.trip_server.Port
-        )
+            # Create RocketMQ consumer
+            self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
+            self.rmq_consumer.set_namesrv_addr(
+                self.trip_server.Host + ":" + self.trip_server.Port
+            )
 
-        # Create RocketMQ producer
-        self.rmq_message_ready = Message("update_ready_state")
-        self.rmq_message_ready.set_keys("what is keys mean")
-        self.rmq_message_ready.set_tags("tags ------")
-        self.rmq_message_ready.set_body(
-            json.dumps({"vin": self.truck.VIN, "is_ready": True})
-        )
-        # self.rmq_message_ready.set_keys('trip_server')
-        # self.rmq_message_ready.set_tags('tags')
-        self.rmq_producer = Producer("PID-EPI_ROCKET")
-        self.rmq_producer.set_namesrv_addr(
-            self.trip_server.Host + ":" + self.trip_server.Port
-        )
+            # Create RocketMQ producer
+            self.rmq_message_ready = Message("update_ready_state")
+            self.rmq_message_ready.set_keys("what is keys mean")
+            self.rmq_message_ready.set_tags("tags ------")
+            self.rmq_message_ready.set_body(
+                json.dumps({"vin": self.truck.VIN, "is_ready": True})
+            )
+            # self.rmq_message_ready.set_keys('trip_server')
+            # self.rmq_message_ready.set_tags('tags')
+            self.rmq_producer = Producer("PID-EPI_ROCKET")
+            self.rmq_producer.set_namesrv_addr(
+                self.trip_server.Host + ":" + self.trip_server.Port
+            )
 
     def set_logger(self):
         self.logroot = self.dataroot.joinpath("py_logs")
@@ -536,6 +542,7 @@ class RealtimeDDPG(object):
             std_deviation=float(self.ou_noise_std_dev)
             * np.ones(self.num_reduced_actions),
         )
+        self.init_checkpoint()
 
     def init_checkpoint(self):
         # add checkpoints manager
@@ -1574,6 +1581,106 @@ class RealtimeDDPG(object):
         self.rmq_producer.shutdown()
         logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
+    def remote_cloudhmi_state_machine(
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
+    ):
+        """
+        This function is used to get the truck status
+        from cloud state management and remote can module
+        """
+
+        th_exit = False
+
+        logger_cloudhmi_sm = self.logger.getChild("cloudhmi_sm")
+        logger_cloudhmi_sm.propagate = True
+
+        logger_cloudhmi_sm.info(
+            f"Start/Configure message VIN: {self.truck.VIN}; driver {self.driver}!",
+            extra=self.dictLogger,
+        )
+
+        killer = GracefulKiller()
+
+        with self.state_machine_lock:
+            self.program_start = True
+
+
+        while not th_exit:  # th_exit is local; program_exit is global
+
+            with self.hmi_lock:  # wait for tester to kick off or to exit
+                if self.program_exit == True:  # if program_exit is True, exit thread
+                    logger_cloudhmi_sm.info(
+                        "%s",
+                        "Capture thread exit due to processing request!!!",
+                        extra=self.dictLogger,
+                    )
+                    th_exit = True
+                    continue
+            if not killer.kill_now:
+                self.get_truck_status_start = True
+                logger_cloudhmi_sm.info(
+                    "%s", "Road Test with inferring will start as one single episode!!!", extra=self.dictLogger
+                )
+                th_exit = False
+                # ts_epi_start = time.time()
+                evt_remote_get.clear()
+                evt_remote_flash.clear()
+                logger_cloudhmi_sm.info(
+                    f"Test start! clear remote_flash and remote_get!",
+                    extra=self.dictLogger,
+                )
+
+                with self.captureQ_lock:
+                    while not self.motionpowerQueue.empty():
+                        self.motionpowerQueue.get()
+                with self.hmi_lock:
+                    self.episode_done = False
+                    self.episode_end = False
+
+            # Check if the runner is trying to kill the process
+            else:  # "exit"
+                self.get_truck_status_start = False
+                self.get_truck_status_motpow_t = []
+
+                evt_remote_get.set()
+                evt_remote_flash.set()
+                logger_cloudhmi_sm.info(
+                    f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
+                    extra=self.dictLogger,
+                )
+
+                with self.captureQ_lock:
+                    while not self.motionpowerQueue.empty():
+                        self.motionpowerQueue.get()
+                # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
+                th_exit = True
+                # for program exit, need to set episode states
+                # final change to inform main thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
+                    logger_cloudhmi_sm.info(
+                        "%s",
+                        "Capture thread exit due to processing request!!!",
+                        extra=self.dictLogger,
+                    )
+                th_exit = True
+
+                with self.hmi_lock:
+                    self.episode_done = False
+                    self.episode_end = True
+                    self.program_exit = True
+                    self.episode_count += 1
+                evt_epi_done.set()
+
+
+            time.sleep(0.05)  # sleep for 50ms to update state machine
+            if self.get_truck_status_start:
+                evt_remote_get.set()
+
+        logger_cloudhmi_sm.info(f"remote cloudhmi killed gracefully!!!", extra=self.dictLogger)
+
     def remote_hmi_state_machine(
         self,
         evt_epi_done: threading.Event,
@@ -2377,11 +2484,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-w",
-        "--web",
-        default=True,
-        help="Use web interface",
-        action="store_true",
+        "-h",
+        "--hmi",
+        type=str,
+        default='cloud',
+        help="User HMI Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
 
     parser.add_argument(
