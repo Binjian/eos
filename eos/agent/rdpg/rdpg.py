@@ -125,24 +125,25 @@ from .critic import CriticNet
 class RDPG:
     def __init__(
         self,
-        truck,
-        driver,
-        num_observations,
-        obs_len,
-        seq_len,
-        num_actions,
-        buffer_capacity=10000,
-        batch_size=4,
-        hidden_unitsAC=(256, 256),
-        n_layersAC=(2, 2),
-        padding_value=0,
-        gamma=0.99,
-        tauAC=(0.001, 0.001),
-        lrAC=(0.001, 0.002),
+        truck: str,
+        driver: str,
+        num_observations: int,
+        obs_len: int,
+        seq_len: int,
+        num_actions: int,
+        buffer_capacity: int=10000,
+        batch_size: int=4,
+        hidden_unitsAC: tuple=(256, 256),
+        n_layersAC: tuple=(2, 2),
+        padding_value: float=0.0,
+        gamma: float=0.99,
+        tauAC: tuple=(0.001, 0.001),
+        lrAC: tuple=(0.001, 0.002),
         datafolder="./",
         ckpt_interval="5",
-        cloud=False,
-        db_server="mongo_local",
+        cloud: bool=False,
+        db_server: str="mongo_local",
+        infer: bool = False,
     ):
         """Initialize the RDPG agent.
 
@@ -168,6 +169,7 @@ class RDPG:
         self.cloud = cloud
         self._datafolder = datafolder
         self.db_server = db_server
+        self._infererence = infer
         # new data
         if self.cloud == False:
             # Instead of list of tuples as the exp.replay concept go
@@ -280,9 +282,46 @@ class RDPG:
         )
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
+        self.touch_gpu()
+    def __del__(self):
+        if self.cloud:
+            # for database, exit needs drop interface.
+            self.pool.drop_mongo()
+        else:
+            self.save_replay_buffer()
 
-    def drop_mongo_client(self):
-        self.pool.drop_mongo()
+
+    def touch_gpu(self):
+
+        # tf.summary.trace_on(graph=True, profiler=True)
+        # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
+        init_motionpower = np.random.rand(self.obs_len, self.num_observations)
+        init_states = tf.convert_to_tensor(
+            init_motionpower
+        )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
+        input_array = tf.cast(tf.reshape(init_states, -1), dtype=tf.float32)
+
+        # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
+
+        action0 = self.actor_predict(input_array, 0)
+        self.logger.info(
+            f"manual load tf library by calling convert_to_tensor",
+            extra=self.dictLogger,
+        )
+        self.reset_noise()
+
+        # warm up the GPU training Graph execution pipeline
+        if self.buffer_counter != 0:
+            if not self.inference:
+                self.logger.info(
+                    f"rdpg warm up training!",
+                    extra=self.dictLogger,
+                )
+                (actor_loss, critic_loss) = self.train()
+                self.logger.info(
+                    f"rdpg warm up training done!",
+                    extra=self.dictLogger,
+                )
 
     def init_ckpt(self):
         # Actor create or restore from checkpoint
@@ -898,3 +937,11 @@ class RDPG:
     @gamma.setter
     def gamma(self, value):
         raise ReadOnlyError("gamma is read-only")
+
+    @property
+    def inference(self):
+        return self._inference
+
+    @inference.setter
+    def inference(self, value):
+        raise ReadOnlyError("inference is read-only")

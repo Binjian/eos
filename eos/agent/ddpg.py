@@ -68,9 +68,10 @@ accumulated so far.
 Now, let's see how is it implemented.
 """
 from datetime import datetime
+import os
+from pathlib import Path
 
 import bson
-import keras.initializers as initializers
 import numpy as np
 import pyarrow as pa
 import pymongo as pmg
@@ -86,7 +87,7 @@ patch_all()
 
 from eos import Pool, dictLogger, logger
 from eos.config import db_servers_by_name, db_servers_by_host, record_schemas
-
+from .utils import OUActionNoise
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
 We will use the `upper_bound` parameter to scale our actions later.
@@ -117,33 +118,33 @@ the maximum predicted value as seen by the Critic, for a given state.
 
 class Buffer:
     def __init__(
-        self,
-        truck,
-        driver,
-        actor_model,
-        critic_model,
-        target_actor,
-        target_critic,
-        actor_optimizer,
-        critic_optimizer,
-        num_observations,
-        sequence_len,
-        num_actions,
-        buffer_capacity=10000,
-        batch_size=4,
-        gamma=0.99,
-        load_buffer=False,
-        file_sb=None,
-        file_ab=None,
-        file_rb=None,
-        file_nsb=None,
-        file_bc=None,
-        datafolder="./",
-        cloud=False,
-        db_server="mongo_local",
+            self,
+            truck,
+            driver,
+            actor_model,
+            critic_model,
+            target_actor,
+            target_critic,
+            actor_optimizer,
+            critic_optimizer,
+            num_observations,
+            sequence_len,
+            num_actions,
+            buffer_capacity=10000,
+            batch_size=4,
+            gamma=0.99,
+            load_buffer=False,
+            file_sb=None,
+            file_ab=None,
+            file_rb=None,
+            file_nsb=None,
+            file_bc=None,
+            datafolder="./",
+            cloud=False,
+            db_server="mongo_local",
     ):
 
-        self.logger = logger.getChild("main").getChild("ddpg")
+        self.logger = logger.getChild("main").getChild("ddpg").getChild("Buffer")
         self.logger.propagate = True
         # Number of "experiences" to store at max
         # Num of tuples to train on.
@@ -222,9 +223,12 @@ class Buffer:
         self.actor_optimizer = actor_optimizer
         self.critic_optimizer = critic_optimizer
         self.gamma = gamma
-
-    def drop_mongo_client(self):
-        self.pool.drop_mongo()
+    def __del__(self):
+        if self.cloud:
+            # for database, exit needs drop interface.
+            self.pool.drop_mongo()
+        else:
+            self.save_replay_buffer()
 
     def deposit(self, rec: dict):
         """
@@ -289,11 +293,11 @@ class Buffer:
 
     def load(self):
         if (
-            (not self.file_sb)
-            or (not self.file_ab)
-            or (not self.file_rb)
-            or (not self.file_nsb)
-            or (not self.file_bc)
+                (not self.file_sb)
+                or (not self.file_ab)
+                or (not self.file_rb)
+                or (not self.file_nsb)
+                or (not self.file_bc)
         ):
             self.load_default()
         else:
@@ -313,11 +317,11 @@ class Buffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
-        self,
-        state_batch,
-        action_batch,
-        reward_batch,
-        next_state_batch,
+            self,
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -398,7 +402,7 @@ class Buffer:
                 driver_id=self.driver,
             )
             assert (
-                len(batch) == self.batch_size
+                    len(batch) == self.batch_size
             ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
             # convert to tensors
@@ -422,11 +426,11 @@ class Buffer:
     # we only calculate the loss
     @tf.function
     def noupdate(
-        self,
-        state_batch,
-        action_batch,
-        reward_batch,
-        next_state_batch,
+            self,
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -499,122 +503,404 @@ class Buffer:
         return critic_loss, actor_loss
 
 
-# This update target parameters slowly
-# Based on rate `tau`, which is much less than one.
-@tf.function
-def update_target(target_weights, weights, tau):
-    for (a, b) in zip(target_weights, weights):
-        a.assign(b * tau + a * (1 - tau))
+class DDPG:
+
+    def __init__(
+            self,
+            truck: str,
+            driver: str,
+            num_observations: int,
+            obs_len: int,
+            seq_len: int,
+            num_actions: int,
+            buffer_capacity: int=10000,
+            batch_size: int=4,
+            hidden_unitsAC: tuple=(256, 16, 32),
+            action_bias: float=0.0,
+            n_layersAC: tuple=(2, 2),
+            padding_value: float=0,
+            gamma: float=0.99,
+            tauAC: tuple=(0.005, 0.005),
+            lrAC: tuple=(0.001, 0.002),
+            datafolder: str="./",
+            ckpt_interval: int=5,
+            cloud: bool=False,
+            db_server: str="mongo_local",
+            resume : bool=True,
+    ):
+
+        self.logger = logger.getChild("main").getChild("ddpg")
+        self.logger.propagate = True
+
+        self.truck = truck
+        self.driver = driver
+        self.num_observations = num_observations
+        self.obs_len = obs_len
+        self.seq_len = seq_len
+        self.num_actions = num_actions # reduced action 5 * 17
+        self.buffer_capacity = buffer_capacity
+        self.batch_size = batch_size
+        self.hidden_unitsAC = hidden_unitsAC
+        self.action_bias = action_bias
+        self.n_layersAC = n_layersAC
+        self.padding_value = padding_value
+        self.gamma = gamma
+        self.tauAC = tauAC
+        self.lrAC = lrAC
+        self.datafolder = Path(datafolder)
+        self.ckpt_interval = ckpt_interval
+        self.cloud = cloud
+        self.db_server = db_server
+        self.resume = resume
+
+        # Initialize networks
+        self.actor_model = self.get_actor(
+            self.num_observations,
+            self.num_actions,
+            self.obs_len,
+            self.hidden_unitsAC[0],
+            self.n_layersAC[0],
+            self.action_bias,
+        )
+
+        self.critic_model = self.get_critic(
+            self.num_observations,
+            self.num_actions,
+            self.obs_len,
+            self.hidden_unitsAC[1],
+            self.hidden_unitsAC[2],
+            self.hidden_unitsAC[0],
+            self.n_layersAC[1],
+        )
+
+        # Initialize networks
+        self.target_actor = self.get_actor(
+            self.num_observations,
+            self.num_actions,
+            self.obs_len,
+            self.hidden_unitsAC[0],
+            self.n_layersAC[0],
+            self.action_bias
+        )
+
+        self.target_critic = self.get_critic(
+            self.num_observations,
+            self.num_actions,
+            self.obs_len,
+            self.hidden_unitsAC[1],
+            self.hidden_unitsAC[2],
+            self.hidden_unitsAC[0],
+            self.n_layersAC[1],
+        )
+
+        self.actor_optimizer = tf.keras.optimizers.Adam(self.lrAC[0])
+        self.critic_optimizer = tf.keras.optimizers.Adam(self.lrAC[1])
+
+        self.buffer = Buffer(
+            self.truck,
+            self.driver,
+            self.actor_model,
+            self.critic_model,
+            self.target_actor,
+            self.target_critic,
+            self.actor_optimizer,
+            self.critic_optimizer,
+            self.num_observations,
+            self.obs_len,
+            self.num_actions,
+            buffer_capacity=self.buffer_capacity,
+            batch_size=self.batch_size,
+            gamma=self.gamma,
+            datafolder=str(self.datafolder),
+            cloud=self.cloud,
+            db_server=self.db_server,
+        )
+
+        # ou_noise is a row vector of num_actions dimension
+        self.ou_noise_std_dev = 0.2
+        self.ou_noise = OUActionNoise(
+            mean=np.zeros(self.num_actions),
+            std_deviation=float(self.ou_noise_std_dev)
+                          * np.ones(self.num_actions),
+        )
+        self.init_checkpoint()
+        self.touch_gpu()
+
+    def init_checkpoint(self):
+        # add checkpoints manager
+        if self.resume:
+            checkpoint_actor_dir = self.datafolder.joinpath(
+                "tf_ckpts-ddpg/l045a_ddpg_actor"
+            )
+            checkpoint_critic_dir = self.datafolder.joinpath(
+                "tf_ckpts-ddpg/l045a_ddpg_critic"
+            )
+        else:
+            checkpoint_actor_dir = self.datafolder.joinpath(
+                "tf_ckpts-ddpg/l045a_ddpg_actor"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+            )
+            checkpoint_critic_dir = self.datafolder.joinpath(
+                "tf_ckpts-ddpg/l045a_ddpg_critic"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+            )
+        try:
+            os.makedirs(checkpoint_actor_dir)
+            self.logger.info(
+                "Actor folder doesn't exist. Created!", extra=dictLogger
+            )
+        except FileExistsError:
+            self.logger.info("Actor folder exists, just resume!", extra=dictLogger)
+        try:
+            os.makedirs(checkpoint_critic_dir)
+            self.logger.info(
+                "Critic folder doesn't exist. Created!", extra=dictLogger
+            )
+        except FileExistsError:
+            self.logger.info(
+                "Critic folder exists, just resume!", extra=dictLogger
+            )
+
+        self.ckpt_actor = tf.train.Checkpoint(
+            step=tf.Variable(1), optimizer=self.actor_optimizer, net=self.actor_model
+        )
+        self.manager_actor = tf.train.CheckpointManager(
+            self.ckpt_actor, checkpoint_actor_dir, max_to_keep=10
+        )
+        self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
+        if self.manager_actor.latest_checkpoint:
+            self.logger.info(
+                f"Actor Restored from {self.manager_actor.latest_checkpoint}",
+                extra=dictLogger,
+            )
+        else:
+            self.logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+
+        self.ckpt_critic = tf.train.Checkpoint(
+            step=tf.Variable(1), optimizer=self.critic_optimizer, net=self.critic_model
+        )
+        self.manager_critic = tf.train.CheckpointManager(
+            self.ckpt_critic, checkpoint_critic_dir, max_to_keep=10
+        )
+        self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
+        if self.manager_critic.latest_checkpoint:
+            self.logger.info(
+                f"Critic Restored from {self.manager_critic.latest_checkpoint}",
+                extra=dictLogger,
+            )
+        else:
+            self.logger.info("Critic Initializing from scratch", extra=dictLogger)
+
+        # Making the weights equal initially after checkpoints load
+        self.target_actor.set_weights(self.actor_model.get_weights())
+        self.target_critic.set_weights(self.critic_model.get_weights())
 
 
-"""
-Here we define the Actor and Critic networks. These are basic Dense models
-with `ReLU` activation.
+    def save_ckpt(self):
+        '''
+        Save checkpoints
+        '''
+        self.ckpt_actor.step.assign_add(1)
+        self.ckpt_critic.step.assign_add(1)
 
-Note: We need the initialization for last layer of the Actor to be between
-`-0.003` and `0.003` as this prevents us from getting `1` or `-1` output values in
-the initial stages, which would squash our gradients to zero,
-as we use the `tanh` activation.
-"""
-
-# action = (Table * Budget + 1); action < action_upper && action > action_lower
-# all in percentage, normalized to initial default table
-# to apply action, first reshape:
-# output actions is a row vector, needs to be reshaped to be a calibration table
-# actions = tf.reshape(get_actors(**), [vcu_calib_table_row, vcu_calib_table_col])\
-# then multiply by default values:
-# actions = tf.math.multiply(actions, vcu_calib_table0)
-def get_actor(
-    num_observations,
-    num_actions,
-    sequence_len,
-    num_hidden,
-    action_bias,
-):
-    # Initialize weights between -3e-3 and 3-e3
-    last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
-
-    inputs = layers.Input(shape=(sequence_len, num_observations))
-    flatinputs = layers.Flatten()(inputs)
-    hidden = layers.Dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
-    )(flatinputs)
-    hidden1 = layers.Dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
-    )(hidden)
-    out = layers.Dense(
-        num_actions,
-        activation="tanh",
-        kernel_initializer=last_init,
-        bias_initializer=initializers.constant(action_bias),
-    )(hidden1)
-
-    # # if our budget is +/-5%, outputs should be [0.95, 1.05]
-    # outputs = outputs * action_budget + 1
-    #
-    # # apply lower and upper bound to the outputs,
-    # # typical value is [0.8, 1.0]
-    # outputs = tf.clip_by_value(outputs, action_lower, action_upper)
-    eager_model = tf.keras.Model(inputs, out)
-    # graph_model = tf.function(eager_model)
-    return eager_model
+        if int(self.ckpt_actor.step) % self.ckpt_interval == 0:
+            save_path_actor = self.manager_actor.save()
+            self.logger.info(
+                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
+                extra=dictLogger,
+            )
+        if int(self.ckpt_critic.step) % self.ckpt_interval == 0:
+            save_path_critic = self.manager_critic.save()
+            self.logger.info(
+                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
+                extra=dictLogger,
+            )
 
 
-def get_critic(
-    dim_observations,
-    dim_actions,
-    sequence_len,
-    num_hidden0=16,
-    num_hidden1=32,
-    num_hidden2=256,
-):
-    # State as input
-    state_input = layers.Input(shape=(sequence_len, dim_observations))
-    state_flattened = layers.Flatten()(state_input)
-    state_out = layers.Dense(num_hidden0, activation="relu")(state_flattened)
-    state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
+    @tf.function
+    def update_target(self, target_weights, weights, tau):
+        for (a, b) in zip(target_weights, weights):
+            a.assign(b * tau + a * (1 - tau))
 
-    # Action as input
-    action_input = layers.Input(shape=(dim_actions,))  # action is defined as flattened.
-    action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
-
-    # Both are passed through separate layer before concatenating
-    concat = layers.Concatenate()([state_out, action_out])
-
-    out = layers.Dense(num_hidden2, activation="relu")(concat)
-    out = layers.Dense(num_hidden2, activation="relu")(out)
-    outputs = layers.Dense(1, activation=None)(out)
-
-    # Outputs single value for give state-action
-    eager_model = tf.keras.Model([state_input, action_input], outputs)
-    # graph_model = tf.function(eager_model)
-
-    return eager_model
+    @tf.function
+    def soft_update_target(self):
+        # This update target parameters slowly
+        # Based on rate `tau`, which is much less than one.
+        self.update_target(self.target_actor.variables, self.actor_model.variables, self.tauAC[0])
+        self.update_target(self.target_critic.variables, self.critic_model.variables, self.tauAC[1])
 
 
-"""
-`policy()` returns an action sampled from our Actor network plus some noise for
-exploration.
-"""
+    """
+    Here we define the Actor and Critic networks. These are basic Dense models
+    with `ReLU` activation.
+    
+    Note: We need the initialization for last layer of the Actor to be between
+    `-0.003` and `0.003` as this prevents us from getting `1` or `-1` output values in
+    the initial stages, which would squash our gradients to zero,
+    as we use the `tanh` activation.
+    """
 
-# action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
-def policy(actor_model, state, noise_object):
+    # action = (Table * Budget + 1); action < action_upper && action > action_lower
+    # all in percentage, normalized to initial default table
+    # to apply action, first reshape:
+    # output actions is a row vector, needs to be reshaped to be a calibration table
+    # actions = tf.reshape(get_actors(**), [vcu_calib_table_row, vcu_calib_table_col])\
+    # then multiply by default values:
+    # actions = tf.math.multiply(actions, vcu_calib_table0)
+    def get_actor(
+            self,
+            num_observations: int,
+            num_actions: int,
+            sequence_len: int,
+            num_hidden: int=256,
+            num_layers: int=2,
+            action_bias: float=0,
+    ):
+        # Initialize weights between -3e-3 and 3-e3
+        last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
-    # We make sure action is within bounds
-    # legal_action = np.clip(sampled_actions, action_lower, action_upper)
+        inputs = layers.Input(shape=(sequence_len, num_observations))
+        x = layers.Flatten()(inputs)
+        # if n_layers <= 1, the loop will be skipped in default
+        for i in range(num_layers - 1):
+            x = layers.Dense(num_hidden,
+                             activation="relu",
+                             kernel_initializer=tf.keras.initializers.HeNormal()
+                             )(x)
+        x= layers.Dense(
+            num_hidden, activation="relu", kernel_initializer=tf.keras.initializers.HeNormal()
+        )(x)
 
-    sampled_actions = infer(actor_model, state)
-    # return np.squeeze(sampled_actions)  # ? might be unnecessary
-    return sampled_actions + noise_object()
+        # output layer
+        out = layers.Dense(
+            num_actions,
+            activation="tanh",
+            kernel_initializer=last_init,
+            bias_initializer=tf.keras.initializers.constant(action_bias),
+        )(x)
+
+        # # if our budget is +/-5%, outputs should be [0.95, 1.05]
+        # outputs = outputs * action_budget + 1
+        #
+        # # apply lower and upper bound to the outputs,
+        # # typical value is [0.8, 1.0]
+        # outputs = tf.clip_by_value(outputs, action_lower, action_upper)
+        eager_model = tf.keras.Model(inputs, out)
+        # graph_model = tf.function(eager_model)
+        return eager_model
 
 
-@tf.function
-def infer(actor_model, state):
-    # logger.info(f"Tracing", extra=dictLogger)
-    print("Tracing infer!")
-    sampled_actions = tf.squeeze(actor_model(state))
-    # Adding noise to action
-    return sampled_actions
+    def get_critic(
+            self,
+            dim_observations: int,
+            dim_actions: int,
+            sequence_len: int,
+            num_hidden0: int=16,
+            num_hidden1: int=32,
+            num_hidden2: int=256,
+            num_layers: int=2,
+    ):
+        # State as input
+        state_input = layers.Input(shape=(sequence_len, dim_observations))
+        state_flattened = layers.Flatten()(state_input)
+        state_out = layers.Dense(num_hidden0, activation="relu")(state_flattened)
+        state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
+
+        # Action as input
+        action_input = layers.Input(shape=(dim_actions,))  # action is defined as flattened.
+        action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
+
+        # Both are passed through separate layer before concatenating
+        x = layers.Concatenate()([state_out, action_out])
+
+        # if n_layers <= 1, the loop will be skipped in default
+        for i in range(num_layers - 1):
+            x = layers.Dense(num_hidden2,
+                             activation="relu",
+                             kernel_initializer=tf.keras.initializers.HeNormal()
+                             )(x)
+        x = layers.Dense(num_hidden2,
+                         activation="relu",
+                         kernel_initializer=tf.keras.initializers.HeNormal()
+                         )(x)
+
+        outputs = layers.Dense(1, activation=None)(x)
+
+        # Outputs single value for give state-action
+        eager_model = tf.keras.Model([state_input, action_input], outputs)
+        # graph_model = tf.function(eager_model)
+
+        return eager_model
+
+
+    """
+    `policy()` returns an action sampled from our Actor network plus some noise for
+    exploration.
+    """
+
+    # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
+    def policy(self,state):
+
+        # We make sure action is within bounds
+        # legal_action = np.clip(sampled_actions, action_lower, action_upper)
+
+        sampled_actions = self.infer(state)
+        # return np.squeeze(sampled_actions)  # ? might be unnecessary
+        return sampled_actions + self.ou_noise()
+
+
+    @tf.function
+    def infer(self, state):
+        # logger.info(f"Tracing", extra=dictLogger)
+        print("Tracing infer!")
+        sampled_actions = tf.squeeze(self.actor_model(state))
+        # Adding noise to action
+        return sampled_actions
+
+
+    def touch_gpu(self):
+
+        # tf.summary.trace_on(graph=True, profiler=True)
+        # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
+        init_motionpower = np.random.rand(self.obs_len, self.num_observations)
+        init_states = tf.convert_to_tensor(
+            init_motionpower
+        )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
+        init_states = tf.expand_dims(init_states, 0)  # motion states is 30*2 matrix
+
+        action0 = self.policy(init_states)
+        self.logger.info(
+            f"manual load tf library by calling convert_to_tensor",
+            extra=dictLogger,
+        )
+        self.ou_noise.reset()
+
+        # warm up gpu training graph execution pipeline
+        if self.buffer.buffer_counter != 0:
+            if not self.infer:
+                self.logger.info(
+                    f"ddpg warm up training!",
+                    extra=dictLogger,
+                )
+
+                (actor_loss, critic_loss) = self.buffer.learn()
+                self.update_target(
+                    self.target_actor.variables,
+                    self.actor_model.variables,
+                    self.tauAC[0],
+                )
+                # self.logger.info(f"Updated target actor", extra=self.dictLogger)
+                self.update_target(
+                    self.target_critic.variables,
+                    self.critic_model.variables,
+                    self.tauAC[1],
+                )
+
+                # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+                self.logger.info(
+                    f"ddpg warm up training done!",
+                    extra=dictLogger,
+                )
 
 
 """

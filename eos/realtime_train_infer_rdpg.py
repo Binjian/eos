@@ -98,7 +98,6 @@ from eos.visualization import plot_3d_figure, plot_to_image
 warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# global variables: threading, data, lock, etc.
 class RealtimeRDPG(object):
     def __init__(
         self,
@@ -492,40 +491,6 @@ class RealtimeRDPG(object):
             cloud=self.cloud,
             db_server=self.mongo_srv,
         )
-
-    def touch_gpu(self):
-
-        # tf.summary.trace_on(graph=True, profiler=True)
-        # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
-        init_motionpower = np.random.rand(self.observation_len, self.num_observations)
-        init_states = tf.convert_to_tensor(
-            init_motionpower
-        )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        input_array = tf.cast(tf.reshape(init_states, -1), dtype=tf.float32)
-
-        # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
-
-        action0 = self.rdpg.actor_predict(input_array, 0)
-        self.logger.info(
-            f"manual load tf library by calling convert_to_tensor",
-            extra=self.dictLogger,
-        )
-        self.rdpg.reset_noise()
-
-        # warm up the GPU training Graph execution pipeline
-        if self.rdpg.buffer_counter != 0:
-            if not self.infer:
-                self.logger.info(
-                    f"rdpg warm up training!",
-                    extra=self.dictLogger,
-                )
-                (actor_loss, critic_loss) = self.rdpg.train()
-                self.logger.info(
-                    f"rdpg warm up training done!",
-                    extra=self.dictLogger,
-                )
-
-    # @eye
     # tracer.start()
 
     def init_threads_data(self):
@@ -1013,8 +978,6 @@ class RealtimeRDPG(object):
                         logger_remote_get.info(
                             f"{self.can_server.Host} is down!", extra=self.dictLogger
                         )
-
-
                     # ping test
                     # try:
                     #     response_ping = subprocess.check_output(
@@ -1842,6 +1805,10 @@ class RealtimeRDPG(object):
                     flash_count += 1
 
                 # if returncode != 0:
+                #     logger_flash.error(
+                #         f"send_torque_map failed and retry: {returncode}, ret_str: {ret_str}",
+                #         extra=self.dictLogger,
+                #     )
                 #     # ping test
                 #     try:
                 #         response_ping = subprocess.check_output(
@@ -1911,30 +1878,31 @@ class RealtimeRDPG(object):
         evt_epi_done = threading.Event()
         evt_remote_get = threading.Event()
         evt_remote_flash = threading.Event()
-        thr_countdown = Thread(
+        self.thr_countdown = Thread(
             target=self.capture_countdown_handler,
             name="countdown",
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
-        thr_countdown.start()
+        self.thr_countdown.start()
 
-        thr_observe = Thread(
+        self.thr_observe = Thread(
             target=self.get_truck_status,
             name="observe",
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
-        thr_observe.start()
+        self.thr_observe.start()
+
 
         if self.cloud:
-            thr_remoteget = Thread(
+            self.thr_remoteget = Thread(
                 target=self.remote_get_handler,
                 name="remoteget",
                 args=[evt_remote_get, evt_remote_flash],
             )
-            thr_remoteget.start()
+            self.thr_remoteget.start()
 
-        thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
-        thr_flash.start()
+        self.thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
+        self.thr_flash.start()
 
         """
         ## train
@@ -2308,16 +2276,11 @@ class RealtimeRDPG(object):
         #         step=epi_cnt_local,
         #         profiler_outdir=self.train_log_dir,
         #     )
-        thr_observe.join()
-        thr_remoteget.join()
-        thr_flash.join()
-        thr_countdown.join()
-
-        if self.cloud is False:
-            self.rdpg.save_replay_buffer()
-        else:
-            # WRONG: for database, just exit no need to cleanup.
-            self.rdpg.drop_mongo_client()
+        self.thr_observe.join()
+        if self.cloud:
+            self.thr_remoteget.join()
+        self.thr_flash.join()
+        self.thr_countdown.join()
 
         self.logc.info(f"main dies!!!!", extra=self.dictLogger)
 
@@ -2405,7 +2368,7 @@ if __name__ == "__main__":
         "-o",
         "--mongodb",
         type=str,
-        default="local",
+        default="mongo_local",
         help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local",
     )
     args = parser.parse_args()
