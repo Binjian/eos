@@ -132,28 +132,21 @@ class RealtimeDDPG(object):
         self.remotecan_srv = remotecan_srv
         self.web_srv = web_srv
         self.mongo_srv = mongo_srv
-        assert type(vehicle) == str
+        assert type(vehicle) == str, "vehicle must be a string"
 
         # Regex for VIN: HMZABAAH\wMF\d{6}
         p = re.compile(r"^HMZABAAH\wMF\d{6}$")
         if p.match(vehicle):
             # validate truck id
             # assert self.vehicle in self.trucks_by_vin.keys()
-            try:
-                self.truck = self.trucks_by_vin[self.vehicle]
-            except KeyError as e:
-                print(f"{e}. No Truck with VIN {self.vehicle}")
-                sys.exit(1)
+            self.truck = self.trucks_by_vin.get(self.vehicle)
+            assert self.truck is not None, f"No Truck with VIN {self.vehicle}"
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         else:
-            print(f"Input is not VIN. Try with truck name {self.vehicle}")
             # validate truck id
             # assert self.vehicle in self.trucks_by_name.keys()
-            try:
-                self.truck = self.trucks_by_name[self.vehicle]
-            except KeyError as e:
-                print(f"{e}. No Truck with name {self.vehicle}")
-                sys.exit(1)
+            self.truck = self.trucks_by_name.get(self.vehicle)
+            assert self.truck is not None, f"No Truck with name {self.vehicle}"
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         self.driver = driver
         self.projroot = proj_root
@@ -193,7 +186,7 @@ class RealtimeDDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             self.init_cloud()
-            assert self.ui in ["cloud", "local", "mobile"]
+            assert self.ui in ["cloud", "local", "mobile"], f"ui must be cloud, local or mobile, not {self.ui}"
             if self.ui == "mobile" :
                 self.logger.info(f"Use phone UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_webhmi_state_machine

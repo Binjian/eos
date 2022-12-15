@@ -16,7 +16,7 @@
 3. server specification can take either names or urls. The list of current servers see below.
 4. add mongodb server option on the command line. Current interface example:
    #+BEGIN_SRC python
-   python eos/realtime_train_infer_rdpg.py -v "VB7" -d "longfei" -m "can_intra" -u "rocket_intra" -o "mongo_local"
+   python eos/realtime_train_infer_rdpg.py -v "VB1" -d "wangcheng" -m "can_cloud_svc" -w "rocket_cluster" -u "cloud" -o "mongo_local" -i
    #+END_SRC
 5. update trip control client with ClearablePushConsumer
 6. build docker image with micromamba with changed docker hub image from micromamba
