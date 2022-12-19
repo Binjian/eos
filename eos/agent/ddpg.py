@@ -88,6 +88,7 @@ patch_all()
 from eos import Pool, dictLogger, logger
 from eos.config import db_servers_by_name, db_servers_by_host, record_schemas
 from .utils import OUActionNoise
+
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
 We will use the `upper_bound` parameter to scale our actions later.
@@ -118,30 +119,30 @@ the maximum predicted value as seen by the Critic, for a given state.
 
 class Buffer:
     def __init__(
-            self,
-            truck,
-            driver,
-            actor_model,
-            critic_model,
-            target_actor,
-            target_critic,
-            actor_optimizer,
-            critic_optimizer,
-            num_observations,
-            sequence_len,
-            num_actions,
-            buffer_capacity=10000,
-            batch_size=4,
-            gamma=0.99,
-            load_buffer=False,
-            file_sb=None,
-            file_ab=None,
-            file_rb=None,
-            file_nsb=None,
-            file_bc=None,
-            datafolder="./",
-            cloud=False,
-            db_server="mongo_local",
+        self,
+        truck,
+        driver,
+        actor_model,
+        critic_model,
+        target_actor,
+        target_critic,
+        actor_optimizer,
+        critic_optimizer,
+        num_observations,
+        sequence_len,
+        num_actions,
+        buffer_capacity=10000,
+        batch_size=4,
+        gamma=0.99,
+        load_buffer=False,
+        file_sb=None,
+        file_ab=None,
+        file_rb=None,
+        file_nsb=None,
+        file_bc=None,
+        datafolder="./",
+        cloud=False,
+        db_server="mongo_local",
     ):
 
         self.logger = logger.getChild("main").getChild("ddpg").getChild("Buffer")
@@ -165,25 +166,26 @@ class Buffer:
             if self.db is None:
                 account_server = [s.split(":") for s in self.db_server.split("@")]
                 flat_account_server = [s for l in account_server for s in l]
-                assert (len(account_server) ==1 \
-                        and len(flat_account_server) == 2) \
-                       or (len(account_server)==2 \
-                           and len(flat_account_server)==4), \
-                    f"Wrong format for db server {self.db_server}!"
+                assert (len(account_server) == 1 and len(flat_account_server) == 2) or (
+                    len(account_server) == 2 and len(flat_account_server) == 4
+                ), f"Wrong format for db server {self.db_server}!"
                 if len(account_server) == 1:
                     self.db = db_servers_by_host.get(flat_account_server[0])
-                    assert self.db is not None \
-                           and self.db.Port == flat_account_server[1], \
-                        f"Config mismatch for db server {self.db_server}!"
+                    assert (
+                        self.db is not None and self.db.Port == flat_account_server[1]
+                    ), f"Config mismatch for db server {self.db_server}!"
 
                 else:
                     self.db = db_servers_by_host.get(flat_account_server[2])
-                    assert self.db is not None \
-                           and self.db.Port == flat_account_server[3] \
-                           and self.db.Username==flat_account_server[0] \
-                           and self.db.Password==flat_account_server[1], \
-                        f"Config mismatch for db server {self.db_server}!"
-            self.logger.info(f"Using db server {self.db_server} for record replay buffer...")
+                    assert (
+                        self.db is not None
+                        and self.db.Port == flat_account_server[3]
+                        and self.db.Username == flat_account_server[0]
+                        and self.db.Password == flat_account_server[1]
+                    ), f"Config mismatch for db server {self.db_server}!"
+            self.logger.info(
+                f"Using db server {self.db_server} for record replay buffer..."
+            )
             self.db_schema = record_schemas["record_deep"]
             self.pool = Pool(
                 url="mongodb://" + self.db.Host + ":" + self.db.Port,
@@ -223,6 +225,7 @@ class Buffer:
         self.actor_optimizer = actor_optimizer
         self.critic_optimizer = critic_optimizer
         self.gamma = gamma
+
     def __del__(self):
         if self.cloud:
             # for database, exit needs drop interface.
@@ -293,11 +296,11 @@ class Buffer:
 
     def load(self):
         if (
-                (not self.file_sb)
-                or (not self.file_ab)
-                or (not self.file_rb)
-                or (not self.file_nsb)
-                or (not self.file_bc)
+            (not self.file_sb)
+            or (not self.file_ab)
+            or (not self.file_rb)
+            or (not self.file_nsb)
+            or (not self.file_bc)
         ):
             self.load_default()
         else:
@@ -317,11 +320,11 @@ class Buffer:
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update(
-            self,
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -402,7 +405,7 @@ class Buffer:
                 driver_id=self.driver,
             )
             assert (
-                    len(batch) == self.batch_size
+                len(batch) == self.batch_size
             ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
             # convert to tensors
@@ -426,11 +429,11 @@ class Buffer:
     # we only calculate the loss
     @tf.function
     def noupdate(
-            self,
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -481,7 +484,7 @@ class Buffer:
             )
             batch = self.pool.sample_batch_items(batch_size=self.batch_size)
             assert (
-                    len(batch) == self.batch_size
+                len(batch) == self.batch_size
             ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
             # convert to tensors
@@ -504,29 +507,28 @@ class Buffer:
 
 
 class DDPG:
-
     def __init__(
-            self,
-            truck: str,
-            driver: str,
-            num_observations: int,
-            obs_len: int,
-            seq_len: int,
-            num_actions: int,
-            buffer_capacity: int=10000,
-            batch_size: int=4,
-            hidden_unitsAC: tuple=(256, 16, 32),
-            action_bias: float=0.0,
-            n_layersAC: tuple=(2, 2),
-            padding_value: float=0,
-            gamma: float=0.99,
-            tauAC: tuple=(0.005, 0.005),
-            lrAC: tuple=(0.001, 0.002),
-            datafolder: str="./",
-            ckpt_interval: int=5,
-            cloud: bool=False,
-            db_server: str="mongo_local",
-            resume : bool=True,
+        self,
+        truck: str,
+        driver: str,
+        num_observations: int,
+        obs_len: int,
+        seq_len: int,
+        num_actions: int,
+        buffer_capacity: int = 10000,
+        batch_size: int = 4,
+        hidden_unitsAC: tuple = (256, 16, 32),
+        action_bias: float = 0.0,
+        n_layersAC: tuple = (2, 2),
+        padding_value: float = 0,
+        gamma: float = 0.99,
+        tauAC: tuple = (0.005, 0.005),
+        lrAC: tuple = (0.001, 0.002),
+        datafolder: str = "./",
+        ckpt_interval: int = 5,
+        cloud: bool = False,
+        db_server: str = "mongo_local",
+        resume: bool = True,
     ):
 
         self.logger = logger.getChild("main").getChild("ddpg")
@@ -537,7 +539,7 @@ class DDPG:
         self.num_observations = num_observations
         self.obs_len = obs_len
         self.seq_len = seq_len
-        self.num_actions = num_actions # reduced action 5 * 17
+        self.num_actions = num_actions  # reduced action 5 * 17
         self.buffer_capacity = buffer_capacity
         self.batch_size = batch_size
         self.hidden_unitsAC = hidden_unitsAC
@@ -580,7 +582,7 @@ class DDPG:
             self.obs_len,
             self.hidden_unitsAC[0],
             self.n_layersAC[0],
-            self.action_bias
+            self.action_bias,
         )
 
         self.target_critic = self.get_critic(
@@ -620,8 +622,7 @@ class DDPG:
         self.ou_noise_std_dev = 0.2
         self.ou_noise = OUActionNoise(
             mean=np.zeros(self.num_actions),
-            std_deviation=float(self.ou_noise_std_dev)
-                          * np.ones(self.num_actions),
+            std_deviation=float(self.ou_noise_std_dev) * np.ones(self.num_actions),
         )
         self.init_checkpoint()
         self.touch_gpu()
@@ -646,20 +647,14 @@ class DDPG:
             )
         try:
             os.makedirs(checkpoint_actor_dir)
-            self.logger.info(
-                "Actor folder doesn't exist. Created!", extra=dictLogger
-            )
+            self.logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
         except FileExistsError:
             self.logger.info("Actor folder exists, just resume!", extra=dictLogger)
         try:
             os.makedirs(checkpoint_critic_dir)
-            self.logger.info(
-                "Critic folder doesn't exist. Created!", extra=dictLogger
-            )
+            self.logger.info("Critic folder doesn't exist. Created!", extra=dictLogger)
         except FileExistsError:
-            self.logger.info(
-                "Critic folder exists, just resume!", extra=dictLogger
-            )
+            self.logger.info("Critic folder exists, just resume!", extra=dictLogger)
 
         self.ckpt_actor = tf.train.Checkpoint(
             step=tf.Variable(1), optimizer=self.actor_optimizer, net=self.actor_model
@@ -695,11 +690,10 @@ class DDPG:
         self.target_actor.set_weights(self.actor_model.get_weights())
         self.target_critic.set_weights(self.critic_model.get_weights())
 
-
     def save_ckpt(self):
-        '''
+        """
         Save checkpoints
-        '''
+        """
         self.ckpt_actor.step.assign_add(1)
         self.ckpt_critic.step.assign_add(1)
 
@@ -716,7 +710,6 @@ class DDPG:
                 extra=dictLogger,
             )
 
-
     @tf.function
     def update_target(self, target_weights, weights, tau):
         for (a, b) in zip(target_weights, weights):
@@ -726,9 +719,12 @@ class DDPG:
     def soft_update_target(self):
         # This update target parameters slowly
         # Based on rate `tau`, which is much less than one.
-        self.update_target(self.target_actor.variables, self.actor_model.variables, self.tauAC[0])
-        self.update_target(self.target_critic.variables, self.critic_model.variables, self.tauAC[1])
-
+        self.update_target(
+            self.target_actor.variables, self.actor_model.variables, self.tauAC[0]
+        )
+        self.update_target(
+            self.target_critic.variables, self.critic_model.variables, self.tauAC[1]
+        )
 
     """
     Here we define the Actor and Critic networks. These are basic Dense models
@@ -748,13 +744,13 @@ class DDPG:
     # then multiply by default values:
     # actions = tf.math.multiply(actions, vcu_calib_table0)
     def get_actor(
-            self,
-            num_observations: int,
-            num_actions: int,
-            sequence_len: int,
-            num_hidden: int=256,
-            num_layers: int=2,
-            action_bias: float=0,
+        self,
+        num_observations: int,
+        num_actions: int,
+        sequence_len: int,
+        num_hidden: int = 256,
+        num_layers: int = 2,
+        action_bias: float = 0,
     ):
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
@@ -763,12 +759,15 @@ class DDPG:
         x = layers.Flatten()(inputs)
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
-            x = layers.Dense(num_hidden,
-                             activation="relu",
-                             kernel_initializer=tf.keras.initializers.HeNormal()
-                             )(x)
-        x= layers.Dense(
-            num_hidden, activation="relu", kernel_initializer=tf.keras.initializers.HeNormal()
+            x = layers.Dense(
+                num_hidden,
+                activation="relu",
+                kernel_initializer=tf.keras.initializers.HeNormal(),
+            )(x)
+        x = layers.Dense(
+            num_hidden,
+            activation="relu",
+            kernel_initializer=tf.keras.initializers.HeNormal(),
         )(x)
 
         # output layer
@@ -789,16 +788,15 @@ class DDPG:
         # graph_model = tf.function(eager_model)
         return eager_model
 
-
     def get_critic(
-            self,
-            dim_observations: int,
-            dim_actions: int,
-            sequence_len: int,
-            num_hidden0: int=16,
-            num_hidden1: int=32,
-            num_hidden2: int=256,
-            num_layers: int=2,
+        self,
+        dim_observations: int,
+        dim_actions: int,
+        sequence_len: int,
+        num_hidden0: int = 16,
+        num_hidden1: int = 32,
+        num_hidden2: int = 256,
+        num_layers: int = 2,
     ):
         # State as input
         state_input = layers.Input(shape=(sequence_len, dim_observations))
@@ -807,7 +805,9 @@ class DDPG:
         state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
 
         # Action as input
-        action_input = layers.Input(shape=(dim_actions,))  # action is defined as flattened.
+        action_input = layers.Input(
+            shape=(dim_actions,)
+        )  # action is defined as flattened.
         action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
 
         # Both are passed through separate layer before concatenating
@@ -815,14 +815,16 @@ class DDPG:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
-            x = layers.Dense(num_hidden2,
-                             activation="relu",
-                             kernel_initializer=tf.keras.initializers.HeNormal()
-                             )(x)
-        x = layers.Dense(num_hidden2,
-                         activation="relu",
-                         kernel_initializer=tf.keras.initializers.HeNormal()
-                         )(x)
+            x = layers.Dense(
+                num_hidden2,
+                activation="relu",
+                kernel_initializer=tf.keras.initializers.HeNormal(),
+            )(x)
+        x = layers.Dense(
+            num_hidden2,
+            activation="relu",
+            kernel_initializer=tf.keras.initializers.HeNormal(),
+        )(x)
 
         outputs = layers.Dense(1, activation=None)(x)
 
@@ -832,14 +834,13 @@ class DDPG:
 
         return eager_model
 
-
     """
     `policy()` returns an action sampled from our Actor network plus some noise for
     exploration.
     """
 
     # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
-    def policy(self,state):
+    def policy(self, state):
 
         # We make sure action is within bounds
         # legal_action = np.clip(sampled_actions, action_lower, action_upper)
@@ -848,7 +849,6 @@ class DDPG:
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
-
     @tf.function
     def infer(self, state):
         # logger.info(f"Tracing", extra=dictLogger)
@@ -856,7 +856,6 @@ class DDPG:
         sampled_actions = tf.squeeze(self.actor_model(state))
         # Adding noise to action
         return sampled_actions
-
 
     def touch_gpu(self):
 

@@ -98,6 +98,7 @@ from eos.visualization import plot_3d_figure, plot_to_image
 warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+
 class RealtimeRDPG(object):
     def __init__(
         self,
@@ -134,7 +135,6 @@ class RealtimeRDPG(object):
             assert self.truck is not None, f"No Truck with VIN {self.vehicle}"
             self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
         else:
-            print(f"Input is not VIN. Try with truck name {self.vehicle}")
             # validate truck id
             # assert self.vehicle in self.trucks_by_name.keys()
             self.truck = self.trucks_by_name.get(self.vehicle)
@@ -178,8 +178,12 @@ class RealtimeRDPG(object):
         if self.cloud:
             # reset proxy (internal site force no proxy)
             self.init_cloud()
-            assert self.ui in ["cloud", "local", "mobile"], f"ui must be cloud, local or mobile, not {self.ui}"
-            if self.ui == "mobile" :
+            assert self.ui in [
+                "cloud",
+                "local",
+                "mobile",
+            ], f"ui must be cloud, local or mobile, not {self.ui}"
+            if self.ui == "mobile":
                 self.logger.info(f"Use phone UI", extra=self.dictLogger)
                 self.get_truck_status = self.remote_webhmi_state_machine
             elif self.ui == "local":
@@ -221,9 +225,15 @@ class RealtimeRDPG(object):
         self.can_server = can_servers_by_name.get(self.remotecan_srv)
         if self.can_server is None:
             self.can_server = can_servers_by_host.get(self.remotecan_srv.split(":")[0])
-            assert self.can_server is not None, f"No such remotecan host {self.remotecan_srv} found!"
-            assert self.remotecan_srv.split(":")[1] == self.can_server.Port, f"Port mismatch for remotecan host {self.remotecan_srv}!"
-        self.logger.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
+            assert (
+                self.can_server is not None
+            ), f"No such remotecan host {self.remotecan_srv} found!"
+            assert (
+                self.remotecan_srv.split(":")[1] == self.can_server.Port
+            ), f"Port mismatch for remotecan host {self.remotecan_srv}!"
+        self.logger.info(
+            f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger
+        )
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
@@ -234,9 +244,15 @@ class RealtimeRDPG(object):
             self.trip_server = trip_servers_by_name.get(self.web_srv)
             if self.trip_server is None:
                 self.trip_server = trip_servers_by_host.get(self.web_srv.split(":")[0])
-                assert self.trip_server is not None, f"No such trip server {self.web_srv} found!"
-                assert self.web_srv.split(":")[1] == self.trip_server.Port, f"Port mismatch for trip host {self.web_srv}!"
-            self.logger.info(f"Trip Server found: {self.trip_server}", extra=self.dictLogger)
+                assert (
+                    self.trip_server is not None
+                ), f"No such trip server {self.web_srv} found!"
+                assert (
+                    self.web_srv.split(":")[1] == self.trip_server.Port
+                ), f"Port mismatch for trip host {self.web_srv}!"
+            self.logger.info(
+                f"Trip Server found: {self.trip_server}", extra=self.dictLogger
+            )
 
             # Create RocketMQ consumer
             self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
@@ -266,7 +282,10 @@ class RealtimeRDPG(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-rdpg-" + self.truck.TruckName + datetime.now().isoformat().replace(":", "-") + ".log"
+            "eos-rt-rdpg-"
+            + self.truck.TruckName
+            + datetime.now().isoformat().replace(":", "-")
+            + ".log"
         )
         formatter = logging.basicConfig(
             format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
@@ -491,6 +510,7 @@ class RealtimeRDPG(object):
             cloud=self.cloud,
             db_server=self.mongo_srv,
         )
+
     # tracer.start()
 
     def init_threads_data(self):
@@ -500,6 +520,9 @@ class RealtimeRDPG(object):
         self.tableQ_lock = Lock()
         self.captureQ_lock = Lock()
         self.remoteClient_lock = Lock()
+        self.flash_env_lock = Lock()
+        self.get_env_lock = Lock()
+        self.done_env_lock = Lock()
 
         # tableQueue contains a table which is a list of type float
         self.tableQueue = queue.Queue()
@@ -553,7 +576,8 @@ class RealtimeRDPG(object):
 
             logger_countdown.info(f"wait for countdown", extra=self.dictLogger)
             evt_epi_done.wait()
-            evt_epi_done.clear()
+            with self.done_env_lock:
+                evt_epi_done.clear()
             # if episode is done, sleep for the extension time
             time.sleep(self.epi_countdown_time)
             # cancel wait as soon as waking up
@@ -573,8 +597,10 @@ class RealtimeRDPG(object):
                     self.motionpowerQueue.get()
 
             # unlock remote_get_handler
-            evt_remote_get.set()
-            evt_remote_flash.set()
+            with self.get_env_lock:
+                evt_remote_get.set()
+            with self.flash_env_lock:
+                evt_remote_flash.set()
             logger_countdown.info(
                 f"Episode done! free remote_flash and remote_get!",
                 extra=self.dictLogger,
@@ -660,7 +686,8 @@ class RealtimeRDPG(object):
                         )
 
                         # set flag for countdown thread
-                        evt_epi_done.set()
+                        with self.done_env_lock:
+                            evt_epi_done.set()
                         logger_kvaser_get.info(f"Episode end starts countdown!")
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
@@ -705,7 +732,8 @@ class RealtimeRDPG(object):
                             self.episode_end = True
                             self.program_exit = True
                             self.episode_count += 1
-                        evt_epi_done.set()
+                        with self.done_env_lock:
+                            evt_epi_done.set()
                         break
                         # time.sleep(0.1)
                 elif key == "data":
@@ -931,7 +959,8 @@ class RealtimeRDPG(object):
                     f"Episode ends and wait for evt_remote_get!",
                     extra=self.dictLogger,
                 )
-                evt_remote_get.clear()
+                with self.get_env_lock:
+                    evt_remote_get.clear()
                 # continue
 
             logger_remote_get.info(
@@ -949,7 +978,8 @@ class RealtimeRDPG(object):
                     f"Episode ends after evt_remote_get without get_signals!",
                     extra=self.dictLogger,
                 )
-                evt_remote_get.clear()
+                with self.get_env_lock:
+                    evt_remote_get.clear()
                 continue
 
             # if episode is done, sleep for the extension time
@@ -1039,7 +1069,8 @@ class RealtimeRDPG(object):
                             f"Episode ends, not waiting for evt_remote_flash and continue!",
                             extra=self.dictLogger,
                         )
-                        evt_remote_get.clear()
+                        with self.get_env_lock:
+                            evt_remote_get.clear()
                         continue
 
                     try:
@@ -1166,11 +1197,12 @@ class RealtimeRDPG(object):
                                 )
                                 # as long as one observation is received, always waiting for flash
                                 evt_remote_flash.wait()
+                                with self.flash_env_lock:
+                                    evt_remote_flash.clear()
                                 logger_remote_get.info(
                                     f"evt_remote_flash wakes up, reset inner lock, restart remote_get!!!",
                                     extra=self.dictLogger,
                                 )
-                                evt_remote_flash.clear()
                             else:
                                 # self.logger.info(
                                 #     f"show status: {key}:{value}",
@@ -1194,7 +1226,8 @@ class RealtimeRDPG(object):
                     extra=self.dictLogger,
                 )
 
-            evt_remote_get.clear()
+            with self.get_env_lock:
+                evt_remote_get.clear()
 
         logger_remote_get.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
 
@@ -1313,8 +1346,10 @@ class RealtimeRDPG(object):
                     )
                     th_exit = False
                     # ts_epi_start = time.time()
-                    evt_remote_get.clear()
-                    evt_remote_flash.clear()
+                    with self.get_env_lock:
+                        evt_remote_get.clear()
+                    with self.flash_env_lock:
+                        evt_remote_flash.clear()
                     logger_webhmi_sm.info(
                         f"Episode start! clear remote_flash and remote_get!",
                         extra=self.dictLogger,
@@ -1337,7 +1372,9 @@ class RealtimeRDPG(object):
                     )
 
                     # set flag for countdown thread
-                    evt_epi_done.set()
+                    with self.done_env_lock:
+                        evt_epi_done.set()
+
                     logger_webhmi_sm.info(f"Episode end starts countdown!")
                     with self.hmi_lock:
                         # self.episode_count += 1  # valid round increments self.epi_countdown = False
@@ -1364,8 +1401,10 @@ class RealtimeRDPG(object):
                     th_exit = False
 
                     # remote_get_handler exit
-                    evt_remote_get.set()
-                    evt_remote_flash.set()
+                    with self.get_env_lock:
+                        evt_remote_get.set()
+                    with self.flash_env_lock:
+                        evt_remote_flash.set()
                     logger_webhmi_sm.info(
                         f"end_invalid! free remote_flash and remote_get!",
                         extra=self.dictLogger,
@@ -1379,8 +1418,10 @@ class RealtimeRDPG(object):
                     self.get_truck_status_start = False
                     self.get_truck_status_motpow_t = []
 
-                    evt_remote_get.set()
-                    evt_remote_flash.set()
+                    with self.get_env_lock:
+                        evt_remote_get.set()
+                    with self.flash_env_lock:
+                        evt_remote_flash.set()
                     logger_webhmi_sm.info(
                         f"Program exit!!!! free remote_flash and remote_get!",
                         extra=self.dictLogger,
@@ -1398,7 +1439,8 @@ class RealtimeRDPG(object):
                         self.episode_end = True
                         self.program_exit = True
                         self.episode_count += 1
-                    evt_epi_done.set()
+                    with self.done_env_lock:
+                        evt_epi_done.set()
                     break
                     # time.sleep(0.1)
                 else:
@@ -1408,17 +1450,18 @@ class RealtimeRDPG(object):
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
             if self.get_truck_status_start:
-                evt_remote_get.set()
+                with self.get_env_lock:
+                    evt_remote_get.set()
 
         self.rmq_consumer.shutdown()
         self.rmq_producer.shutdown()
         logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
     def remote_cloudhmi_state_machine(
-            self,
-            evt_epi_done: threading.Event,
-            evt_remote_get: threading.Event,
-            evt_remote_flash: threading.Event,
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1435,13 +1478,13 @@ class RealtimeRDPG(object):
             extra=self.dictLogger,
         )
 
-
         with self.state_machine_lock:
             self.program_start = True
 
-
         logger_cloudhmi_sm.info(
-            "%s", "Road Test with inferring will start as one single episode!!!", extra=self.dictLogger
+            "%s",
+            "Road Test with inferring will start as one single episode!!!",
+            extra=self.dictLogger,
         )
         while not th_exit:  # th_exit is local; program_exit is global
 
@@ -1458,8 +1501,11 @@ class RealtimeRDPG(object):
                     self.get_truck_status_start = False
                     self.get_truck_status_motpow_t = []
 
-                    evt_remote_get.set()
-                    evt_remote_flash.set()
+                    with self.get_env_lock:
+                        evt_remote_get.set()
+                    with self.flash_env_lock:
+                        evt_remote_flash.set()
+
                     logger_cloudhmi_sm.info(
                         f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
                         extra=self.dictLogger,
@@ -1473,13 +1519,16 @@ class RealtimeRDPG(object):
                     self.episode_end = True
                     self.episode_count += 1
 
-                    evt_epi_done.set()
+                    with self.done_env_lock:
+                        evt_epi_done.set()
                     th_exit = True
                     continue
 
             # ts_epi_start = time.time()
-            evt_remote_get.clear()
-            evt_remote_flash.clear()
+            with self.get_env_lock:
+                evt_remote_get.clear()
+            with self.flash_env_lock:
+                evt_remote_flash.clear()
             # logger_cloudhmi_sm.info(
             #     f"Test start! clear remote_flash and remote_get!",
             #     extra=self.dictLogger,
@@ -1492,12 +1541,13 @@ class RealtimeRDPG(object):
                 self.episode_done = False
                 self.episode_end = False
 
-
-
             time.sleep(0.05)  # sleep for 50ms to update state machine
-            evt_remote_get.set()
+            with self.get_env_lock:
+                evt_remote_get.set()
 
-        logger_cloudhmi_sm.info(f"remote cloudhmi killed gracefully!!!", extra=self.dictLogger)
+        logger_cloudhmi_sm.info(
+            f"remote cloudhmi killed gracefully!!!", extra=self.dictLogger
+        )
 
     def remote_hmi_state_machine(
         self,
@@ -1555,8 +1605,10 @@ class RealtimeRDPG(object):
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
-                        evt_remote_get.clear()
-                        evt_remote_flash.clear()
+                        with self.get_env_lock:
+                            evt_remote_get.clear()
+                        with self.flash_env_lock:
+                            evt_remote_flash.clear()
                         logger_hmi_sm.info(
                             f"Episode start! clear remote_flash and remote_get!",
                             extra=self.dictLogger,
@@ -1578,7 +1630,8 @@ class RealtimeRDPG(object):
                         )
 
                         # set flag for countdown thread
-                        evt_epi_done.set()
+                        with self.done_env_lock:
+                            evt_epi_done.set()
                         logger_hmi_sm.info(f"Episode end starts countdown!")
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
@@ -1604,8 +1657,10 @@ class RealtimeRDPG(object):
                         th_exit = False
 
                         # remote_get_handler exit
-                        evt_remote_get.set()
-                        evt_remote_flash.set()
+                        with self.get_env_lock:
+                            evt_remote_get.set()
+                        with self.flash_env_lock:
+                            evt_remote_flash.set()
                         logger_hmi_sm.info(
                             f"end_invalid! free remote_flash and remote_get!",
                             extra=self.dictLogger,
@@ -1619,8 +1674,10 @@ class RealtimeRDPG(object):
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
 
-                        evt_remote_get.set()
-                        evt_remote_flash.set()
+                        with self.get_env_lock:
+                            evt_remote_get.set()
+                        with self.flash_env_lock:
+                            evt_remote_flash.set()
                         logger_hmi_sm.info(
                             f"Program exit!!!! free remote_flash and remote_get!",
                             extra=self.dictLogger,
@@ -1638,14 +1695,16 @@ class RealtimeRDPG(object):
                             self.episode_end = True
                             self.program_exit = True
                             self.episode_count += 1
-                        evt_epi_done.set()
+                        with self.done_env_lock:
+                            evt_epi_done.set()
                         break
                         # time.sleep(0.1)
                 elif key == "data":
                     #  instead of get kvasercan, we get remotecan data here!
                     if self.get_truck_status_start:  # starts episode
                         # set flag for remote_get thread
-                        evt_remote_get.set()
+                        with self.get_env_lock:
+                            evt_remote_get.set()
                         # self.logc.info(f"Kick off remoteget!!")
                 else:
                     logger_hmi_sm.warning(
@@ -1698,7 +1757,8 @@ class RealtimeRDPG(object):
                     episode_end = self.episode_end
 
                 if episode_end is True:
-                    evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
+                    with self.flash_env_lock:
+                        evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
                     logger_flash.info(
                         f"Episode ends, skipping remote_flash and continue!",
                         extra=self.dictLogger,
@@ -1795,9 +1855,13 @@ class RealtimeRDPG(object):
 
                     response = os.system("ping -c 1 " + self.can_server.Url)
                     if response == 0:
-                        logger_flash.info(f"{self.can_server.Url} is up!", extra=self.dictLogger)
+                        logger_flash.info(
+                            f"{self.can_server.Url} is up!", extra=self.dictLogger
+                        )
                     else:
-                        logger_flash.info(f"{self.can_server.Url} is down!", extra=self.dictLogger)
+                        logger_flash.info(
+                            f"{self.can_server.Url} is down!", extra=self.dictLogger
+                        )
                 else:
                     logger_flash.info(
                         f"flash done, count:{flash_count}", extra=self.dictLogger
@@ -1853,7 +1917,8 @@ class RealtimeRDPG(object):
                 #     flash_count += 1
 
                 # flash is done and unlock remote_get
-                evt_remote_flash.set()
+                with self.flash_env_lock:
+                    evt_remote_flash.set()
 
                 # watch(flash_count)
 
@@ -1892,7 +1957,6 @@ class RealtimeRDPG(object):
         )
         self.thr_observe.start()
 
-
         if self.cloud:
             self.thr_remoteget = Thread(
                 target=self.remote_get_handler,
@@ -1901,7 +1965,9 @@ class RealtimeRDPG(object):
             )
             self.thr_remoteget.start()
 
-        self.thr_flash = Thread(target=self.flash_vcu, name="flash", args=[evt_remote_flash])
+        self.thr_flash = Thread(
+            target=self.flash_vcu, name="flash", args=[evt_remote_flash]
+        )
         self.thr_flash.start()
 
         """
@@ -2132,7 +2198,7 @@ class RealtimeRDPG(object):
                     extra=self.dictLogger,
                 )
                 # send ready signal to trip server
-                if self.ui == 'mobile':
+                if self.ui == "mobile":
                     ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                     self.logc.info(
                         f"Sending ready signal to trip server:"
@@ -2179,7 +2245,9 @@ class RealtimeRDPG(object):
                     }
                     self.rdpg.add_to_db(self.episode)
                 else:
-                    self.logc.info(f"Episode done but history is empty or no observation received!")
+                    self.logc.info(
+                        f"Episode done but history is empty or no observation received!"
+                    )
                     continue
 
             else:
@@ -2260,7 +2328,7 @@ class RealtimeRDPG(object):
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
             # send ready signal to trip server
-            if self.ui == 'mobile':
+            if self.ui == "mobile":
                 ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                 self.logger.info(
                     f"Sending ready signal to trip server:"
@@ -2304,7 +2372,7 @@ if __name__ == "__main__":
         "-u",
         "--ui",
         type=str,
-        default='cloud',
+        default="cloud",
         help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
     parser.add_argument(
@@ -2320,7 +2388,7 @@ if __name__ == "__main__":
         "--infer",
         default=False,
         help="No model update and training. Only Inference",
-        action="store_true"
+        action="store_true",
     )
     parser.add_argument(
         "-t",

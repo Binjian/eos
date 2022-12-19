@@ -1,4 +1,9 @@
-from .db_config import db_servers_by_name, db_servers_by_host, episode_schemas, record_schemas
+from .db_config import (
+    db_servers_by_name,
+    db_servers_by_host,
+    episode_schemas,
+    record_schemas,
+)
 from .messenger_config import (
     can_servers_by_name,
     trip_servers_by_name,

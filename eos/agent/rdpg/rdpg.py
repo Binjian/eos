@@ -131,18 +131,18 @@ class RDPG:
         obs_len: int,
         seq_len: int,
         num_actions: int,
-        buffer_capacity: int=10000,
-        batch_size: int=4,
-        hidden_unitsAC: tuple=(256, 256),
-        n_layersAC: tuple=(2, 2),
-        padding_value: float=0.0,
-        gamma: float=0.99,
-        tauAC: tuple=(0.001, 0.001),
-        lrAC: tuple=(0.001, 0.002),
+        buffer_capacity: int = 10000,
+        batch_size: int = 4,
+        hidden_unitsAC: tuple = (256, 256),
+        n_layersAC: tuple = (2, 2),
+        padding_value: float = 0.0,
+        gamma: float = 0.99,
+        tauAC: tuple = (0.001, 0.001),
+        lrAC: tuple = (0.001, 0.002),
         datafolder="./",
         ckpt_interval="5",
-        cloud: bool=False,
-        db_server: str="mongo_local",
+        cloud: bool = False,
+        db_server: str = "mongo_local",
         infer: bool = False,
     ):
         """Initialize the RDPG agent.
@@ -184,26 +184,27 @@ class RDPG:
             if self.db is None:
                 account_server = [s.split(":") for s in self.db_server.split("@")]
                 flat_account_server = [s for l in account_server for s in l]
-                assert (len(account_server) ==1 \
-                       and len(flat_account_server) == 2) \
-                       or (len(account_server)==2 \
-                       and len(flat_account_server)==4), \
-                    f"Wrong format for db server {self.db_server}!"
+                assert (len(account_server) == 1 and len(flat_account_server) == 2) or (
+                    len(account_server) == 2 and len(flat_account_server) == 4
+                ), f"Wrong format for db server {self.db_server}!"
                 if len(account_server) == 1:
                     self.db = db_servers_by_host.get(flat_account_server[0])
-                    assert self.db is not None \
-                           and self.db.Port == flat_account_server[1], \
-                        f"Config mismatch for db server {self.db_server}!"
+                    assert (
+                        self.db is not None and self.db.Port == flat_account_server[1]
+                    ), f"Config mismatch for db server {self.db_server}!"
 
                 else:
                     self.db = db_servers_by_host.get(flat_account_server[2])
-                    assert self.db is not None \
-                           and self.db.Port == flat_account_server[3] \
-                           and self.db.Username==flat_account_server[0] \
-                           and self.db.Password==flat_account_server[1], \
-                        f"Config mismatch for db server {self.db_server}!"
+                    assert (
+                        self.db is not None
+                        and self.db.Port == flat_account_server[3]
+                        and self.db.Username == flat_account_server[0]
+                        and self.db.Password == flat_account_server[1]
+                    ), f"Config mismatch for db server {self.db_server}!"
 
-            self.logger.info(f"Using db server {self.db_server} for episode replay buffer...")
+            self.logger.info(
+                f"Using db server {self.db_server} for episode replay buffer..."
+            )
             self.db_schema = episode_schemas["episode_deep"]
             self.pool = Pool(
                 url="mongodb://" + self.db.Host + ":" + self.db.Port,
@@ -283,13 +284,13 @@ class RDPG:
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
         self.touch_gpu()
+
     def __del__(self):
         if self.cloud:
             # for database, exit needs drop interface.
             self.pool.drop_mongo()
         else:
             self.save_replay_buffer()
-
 
     def touch_gpu(self):
 
