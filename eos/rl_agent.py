@@ -103,7 +103,7 @@ class RL_Agent(object):
         cloud: bool = True,
         ui: str = "cloud",
         resume: bool = True,
-        infer: bool = False,
+        infer_mode: bool = False,
         record: bool = True,
         path: str = ".",
         vehicle: str = "HMZABAAH7MF011058",  # "VB7",
@@ -112,7 +112,7 @@ class RL_Agent(object):
         web_srv: str = "rocket_intra",
         mongo_srv: str = "mongo_local",
         proj_root: Path = Path("."),
-        vlogger: logging.Logger() = None,
+        vlogger: logging.Logger = None,
     ):
         self.agent = agent
         assert self.agent in [
@@ -149,7 +149,7 @@ class RL_Agent(object):
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.resume = resume
-        self.infer = infer
+        self.infer_mode = infer_mode
         self.record = record
         self.path = path
 
@@ -455,15 +455,11 @@ class RL_Agent(object):
                 1.0 / self.truck.KvaserObservationFrequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
-        self.state_len = self.observation_len * self.num_observations
-        self.num_inputs = (
-            self.num_observations * self.observation_len
-        )  # 60 subsequent observations
-        self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
+        self.num_states = self.observation_len * self.num_observations # 60 subsequent observations
         self.vcu_calib_table_row_reduced = (
             self.truck.ActionFlashRow
         )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
+        self.num_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
         # hyperparameters for DRL
@@ -504,10 +500,8 @@ class RL_Agent(object):
             self.ddpg = DDPG(
                 self.truck,
                 self.driver,
-                self.num_observations,
-                self.observation_len,
-                self.seq_len,
-                self.num_reduced_actions,
+                self.num_states,
+                self.num_actions,
                 buffer_capacity=self.buffer_capacity,
                 batch_size=self.batch_size,
                 hidden_unitsAC=self.hidden_unitsAC,
@@ -521,6 +515,7 @@ class RL_Agent(object):
                 ckpt_interval=self.ckpt_interval,
                 cloud=self.cloud,
                 db_server=self.mongo_srv,
+                infer_mode=self.infer_mode,
             )
         else:
             self.rdpg = RDPG(
@@ -542,6 +537,7 @@ class RL_Agent(object):
                 ckpt_interval=self.ckpt_interval,
                 cloud=self.cloud,
                 db_server=self.mongo_srv,
+                infer_mode=self.infer_mode,
             )
 
     # tracer.start()
@@ -1549,7 +1545,6 @@ class RL_Agent(object):
                         evt_remote_get.set()
                     with self.flash_env_lock:
                         evt_remote_flash.set()
-
                     logger_cloudhmi_sm.info(
                         f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
                         extra=self.dictLogger,
@@ -2178,7 +2173,7 @@ class RL_Agent(object):
 
             critic_loss = 0
             actor_loss = 0
-            if self.infer:
+            if self.infer_mode:
                 if self.agent == "ddpg":
                     (critic_loss, actor_loss) = self.ddpg.buffer.nolearn()
                 else:  # self.agent == "rdpg"
@@ -2326,7 +2321,7 @@ if __name__ == "__main__":
         "-i",
         "--infer",
         default=False,
-        help="No model update and training. Only Inference",
+        help="No model update and training. Only Inference mode",
         action="store_true",
     )
     parser.add_argument(

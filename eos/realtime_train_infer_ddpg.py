@@ -102,7 +102,7 @@ class RealtimeDDPG(object):
         cloud=True,
         ui="cloud",
         resume=True,
-        infer=False,
+        infer_mode=False,
         record=True,
         path=".",
         vehicle="HMZABAAH7MF011058",  # "VB7",
@@ -143,7 +143,7 @@ class RealtimeDDPG(object):
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.resume = resume
-        self.infer = infer
+        self.infer_mode = infer_mode
         self.record = record
         self.path = path
 
@@ -160,13 +160,13 @@ class RealtimeDDPG(object):
             ).joinpath(self.path)
 
         self.set_logger()
-        self.logger.info(f"Start Logging", extra=self.dictLogger)
-        self.logger.info(
+        self.logc.info(f"Start Logging", extra=self.dictLogger)
+        self.logc.info(
             f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
-        self.logger.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
-        self.logger.info(f"driver: {self.driver}", extra=self.dictLogger)
+        self.logc.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
+        self.logc.info(f"driver: {self.driver}", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -212,9 +212,9 @@ class RealtimeDDPG(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
-        self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"Thread data Initialization done!", extra=self.dictLogger)
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
@@ -227,9 +227,7 @@ class RealtimeDDPG(object):
             assert (
                 self.remotecan_srv.split(":")[1] == self.can_server.Port
             ), f"Port mismatch for remotecan host {self.remotecan_srv}!"
-        self.logger.info(
-            f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger
-        )
+        self.logc.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
@@ -509,6 +507,7 @@ class RealtimeDDPG(object):
             ckpt_interval=self.ckpt_interval,
             cloud=self.cloud,
             db_server=self.mongo_srv,
+            infer=self.infer,
         )
 
     # tracer.start()
@@ -2135,7 +2134,7 @@ class RealtimeDDPG(object):
 
             critic_loss = 0
             actor_loss = 0
-            if self.infer:
+            if self.infer_mode:
                 (critic_loss, actor_loss) = self.ddpg.buffer.nolearn()
                 self.logc.info("No Learning, just calculating loss")
             else:

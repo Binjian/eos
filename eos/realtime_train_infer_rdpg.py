@@ -106,7 +106,7 @@ class RealtimeRDPG(object):
         cloud=True,
         ui="cloud",
         resume=True,
-        infer=False,
+        infer_mode=False,
         record=True,
         path=".",
         vehicle="HMZABAAH7MF011058",  # "VB7",
@@ -147,7 +147,7 @@ class RealtimeRDPG(object):
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
         self.resume = resume
-        self.infer = infer
+        self.infer_mode = infer_mode
         self.record = record
         self.path = path
 
@@ -509,6 +509,7 @@ class RealtimeRDPG(object):
             ckpt_interval=self.ckpt_interval,
             cloud=self.cloud,
             db_server=self.mongo_srv,
+            infer_mode=self.infer_mode,
         )
 
     # tracer.start()
@@ -2134,7 +2135,7 @@ class RealtimeRDPG(object):
 
             critic_loss = 0
             actor_loss = 0
-            if self.infer:
+            if self.infer_mode:
                 # FIXME bugs in maximal sequence length for ungraceful testing
                 # (actor_loss, critic_loss) = self.rdpg.notrain()
                 self.logc.info("No Learning, just calculating loss")

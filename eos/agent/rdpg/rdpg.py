@@ -142,7 +142,7 @@ class RDPG:
         ckpt_interval="5",
         cloud: bool = False,
         db_server: str = "mongo_local",
-        infer: bool = False,
+        infer_mode: bool = False,
     ):
         """Initialize the RDPG agent.
 
@@ -168,7 +168,7 @@ class RDPG:
         self.cloud = cloud
         self._datafolder = datafolder
         self.db_server = db_server
-        self._inference = infer
+        self._infer_mode = infer_mode
         # new data
         if self.cloud == False:
             # Instead of list of tuples as the exp.replay concept go
@@ -312,7 +312,7 @@ class RDPG:
 
         # warm up the GPU training Graph execution pipeline
         if self.buffer_counter != 0:
-            if not self.inference:
+            if not self.infer_mode:
                 self.logger.info(
                     f"rdpg warm up training!",
                     extra=self.dictLogger,
@@ -1046,9 +1046,9 @@ class RDPG:
         raise AttributeError("gamma is read-only")
 
     @property
-    def inference(self):
-        return self._inference
+    def infer_mode(self):
+        return self._infer_mode
 
-    @inference.setter
-    def inference(self, value):
-        raise AttributeError("inference is read-only")
+    @infer_mode.setter
+    def infer_mode(self, value):
+        raise AttributeError("infer_mode is read-only")

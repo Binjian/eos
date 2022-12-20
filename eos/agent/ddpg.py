@@ -128,18 +128,11 @@ class Buffer:
         target_critic,
         actor_optimizer,
         critic_optimizer,
-        num_observations,
-        sequence_len,
+        num_states,
         num_actions,
         buffer_capacity=10000,
         batch_size=4,
         gamma=0.99,
-        load_buffer=False,
-        file_sb=None,
-        file_ab=None,
-        file_rb=None,
-        file_nsb=None,
-        file_bc=None,
         datafolder="./",
         cloud=False,
         db_server="mongo_local",
@@ -155,8 +148,7 @@ class Buffer:
         # We use different np.arrays for each tuple element
         self.truck = truck
         self.driver = driver
-        self.num_observations = num_observations
-        self.sequence_len = sequence_len
+        self.num_states = num_states
         self.num_actions = num_actions
         self.data_folder = datafolder
         self.cloud = cloud
@@ -200,7 +192,7 @@ class Buffer:
                 vehicle_id=self.truck.TruckName, driver_id=self.driver
             )
             self.logger.info(
-                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.RecCollName}",
+                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.RecCollName}, record number {self.buffer_counter}",
                 extra=dictLogger,
             )
         else:
@@ -284,12 +276,12 @@ class Buffer:
             print(f"loaded default buffer counter: {self.buffer_counter}")
         except IOError:
             self.state_buffer = np.zeros(
-                (self.buffer_capacity, self.sequence_len, self.num_observations)
+                (self.buffer_capacity, self.num_states)
             )
             self.action_buffer = np.zeros((self.buffer_capacity, self.num_actions))
             self.reward_buffer = np.zeros((self.buffer_capacity, 1))
             self.next_state_buffer = np.zeros(
-                (self.buffer_capacity, self.sequence_len, self.num_observations)
+                (self.buffer_capacity, self.num_states)
             )
             self.buffer_counter = 0
             print("blank experience")
@@ -511,9 +503,7 @@ class DDPG:
         self,
         truck: Truck,
         driver: str,
-        num_observations: int,
-        obs_len: int,
-        seq_len: int,
+        num_states: int,
         num_actions: int,
         buffer_capacity: int = 10000,
         batch_size: int = 4,
@@ -529,6 +519,7 @@ class DDPG:
         cloud: bool = False,
         db_server: str = "mongo_local",
         resume: bool = True,
+        infer_mode: bool = False,
     ):
 
         self.logger = logger.getChild("main").getChild("ddpg")
@@ -536,9 +527,7 @@ class DDPG:
 
         self._truck = truck
         self._driver = driver
-        self._num_observations = num_observations
-        self._obs_len = obs_len
-        self._seq_len = seq_len
+        self._num_states = num_states
         self._num_actions = num_actions  # reduced action 5 * 17
         self._buffer_capacity = buffer_capacity
         self._batch_size = batch_size
@@ -554,21 +543,20 @@ class DDPG:
         self._cloud = cloud
         self._db_server = db_server
         self._resume = resume
+        self._infer_mode = infer_mode
 
         # Initialize networks
         self.actor_model = self.get_actor(
-            self.num_observations,
             self.num_actions,
-            self.obs_len,
+            self.num_states,
             self.hidden_unitsAC[0],
             self.n_layersAC[0],
             self.action_bias,
         )
 
         self.critic_model = self.get_critic(
-            self.num_observations,
+            self.num_states,
             self.num_actions,
-            self.obs_len,
             self.hidden_unitsAC[1],
             self.hidden_unitsAC[2],
             self.hidden_unitsAC[0],
@@ -577,18 +565,16 @@ class DDPG:
 
         # Initialize networks
         self.target_actor = self.get_actor(
-            self.num_observations,
             self.num_actions,
-            self.obs_len,
+            self.num_states,
             self.hidden_unitsAC[0],
             self.n_layersAC[0],
             self.action_bias,
         )
 
         self.target_critic = self.get_critic(
-            self.num_observations,
+            self.num_states,
             self.num_actions,
-            self.obs_len,
             self.hidden_unitsAC[1],
             self.hidden_unitsAC[2],
             self.hidden_unitsAC[0],
@@ -607,8 +593,7 @@ class DDPG:
             self.target_critic,
             self.actor_optimizer,
             self.critic_optimizer,
-            self.num_observations,
-            self.obs_len,
+            self.num_states,
             self.num_actions,
             buffer_capacity=self.buffer_capacity,
             batch_size=self.batch_size,
@@ -745,9 +730,8 @@ class DDPG:
     # actions = tf.math.multiply(actions, vcu_calib_table0)
     def get_actor(
         self,
-        num_observations: int,
         num_actions: int,
-        sequence_len: int,
+        num_states: int,
         num_hidden: int = 256,
         num_layers: int = 2,
         action_bias: float = 0,
@@ -755,8 +739,10 @@ class DDPG:
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
-        inputs = layers.Input(shape=(sequence_len, num_observations))
-        x = layers.Flatten()(inputs)
+        inputs = layers.Input(shape=(num_states,))
+        # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
+        x = layers.Rescaling(inputs, 1.0)
+
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
             x = layers.Dense(
@@ -790,23 +776,21 @@ class DDPG:
 
     def get_critic(
         self,
-        dim_observations: int,
-        dim_actions: int,
-        sequence_len: int,
+        num_states: int,
+        num_actions: int,
         num_hidden0: int = 16,
         num_hidden1: int = 32,
         num_hidden2: int = 256,
         num_layers: int = 2,
     ):
         # State as input
-        state_input = layers.Input(shape=(sequence_len, dim_observations))
-        state_flattened = layers.Flatten()(state_input)
-        state_out = layers.Dense(num_hidden0, activation="relu")(state_flattened)
+        state_input = layers.Input(shape=(num_states,))
+        state_out = layers.Dense(num_hidden0, activation="relu")(state_input)
         state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
 
         # Action as input
         action_input = layers.Input(
-            shape=(dim_actions,)
+            shape=(num_actions,)
         )  # action is defined as flattened.
         action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
 
@@ -913,11 +897,7 @@ class DDPG:
 
         # tf.summary.trace_on(graph=True, profiler=True)
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
-        init_motionpower = np.random.rand(self.obs_len, self.num_observations)
-        init_states = tf.convert_to_tensor(
-            init_motionpower
-        )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        init_states = tf.expand_dims(init_states, 0)  # motion states is 30*2 matrix
+        init_states = tf.random.normal(self.num_states)  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
 
         action0 = self.policy(init_states)
         self.logger.info(
@@ -970,28 +950,12 @@ class DDPG:
         raise AttributeError("driver is read-only")
 
     @property
-    def num_observations(self):
-        return self._num_observations
+    def num_states(self):
+        return self._num_states
 
-    @num_observations.setter
-    def num_observations(self, num_observations):
-        raise AttributeError("num_observations is read-only")
-
-    @property
-    def obs_len(self):
-        return self._obs_len
-
-    @obs_len.setter
-    def obs_len(self, obs_len):
-        raise AttributeError("obs_len is read-only")
-
-    @property
-    def seq_len(self):
-        return self._seq_len
-
-    @seq_len.setter
-    def seq_len(self, seq_len):
-        raise AttributeError("seq_len is read-only")
+    @num_states.setter
+    def num_states(self, num_states):
+        raise AttributeError("num_states is read-only")
 
     @property
     def num_actions(self):
@@ -1113,6 +1077,13 @@ class DDPG:
     def resume(self, resume):
         raise AttributeError("resume is read-only")
 
+    @property
+    def infer_mode(self):
+        return self._infer_mode
+
+    @infer_mode.setter
+    def infer_mode(self, infer_mode):
+        raise AttributeError("infer_mode is read-only")
 
 """
 ## Training hyperparameters
