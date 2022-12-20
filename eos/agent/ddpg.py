@@ -86,7 +86,7 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 from eos import Pool, dictLogger, logger
-from eos.config import db_servers_by_name, db_servers_by_host, record_schemas
+from eos.config import db_servers_by_name, db_servers_by_host, record_schemas, Truck
 from .utils import OUActionNoise
 
 """
@@ -509,7 +509,7 @@ class Buffer:
 class DDPG:
     def __init__(
         self,
-        truck: str,
+        truck: Truck,
         driver: str,
         num_observations: int,
         obs_len: int,
@@ -834,6 +834,10 @@ class DDPG:
 
         return eager_model
 
+    def start_episode(self, dt: datetime):
+        self.logger.info(f"Episode start at {dt}", extra=dictLogger)
+        self.episode_start_dt = dt
+
     """
     `policy()` returns an action sampled from our Actor network plus some noise for
     exploration.
@@ -845,7 +849,8 @@ class DDPG:
         # We make sure action is within bounds
         # legal_action = np.clip(sampled_actions, action_lower, action_upper)
 
-        sampled_actions = self.infer(state)
+        states = tf.expand_dims(state, 0)  # motion states is 30*3 matrix
+        sampled_actions = self.infer(states)
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
@@ -856,6 +861,53 @@ class DDPG:
         sampled_actions = tf.squeeze(self.actor_model(state))
         # Adding noise to action
         return sampled_actions
+
+    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
+        if self.cloud:
+            rec = {
+                "timestamp": datetime.fromtimestamp(
+                    prev_ts.numpy()[0] / 1000.0
+                ),  # from ms to s
+                "plot": {
+                    "character": self.truck.TruckName,
+                    "driver": self.driver,
+                    "when": self.episode_start_dt,
+                    "where": "campus",
+                    "states": {
+                        "velocity_unit": "kmph",
+                        "thrust_unit": "percentage",
+                        "brake_unit": "percentage",
+                        "length": o_t.shape[0],
+                    },
+                    "actions": {
+                        "action_row_number": self.truck.ActionFlashRow,
+                        "action_column_number": self.truck.PedalScale,
+                    },
+                    "reward": {
+                        "reward_unit": "wh",
+                    },
+                },
+                "observation": {
+                    "state": prev_o_t.numpy().tolist(),
+                    "action": prev_a_t.numpy().tolist(),
+                    "action_start_row": prev_table_start,
+                    "reward": cycle_reward.numpy().tolist(),
+                    "next_state": o_t.numpy().tolist(),
+                },
+            }
+            self.buffer.deposit(rec)
+        else:
+            self.buffer.record(
+                (
+                    prev_o_t,
+                    prev_a_t,
+                    cycle_reward,
+                    o_t,
+                )
+            )
+
+    def end_episode(self):
+        self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
 
     def touch_gpu(self):
 

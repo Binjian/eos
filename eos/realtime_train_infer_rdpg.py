@@ -69,6 +69,7 @@ from eos.config import (
     PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
+    Truck,
     can_servers_by_host,
     can_servers_by_name,
     trip_servers_by_name,
@@ -215,10 +216,9 @@ class RealtimeRDPG(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.touch_gpu()
-        self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
-        self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"Thread data Initialization done!", extra=self.dictLogger)
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
@@ -231,9 +231,7 @@ class RealtimeRDPG(object):
             assert (
                 self.remotecan_srv.split(":")[1] == self.can_server.Port
             ), f"Port mismatch for remotecan host {self.remotecan_srv}!"
-        self.logger.info(
-            f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger
-        )
+        self.logc.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
@@ -457,7 +455,9 @@ class RealtimeRDPG(object):
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
-        self.vcu_calib_table_row_reduced = 4  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
+        self.vcu_calib_table_row_reduced = (
+            self.truck.ActionFlashRow
+        )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
         self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
@@ -1868,54 +1868,6 @@ class RealtimeRDPG(object):
                     )
                     flash_count += 1
 
-                # if returncode != 0:
-                #     logger_flash.error(
-                #         f"send_torque_map failed and retry: {returncode}, ret_str: {ret_str}",
-                #         extra=self.dictLogger,
-                #     )
-                #     # ping test
-                #     try:
-                #         response_ping = subprocess.check_output(
-                #             "ping -c 1 " + self.can_server.Host, shell=True
-                #         )
-                #     except subprocess.CalledProcessError as e:
-                #         logger_flash.info(
-                #             f"{self.can_server.Host} is down, responds: {response_ping}"
-                #             f"return code: {e.returncode}, output: {e.output}!",
-                #             extra=self.dictLogger,
-                #         )
-                #     logger_flash.info(
-                #         f"{self.can_server.Host} is up, responds: {response_ping}!",
-                #         extra=self.dictLogger,
-                #     )
-                #
-                #     # telnet test
-                #     try:
-                #         response_telnet = subprocess.check_output(
-                #             f"timeout 1 telnet {self.can_server.Host} {self.can_server.Port}",
-                #             shell=True,
-                #         )
-                #         logger_flash.info(
-                #             f"Telnet {self.can_server.Host} responds: {response_telnet}!",
-                #             extra=self.dictLogger,
-                #         )
-                #     except subprocess.CalledProcessError as e:
-                #         logger_flash.info(
-                #             f"telnet {self.can_server.Host} return code: {e.returncode}, output: {e.output}!",
-                #             extra=self.dictLogger,
-                #         )
-                #     except subprocess.TimeoutExpired as e:
-                #         logger_flash.info(
-                #             f"telnet {self.can_server.Host} timeout"
-                #             f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
-                #             extra=self.dictLogger,
-                #         )
-                # else:
-                #     logger_flash.info(
-                #         f"flash done, count:{flash_count}", extra=self.dictLogger
-                #     )
-                #     flash_count += 1
-
                 # flash is done and unlock remote_get
                 with self.flash_env_lock:
                     evt_remote_flash.set()
@@ -2066,7 +2018,6 @@ class RealtimeRDPG(object):
                     )  # env.step(action) action is flash the vcu calibration table
                     # watch(step_count)
                     # reward history
-                    # with tf.device('/GPU:0'):
                     motpow_t = tf.convert_to_tensor(
                         motionpower
                     )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
@@ -2087,7 +2038,9 @@ class RealtimeRDPG(object):
                     ui_sum = tf.reduce_sum(
                         tf.reduce_prod(pow_t, 1)
                     )  # vcu reward is a scalar
-                    wh = ui_sum / 3600.0 * 0.05  # negative wh
+                    wh = (
+                        ui_sum / 3600.0 * self.sample_rate
+                    )  # rate 0.05 for kvaser, 0.02 remote # negative wh
                     # self.logger.info(
                     #     f"ui_sum: {ui_sum}",
                     #     extra=self.dictLogger,
@@ -2098,7 +2051,7 @@ class RealtimeRDPG(object):
                     )
 
                     # motion states o_t is 30*3/50*3 matrix
-                    a_t = self.rdpg.actor_predict(o_t, int(step_count / 2))
+                    a_t = self.rdpg.actor_predict(o_t, int(step_count / 1))
                     # self.logc.info(
                     #     f"E{epi_cnt} step{int(step_count/2)},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
                     #     extra=self.dictLogger,
@@ -2124,47 +2077,10 @@ class RealtimeRDPG(object):
                     episode_reward += cycle_reward
 
                     if step_count > 0:
-                        if self.cloud == True:  # cloud need dict and list
-                            if step_count == 1:  # first even step has $r_0$
-                                self.h_t = [
-                                    {
-                                        "states": prev_o_t.numpy().tolist(),
-                                        "actions": prev_a_t.numpy().tolist(),
-                                        "action_start_row": prev_table_start,
-                                        "reward": cycle_reward.numpy().tolist(),
-                                    }
-                                ]
-                            else:
-                                self.h_t.append(
-                                    {
-                                        "states": prev_o_t.numpy().tolist(),
-                                        "actions": prev_a_t.numpy().tolist(),
-                                        "action_start_row": prev_table_start,
-                                        "reward": cycle_reward.numpy().tolist(),
-                                    }
-                                )
+                        self.rdpg.deposit(
+                            prev_o_t, prev_a_t, prev_table_start, cycle_reward
+                        )
 
-                            self.logc.info(
-                                f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
-                                extra=self.dictLogger,
-                            )
-                        else:  # local buffer needs array
-                            if step_count == 1:  # first even step has $r_0$
-                                self.h_t = [
-                                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
-                                ]
-                            else:
-                                self.h_t.append(
-                                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
-                                )
-
-                            self.logc.info(
-                                f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, cycle_reward: {cycle_reward.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
-                                extra=self.dictLogger,
-                            )
-                    else:
-                        timestamp0 = datetime.fromtimestamp(ts[0].numpy() / 1000.0)
-                        observation_length = o_t0.shape[0]
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causal rl, the odd indexed observation/reward are caused by last action
@@ -2209,6 +2125,8 @@ class RealtimeRDPG(object):
                     )
                 continue  # otherwise assuming the history is valid and back propagate
 
+            self.rdpg.end_episode()  # deposit history
+
             self.logc.info(
                 f"E{epi_cnt} Experience Collection ends!",
                 extra=self.dictLogger,
@@ -2216,42 +2134,6 @@ class RealtimeRDPG(object):
 
             critic_loss = 0
             actor_loss = 0
-            # add episode history to agent replay buffer
-            if self.cloud:
-                if self.h_t != []:
-                    self.episode = {
-                        "timestamp": timestamp0,
-                        "plot": {
-                            "character": self.truck.TruckName,
-                            "driver": self.driver,
-                            "when": timestamp0,
-                            "where": "campus",
-                            "length": len(self.h_t),
-                            "states": {
-                                "velocity_unit": "kmph",
-                                "thrust_unit": "percentage",
-                                "brake_unit": "percentage",
-                                "length": self.observation_len,
-                            },
-                            "actions": {
-                                "action_row_number": self.vcu_calib_table_row_reduced,
-                                "action_column_number": self.vcu_calib_table_col,
-                            },
-                            "reward": {
-                                "reward_unit": "wh",
-                            },
-                        },
-                        "history": self.h_t,
-                    }
-                    self.rdpg.add_to_db(self.episode)
-                else:
-                    self.logc.info(
-                        f"Episode done but history is empty or no observation received!"
-                    )
-                    continue
-
-            else:
-                self.rdpg.add_to_replay(self.h_t)
 
             if self.infer:
                 # FIXME bugs in maximal sequence length for ungraceful testing

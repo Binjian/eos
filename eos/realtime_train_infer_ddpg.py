@@ -65,6 +65,7 @@ from eos.config import (
     PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
+    Truck,
     can_servers_by_host,
     can_servers_by_name,
     trip_servers_by_name,
@@ -453,7 +454,7 @@ class RealtimeDDPG(object):
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
-        self.vcu_calib_table_row_reduced = 4  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
+        self.vcu_calib_table_row_reduced = self.truck.ActionFlashRow  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
         self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
@@ -2098,10 +2099,6 @@ class RealtimeDDPG(object):
 
                     # !!!no parallel even!!!
 
-                    motion_states0 = tf.expand_dims(
-                        motion_states, 0
-                    )  # motion states is 30*3 matrix
-
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causal rl, the odd indexed observation/reward are caused by last action
@@ -2110,7 +2107,7 @@ class RealtimeDDPG(object):
                         f"E{epi_cnt} before inference!",
                         extra=self.dictLogger,
                     )
-                    vcu_action_reduced = self.ddpg.policy(motion_states0)
+                    vcu_action_reduced = self.ddpg.policy(motion_states)
 
                     self.logc.info(
                         f"E{epi_cnt} inference done with reduced action space!",

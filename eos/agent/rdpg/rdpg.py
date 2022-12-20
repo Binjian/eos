@@ -115,7 +115,7 @@ patch_all()
 
 # local imports
 from eos import Pool, dictLogger, logger
-from eos.config import db_servers_by_name, db_servers_by_host, episode_schemas
+from eos.config import db_servers_by_name, db_servers_by_host, episode_schemas, Truck
 from eos.utils.exception import ReadOnlyError
 
 from .actor import ActorNet
@@ -125,7 +125,7 @@ from .critic import CriticNet
 class RDPG:
     def __init__(
         self,
-        truck: str,
+        truck: Truck,
         driver: str,
         num_observations: int,
         obs_len: int,
@@ -401,6 +401,93 @@ class RDPG:
     def reset_noise(self):
         """reset noise of the moving actor network"""
         self.actor_net.reset_noise()
+
+    def start_episode(self, dt:datetime):
+        self.logger.info(f"Episode start at {dt}", extra=dictLogger)
+        self.episode_start_dt = dt
+        self.h_t = []
+
+    def deposit(self, prev_o_t, prev_a_t, prev_table_start, cycle_reward):
+        """Deposit the experience into the replay buffer."""
+        if self.cloud:
+            if not self.h_t: # first even step has $r_0$  
+                self.h_t = [
+                    {
+                        "states": prev_o_t.numpy().tolist(),
+                        "actions": prev_a_t.numpy().tolist(),
+                        "action_start_row": prev_table_start,
+                        "reward": cycle_reward.numpy().tolist(),
+                    }
+                ]
+            else:
+                self.h_t.append(
+                    {
+                        "states": prev_o_t.numpy().tolist(),
+                        "actions": prev_a_t.numpy().tolist(),
+                        "action_start_row": prev_table_start,
+                        "reward": cycle_reward.numpy().tolist(),
+                    }
+                )
+
+            self.logger.info(
+                f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
+                extra=self.dictLogger,
+            )
+        else: # local buffer needs array
+            if not self.h_t:  # first even step has $r_0$
+                self.h_t = [
+                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
+                ]
+            else:
+                self.h_t.append(
+                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
+                )
+
+            self.logger.info(
+                f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, cycle_reward: {cycle_reward.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
+                extra=dictLogger,
+            )
+    def end_episode(self):
+        """Deposit the experience into the replay buffer."""
+        self.deposit_history()
+        self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
+    def deposit_history(self):
+        """Deposit the episode history into the agent replay buffer."""
+        if self.cloud:
+            if self.h_t:
+                self.episode = {
+                    "timestamp": self.episode_start_dt,
+                    "plot": {
+                        "character": self.truck.TruckName,
+                        "driver": self.driver,
+                        "when": self.episode_start_dt,
+                        "where": "campus",
+                        "length": len(self.h_t),
+                        "states": {
+                            "velocity_unit": "kmph",
+                            "thrust_unit": "percentage",
+                            "brake_unit": "percentage",
+                            "length": self.obs_len,
+                        },
+                        "actions": {
+                            "action_row_number": self.truck.ActionFlashRow,
+                            "action_column_number": self.truck.PedalScale,
+                        },
+                        "reward": {
+                            "reward_unit": "wh",
+                        },
+                    },
+                    "history": self.h_t,
+                }
+                self.add_to_db(self.episode)
+                self.logger.info(f"Add Episode history to db replay buffer!", extra=dictLogger)
+            else:
+                self.logger.info(f"Episode done but history is empty or no observation received!", extra=dictLogger)
+
+        else:
+            self.add_to_replay(self.h_t)
+            self.logger.info(f"Add Episode history to npy replay buffer!", extra=dictLogger)
+
 
     def add_to_db(self, episode):
         """add an episode to database

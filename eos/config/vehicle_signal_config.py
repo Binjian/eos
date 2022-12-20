@@ -1,4 +1,5 @@
 from collections import namedtuple
+from zoneinfo import ZoneInfo
 
 PEDAL_SCALES = [
     0,
@@ -83,6 +84,17 @@ TRIANGLE_TEST_CASE_TARGET_VELOCITIES = [
     0,
 ]  # triangle test case in km/h
 
+timezones = {
+    "la": ZoneInfo("America/Los_Angeles"),
+    "ny": ZoneInfo("America/New_York"),
+    "sh": ZoneInfo("Asia/Shanghai"),
+    "bl": ZoneInfo("Europe/Berlin"),
+    "LD": ZoneInfo("Europe/London"),
+    "sy": ZoneInfo("Australia/Sydney"),
+    "jp": ZoneInfo("Asia/Tokyo"),
+    "hk": ZoneInfo("Asia/Hong_Kong"),
+}
+
 Truck = namedtuple(
     "Truck",
     [
@@ -90,6 +102,7 @@ Truck = namedtuple(
         "VIN",  # Vehicle Identification Number
         "Plate",  # License plate number
         "Maturity",  # "VB", "MULE", "MP"
+        "tz", # Timezone
         "CloudSignalFrequency",  # Hz
         "CloudGearFrequency",  # Hz
         "CloudUnitDuration",  # cloud unit duration in seconds
@@ -108,6 +121,7 @@ Truck = namedtuple(
         "ActionLowerBound",  # minimal percentage of delta torque to be overlapped on the torque map: 0.8
         "ActionUpperBound",  # maximal percentage of delta torque to be overlapped on the torque map: 1.0
         "ActionBias",  # bias of delta torque to be overlapped on the torque map: 0.0
+        "ActionFlashRow",  # number of rows to be flashed in the torque map: 4
     ],
 )
 truck_list = [
@@ -116,6 +130,7 @@ truck_list = [
         VIN="HMZABAAHXMF011054",
         Plate="77777777",
         Maturity="VB1",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -134,12 +149,14 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),
     Truck(
         TruckName="VB1",
         VIN="HMZABAAH1MF011055",
         Plate="77777777",
         Maturity="VB1",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -158,12 +175,14 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),
     Truck(
         TruckName="SU_BDC8937",
         VIN="HMZABAAH4MF014497",
         Plate="SU-BDC8937",
         Maturity="VB",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -182,12 +201,14 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),
     Truck(
         TruckName="VB7",
         VIN="HMZABAAH7MF011058",
         Plate="77777777",
         Maturity="VB",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -206,12 +227,14 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),
     Truck(
         TruckName="VB6",
         VIN="HMZABAAH5MF011057",
         Plate="66666666",
         Maturity="VB",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -230,12 +253,14 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),
     Truck(
         TruckName="M2",
         VIN=None,  # "987654321654321M4"
         Plate="2222222",
         Maturity="MULE",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -254,12 +279,14 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),
     Truck(
         TruckName="HQB",
         VIN="NEWRIZON020220328",
         Plate="00000000",
         Maturity="VB",
+        tz=timezones["sh"],
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -278,6 +305,7 @@ truck_list = [
         ActionLowerBound=0.8,  # 80%
         ActionUpperBound=1.0,  # 100%
         ActionBias=0.0,  # No bias
+        ActionFlashRow=4,
     ),  # HQ Bench
 ]
 
