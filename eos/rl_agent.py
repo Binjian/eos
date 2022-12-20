@@ -1493,10 +1493,10 @@ class RL_Agent(object):
         logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
     def remote_cloudhmi_state_machine(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1521,6 +1521,15 @@ class RL_Agent(object):
             "Road Test with inferring will start as one single episode!!!",
             extra=self.dictLogger,
         )
+        with self.get_env_lock:
+            evt_remote_get.clear()
+        with self.flash_env_lock:
+            evt_remote_flash.clear()
+
+        with self.hmi_lock:
+            self.episode_done = False
+            self.episode_end = False
+
         while not th_exit:  # th_exit is local; program_exit is global
 
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1558,23 +1567,6 @@ class RL_Agent(object):
                         evt_epi_done.set()
                     th_exit = True
                     continue
-
-            # ts_epi_start = time.time()
-            with self.get_env_lock:
-                evt_remote_get.clear()
-            with self.flash_env_lock:
-                evt_remote_flash.clear()
-            # logger_cloudhmi_sm.info(
-            #     f"Test start! clear remote_flash and remote_get!",
-            #     extra=self.dictLogger,
-            # )
-
-            with self.captureQ_lock:
-                while not self.motionpowerQueue.empty():
-                    self.motionpowerQueue.get()
-            with self.hmi_lock:
-                self.episode_done = False
-                self.episode_end = False
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
             with self.get_env_lock:
