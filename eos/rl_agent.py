@@ -95,26 +95,30 @@ from eos.visualization import plot_3d_figure, plot_to_image
 warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
 np.warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+
 class RL_Agent(object):
     def __init__(
         self,
-        agent: str="ddpg",
-        cloud: bool=True,
-        ui: str="cloud",
-        resume: bool=True,
-        infer: bool=False,
-        record: bool=True,
-        path: str=".",
-        vehicle: str="HMZABAAH7MF011058",  # "VB7",
-        driver: str="Longfei.Zheng",
-        remotecan_srv: str="can_intra",
-        web_srv: str="rocket_intra",
-        mongo_srv: str="mongo_local",
-        proj_root: Path=Path("."),
-        vlogger: logging.Logger()=None,
+        agent: str = "ddpg",
+        cloud: bool = True,
+        ui: str = "cloud",
+        resume: bool = True,
+        infer: bool = False,
+        record: bool = True,
+        path: str = ".",
+        vehicle: str = "HMZABAAH7MF011058",  # "VB7",
+        driver: str = "Longfei.Zheng",
+        remotecan_srv: str = "can_intra",
+        web_srv: str = "rocket_intra",
+        mongo_srv: str = "mongo_local",
+        proj_root: Path = Path("."),
+        vlogger: logging.Logger() = None,
     ):
         self.agent = agent
-        assert self.agent in ["ddpg", "rdpg"], f"Only ddpg and rdpg is implemented, not {self.agent}"
+        assert self.agent in [
+            "ddpg",
+            "rdpg",
+        ], f"Only ddpg and rdpg is implemented, not {self.agent}"
         self.cloud = cloud
         self.ui = ui
         self.trucks_by_name = trucks_by_name
@@ -162,13 +166,13 @@ class RL_Agent(object):
             ).joinpath(self.path)
 
         self.set_logger()
-        self.logger.info(f"Start Logging", extra=self.dictLogger)
-        self.logger.info(
+        self.logc.info(f"Start Logging", extra=self.dictLogger)
+        self.logc.info(
             f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
-        self.logger.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
-        self.logger.info(f"driver: {self.driver}", extra=self.dictLogger)
+        self.logc.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
+        self.logc.info(f"driver: {self.driver}", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -214,9 +218,9 @@ class RL_Agent(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
-        self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
+        self.logc.info(f"Thread data Initialization done!", extra=self.dictLogger)
 
     def init_cloud(self):
         os.environ["http_proxy"] = ""
@@ -229,9 +233,7 @@ class RL_Agent(object):
             assert (
                 self.remotecan_srv.split(":")[1] == self.can_server.Port
             ), f"Port mismatch for remotecan host {self.remotecan_srv}!"
-        self.logger.info(
-            f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger
-        )
+        self.logc.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
             truckname=self.truck.TruckName,
@@ -280,7 +282,13 @@ class RL_Agent(object):
             print("User folder exists, just resume!")
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-"+self.agent+ "-" + self.truck.TruckName + "-" + datetime.now().isoformat().replace(":", "-") + ".log"
+            "eos-rt-"
+            + self.agent
+            + "-"
+            + self.truck.TruckName
+            + "-"
+            + datetime.now().isoformat().replace(":", "-")
+            + ".log"
         )
         formatter = logging.basicConfig(
             format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
@@ -335,7 +343,7 @@ class RL_Agent(object):
         # Create folder for ckpts loggings.
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.train_log_dir = self.dataroot.joinpath(
-            "tf_logs-vb/"+self.agent+"/gradient_tape/" + current_time + "/train"
+            "tf_logs-vb/" + self.agent + "/gradient_tape/" + current_time + "/train"
         )
         self.train_summary_writer = tf.summary.create_file_writer(
             str(self.train_log_dir)
@@ -452,7 +460,9 @@ class RL_Agent(object):
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
-        self.vcu_calib_table_row_reduced = self.truck.ActionFlashRow  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
+        self.vcu_calib_table_row_reduced = (
+            self.truck.ActionFlashRow
+        )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
         self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
@@ -474,7 +484,7 @@ class RL_Agent(object):
             self.tauAC = (0.005, 0.005)
             self.hidden_unitsAC = (256, 16, 32)
             self.action_bias = 0
-        else:
+        else:  # self.agent == "rdpg"
             self.tauAC = (0.001, 0.001)
             self.hidden_unitsAC = (256, 256)
         self.lrAC = (0.001, 0.002)
@@ -917,7 +927,9 @@ class RL_Agent(object):
 
                 if args.record_table:
                     curr_table_store_path = self.tableroot.joinpath(
-                        "instant_table_"+self.agent+"-vb-"
+                        "instant_table_"
+                        + self.agent
+                        + "-vb-"
                         + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
                         + "e-"
                         + str(epi_cnt)
@@ -1983,7 +1995,7 @@ class RL_Agent(object):
 
             if self.agent == "ddpg":
                 self.ddpg.start_episode(datetime.now(tz=self.truck.tz))
-            else: # self.agent == "rdpg"
+            else:  # self.agent == "rdpg"
                 self.rdpg.start_episode(datetime.now(tz=self.truck.tz))
 
             tf.debugging.set_log_device_placement(True)
@@ -2088,7 +2100,7 @@ class RL_Agent(object):
                     if self.agent == "ddpg":
                         a_t = self.ddpg.policy(o_t)
                     else:
-                        a_t = self.rdpg.actor_predict(o_t, int(step_count / 2))
+                        a_t = self.rdpg.actor_predict(o_t, int(step_count / 1))
 
                     self.logc.info(
                         f"E{epi_cnt} inference done with reduced action space!",
@@ -2112,18 +2124,18 @@ class RL_Agent(object):
 
                     if step_count > 0:
                         if self.agent == "ddpg":
-                            self.ddpg.deposit(prev_ts,prev_o_t,prev_a_t,prev_table_start, cycle_reward, o_t)
-                        else: # self.agent == "rdpg"
-                            self.rdpg.deposit(prev_o_t,prev_a_t,prev_table_start,cycle_reward)
-
-                    # predict action probabilities and estimated future rewards
-                    # from environment state
-                    # for causal rl, the odd indexed observation/reward are caused by last action
-                    # skip the odd indexed observation/reward for policy to make it causal
-                    self.logc.info(
-                        f"E{epi_cnt} before inference!",
-                        extra=self.dictLogger,
-                    )
+                            self.ddpg.deposit(
+                                prev_ts,
+                                prev_o_t,
+                                prev_a_t,
+                                prev_table_start,
+                                cycle_reward,
+                                o_t,
+                            )
+                        else:  # self.agent == "rdpg"
+                            self.rdpg.deposit(
+                                prev_o_t, prev_a_t, prev_table_start, cycle_reward
+                            )
 
                     prev_o_t = o_t
                     prev_a_t = a_t
@@ -2163,9 +2175,9 @@ class RL_Agent(object):
                 continue  # otherwise assuming the history is valid and back propagate
 
             if self.agent == "rdpg":
-                self.rdpg.end_episode() # deposit history
+                self.rdpg.end_episode()  # deposit history
             else:
-                self.ddpg.end_episode() # ddpg nothing for now
+                self.ddpg.end_episode()  # ddpg nothing for now
 
             self.logc.info(
                 f"E{epi_cnt} Experience Collection ends!",
@@ -2175,7 +2187,11 @@ class RL_Agent(object):
             critic_loss = 0
             actor_loss = 0
             if self.infer:
-                (critic_loss, actor_loss) = self.ddpg.buffer.nolearn()
+                if self.agent == "ddpg":
+                    (critic_loss, actor_loss) = self.ddpg.buffer.nolearn()
+                else:  # self.agent == "rdpg"
+                    # FIXME bugs in maximal sequence length for ungraceful testing
+                    (actor_loss, critic_loss) = self.rdpg.notrain()
                 self.logc.info("No Learning, just calculating loss")
             else:
                 self.logc.info("Learning and updating 6 times!")
@@ -2183,9 +2199,7 @@ class RL_Agent(object):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
                     if self.ddpg.buffer.buffer_counter > 0:
                         (critic_loss, actor_loss) = self.ddpg.buffer.learn()
-
                         self.ddpg.soft_update_target()
-                        # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
                     else:
                         self.logc.info(
                             f"Buffer empty, no learning!", extra=self.dictLogger
@@ -2193,12 +2207,11 @@ class RL_Agent(object):
                         self.logc.info(
                             "++++++++++++++++++++++++", extra=self.dictLogger
                         )
-                        continue
+                        break
 
                 # Checkpoint manager save model
                 self.ddpg.save_ckpt()
 
-            # self.logd.info(f"BP{k} done.", extra=self.dictLogger)
             self.logc.info(
                 f"E{epi_cnt}BP 6 times critic loss: {critic_loss}; actor loss: {actor_loss}",
                 extra=self.dictLogger,
@@ -2289,7 +2302,7 @@ if __name__ == "__main__":
         "-a",
         "--agent",
         type=str,
-        default='DDPG',
+        default="DDPG",
         help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
     )
 

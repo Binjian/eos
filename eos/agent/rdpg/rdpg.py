@@ -116,7 +116,6 @@ patch_all()
 # local imports
 from eos import Pool, dictLogger, logger
 from eos.config import db_servers_by_name, db_servers_by_host, episode_schemas, Truck
-from eos.utils.exception import ReadOnlyError
 
 from .actor import ActorNet
 from .critic import CriticNet
@@ -156,8 +155,8 @@ class RDPG:
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
-        self.truck = truck
-        self.driver = driver
+        self._truck = truck
+        self._driver = driver
         self._num_observations = num_observations
         self._obs_len = obs_len
         self._state_len = num_observations * obs_len  # 3 * 30
@@ -169,7 +168,7 @@ class RDPG:
         self.cloud = cloud
         self._datafolder = datafolder
         self.db_server = db_server
-        self._infererence = infer
+        self._inference = infer
         # new data
         if self.cloud == False:
             # Instead of list of tuples as the exp.replay concept go
@@ -402,7 +401,7 @@ class RDPG:
         """reset noise of the moving actor network"""
         self.actor_net.reset_noise()
 
-    def start_episode(self, dt:datetime):
+    def start_episode(self, dt: datetime):
         self.logger.info(f"Episode start at {dt}", extra=dictLogger)
         self.episode_start_dt = dt
         self.h_t = []
@@ -410,7 +409,7 @@ class RDPG:
     def deposit(self, prev_o_t, prev_a_t, prev_table_start, cycle_reward):
         """Deposit the experience into the replay buffer."""
         if self.cloud:
-            if not self.h_t: # first even step has $r_0$  
+            if not self.h_t:  # first even step has $r_0$
                 self.h_t = [
                     {
                         "states": prev_o_t.numpy().tolist(),
@@ -433,24 +432,22 @@ class RDPG:
                 f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
                 extra=self.dictLogger,
             )
-        else: # local buffer needs array
+        else:  # local buffer needs array
             if not self.h_t:  # first even step has $r_0$
-                self.h_t = [
-                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
-                ]
+                self.h_t = [np.hstack([prev_o_t, prev_a_t, cycle_reward])]
             else:
-                self.h_t.append(
-                    np.hstack([prev_o_t, prev_a_t, cycle_reward])
-                )
+                self.h_t.append(np.hstack([prev_o_t, prev_a_t, cycle_reward]))
 
             self.logger.info(
                 f"prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, cycle_reward: {cycle_reward.shape}, self.h_t shape: {len(self.h_t)}X{self.h_t[-1].shape}.",
                 extra=dictLogger,
             )
+
     def end_episode(self):
         """Deposit the experience into the replay buffer."""
         self.deposit_history()
         self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
+
     def deposit_history(self):
         """Deposit the episode history into the agent replay buffer."""
         if self.cloud:
@@ -480,14 +477,20 @@ class RDPG:
                     "history": self.h_t,
                 }
                 self.add_to_db(self.episode)
-                self.logger.info(f"Add Episode history to db replay buffer!", extra=dictLogger)
+                self.logger.info(
+                    f"Add Episode history to db replay buffer!", extra=dictLogger
+                )
             else:
-                self.logger.info(f"Episode done but history is empty or no observation received!", extra=dictLogger)
+                self.logger.info(
+                    f"Episode done but history is empty or no observation received!",
+                    extra=dictLogger,
+                )
 
         else:
             self.add_to_replay(self.h_t)
-            self.logger.info(f"Add Episode history to npy replay buffer!", extra=dictLogger)
-
+            self.logger.info(
+                f"Add Episode history to npy replay buffer!", extra=dictLogger
+            )
 
     def add_to_db(self, episode):
         """add an episode to database
@@ -955,12 +958,28 @@ class RDPG:
             self.R = []
 
     @property
+    def truck(self):
+        return self._truck
+
+    @truck.setter
+    def truck(self, value):
+        raise AttributeError("truck is read-only")
+
+    @property
+    def driver(self):
+        return self._driver
+
+    @driver.setter
+    def driver(self, value):
+        raise AttributeError("driver is read-only")
+
+    @property
     def num_observations(self):
         return self._num_observations
 
     @num_observations.setter
     def num_observations(self, value):
-        raise ReadOnlyError("num_observations is read-only")
+        raise AttributeError("num_observations is read-only")
 
     @property
     def obs_len(self):
@@ -968,7 +987,7 @@ class RDPG:
 
     @obs_len.setter
     def obs_len(self, value):
-        raise ReadOnlyError("obs_len is read-only")
+        raise AttributeError("obs_len is read-only")
 
     @property
     def state_len(self):
@@ -976,7 +995,7 @@ class RDPG:
 
     @state_len.setter
     def state_len(self, value):
-        raise ReadOnlyError("state_len is read-only")
+        raise AttributeError("state_len is read-only")
 
     @property
     def action_len(self):
@@ -984,7 +1003,7 @@ class RDPG:
 
     @action_len.setter
     def action_len(self, value):
-        raise ReadOnlyError("action_len is read-only")
+        raise AttributeError("action_len is read-only")
 
     @property
     def seq_len(self):
@@ -992,7 +1011,7 @@ class RDPG:
 
     @seq_len.setter
     def seq_len(self, value):
-        raise ReadOnlyError("seq_len is read-only")
+        raise AttributeError("seq_len is read-only")
 
     @property
     def batch_size(self):
@@ -1000,7 +1019,7 @@ class RDPG:
 
     @batch_size.setter
     def batch_size(self, value):
-        raise ReadOnlyError("batch_size is read-only")
+        raise AttributeError("batch_size is read-only")
 
     @property
     def padding_value(self):
@@ -1008,15 +1027,15 @@ class RDPG:
 
     @padding_value.setter
     def padding_value(self, value):
-        raise ReadOnlyError("padding_value is read-only")
+        raise AttributeError("padding_value is read-only")
 
     @property
     def buffer_capacity(self):
         return self._buffer_capacity
 
     @buffer_capacity.setter
-    def buffer_capcity(self, value):
-        raise ReadOnlyError("buffer_capacity is read-only")
+    def buffer_capacity(self, value):
+        raise AttributeError("buffer_capacity is read-only")
 
     @property
     def gamma(self):
@@ -1024,7 +1043,7 @@ class RDPG:
 
     @gamma.setter
     def gamma(self, value):
-        raise ReadOnlyError("gamma is read-only")
+        raise AttributeError("gamma is read-only")
 
     @property
     def inference(self):
@@ -1032,4 +1051,4 @@ class RDPG:
 
     @inference.setter
     def inference(self, value):
-        raise ReadOnlyError("inference is read-only")
+        raise AttributeError("inference is read-only")

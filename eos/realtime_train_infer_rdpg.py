@@ -164,13 +164,13 @@ class RealtimeRDPG(object):
             ).joinpath(self.path)
 
         self.set_logger()
-        self.logger.info(f"Start Logging", extra=self.dictLogger)
-        self.logger.info(
+        self.logc.info(f"Start Logging", extra=self.dictLogger)
+        self.logc.info(
             f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
-        self.logger.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
-        self.logger.info(f"driver: {self.driver}", extra=self.dictLogger)
+        self.logc.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
+        self.logc.info(f"driver: {self.driver}", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -1949,9 +1949,7 @@ class RealtimeRDPG(object):
                 continue
 
             step_count = 0
-            self.h_t = []
             episode_reward = 0
-            timestamp0 = 0.0  # datetime.now().timestamp()
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logc.info("----------------------", extra=self.dictLogger)
@@ -1960,6 +1958,7 @@ class RealtimeRDPG(object):
                 extra=self.dictLogger,
             )
 
+            self.rdpg.start_episode(datetime.now(tz=self.truck.tz))
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
@@ -2050,6 +2049,15 @@ class RealtimeRDPG(object):
                         extra=self.dictLogger,
                     )
 
+                    # !!!no parallel even!!!
+                    # predict action probabilities and estimated future rewards
+                    # from environment state
+                    # for causal rl, the odd indexed observation/reward are caused by last action
+                    # skip the odd indexed observation/reward for policy to make it causal
+                    self.logc.info(
+                        f"E{epi_cnt} before inference!",
+                        extra=self.dictLogger,
+                    )
                     # motion states o_t is 30*3/50*3 matrix
                     a_t = self.rdpg.actor_predict(o_t, int(step_count / 1))
                     # self.logc.info(
@@ -2081,21 +2089,13 @@ class RealtimeRDPG(object):
                             prev_o_t, prev_a_t, prev_table_start, cycle_reward
                         )
 
-                    # predict action probabilities and estimated future rewards
-                    # from environment state
-                    # for causal rl, the odd indexed observation/reward are caused by last action
-                    # skip the odd indexed observation/reward for policy to make it causal
-                    self.logc.info(
-                        f"E{epi_cnt} before inference!",
-                        extra=self.dictLogger,
-                    )
-
                     prev_o_t = o_t
                     prev_a_t = a_t
                     prev_table_start = table_start
 
+                    # TODO add speed sum as positive reward
                     self.logc.info(
-                        f"E{epi_cnt} Finish Step: {step_count}",
+                        f"E{epi_cnt} Step done: {step_count}",
                         extra=self.dictLogger,
                     )
 
@@ -2134,25 +2134,27 @@ class RealtimeRDPG(object):
 
             critic_loss = 0
             actor_loss = 0
-
             if self.infer:
                 # FIXME bugs in maximal sequence length for ungraceful testing
                 # (actor_loss, critic_loss) = self.rdpg.notrain()
                 self.logc.info("No Learning, just calculating loss")
 
             else:
-                self.logc.info("Learning and soft updating")
+                self.logc.info("Learning and soft updating 6 times")
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    (actor_loss, critic_loss) = self.rdpg.train()
-                    # self.logc.info("Learning and soft updating")
-                    # self.logc.info(f"BP{k} done.", extra=dictLogger)
-                    self.logc.info(
-                        f"E{epi_cnt}BP{k} critic loss: {critic_loss}; actor loss: {actor_loss}",
-                        extra=dictLogger,
-                    )
-                    self.rdpg.soft_update_target()
-                    # logger.info(f"Updated target critic.", extra=dictLogger)
+                    if self.rdpg.buffer_counter > 0:
+                        (actor_loss, critic_loss) = self.rdpg.train()
+                        self.rdpg.soft_update_target()
+
+                    else:
+                        self.logc.info(
+                            f"Buffer empty, no learning!", extra=self.dictLogger
+                        )
+                        self.logc.info(
+                            "++++++++++++++++++++++++", extra=self.dictLogger
+                        )
+                        break
 
                 # Checkpoint manager save model
                 self.rdpg.save_ckpt()

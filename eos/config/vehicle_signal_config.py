@@ -102,7 +102,7 @@ Truck = namedtuple(
         "VIN",  # Vehicle Identification Number
         "Plate",  # License plate number
         "Maturity",  # "VB", "MULE", "MP"
-        "tz", # Timezone
+        "tz",  # Timezone
         "CloudSignalFrequency",  # Hz
         "CloudGearFrequency",  # Hz
         "CloudUnitDuration",  # cloud unit duration in seconds

@@ -122,11 +122,11 @@ rec_schema_list = [
         NAME="record_deep",  # name of the schema
         STRUCTURE={
             "_id": ObjectId,
-            "timestamp": datetime, #record datetime,when the record is created
+            "timestamp": datetime,  # record datetime,when the record is created
             "plot": {
                 "character": str,
                 "driver": str,
-                "when": datetime, #episode datetime with tzinfo, when the episode is created
+                "when": datetime,  # episode datetime with tzinfo, when the episode is created
                 "where": str,
                 "states": {
                     "velocity_unit": "kmph",
@@ -156,11 +156,11 @@ rec_schema_list = [
         NAME="record_deeper",  # name of the schema
         STRUCTURE={
             "_id": ObjectId,
-            "timestamp": datetime, #record datetime,when the record is created
+            "timestamp": datetime,  # record datetime,when the record is created
             "plot": {
                 "character": str,
                 "driver": str,
-                "when": datetime, #episode datetime with tzinfo, when the episode is created
+                "when": datetime,  # episode datetime with tzinfo, when the episode is created
                 "where": str,
                 "states": {
                     "velocity_unit": "kmph",
@@ -198,11 +198,11 @@ epi_schema_list = [
         NAME="episode_flat",  # name of the schema
         STRUCTURE={
             "_id": ObjectId,
-            "timestamp": datetime, #episode datetime,when the episode is created
+            "timestamp": datetime,  # episode datetime,when the episode is created
             "plot": {
                 "character": str,
                 "driver": str,
-                "when": datetime, #episode datetime with tzinfo, when the episode is created
+                "when": datetime,  # episode datetime with tzinfo, when the episode is created
                 "where": str,
                 "length": int,
                 "states": {
@@ -227,11 +227,11 @@ epi_schema_list = [
         NAME="episode_deep",  # name of the schema
         STRUCTURE={
             "_id": ObjectId,
-            "timestamp": datetime, #episode datetime,when the episode is created
+            "timestamp": datetime,  # episode datetime,when the episode is created
             "plot": {
                 "character": str,
                 "driver": str,
-                "when": datetime, #episode datetime with tzinfo, when the episode is created
+                "when": datetime,  # episode datetime with tzinfo, when the episode is created
                 "where": str,
                 "length": int,
                 "states": {

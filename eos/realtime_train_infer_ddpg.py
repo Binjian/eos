@@ -212,7 +212,6 @@ class RealtimeDDPG(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.touch_gpu()
         self.logger.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
         self.init_threads_data()
         self.logger.info(f"Thread data Initialization done!", extra=self.dictLogger)
@@ -454,7 +453,9 @@ class RealtimeDDPG(object):
             self.num_observations * self.observation_len
         )  # 60 subsequent observations
         self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
-        self.vcu_calib_table_row_reduced = self.truck.ActionFlashRow  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
+        self.vcu_calib_table_row_reduced = (
+            self.truck.ActionFlashRow
+        )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
         self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
@@ -1867,54 +1868,6 @@ class RealtimeDDPG(object):
                     )
                     flash_count += 1
 
-                # if returncode != 0:
-                #     logger_flash.error(
-                #         f"send_torque_map failed and retry: {returncode}, ret_str: {ret_str}",
-                #         extra=self.dictLogger,
-                #     )
-                #     # ping test
-                #     try:
-                #         response_ping = subprocess.check_output(
-                #             "ping -c 1 " + self.can_server.Host, shell=True
-                #         )
-                #     except subprocess.CalledProcessError as e:
-                #         logger_flash.info(
-                #             f"{self.can_server.Host} is down, responds: {response_ping}"
-                #             f"return code: {e.returncode}, output: {e.output}!",
-                #             extra=self.dictLogger,
-                #         )
-                #     logger_flash.info(
-                #         f"{self.can_server.Host} is up, responds: {response_ping}!",
-                #         extra=self.dictLogger,
-                #     )
-                #
-                #     # telnet test
-                #     try:
-                #         response_telnet = subprocess.check_output(
-                #             f"timeout 1 telnet {self.can_server.Host} {self.can_server.Port}",
-                #             shell=True,
-                #         )
-                #         logger_flash.info(
-                #             f"Telnet {self.can_server.Host} responds: {response_telnet}!",
-                #             extra=self.dictLogger,
-                #         )
-                #     except subprocess.CalledProcessError as e:
-                #         logger_flash.info(
-                #             f"telnet {self.can_server.Host} return code: {e.returncode}, output: {e.output}!",
-                #             extra=self.dictLogger,
-                #         )
-                #     except subprocess.TimeoutExpired as e:
-                #         logger_flash.info(
-                #             f"telnet {self.can_server.Host} timeout"
-                #             f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
-                #             extra=self.dictLogger,
-                #         )
-                # else:
-                #     logger_flash.info(
-                #         f"flash done, count:{flash_count}", extra=self.dictLogger
-                #     )
-                #     flash_count += 1
-
                 # flash is done and unlock remote_get
                 with self.flash_env_lock:
                     evt_remote_flash.set()
@@ -2005,6 +1958,7 @@ class RealtimeDDPG(object):
                 extra=self.dictLogger,
             )
 
+            self.ddpg.start_episode(datetime.now(tz=self.truck.tz))
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
@@ -2063,27 +2017,25 @@ class RealtimeDDPG(object):
                     )  # env.step(action) action is flash the vcu calibration table
                     # watch(step_count)
                     # reward history
-                    motionpower_states = tf.convert_to_tensor(
+                    motpow_t = tf.convert_to_tensor(
                         motionpower
-                    )  # state must have 30/100 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
+                    )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
                     if self.cloud:
                         out = tf.split(
-                            motionpower_states, [1, 3, 1, 2], 1
+                            motpow_t, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
-                        (timestamp, motion_states, gear_states, power_states) = [
-                            tf.squeeze(x) for x in out
-                        ]
+                        (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
+                        o_t = tf.reshape(o_t0, -1)
                     else:
-                        motion_states, power_states = tf.split(
-                            motionpower_states, [3, 2], 1
-                        )  # note the difference of split between np and tf
+                        o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
+                        o_t = tf.reshape(o_t0, -1)
 
                     self.logc.info(
                         f"E{epi_cnt} tensor convert and split!",
                         extra=self.dictLogger,
                     )
                     ui_sum = tf.reduce_sum(
-                        tf.reduce_prod(power_states, 1)
+                        tf.reduce_prod(pow_t, 1)
                     )  # vcu reward is a scalar
                     wh = (
                         ui_sum / 3600.0 * self.sample_rate
@@ -2098,7 +2050,6 @@ class RealtimeDDPG(object):
                     )
 
                     # !!!no parallel even!!!
-
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causal rl, the odd indexed observation/reward are caused by last action
@@ -2107,16 +2058,15 @@ class RealtimeDDPG(object):
                         f"E{epi_cnt} before inference!",
                         extra=self.dictLogger,
                     )
-                    vcu_action_reduced = self.ddpg.policy(motion_states)
+                    a_t = self.ddpg.policy(o_t)
 
                     self.logc.info(
                         f"E{epi_cnt} inference done with reduced action space!",
                         extra=self.dictLogger,
                     )
 
-                    # tf.print('calib table:', vcu_act_list, output_stream=sys.stderr)
                     with self.tableQ_lock:
-                        self.tableQueue.put(vcu_action_reduced)
+                        self.tableQueue.put(a_t)
                         self.logc.info(
                             f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
                             extra=self.dictLogger,
@@ -2126,63 +2076,23 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
 
-                    # !!!no parallel odd!!!
+                    # !!!no parallel even!!!
                     cycle_reward = wh * (-1.0)
                     episode_reward += cycle_reward
                     if step_count > 0:  # starting from 3rd step
+                        self.ddpg.deposit(
+                            prev_ts,
+                            prev_o_t,
+                            prev_a_t,
+                            prev_table_start,
+                            cycle_reward,
+                            o_t,
+                        )
 
-                        if self.cloud:
-                            self.rec = {
-                                "timestamp": datetime.fromtimestamp(
-                                    prev_timestamp.numpy()[0] / 1000.0
-                                ),  # from ms to s
-                                "plot": {
-                                    "character": self.truck.TruckName,
-                                    "driver": self.driver,
-                                    "when": datetime.fromtimestamp(
-                                        prev_timestamp.numpy()[0] / 1000.0
-                                    ),
-                                    "where": "campus",
-                                    "states": {
-                                        "velocity_unit": "kmph",
-                                        "thrust_unit": "percentage",
-                                        "brake_unit": "percentage",
-                                        "length": motion_states.shape[0],
-                                    },
-                                    "actions": {
-                                        "action_row_number": self.vcu_calib_table_row_reduced,
-                                        "action_column_number": self.vcu_calib_table_col,
-                                    },
-                                    "reward": {
-                                        "reward_unit": "wh",
-                                    },
-                                },
-                                "observation": {
-                                    "state": prev_motion_states.numpy().tolist(),
-                                    "action": prev_action,
-                                    "action_start_row": prev_table_start,
-                                    "reward": cycle_reward.numpy().tolist(),
-                                    "next_state": motion_states.numpy().tolist(),
-                                },
-                            }
-                            self.ddpg.buffer.deposit(self.rec)
-                        else:
-                            self.ddpg.buffer.record(
-                                (
-                                    prev_motion_states,
-                                    prev_action,
-                                    cycle_reward,
-                                    motion_states,
-                                )
-                            )
-
-                    prev_motion_states = motion_states
-                    prev_timestamp = timestamp
+                    prev_o_t = o_t
+                    prev_a_t = a_t
+                    prev_ts = ts  # for ddpg
                     prev_table_start = table_start
-                    if self.cloud:
-                        prev_action = vcu_action_reduced.numpy().tolist()
-                    else:
-                        prev_action = vcu_action_reduced
 
                     # TODO add speed sum as positive reward
                     self.logc.info(
@@ -2190,10 +2100,9 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
 
-                    # motion_states = tf.stack([motion_states0, motion_states])
-                    # motion_states_history was not used for back propagation
-                    # 60 frames, but never used again
-                    # motion_states_history.append(motion_states)
+                    # during odd steps, old action remains effective due to learn and flash delay
+                    # so ust record the reward history
+                    # motion states (observation) are not used later for backpropagation
 
                     # step level
                     step_count += 1
@@ -2216,6 +2125,8 @@ class RealtimeDDPG(object):
                         extra=self.dictLogger,
                     )
                 continue  # otherwise assuming the history is valid and back propagate
+
+            self.ddpg.end_episode()  # ddpg nothing for now
 
             self.logc.info(
                 f"E{epi_cnt} Experience Collection ends!",

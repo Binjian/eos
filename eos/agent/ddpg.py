@@ -534,26 +534,26 @@ class DDPG:
         self.logger = logger.getChild("main").getChild("ddpg")
         self.logger.propagate = True
 
-        self.truck = truck
-        self.driver = driver
-        self.num_observations = num_observations
-        self.obs_len = obs_len
-        self.seq_len = seq_len
-        self.num_actions = num_actions  # reduced action 5 * 17
-        self.buffer_capacity = buffer_capacity
-        self.batch_size = batch_size
-        self.hidden_unitsAC = hidden_unitsAC
-        self.action_bias = action_bias
-        self.n_layersAC = n_layersAC
-        self.padding_value = padding_value
-        self.gamma = gamma
-        self.tauAC = tauAC
-        self.lrAC = lrAC
-        self.datafolder = Path(datafolder)
-        self.ckpt_interval = ckpt_interval
-        self.cloud = cloud
-        self.db_server = db_server
-        self.resume = resume
+        self._truck = truck
+        self._driver = driver
+        self._num_observations = num_observations
+        self._obs_len = obs_len
+        self._seq_len = seq_len
+        self._num_actions = num_actions  # reduced action 5 * 17
+        self._buffer_capacity = buffer_capacity
+        self._batch_size = batch_size
+        self._hidden_unitsAC = hidden_unitsAC
+        self._action_bias = action_bias
+        self._n_layersAC = n_layersAC
+        self._padding_value = padding_value
+        self._gamma = gamma
+        self._tauAC = tauAC
+        self._lrAC = lrAC
+        self._datafolder = Path(datafolder)
+        self._ckpt_interval = ckpt_interval
+        self._cloud = cloud
+        self._db_server = db_server
+        self._resume = resume
 
         # Initialize networks
         self.actor_model = self.get_actor(
@@ -952,6 +952,166 @@ class DDPG:
                     f"ddpg warm up training done!",
                     extra=dictLogger,
                 )
+
+    @property
+    def truck(self):
+        return self._truck
+
+    @truck.setter
+    def truck(self, truck):
+        raise AttributeError("truck is read-only")
+
+    @property
+    def driver(self):
+        return self._driver
+
+    @driver.setter
+    def driver(self, driver):
+        raise AttributeError("driver is read-only")
+
+    @property
+    def num_observations(self):
+        return self._num_observations
+
+    @num_observations.setter
+    def num_observations(self, num_observations):
+        raise AttributeError("num_observations is read-only")
+
+    @property
+    def obs_len(self):
+        return self._obs_len
+
+    @obs_len.setter
+    def obs_len(self, obs_len):
+        raise AttributeError("obs_len is read-only")
+
+    @property
+    def seq_len(self):
+        return self._seq_len
+
+    @seq_len.setter
+    def seq_len(self, seq_len):
+        raise AttributeError("seq_len is read-only")
+
+    @property
+    def num_actions(self):
+        return self._num_actions
+
+    @num_actions.setter
+    def num_actions(self, num_actions):
+        raise AttributeError("num_actions is read-only")
+
+    @property
+    def buffer_capacity(self):
+        return self._buffer_capacity
+
+    @buffer_capacity.setter
+    def buffer_capacity(self, buffer_capacity):
+        raise AttributeError("buffer_capacity is read-only")
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @batch_size.setter
+    def batch_size(self, batch_size):
+        raise AttributeError("batch_size is read-only")
+
+    @property
+    def hidden_unitsAC(self):
+        return self._hidden_unitsAC
+
+    @hidden_unitsAC.setter
+    def hidden_unitsAC(self, hidden_unitsAC):
+        raise AttributeError("hidden_unitsAC is read-only")
+
+    @property
+    def action_bias(self):
+        return self._action_bias
+
+    @action_bias.setter
+    def action_bias(self, action_bias):
+        raise AttributeError("action_bias is read-only")
+
+    @property
+    def n_layersAC(self):
+        return self._n_layersAC
+
+    @n_layersAC.setter
+    def n_layersAC(self, n_layerAC):
+        raise AttributeError("n_layersAC is read-only")
+
+    @property
+    def padding_value(self):
+        return self._padding_value
+
+    @padding_value.setter
+    def padding_value(self, padding_value):
+        raise AttributeError("padding_value is read-only")
+
+    @property
+    def gamma(self):
+        return self._gamma
+
+    @gamma.setter
+    def gamma(self, gamma):
+        raise AttributeError("gamma is read-only")
+
+    @property
+    def tauAC(self):
+        return self._tauAC
+
+    @tauAC.setter
+    def tauAC(self, tauAC):
+        raise AttributeError("tauAC is read-only")
+
+    @property
+    def lrAC(self):
+        return self._lrAC
+
+    @lrAC.setter
+    def lrAC(self, lrAC):
+        raise AttributeError("lrAC is read-only")
+
+    @property
+    def datafolder(self):
+        return self._datafolder
+
+    @datafolder.setter
+    def datafolder(self, datafolder):
+        raise AttributeError("datafolder is read-only")
+
+    @property
+    def ckpt_interval(self):
+        return self._ckpt_interval
+
+    @ckpt_interval.setter
+    def ckpt_interval(self, ckpt_interval):
+        raise AttributeError("ckpt_interval is read-only")
+
+    @property
+    def cloud(self):
+        return self._cloud
+
+    @cloud.setter
+    def cloud(self, cloud):
+        raise AttributeError("cloud is read-only")
+
+    @property
+    def db_server(self):
+        return self._db_server
+
+    @db_server.setter
+    def db_server(self, db_server):
+        raise AttributeError("db_server is read-only")
+
+    @property
+    def resume(self):
+        return self._resume
+
+    @resume.setter
+    def resume(self, resume):
+        raise AttributeError("resume is read-only")
 
 
 """
