@@ -16,9 +16,9 @@ dependencies:
   - mypy
   - pylint
   - poetry
-  - tensorflow-gpu
+  - tensorflow-gpu=2.10
   - tensorflow-estimator
-  - tensorflow-probability
+  - tensorflow-probability==0.18.0
   - tensorboard
   - cudatoolkit
   - cudnn
