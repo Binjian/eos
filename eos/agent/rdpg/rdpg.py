@@ -458,6 +458,7 @@ class RDPG:
                         "character": self.truck.TruckName,
                         "driver": self.driver,
                         "when": self.episode_start_dt,
+                        "tz": self.truck.tz,
                         "where": "campus",
                         "length": len(self.h_t),
                         "states": {

@@ -1981,9 +1981,9 @@ class RL_Agent(object):
             )
 
             if self.agent == "ddpg":
-                self.ddpg.start_episode(datetime.now(tz=self.truck.tz))
+                self.ddpg.start_episode(datetime.now())
             else:  # self.agent == "rdpg"
-                self.rdpg.start_episode(datetime.now(tz=self.truck.tz))
+                self.rdpg.start_episode(datetime.now())
 
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):

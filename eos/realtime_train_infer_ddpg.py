@@ -1957,7 +1957,7 @@ class RealtimeDDPG(object):
                 extra=self.dictLogger,
             )
 
-            self.ddpg.start_episode(datetime.now(tz=self.truck.tz))
+            self.ddpg.start_episode(datetime.now())
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (

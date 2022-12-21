@@ -856,6 +856,7 @@ class DDPG:
                     "character": self.truck.TruckName,
                     "driver": self.driver,
                     "when": self.episode_start_dt,
+                    "tz": self.truck.tz,
                     "where": "campus",
                     "states": {
                         "velocity_unit": "kmph",
@@ -897,7 +898,7 @@ class DDPG:
 
         # tf.summary.trace_on(graph=True, profiler=True)
         # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
-        init_states = tf.random.normal(self.num_states)  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
+        init_states = tf.random.normal((self.num_states,))  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
 
         action0 = self.policy(init_states)
         self.logger.info(
