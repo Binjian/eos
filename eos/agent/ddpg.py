@@ -616,18 +616,18 @@ class DDPG:
         # add checkpoints manager
         if self.resume:
             checkpoint_actor_dir = self.datafolder.joinpath(
-                "tf_ckpts-ddpg/l045a_ddpg_actor"
+                "tf_ckpts-ddpg/vb_rl-ddpg_actor"
             )
             checkpoint_critic_dir = self.datafolder.joinpath(
-                "tf_ckpts-ddpg/l045a_ddpg_critic"
+                "tf_ckpts-ddpg/vb_rl_ddpg_critic"
             )
         else:
             checkpoint_actor_dir = self.datafolder.joinpath(
-                "tf_ckpts-ddpg/l045a_ddpg_actor"
+                "tf_ckpts-ddpg/vb_rl_ddpg_actor"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = self.datafolder.joinpath(
-                "tf_ckpts-ddpg/l045a_ddpg_critic"
+                "tf_ckpts-ddpg/vb_rl_ddpg_critic"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
         try:

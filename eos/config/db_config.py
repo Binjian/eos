@@ -21,8 +21,8 @@ db_list = [
     DB(
         SRVName="mongo_local",  # name of the database
         DatabaseName="eos",  # name of the database
-        RecCollName="record3",  # name of the collection
-        EpiCollName="episode3",  # name of the collection
+        RecCollName="record5",  # name of the collection
+        EpiCollName="episode5",  # name of the collection
         Host="127.0.0.1",  # url for the database server
         Port="27017",  # port for the database server
         Username="",  # username for the database server
