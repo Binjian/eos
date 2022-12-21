@@ -230,9 +230,9 @@ class Buffer:
         Record a new experience in the pool (database).
         """
         result = self.pool.deposit_item(rec)
-        assert result.acknowledged == True
+        assert result.acknowledged == True, "Record not deposited!"
         rec_inserted = self.pool.find_item(result.inserted_id)
-        assert rec_inserted == rec
+        assert rec_inserted == rec, "Record inserted is not the same as the one inserted!"
         self.buffer_counter = self.pool.count_items(
             vehicle_id=self.truck.TruckName, driver_id=self.driver
         )
