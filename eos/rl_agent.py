@@ -2289,7 +2289,7 @@ if __name__ == "__main__":
         "-a",
         "--agent",
         type=str,
-        default="DDPG",
+        default="ddpg",
         help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
     )
 
