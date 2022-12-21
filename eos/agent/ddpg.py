@@ -741,7 +741,12 @@ class DDPG:
 
         inputs = layers.Input(shape=(num_states,))
         # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
-        x = layers.Rescaling(inputs, 1.0)
+
+        x = layers.Dense(
+            num_hidden,
+            activation="relu",
+            kernel_initializer=tf.keras.initializers.HeNormal(),
+        )(inputs)
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
@@ -750,11 +755,6 @@ class DDPG:
                 activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
-        x = layers.Dense(
-            num_hidden,
-            activation="relu",
-            kernel_initializer=tf.keras.initializers.HeNormal(),
-        )(x)
 
         # output layer
         out = layers.Dense(
