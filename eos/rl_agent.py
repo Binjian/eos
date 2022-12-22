@@ -524,7 +524,7 @@ class RL_Agent(object):
                 self.num_observations,
                 self.observation_len,
                 self.seq_len,
-                self.num_reduced_actions,
+                self.num_actions,
                 buffer_capacity=self.buffer_capacity,
                 batch_size=self.batch_size,
                 hidden_unitsAC=self.hidden_unitsAC,
@@ -2178,26 +2178,45 @@ class RL_Agent(object):
                     (critic_loss, actor_loss) = self.ddpg.buffer.nolearn()
                 else:  # self.agent == "rdpg"
                     # FIXME bugs in maximal sequence length for ungraceful testing
-                    (actor_loss, critic_loss) = self.rdpg.notrain()
+                    # (actor_loss, critic_loss) = self.rdpg.notrain()
+                    self.logc.info("Nothing to be done for rdgp!")
                 self.logc.info("No Learning, just calculating loss")
             else:
                 self.logc.info("Learning and updating 6 times!")
-                for k in range(6):
-                    # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    if self.ddpg.buffer.buffer_counter > 0:
-                        (critic_loss, actor_loss) = self.ddpg.buffer.learn()
-                        self.ddpg.soft_update_target()
-                    else:
-                        self.logc.info(
-                            f"Buffer empty, no learning!", extra=self.dictLogger
-                        )
-                        self.logc.info(
-                            "++++++++++++++++++++++++", extra=self.dictLogger
-                        )
-                        break
+                if self.agent == "ddpg":
+                    for k in range(6):
+                        # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
+                        if self.ddpg.buffer.buffer_counter > 0:
+                            (critic_loss, actor_loss) = self.ddpg.buffer.learn()
+                            self.ddpg.soft_update_target()
+                        else:
+                            self.logc.info(
+                                f"Buffer empty, no learning!", extra=self.dictLogger
+                            )
+                            self.logc.info(
+                                "++++++++++++++++++++++++", extra=self.dictLogger
+                            )
+                            break
+                    # Checkpoint manager save model
+                    self.ddpg.save_ckpt()
+                else: # self.agent == "rdpg"
+                    self.logc.info("Learning and soft updating 6 times")
+                    for k in range(6):
+                        # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
+                        if self.rdpg.buffer_counter > 0:
+                            (actor_loss, critic_loss) = self.rdpg.train()
+                            self.rdpg.soft_update_target()
 
-                # Checkpoint manager save model
-                self.ddpg.save_ckpt()
+                        else:
+                            self.logc.info(
+                                f"Buffer empty, no learning!", extra=self.dictLogger
+                            )
+                            self.logc.info(
+                                "++++++++++++++++++++++++", extra=self.dictLogger
+                            )
+                            break
+                    # Checkpoint manager save model
+                    self.rdpg.save_ckpt()
 
             self.logc.info(
                 f"E{epi_cnt}BP 6 times critic loss: {critic_loss}; actor loss: {actor_loss}",
