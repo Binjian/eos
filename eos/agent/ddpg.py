@@ -820,7 +820,9 @@ class DDPG:
 
     def start_episode(self, dt: datetime):
         self.logger.info(f"Episode start at {dt}", extra=dictLogger)
-        self.episode_start_dt = dt
+        # somehow mongodb does not like microseconds in rec['plot']
+        dt_milliseconds = int(dt.microsecond / 1000) *1000
+        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
     """
     `policy()` returns an action sampled from our Actor network plus some noise for
@@ -856,7 +858,7 @@ class DDPG:
                     "character": self.truck.TruckName,
                     "driver": self.driver,
                     "when": self.episode_start_dt,
-                    "tz": self.truck.tz,
+                    "tz": str(self.truck.tz),
                     "where": "campus",
                     "states": {
                         "velocity_unit": "kmph",

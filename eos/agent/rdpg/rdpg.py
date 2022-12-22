@@ -403,7 +403,9 @@ class RDPG:
 
     def start_episode(self, dt: datetime):
         self.logger.info(f"Episode start at {dt}", extra=dictLogger)
-        self.episode_start_dt = dt
+        # somehow mongodb does not like microseconds in rec['plot']
+        dt_milliseconds = int(dt.microsecond / 1000) *1000
+        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
         self.h_t = []
 
     def deposit(self, prev_o_t, prev_a_t, prev_table_start, cycle_reward):
@@ -458,7 +460,7 @@ class RDPG:
                         "character": self.truck.TruckName,
                         "driver": self.driver,
                         "when": self.episode_start_dt,
-                        "tz": self.truck.tz,
+                        "tz": str(self.truck.tz),
                         "where": "campus",
                         "length": len(self.h_t),
                         "states": {
