@@ -1,6 +1,7 @@
 # system import
 # 3rd party import
 import datetime
+import time
 import inspect
 import logging
 import os
@@ -529,6 +530,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info(
                 f"Get and deposit Observation No. {rec_cnt}", extra=self.dictLogger
             )
+            time.sleep(0.5)
 
         self.logger.info(
             "Done with get consecutive observation test", extra=self.dictLogger
@@ -624,6 +626,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info("Start consecutive flashing test", extra=self.dictLogger)
         for rec_cnt in range(2):
             self.native_send()
+            time.sleep(0.5)
 
         self.logger.info("Done with flashing test", extra=self.dictLogger)
 
@@ -797,7 +800,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info("Record inserted.", extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
             pool_size = self.pool.count_items(
-                truck_id=self.truck.TruckName, driver_id="longfei"
+                vehicle_id=self.truck.TruckName, driver_id="longfei"
             )
             self.logger.info(f"Pool has {pool_size} records", extra=self.dictLogger)
             epi_inserted = self.pool.find_item(result.inserted_id)
