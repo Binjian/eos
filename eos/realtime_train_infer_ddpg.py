@@ -278,6 +278,7 @@ class RealtimeDDPG(object):
         logfilename = self.logroot.joinpath(
             "eos-rt-ddpg-"
             + self.truck.TruckName
+            + "-"
             + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
@@ -446,15 +447,11 @@ class RealtimeDDPG(object):
                 1.0 / self.truck.KvaserObservationFrequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
-        self.state_len = self.observation_len * self.num_observations
-        self.num_inputs = (
-            self.num_observations * self.observation_len
-        )  # 60 subsequent observations
-        self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
+        self.num_states = self.observation_len * self.num_observations # 60 subsequent observations
         self.vcu_calib_table_row_reduced = (
             self.truck.ActionFlashRow
         )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
+        self.num_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
             self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
         )  # 4x17= 68
         # hyperparameters for DRL
@@ -490,10 +487,8 @@ class RealtimeDDPG(object):
         self.ddpg = DDPG(
             self.truck,
             self.driver,
-            self.num_observations,
-            self.observation_len,
-            self.seq_len,
-            self.num_reduced_actions,
+            self.num_states,
+            self.num_actions,
             buffer_capacity=self.buffer_capacity,
             batch_size=self.batch_size,
             hidden_unitsAC=self.hidden_unitsAC,
@@ -507,7 +502,7 @@ class RealtimeDDPG(object):
             ckpt_interval=self.ckpt_interval,
             cloud=self.cloud,
             db_server=self.mongo_srv,
-            infer=self.infer,
+            infer_mode=self.infer_mode,
         )
 
     # tracer.start()
@@ -1457,10 +1452,10 @@ class RealtimeDDPG(object):
         logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
     def remote_cloudhmi_state_machine(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1485,6 +1480,15 @@ class RealtimeDDPG(object):
             "Road Test with inferring will start as one single episode!!!",
             extra=self.dictLogger,
         )
+        with self.get_env_lock:
+            evt_remote_get.clear()
+        with self.flash_env_lock:
+            evt_remote_flash.clear()
+
+        with self.hmi_lock:
+            self.episode_done = False
+            self.episode_end = False
+
         while not th_exit:  # th_exit is local; program_exit is global
 
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -1504,7 +1508,6 @@ class RealtimeDDPG(object):
                         evt_remote_get.set()
                     with self.flash_env_lock:
                         evt_remote_flash.set()
-
                     logger_cloudhmi_sm.info(
                         f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
                         extra=self.dictLogger,
@@ -1522,23 +1525,6 @@ class RealtimeDDPG(object):
                         evt_epi_done.set()
                     th_exit = True
                     continue
-
-            # ts_epi_start = time.time()
-            with self.get_env_lock:
-                evt_remote_get.clear()
-            with self.flash_env_lock:
-                evt_remote_flash.clear()
-            # logger_cloudhmi_sm.info(
-            #     f"Test start! clear remote_flash and remote_get!",
-            #     extra=self.dictLogger,
-            # )
-
-            with self.captureQ_lock:
-                while not self.motionpowerQueue.empty():
-                    self.motionpowerQueue.get()
-            with self.hmi_lock:
-                self.episode_done = False
-                self.episode_end = False
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
             with self.get_env_lock:
@@ -2143,7 +2129,6 @@ class RealtimeDDPG(object):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
                     if self.ddpg.buffer.buffer_counter > 0:
                         (critic_loss, actor_loss) = self.ddpg.buffer.learn()
-
                         self.ddpg.soft_update_target()
                         # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
                     else:
@@ -2153,7 +2138,7 @@ class RealtimeDDPG(object):
                         self.logc.info(
                             "++++++++++++++++++++++++", extra=self.dictLogger
                         )
-                        continue
+                        break
 
                 # Checkpoint manager save model
                 self.ddpg.save_ckpt()
