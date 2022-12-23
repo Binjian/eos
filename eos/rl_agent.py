@@ -100,7 +100,7 @@ class RL_Agent(object):
     def __init__(
         self,
         agent: str = "ddpg",
-        cloud: bool = True,
+        cloud: bool = False,
         ui: str = "cloud",
         resume: bool = True,
         infer_mode: bool = False,
@@ -2315,7 +2315,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--cloud",
-        default=True,
+        default=False,
         help="Use cloud mode, default is False",
         action="store_true",
     )

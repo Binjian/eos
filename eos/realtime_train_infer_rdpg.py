@@ -2252,7 +2252,6 @@ if __name__ == "__main__":
         default="cloud",
         help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
-
     parser.add_argument(
         "-r",
         "--resume",
