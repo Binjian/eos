@@ -847,7 +847,7 @@ class DDPG:
         if self.db_server:
             rec = {
                 "timestamp": datetime.fromtimestamp(
-                    prev_ts.numpy()[0] / 1000.0
+                    float(prev_ts.numpy()[0])  # fromtimestamp need float, tf data precision set to float32
                 ),  # from ms to s
                 "plot": {
                     "character": self.truck.TruckName,

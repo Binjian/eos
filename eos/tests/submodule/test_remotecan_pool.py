@@ -859,7 +859,7 @@ class TestRemoteCanPool(unittest.TestCase):
                         )
 
                 else:
-                    timestamp0 = datetime.fromtimestamp(ts[0] / 1000.0)
+                    timestamp0 = datetime.fromtimestamp(ts[0])
                     observation_length = o_t0.shape[0]
             else:
                 wh1 = wh
@@ -961,10 +961,10 @@ class TestRemoteCanPool(unittest.TestCase):
         cycle_reward = ui_sum1 + ui_sum0
 
         self.ddpg_record = {
-            "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+            "timestamp": datetime.fromtimestamp(timestamp0[0]),
             "plot": {
                 "character": self.truck.TruckName,
-                "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "when": datetime.fromtimestamp(timestamp0[0]),
                 "where": "campus",
                 "states": {
                     "velocity_unit": "kmph",
@@ -1001,10 +1001,10 @@ class TestRemoteCanPool(unittest.TestCase):
         )  # convert to Wh
         self.record.append(
             {
-                "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "timestamp": datetime.fromtimestamp(timestamp0[0]),
                 "plot": {
                     "character": self.truck.TruckName,
-                    "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                    "when": datetime.fromtimestamp(timestamp0[0]),
                     "where": "campus",
                 },
                 "observation": self.observation.tolist(),
@@ -1036,10 +1036,10 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.record.append(
             {
-                "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "timestamp": datetime.fromtimestamp(timestamp0[0]),
                 "plot": {
                     "character": self.truck.TruckName,
-                    "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                    "when": datetime.fromtimestamp(timestamp0[0]),
                     "where": "campus",
                     "states": {
                         "velocity_unit": "kmph",
@@ -1074,10 +1074,10 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.record.append(
             {
-                "timestamp": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                "timestamp": datetime.fromtimestamp(timestamp0[0]),
                 "plot": {
                     "character": self.truck.TruckName,
-                    "when": datetime.fromtimestamp(timestamp0[0] / 1000.0),
+                    "when": datetime.fromtimestamp(timestamp0[0]),
                     "where": "campus",
                     "states": {
                         "velocity_unit": "kmph",
@@ -1179,8 +1179,8 @@ class TestRemoteCanPool(unittest.TestCase):
                                 f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                             )
                         # upsample gears from 2Hz to 50Hz
-                        timestamps_seconds = list(timestamps_units)  # in ms
-                        sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                        timestamps_seconds = list(timestamps_units) / 1000  # in s
+                        sampling_interval = 1.0 / signal_freq  # in s
                         timestamps = [
                             i + j * sampling_interval
                             for i in timestamps_seconds

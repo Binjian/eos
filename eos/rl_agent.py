@@ -773,6 +773,7 @@ class RL_Agent(object):
                     try:
                         if self.get_truck_status_start:  # starts episode
 
+                            ts = datetime.now().timestamp()
                             velocity = float(value["velocity"])
                             pedal = float(value["pedal"])
                             brake = float(value["brake_pressure"])
@@ -780,6 +781,7 @@ class RL_Agent(object):
                             voltage = float(value["V"])
 
                             motion_power = [
+                                ts,
                                 velocity,
                                 pedal,
                                 brake,
@@ -840,6 +842,11 @@ class RL_Agent(object):
                                     self.motionpowerQueue.put(
                                         self.get_truck_status_motpow_t
                                     )
+                                    motionpowerQueue_size = self.motionpowerQueue.qsize()
+                                logger_kvaser_get.info(
+                                    f"motionpowerQueue size: {motionpowerQueue_size}!",
+                                    extra=self.dictLogger,
+                                )
                                 self.get_truck_status_motpow_t = []
                     except Exception as X:
                         logger_kvaser_get.info(
@@ -1147,8 +1154,8 @@ class RL_Agent(object):
                                         f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                                     )
                                 # upsample gears from 2Hz to 50Hz
-                                timestamps_seconds = list(timestamps_units)  # in ms
-                                sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                                timestamps_seconds = list(timestamps_units) / 1000.0  # in s
+                                sampling_interval = 1.0 / signal_freq  # in s
                                 timestamps = [
                                     i + j * sampling_interval
                                     for i in timestamps_seconds
@@ -2013,7 +2020,7 @@ class RL_Agent(object):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                    # self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
+                    self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
@@ -2058,7 +2065,7 @@ class RL_Agent(object):
                         (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
                         o_t = tf.reshape(o_t0, -1)
                     else:
-                        o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
+                        ts, o_t0, pow_t = tf.split(motpow_t, [1, 3, 2], 1)
                         o_t = tf.reshape(o_t0, -1)
 
                     self.logc.info(
