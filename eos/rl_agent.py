@@ -665,6 +665,8 @@ class RL_Agent(object):
         vel_cycle_dQ = deque(
             maxlen=self.observation_len
         )  # accumulate 1.5s (one cycle) of velocity values
+        with self.hmi_lock:
+            self.program_start = True
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
@@ -705,6 +707,7 @@ class RL_Agent(object):
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
+
                     elif value == "end_valid":
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
@@ -868,6 +871,10 @@ class RL_Agent(object):
         logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
         while not th_exit:
             # time.sleep(0.1)
+            with self.hmi_lock:
+                program_start = self.program_start
+            if program_start is False:
+                continue
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
                 epi_cnt = self.episode_count
