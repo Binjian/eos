@@ -134,7 +134,6 @@ class Buffer:
         batch_size=4,
         gamma=0.99,
         datafolder="./",
-        cloud=False,
         db_server="mongo_local",
     ):
 
@@ -151,9 +150,8 @@ class Buffer:
         self.num_states = num_states
         self.num_actions = num_actions
         self.data_folder = datafolder
-        self.cloud = cloud
         self.db_server = db_server
-        if cloud is True:
+        if self.db_server:
             self.db = db_servers_by_name.get(self.db_server)
             if self.db is None:
                 account_server = [s.split(":") for s in self.db_server.split("@")]
@@ -195,7 +193,7 @@ class Buffer:
                 f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.RecCollName}, record number {self.buffer_counter}",
                 extra=dictLogger,
             )
-        else:
+        else: #elif self.db_server is '':
             self.buffer_capacity = tf.convert_to_tensor(buffer_capacity, dtype=tf.int64)
             self.file_sb = self.data_folder + "/state_buffer.npy"
             self.file_ab = self.data_folder + "/action_buffer.npy"
@@ -219,7 +217,7 @@ class Buffer:
         self.gamma = gamma
 
     def __del__(self):
-        if self.cloud:
+        if self.db_server:
             # for database, exit needs drop interface.
             self.pool.drop_mongo()
         else:
@@ -367,7 +365,36 @@ class Buffer:
         """
         Update the actor and critic networks using the sampled batch.
         """
-        if self.cloud == False:
+        if self.db_server:
+            # get sampling range, if not enough data, batch is small
+            self.logger.info(
+                f"start test_pool_sample of size {self.batch_size, self.truck.TruckName, self.driver}.",
+                extra=dictLogger,
+            )
+            assert self.buffer_counter > 0, "pool is empty"
+            batch = self.pool.sample_batch_items(
+                batch_size=self.batch_size,
+                vehicle_id=self.truck.TruckName,
+                driver_id=self.driver,
+            )
+            assert (
+                    len(batch) == self.batch_size
+            ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
+
+            # convert to tensors
+            state = [rec["observation"]["state"] for rec in batch]
+            action = [rec["observation"]["action"] for rec in batch]
+            reward = [rec["observation"]["reward"] for rec in batch]
+            next_state = [rec["observation"]["next_state"] for rec in batch]
+
+            # the shape of the tensor is the same as the buffer
+            state_batch = tf.convert_to_tensor(np.array(state))
+            action_batch = tf.convert_to_tensor(np.array(action))
+            reward_batch = tf.convert_to_tensor(np.array(reward))
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(np.array(next_state))
+
+        else:
             # get sampling range, if not enough data, batch is small,
             # batch size starting from 1, until reach buffer
             # logger.info(f"Tracing!", extra=dictLogger)
@@ -383,35 +410,6 @@ class Buffer:
             next_state_batch = tf.convert_to_tensor(
                 self.next_state_buffer[batch_indices]
             )
-
-        else:
-            # get sampling range, if not enough data, batch is small
-            self.logger.info(
-                f"start test_pool_sample of size {self.batch_size, self.truck.TruckName, self.driver}.",
-                extra=dictLogger,
-            )
-            assert self.buffer_counter > 0, "pool is empty"
-            batch = self.pool.sample_batch_items(
-                batch_size=self.batch_size,
-                vehicle_id=self.truck.TruckName,
-                driver_id=self.driver,
-            )
-            assert (
-                len(batch) == self.batch_size
-            ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
-
-            # convert to tensors
-            state = [rec["observation"]["state"] for rec in batch]
-            action = [rec["observation"]["action"] for rec in batch]
-            reward = [rec["observation"]["reward"] for rec in batch]
-            next_state = [rec["observation"]["next_state"] for rec in batch]
-
-            # the shape of the tensor is the same as the buffer
-            state_batch = tf.convert_to_tensor(np.array(state))
-            action_batch = tf.convert_to_tensor(np.array(action))
-            reward_batch = tf.convert_to_tensor(np.array(reward))
-            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(np.array(next_state))
 
         critic_loss, actor_loss = self.update(
             state_batch, action_batch, reward_batch, next_state_batch
@@ -455,28 +453,14 @@ class Buffer:
     def nolearn(self):
         # get sampling range, if not enough data, batch is small,
         # batch size starting from 1, until reach buffer
-        if self.cloud == False:
-            record_range = min(self.buffer_counter, self.buffer_capacity)
-            # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
-            batch_indices = np.random.choice(record_range, self.batch_size)
-
-            # convert to tensors
-            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
-            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
-            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
-            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(
-                self.next_state_buffer[batch_indices]
-            )
-
-        else:
+        if self.db_server:
             self.logger.info(
                 f"start test_pool_sample of size {self.batch_size}.",
                 extra=dictLogger,
             )
             batch = self.pool.sample_batch_items(batch_size=self.batch_size)
             assert (
-                len(batch) == self.batch_size
+                    len(batch) == self.batch_size
             ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
             # convert to tensors
@@ -491,6 +475,20 @@ class Buffer:
             reward_batch = tf.convert_to_tensor(np.array(reward))
             reward_batch = tf.cast(reward_batch, dtype=tf.float32)
             next_state_batch = tf.convert_to_tensor(np.array(next_state))
+
+        else:
+            record_range = min(self.buffer_counter, self.buffer_capacity)
+            # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
+            batch_indices = np.random.choice(record_range, self.batch_size)
+
+            # convert to tensors
+            state_batch = tf.convert_to_tensor(self.state_buffer[batch_indices])
+            action_batch = tf.convert_to_tensor(self.action_buffer[batch_indices])
+            reward_batch = tf.convert_to_tensor(self.reward_buffer[batch_indices])
+            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
+            next_state_batch = tf.convert_to_tensor(
+                self.next_state_buffer[batch_indices]
+            )
 
         critic_loss, actor_loss = self.noupdate(
             state_batch, action_batch, reward_batch, next_state_batch
@@ -516,7 +514,6 @@ class DDPG:
         lrAC: tuple = (0.001, 0.002),
         datafolder: str = "./",
         ckpt_interval: int = 5,
-        cloud: bool = False,
         db_server: str = "mongo_local",
         resume: bool = True,
         infer_mode: bool = False,
@@ -540,7 +537,6 @@ class DDPG:
         self._lrAC = lrAC
         self._datafolder = Path(datafolder)
         self._ckpt_interval = ckpt_interval
-        self._cloud = cloud
         self._db_server = db_server
         self._resume = resume
         self._infer_mode = infer_mode
@@ -599,7 +595,6 @@ class DDPG:
             batch_size=self.batch_size,
             gamma=self.gamma,
             datafolder=str(self.datafolder),
-            cloud=self.cloud,
             db_server=self.db_server,
         )
 
@@ -849,7 +844,7 @@ class DDPG:
         return sampled_actions
 
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        if self.cloud:
+        if self.db_server:
             rec = {
                 "timestamp": datetime.fromtimestamp(
                     prev_ts.numpy()[0] / 1000.0
@@ -1055,14 +1050,6 @@ class DDPG:
     @ckpt_interval.setter
     def ckpt_interval(self, ckpt_interval):
         raise AttributeError("ckpt_interval is read-only")
-
-    @property
-    def cloud(self):
-        return self._cloud
-
-    @cloud.setter
-    def cloud(self, cloud):
-        raise AttributeError("cloud is read-only")
 
     @property
     def db_server(self):

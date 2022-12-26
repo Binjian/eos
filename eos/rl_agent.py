@@ -513,7 +513,6 @@ class RL_Agent(object):
                 lrAC=self.lrAC,
                 datafolder=str(self.dataroot),
                 ckpt_interval=self.ckpt_interval,
-                cloud=self.cloud,
                 db_server=self.mongo_srv,
                 infer_mode=self.infer_mode,
             )
@@ -535,7 +534,6 @@ class RL_Agent(object):
                 lrAC=self.lrAC,
                 datafolder=str(self.dataroot),
                 ckpt_interval=self.ckpt_interval,
-                cloud=self.cloud,
                 db_server=self.mongo_srv,
                 infer_mode=self.infer_mode,
             )
@@ -2390,7 +2388,7 @@ if __name__ == "__main__":
         "--mongodb",
         type=str,
         default="mongo_local",
-        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local",
+        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local; if specified as empty string '', use local npy file",
     )
     args = parser.parse_args()
 

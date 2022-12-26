@@ -140,7 +140,6 @@ class RDPG:
         lrAC: tuple = (0.001, 0.002),
         datafolder="./",
         ckpt_interval="5",
-        cloud: bool = False,
         db_server: str = "mongo_local",
         infer_mode: bool = False,
     ):
@@ -165,40 +164,31 @@ class RDPG:
         self._batch_size = batch_size
         self._padding_value = padding_value
         self._gamma = tf.cast(gamma, dtype=tf.float32)
-        self.cloud = cloud
         self._datafolder = datafolder
         self.db_server = db_server
         self._infer_mode = infer_mode
         # new data
-        if self.cloud == False:
-            # Instead of list of tuples as the exp.replay concept go
-            # We use different np.arrays for each tuple element
-            self.file_replay = datafolder + "/replay_buffer.npy"
-            # Its tells us num of times record() was called.
-            self.load_replay_buffer()
-            self.buffer_counter = len(self.R)
-            self._buffer_capacity = buffer_capacity
-        else:
+        if self.db_server:
             self.db = db_servers_by_name.get(self.db_server)
             if self.db is None:
                 account_server = [s.split(":") for s in self.db_server.split("@")]
                 flat_account_server = [s for l in account_server for s in l]
                 assert (len(account_server) == 1 and len(flat_account_server) == 2) or (
-                    len(account_server) == 2 and len(flat_account_server) == 4
+                        len(account_server) == 2 and len(flat_account_server) == 4
                 ), f"Wrong format for db server {self.db_server}!"
                 if len(account_server) == 1:
                     self.db = db_servers_by_host.get(flat_account_server[0])
                     assert (
-                        self.db is not None and self.db.Port == flat_account_server[1]
+                            self.db is not None and self.db.Port == flat_account_server[1]
                     ), f"Config mismatch for db server {self.db_server}!"
 
                 else:
                     self.db = db_servers_by_host.get(flat_account_server[2])
                     assert (
-                        self.db is not None
-                        and self.db.Port == flat_account_server[3]
-                        and self.db.Username == flat_account_server[0]
-                        and self.db.Password == flat_account_server[1]
+                            self.db is not None
+                            and self.db.Port == flat_account_server[3]
+                            and self.db.Username == flat_account_server[0]
+                            and self.db.Password == flat_account_server[1]
                     ), f"Config mismatch for db server {self.db_server}!"
 
             self.logger.info(
@@ -220,6 +210,14 @@ class RDPG:
             self.buffer_counter = self.pool.count_items(
                 vehicle_id=self.truck.TruckName, driver_id=self.driver
             )
+        else: # elif self.db_server is '':
+            # Instead of list of tuples as the exp.replay concept go
+            # We use different np.arrays for each tuple element
+            self.file_replay = datafolder + "/replay_buffer.npy"
+            # Its tells us num of times record() was called.
+            self.load_replay_buffer()
+            self.buffer_counter = len(self.R)
+            self._buffer_capacity = buffer_capacity
 
         # Number of "experiences" to store     at max
         self._ckpt_interval = ckpt_interval
@@ -285,7 +283,7 @@ class RDPG:
         self.touch_gpu()
 
     def __del__(self):
-        if self.cloud:
+        if self.db_server:
             # for database, exit needs drop interface.
             self.pool.drop_mongo()
         else:
@@ -410,7 +408,7 @@ class RDPG:
 
     def deposit(self, prev_o_t, prev_a_t, prev_table_start, cycle_reward):
         """Deposit the experience into the replay buffer."""
-        if self.cloud:
+        if self.db_server:
             if not self.h_t:  # first even step has $r_0$
                 self.h_t = [
                     {
@@ -452,7 +450,7 @@ class RDPG:
 
     def deposit_history(self):
         """Deposit the episode history into the agent replay buffer."""
-        if self.cloud:
+        if self.db_server:
             if self.h_t:
                 self.episode = {
                     "timestamp": self.episode_start_dt,
@@ -786,7 +784,7 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
-        if self.cloud:
+        if self.db_server:
             self.sample_mini_batch_from_db()
         else:
             self.sample_mini_batch()
@@ -887,7 +885,7 @@ class RDPG:
             tuple: (actor_loss, critic_loss)
         """
 
-        if self.cloud:
+        if self.db_server:
             self.sample_mini_batch_from_db()
         else:
             self.sample_mini_batch()
