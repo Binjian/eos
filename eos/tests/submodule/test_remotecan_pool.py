@@ -68,7 +68,7 @@ class TestRemoteCanPool(unittest.TestCase):
         }
         os.environ["http_proxy"] = ""  # for native test (internal site force no proxy)
         self.trucks_by_name = trucks_by_name
-        self.truck_name = "VB1"
+        self.truck_name = "VB7"
 
         self.db_server_name = "mongo_local"
         self.db_server = db_servers_by_name[self.db_server_name]
@@ -530,7 +530,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info(
                 f"Get and deposit Observation No. {rec_cnt}", extra=self.dictLogger
             )
-            time.sleep(0.5)
+            time.sleep(2)
 
         self.logger.info(
             "Done with get consecutive observation test", extra=self.dictLogger
