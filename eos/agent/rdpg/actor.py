@@ -61,16 +61,16 @@ class ActorNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True)(x)
+            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
 
-        lstm_outputs = layers.LSTM(
-            hidden_dim, return_sequences=True, return_state=False
+        lstm_output = layers.LSTM(
+            hidden_dim, return_sequences=False, return_state=False
         )(x)
 
         # rescale the output of the lstm layer to (-1, 1)
-        action_outputs = layers.Dense(action_dim, activation="tanh")(lstm_outputs)
+        action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
 
-        self.eager_model = tf.keras.Model(inputs, action_outputs)
+        self.eager_model = tf.keras.Model(inputs, action_output)
         # no need to evaluate the last action separately
         # just run the model inference and get the last action
         # self.action_last = action_outputs[:, -1, :]

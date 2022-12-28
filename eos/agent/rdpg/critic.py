@@ -57,16 +57,16 @@ class CriticNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True)(x)
+            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
 
-        lstm_outputs = layers.LSTM(
-            hidden_dim, return_sequences=True, return_state=False
+        lstm_output = layers.LSTM(
+            hidden_dim, return_sequences=False, return_state=False
         )(x)
 
-        critic_outputs = layers.Dense(1, activation=None)(lstm_outputs)
+        critic_output = layers.Dense(1, activation=None)(lstm_output)
 
         self.eager_model = tf.keras.Model(
-            inputs=[inputs_state, inputs_action], outputs=critic_outputs
+            inputs=[inputs_state, inputs_action], outputs=critic_output
         )
 
         self.eager_model.summary()
