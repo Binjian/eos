@@ -24,6 +24,7 @@ include = ["eos/*", "*.csv" ]
 #virtualenvs.in-project = true
 
 [tool.poetry.dependencies]
+python = ">=3.10,<3.11"
 
 
 [tool.poetry.dev-dependencies]
