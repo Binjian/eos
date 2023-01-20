@@ -18,7 +18,7 @@ dependencies:
   - poetry
   - tensorflow-gpu=2.10
   - tensorflow-estimator
-  - tensorflow-probability==0.18.0
+  - tensorflow-probability
   - tensorboard
   - cudatoolkit
   - cudnn
