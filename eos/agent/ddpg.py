@@ -519,6 +519,10 @@ class DDPG:
         infer_mode: bool = False,
     ):
 
+        self.manager_critic = None
+        self.ckpt_critic = None
+        self.manager_actor = None
+        self.ckpt_actor = None
         self.logger = logger.getChild("main").getChild("ddpg")
         self.logger.propagate = True
 

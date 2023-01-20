@@ -113,6 +113,51 @@ class RealtimeDDPG(object):
         proj_root=Path("."),
         vlogger=None,
     ):
+        self.ckpt_interval = None
+        self.ddpg = None
+        self.padding_value = None
+        self.n_layerAC = None
+        self.hidden_unitsAC = None
+        self.batch_size = None
+        self.buffer_capacity = None
+        self.seq_len = None
+        self.lrAC = None
+        self.tauAC = None
+        self.gamma = None
+        self.actor_lr = None
+        self.critic_lr = None
+        self.vcu_calib_table_row_start = None
+        self.num_hidden1 = None
+        self.num_hidden0 = None
+        self.num_hidden = None
+        self.num_actions = None
+        self.vcu_calib_table_row_reduced = None
+        self.num_states = None
+        self.sample_rate = None
+        self.observation_len = None
+        self.num_observations = None
+        self.velocity_range = None
+        self.pedal_range = None
+        self.pd_columns = None
+        self.pd_index = None
+        self.action_bias = None
+        self.action_upper = None
+        self.action_lower = None
+        self.action_budget = None
+        self.vcu_calib_table_size = None
+        self.vcu_calib_table_row = None
+        self.vcu_calib_table_col = None
+        self.vcu_calib_table1 = None
+        self.tflog = None
+        self.train_log_dir = None
+        self.logroot = None
+        self.rmq_producer = None
+        self.rmq_message_ready = None
+        self.rmq_consumer = None
+        self.trip_server = None
+        self.remotecan_client = None
+        self.can_server = None
+        self.logc = None
         self.cloud = cloud
         self.ui = ui
         self.trucks_by_name = trucks_by_name
@@ -285,12 +330,15 @@ class RealtimeDDPG(object):
             + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
-        formatter = logging.basicConfig(
-            format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
+        fmt = "%(created)f-%(asctime)s.%(msecs)03d-%(name)s-"
+        "%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+        logging.basicConfig(
+            format=fmt,
             datefmt="%Y-%m-%dT%H:%M:%S.%f",
         )
         json_file_formatter = jsonlogger.JsonFormatter(
-            "%(created)f %(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+            "%(created)f %(asctime)s %(name)s "
+            "%(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
         )
 
         fh = logging.FileHandler(logfilename)
@@ -304,10 +352,10 @@ class RealtimeDDPG(object):
 
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
-        ch.setFormatter(formatter)
+        ch.setFormatter(fmt)
         #  Cutelog socket
         skh = SocketHandler("127.0.0.1", 19996)
-        skh.setFormatter(formatter)
+        skh.setFormatter(fmt)
 
         self.logger.addHandler(fh)
         self.logger.addHandler(strh)
@@ -397,17 +445,17 @@ class RealtimeDDPG(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            returncode, ret_str = self.remotecan_client.send_torque_map(
+            return_code, ret_str = self.remotecan_client.send_torque_map(
                 pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
             self.logger.info(
-                f"Done flash initial table. returncode: {returncode}, ret_str: {ret_str}",
+                f"Done flash initial table. returncode: {return_code}, ret_str: {ret_str}",
                 extra=self.dictLogger,
             )
         else:
-            returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
+            return_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
             self.logger.info(
-                f"Done flash initial table. returncode: {returncode}",
+                f"Done flash initial table. returncode: {return_code}",
                 extra=self.dictLogger,
             )
 
@@ -485,7 +533,6 @@ class RealtimeDDPG(object):
         self.padding_value = -10000
         self.ckpt_interval = 5
 
-        self.h_t = []
         # Initialize networks
         self.ddpg = DDPG(
             self.truck,
@@ -2246,7 +2293,10 @@ if __name__ == "__main__":
         "--ui",
         type=str,
         default="cloud",
-        help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
+        help="User Inferface: 'mobile' for mobile phone (for training);"
+             "'local' for local hmi;"
+             "'cloud' for no UI;"
+             "'mobile' for mobile phone",
     )
 
     parser.add_argument(
@@ -2297,21 +2347,28 @@ if __name__ == "__main__":
         "--remotecan",
         type=str,
         default="10.0.64.78:5000",
-        help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test",
+        help="url for remote can server,"
+             "e.g. 10.10.0.6:30865,"
+             "or name, e.g. can_intra, can_cloud",
     )
     parser.add_argument(
         "-w",
         "--web",
         type=str,
         default="10.0.64.78:9876",
-        help="url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test",
+        help="url for web ui server,"
+             "e.g. 10.10.0.13:9876,"
+             "or name, e.g. rocket_intra, rocket_cloud",
     )
     parser.add_argument(
         "-o",
         "--mongodb",
         type=str,
         default="mongo_local",
-        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local",
+        help="url for mongodb server in format usr:password@host:port,"
+             "e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000,"
+             "or simply name with synced default config, e.g. mongo_cluster, mongo_local,"
+             "or mongo_container, meaning mongodb server in another container, need MONGODB_CONNSTRING",
     )
     args = parser.parse_args()
 
