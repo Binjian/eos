@@ -201,6 +201,9 @@ class RealtimeDDPG(object):
         )
         gpus = tf.config.experimental.list_physical_devices(device_type="GPU")
         tf.config.experimental.set_memory_growth(gpus[0], True)
+        self.logc.info(f"Tensorflow version: {tf.__version__}")
+        tf_sys_details = tf.sysconfig.get_build_info()
+        self.logc.info(f"Tensorflow build info: {tf_sys_details}")
 
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
