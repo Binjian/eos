@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "eos"
-version = "0.0.3"
+version = "0.0.4"
 description="Electric Optimization System: A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
 authors = ["binjian.xin <binjian.xin@newrizon.com>"]
 maintainers = ["binjian.xin <binjian.xin@newrizon.com>"]

@@ -95,6 +95,17 @@ db_list = [
         Password="ty02ydhVqDj3QFjT",  # password for the database server
         Proxy="",  # proxy for the database server
     ),
+    DB(
+        SRVName="hostdb",  # name of the database, in the same bridge network of the docker host
+        DatabaseName="eos",  # name of the database
+        RecCollName="record",  # name of the collection
+        EpiCollName="episode",  # name of the collection
+        Host="hostdb",  # url for the database server
+        Port="27017",  # port for the database server
+        Username="",  # username for the database server
+        Password="",  # password for the database server
+        Proxy="",  # proxy for the database server
+    ),
 ]
 
 db_servers_by_name = dict(zip([db.SRVName for db in db_list], db_list))

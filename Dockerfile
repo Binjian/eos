@@ -1,5 +1,5 @@
 ## set base image (host S)
-ARG BASE_IMAGE=mambaorg/micromamba:1.1-jammy-cuda-11.8.0
+ARG BASE_IMAGE=mambaorg/micromamba:1.2-jammy-cuda-11.8.0
 FROM ${BASE_IMAGE}
 ARG BASE_IMAGE
 RUN echo "BASE_IMAGE=${BASE_IMAGE}"
@@ -85,7 +85,7 @@ RUN pip install -e .
 RUN python -c 'import tensorflow as tf; print(tf.__version__); print(tf.config.list_physical_devices("GPU")); print(tf.test.is_built_with_cuda()); print(tf.__file__)'
 #RUN ["micromamba", "run", "python", "import tensorflow as tf; print(tf.__version__); print(tf.config.list_physical_devices("GPU")); print(tf.test.is_built_with_cuda()); print(tf.__file__)"]
 #ENTRYPOINT ["/usr/local/bin/_entrypoint.sh"]
-ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer_ddpg.py", "-v", "VB7", "-d", "longfei", "-m", "can_intra", "-u",  "rocket_intra", "-o", "mongo_local", "-i"]
+ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer_ddpg.py", "-v", "VB7", "-d", "longfei", "-m", "can_intra", "-w", "rocket_intra", "-u", "mobile", "-o", "mongo_local", "-i"]
 # ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "python", "eos/realtime_train_infer_rdpg.py", "-v HMZABAAH7MF011058", "-d longfei"]
 
 

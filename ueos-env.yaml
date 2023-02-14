@@ -12,21 +12,21 @@ channels:
   - conda-forge
   - nvidia
 dependencies:
-  - python >=3.10
+  - python=3.10
   - mypy
   - pylint
   - poetry
   - tensorflow-gpu=2.10
   - tensorflow-estimator
-  - tensorflow-probability
+  - tensorflow-probability=0.18.0
   - tensorboard
   - cudatoolkit
   - cudnn
+  - opt_einsum=3.3.0
   - python-json-logger
   - plotly
   - Pillow
   - pandas
-  - opt-einsum
   - jupyterlab
   - keras
   - numpy
