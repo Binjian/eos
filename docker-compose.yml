@@ -1,0 +1,39 @@
+version: "3.9"
+services:
+  eos:
+    image: ueos:latest
+    user: root:root
+    ports:
+      - "6006:6006"
+      - "5000:5000"
+      - "9876:9876"
+      - "19996:19996"
+    networks:
+      - eos-net
+    volumes:
+      - ./data:/app/data:rw
+    entrypoint:
+        - /usr/local/bin/_entrypoint.sh
+        - python
+        - eos/realtime_train_infer_ddpg.py
+        - -v
+        - VB7
+        - -d
+        - longfei
+        - -m
+        - can_intra
+        - -i
+    depends_on:
+      - hostdb
+  hostdb:
+    image: mongo:latest
+    networks:
+      - eos-net
+    volumes:
+      - mongo-vol:/data/db
+volumes:
+    mongo-vol:
+    eos-vol:
+networks:
+  eos-net:
+    driver: bridge
