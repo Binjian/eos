@@ -4,11 +4,14 @@ from .ac_gaussian import (
     train_step_a2c,
     train_step_ddpg,
 )
-from .ddpg import DDPG
-from .rdpg import RDPG
+
+from .dpg import DPG
+from .ddpg.ddpg import DDPG
+from .rdpg.rdpg import RDPG
 from .utils import OUActionNoise
 
 __all__ = [
+    DPG,
     DDPG,
     RDPG,
     OUActionNoise,

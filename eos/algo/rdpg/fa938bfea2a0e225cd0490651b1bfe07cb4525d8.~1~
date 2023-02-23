@@ -306,7 +306,7 @@ class RDPG:
             f"manual load tf library by calling convert_to_tensor",
             extra=self.dictLogger,
         )
-        self.reset_noise()
+        self.ou_noise.reset()
 
         # warm up the GPU training Graph execution pipeline
         if self.buffer_counter != 0:
@@ -321,7 +321,7 @@ class RDPG:
                     extra=self.dictLogger,
                 )
 
-    def init_ckpt(self):
+    def init_checkoint(self):
         # Actor create or restore from checkpoint
         # add checkpoints manager
         self._ckpt_actor_dir = self._datafolder + "/vb_rl-rdpg/actor"
@@ -395,10 +395,6 @@ class RDPG:
         action = self.actor_net.predict(obs)
         return action
 
-    def reset_noise(self):
-        """reset noise of the moving actor network"""
-        self.actor_net.reset_noise()
-
     def start_episode(self, dt: datetime):
         self.logger.info(f"Episode start at {dt}", extra=dictLogger)
         # somehow mongodb does not like microseconds in rec['plot']
@@ -406,8 +402,15 @@ class RDPG:
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
         self.h_t = []
 
-    def deposit(self, prev_o_t, prev_a_t, prev_table_start, cycle_reward):
-        """Deposit the experience into the replay buffer."""
+    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
+        """Deposit the experience into the replay buffer.
+            The following are not used for RDPG,
+            Just to have a uniform interface with DDPG
+            prev_ts: timestamp of the previous state
+            o_t: current state
+        """
+        prev_ts0 = prev_ts
+        o_t0 = o_t
         if self.db_server:
             if not self.h_t:  # first even step has $r_0$
                 self.h_t = [
@@ -877,6 +880,8 @@ class RDPG:
 
         return actor_loss, critic_loss
 
+    def get_losses(self):
+        pass
     def notrain(self):
         """
         Purely evaluate the actor and critic networks to  return the losses without Training.

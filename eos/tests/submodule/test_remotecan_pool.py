@@ -525,7 +525,6 @@ class TestRemoteCanPool(unittest.TestCase):
 
         self.logger.info("Start observation test", extra=self.dictLogger)
         for rec_cnt in range(3):
-
             self.native_get()
             self.logger.info(
                 f"Get and deposit Observation No. {rec_cnt}", extra=self.dictLogger
@@ -565,7 +564,6 @@ class TestRemoteCanPool(unittest.TestCase):
             f"Start observation test wth {rec_count} records", extra=self.dictLogger
         )
         for rec_cnt in range(16):
-
             self.get_ddpg_record()
             self.pool.deposit_item(self.ddpg_record)
             self.logger.info(
@@ -640,7 +638,6 @@ class TestRemoteCanPool(unittest.TestCase):
         # )
 
     def native_send(self):
-
         # flashing 5 rows of the calibration table
         k0 = 2
         N0 = 4
@@ -810,7 +807,6 @@ class TestRemoteCanPool(unittest.TestCase):
             self.assertEqual(epi_inserted["history"], self.episode["history"])
 
     def get_an_episode(self):
-
         self.logger.info("Start get_an_episode", extra=self.dictLogger)
         self.h_t = []
         # action
@@ -828,7 +824,6 @@ class TestRemoteCanPool(unittest.TestCase):
         prev_a_t = None
 
         for i in range(5):
-
             self.native_get()
             out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
             (ts, o_t0, gr_t, pow_t) = [np.squeeze(e) for e in out]
@@ -1116,7 +1111,6 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info(f"Pool has {pool_size} records", extra=self.dictLogger)
 
     def native_get(self):
-
         timeout = self.truck.CloudUnitNumber + 9
         signal_success, remotecan_data = self.client.get_signals(
             duration=self.truck.CloudUnitNumber, timeout=timeout

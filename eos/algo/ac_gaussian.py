@@ -95,6 +95,8 @@ def train_step_a2c(net, history, optimizer, tape):
 
 
 """construct the actor network with mu and sigma as output"""
+
+
 # TODO add memory replay buffer
 # TODO add batch sample and ddpg
 # Actor and Critic share a backbone network (multitasking)

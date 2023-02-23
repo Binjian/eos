@@ -1,6 +1,4 @@
 # third-party imports
-import keras.initializers as initializers
-import numpy as np
 import tensorflow as tf
 from keras import layers
 

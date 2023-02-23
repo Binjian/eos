@@ -131,7 +131,6 @@ class TestRemoteCanGet(unittest.TestCase):
     #     self.native_send()
 
     def native_get(self):
-
         signal_success, remotecan_data = self.client.get_signals(
             duration=self.truck.CloudUnitNumber
         )
@@ -273,7 +272,6 @@ class TestRemoteCanGet(unittest.TestCase):
             print("reson", remotecan_data)
 
     def native_send(self):
-
         # # map2d = [[i * 10 + j for j in range(17)] for i in range(5)]
 
         # flashing 5 rows of the calibration table

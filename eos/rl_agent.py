@@ -207,6 +207,9 @@ class RL_Agent(object):
         )
         gpus = tf.config.experimental.list_physical_devices(device_type="GPU")
         tf.config.experimental.set_memory_growth(gpus[0], True)
+        self.logc.info(f"Tensorflow version: {tf.__version__}")
+        tf_sys_details = tf.sysconfig.get_build_info()
+        self.logc.info(f"Tensorflow build info: {tf_sys_details}")
 
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
@@ -290,12 +293,20 @@ class RL_Agent(object):
             + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
-        formatter = logging.basicConfig(
-            format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
+        fmt = "%(created)f-%(asctime)s.%(msecs)03d-%(name)s-"
+        "%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+        formatter = logging.Formatter(fmt)
+        logging.basicConfig(
+            format=fmt,
+            datefmt="%Y-%m-%dT%H:%M:%S.%f",
+        )
+        logging.basicConfig(
+            format=fmt,
             datefmt="%Y-%m-%dT%H:%M:%S.%f",
         )
         json_file_formatter = jsonlogger.JsonFormatter(
-            "%(created)f %(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+            "%(created)f %(asctime)s %(name)s "
+            "%(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
         )
 
         fh = logging.FileHandler(logfilename)
@@ -402,17 +413,17 @@ class RL_Agent(object):
         self.logger.info(f"Start flash initial table", extra=self.dictLogger)
         # time.sleep(1.0)
         if self.cloud:
-            returncode, ret_str = self.remotecan_client.send_torque_map(
+            return_code, ret_str = self.remotecan_client.send_torque_map(
                 pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
             self.logger.info(
-                f"Done flash initial table. returncode: {returncode}, ret_str: {ret_str}",
+                f"Done flash initial table. returncode: {return_code}, ret_str: {ret_str}",
                 extra=self.dictLogger,
             )
         else:
-            returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
+            return_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
             self.logger.info(
-                f"Done flash initial table. returncode: {returncode}",
+                f"Done flash initial table. returncode: {return_code}",
                 extra=self.dictLogger,
             )
 
@@ -455,7 +466,9 @@ class RL_Agent(object):
                 1.0 / self.truck.KvaserObservationFrequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
-        self.num_states = self.observation_len * self.num_observations # 60 subsequent observations
+        self.num_states = (
+            self.observation_len * self.num_observations
+        )  # 60 subsequent observations
         self.vcu_calib_table_row_reduced = (
             self.truck.ActionFlashRow
         )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
@@ -494,7 +507,6 @@ class RL_Agent(object):
         self.padding_value = -10000
         self.ckpt_interval = 5
 
-        self.h_t = []
         # Initialize networks
         if self.agent == "ddpg":
             self.ddpg = DDPG(
@@ -591,7 +603,6 @@ class RL_Agent(object):
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
     ):
-
         logger_countdown = self.logger.getChild("countdown")
         logger_countdown.propagate = True
         th_exit = False
@@ -772,7 +783,6 @@ class RL_Agent(object):
                     # DONE add logic for episode valid and invalid
                     try:
                         if self.get_truck_status_start:  # starts episode
-
                             ts = datetime.now().timestamp()
                             velocity = float(value["velocity"])
                             pedal = float(value["pedal"])
@@ -842,7 +852,9 @@ class RL_Agent(object):
                                     self.motionpowerQueue.put(
                                         self.get_truck_status_motpow_t
                                     )
-                                    motionpowerQueue_size = self.motionpowerQueue.qsize()
+                                    motionpowerQueue_size = (
+                                        self.motionpowerQueue.qsize()
+                                    )
                                 logger_kvaser_get.info(
                                     f"motionpowerQueue size: {motionpowerQueue_size}!",
                                     extra=self.dictLogger,
@@ -868,7 +880,6 @@ class RL_Agent(object):
     # this is the calibration table consumer for flashing
     # @eye
     def kvaser_flash_vcu(self, evt_remote_flash: threading.Event):
-
         flash_count = 0
         th_exit = False
 
@@ -899,7 +910,6 @@ class RL_Agent(object):
             except queue.Empty:
                 pass
             else:
-
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
@@ -986,7 +996,6 @@ class RL_Agent(object):
     def remote_get_handler(
         self, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
     ):
-
         th_exit = False
         logger_remote_get = self.logger.getChild("remote_get")
         logger_remote_get.propagate = True
@@ -1033,7 +1042,10 @@ class RL_Agent(object):
                 extra=self.dictLogger,
             )
             with self.remoteClient_lock:
-                (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
+                (
+                    signal_success,
+                    remotecan_data,
+                ) = self.remotecan_client.get_signals(
                     duration=self.truck.CloudUnitNumber, timeout=timeout
                 )  # timeout is 1 second longer than duration
                 if signal_success != 0:  # in case of failure, ping server
@@ -1103,7 +1115,6 @@ class RL_Agent(object):
 
             try:
                 if signal_success == 0:
-
                     with self.hmi_lock:
                         th_exit = self.program_exit
                         episode_end = self.episode_end
@@ -1154,7 +1165,9 @@ class RL_Agent(object):
                                         f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
                                     )
                                 # upsample gears from 2Hz to 50Hz
-                                timestamps_seconds = list(timestamps_units) / 1000.0  # in s
+                                timestamps_seconds = (
+                                    list(timestamps_units) / 1000.0
+                                )  # in s
                                 sampling_interval = 1.0 / signal_freq  # in s
                                 timestamps = [
                                     i + j * sampling_interval
@@ -1382,7 +1395,6 @@ class RL_Agent(object):
                         extra=self.dictLogger,
                     )
                 elif msg_body["code"] == 1:  # start episode
-
                     self.get_truck_status_start = True
                     logger_webhmi_sm.info(
                         "%s", "Episode will start!!!", extra=self.dictLogger
@@ -1405,7 +1417,6 @@ class RL_Agent(object):
                         self.episode_done = False
                         self.episode_end = False
                 elif msg_body["code"] == 2:  # valid stop
-
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
@@ -1424,7 +1435,6 @@ class RL_Agent(object):
                         self.episode_done = False  # TODO delay episode_done to make main thread keep running
                         self.episode_end = False
                 elif msg_body["code"] == 3:  # invalid stop
-
                     self.get_truck_status_start = False
                     logger_webhmi_sm.info(
                         f"Episode is interrupted!!!", extra=self.dictLogger
@@ -1501,10 +1511,10 @@ class RL_Agent(object):
         logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
 
     def remote_cloudhmi_state_machine(
-            self,
-            evt_epi_done: threading.Event,
-            evt_remote_get: threading.Event,
-            evt_remote_flash: threading.Event,
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1539,7 +1549,6 @@ class RL_Agent(object):
             self.episode_end = False
 
         while not th_exit:  # th_exit is local; program_exit is global
-
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 # Check if the runner is trying to kill the process
                 # kill signal captured from main thread
@@ -1835,7 +1844,6 @@ class RL_Agent(object):
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
-
                     curr_table_store_path = self.tableroot.joinpath(
                         "instant_table_ddpg-vb-"
                         + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
@@ -1924,7 +1932,6 @@ class RL_Agent(object):
 
     # @eye
     def run(self):
-
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
         evt_remote_get = threading.Event()
@@ -2020,7 +2027,7 @@ class RL_Agent(object):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                    self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
+                    # self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
@@ -2211,7 +2218,7 @@ class RL_Agent(object):
                             break
                     # Checkpoint manager save model
                     self.ddpg.save_ckpt()
-                else: # self.agent == "rdpg"
+                else:  # self.agent == "rdpg"
                     self.logc.info("Learning and soft updating 6 times")
                     for k in range(6):
                         # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)

@@ -10,8 +10,6 @@ from eos.utils.exception import ReadOnlyError
 # local imports
 from ..utils.ou_noise import OUActionNoise
 
-global _state_dim
-
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
@@ -41,7 +39,6 @@ class ActorNet:
         """
 
         self._state_dim = state_dim
-        _state_dim = self._state_dim
         self._action_dim = action_dim
         self._hidden_dim = hidden_dim
         self._lr = lr
