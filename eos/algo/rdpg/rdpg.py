@@ -152,7 +152,7 @@ class RDPG(DPG):
         """
         super().__post_init__()
 
-        if self.db_server:
+        if self.db:
             self.db_schema = episode_schemas["episode_deep"]
             self.pool = Pool(
                 url="mongodb://" + self.db.Host + ":" + self.db.Port,
@@ -169,7 +169,7 @@ class RDPG(DPG):
             self.buffer_counter = self.pool.count_items(
                 vehicle_id=self.truck.TruckName, driver_id=self.driver
             )
-        else:  # elif self.db_server is '':
+        else:  # elif self.db is '':
             # Instead of list of tuples as the exp.replay concept go
             # We use different np.arrays for each tuple element
             self.file_replay = self.datafolder + "/replay_buffer.npy"
@@ -389,7 +389,7 @@ class RDPG(DPG):
         """
         _ = prev_ts
         _ = o_t
-        if self.db_server:
+        if self.db:
             if not self.h_t:  # first even step has $r_0$
                 self.h_t = [
                     {
@@ -432,7 +432,7 @@ class RDPG(DPG):
 
     def deposit_history(self):
         """deposit the episode history into the agent replay buffer."""
-        if self.db_server:
+        if self.db:
             if self.h_t:
                 episode = {
                     "timestamp": self.episode_start_dt,
@@ -444,10 +444,12 @@ class RDPG(DPG):
                         "where": "campus",
                         "length": len(self.h_t),
                         "states": {
-                            "velocity_unit": "kmph",
-                            "thrust_unit": "percentage",
-                            "brake_unit": "percentage",
-                            "length": self.truck.CloudUnitNumber*self.truck.CloudSignalFrequency,
+                            "observations": [{"velocity_unit": "kmph"},
+                                             {"thrust_unit": "percentage"},
+                                             {"brake_unit": "percentage"}],
+                            "unit_number": self.truck.CloudUnitNumber,  # 4
+                            "unit_duration": self.truck.CloudUnitDuration,  # 1s
+                            "frequency": self.truck.CloudSignalFrequency,  # 50 hz
                         },
                         "actions": {
                             "action_row_number": self.truck.actionflashrow,
@@ -770,7 +772,7 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        if self.db_server:
+        if self.db:
             self.sample_mini_batch_from_db()
         else:
             self.sample_mini_batch()
@@ -874,7 +876,7 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        if self.db_server:
+        if self.db:
             self.sample_mini_batch_from_db()
         else:
             self.sample_mini_batch()

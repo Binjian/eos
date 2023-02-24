@@ -2020,7 +2020,7 @@ class Agent(abc.ABC):
                             motpow_t, [1, 3, 1, 2], 1
                         )  # note the difference of split between np and tf
                         (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
-                        o_t = tf.reshape(o_t0, -1)
+                        o_t = tf.reshape(o_t0, -1)  # [200, 3] -> [600]
                     else:
                         ts, o_t0, pow_t = tf.split(motpow_t, [1, 3, 2], 1)
                         o_t = tf.reshape(o_t0, -1)

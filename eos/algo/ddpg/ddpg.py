@@ -136,13 +136,13 @@ class DDPG(DPG):
         super().__post_init__()
 
         self.buffer = Buffer(
-            self.truck,
-            self.driver,
-            self.num_states,
-            self.num_actions,
+            db=self.db,
+            truck=self.truck,
+            driver=self.driver,
+            num_states=self.num_states,
+            num_actions=f.num_actions,
             batch_size=self.batch_size,
-            datafolder=str(self.datafolder),
-            db_server=self.db_server,
+            datafolder=self.datafolder,
         )
 
         # Initialize networks
@@ -491,15 +491,19 @@ class DDPG(DPG):
                     "tz": str(self.truck.tz),
                     "where": "campus",
                     "states": {
-                        "velocity_unit": "kmph",
-                        "thrust_unit": "percentage",
-                        "brake_unit": "percentage",
-                        "length": o_t.shape[0],
-                    },
+                        "observations": [{"velocity_unit": "kmph"},
+                                         {"thrust_unit": "percentage"},
+                                         {"brake_unit": "percentage"}],
+                        "unit_number": self.truck.CloudUnitNumber,  # 4
+                        "unit_duration": self.truck.CloudUnitDuration,  # 1s
+                        "frequency": self.truck.CloudSignalFrequency,  # 50 hz
+                    },  # num_states = length * len(observations) 200*3=600
+                    #  length = unit_number * unit_duration  = 4*50=200
+
                     "actions": {
                         "action_row_number": self.truck.ActionFlashRow,
                         "action_column_number": self.truck.PedalScale,
-                    },
+                    },  # num_actions = action_row_number * action_column_number (4*17=68)
                     "reward": {
                         "reward_unit": "wh",
                     },

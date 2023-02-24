@@ -7,7 +7,7 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 from eos import Pool, dictLogger, logger
-from eos.config import db_servers_by_name, db_servers_by_host, record_schemas, Truck, trucks_by_name
+from eos.config import DB, record_schemas, Truck, trucks_by_name
 
 """
 We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
@@ -38,13 +38,14 @@ the maximum predicted value as seen by the Critic, for a given state.
 
 @dataclass
 class Buffer:
+    db: DB = None,  # if None, use npy array for buffer
     truck: Truck = trucks_by_name["VB7"]
-    num_states: int=600,
-    num_actions: int=68,
-    buffer_capacity: int = 10000,
+    driver: str = "longfei",
+    num_states: int = 600,
+    num_actions: int = 68,
     batch_size: int = 4,
+    buffer_capacity: int = 10000,
     datafolder: str = "./",
-    db_server: str = "mongo_local",
     file_sb: str = None
     file_ab: str = None
     file_rb: str = None
@@ -63,7 +64,7 @@ class Buffer:
         # Number of "experiences" to store at max
         # Num of tuples to train on.
 
-        if self.db_server:
+        if self.db:
             self.db_schema = record_schemas["record_deep"]
             self.pool = Pool(
                 url="mongodb://" + self.db.Host + ":" + self.db.Port,
@@ -77,11 +78,24 @@ class Buffer:
             self.buffer_counter = self.pool.count_items(
                 vehicle_id=self.truck.TruckName, driver_id=self.driver
             )
+            batch_4 = self.pool.sample_batch_items(
+                batch_size=4, vehicle_id=self.truck.TruckName
+            )
+            obs = batch_4[0]["plot"]["states"]["observations"]
+            unit_number = batch_4[0]["plot"]["states"]["unit_number"]
+            unit_duration = batch_4[0]["plot"]["states"]["unit_duration"]
+            frequency = batch_4[0]["plot"]["states"]["frequency"]
+            self.num_states = len(obs) * unit_number * unit_duration * frequency
+
+            action_row_number = batch_4[0]["plot"]["actions"]["action_row_number"]
+            action_column_number = batch_4[0]["plot"]["actions"]["action_column_number"]
+            self.num_actions = action_row_number * action_column_number
+
             self.logger.info(
                 f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.RecCollName}, record number {self.buffer_counter}",
                 extra=dictLogger,
             )
-        else:  # elif self.db_server is '':
+        else:  # elif self.db is '':
             self.buffer_capacity = tf.convert_to_tensor(
                 self.buffer_capacity, dtype=tf.int64
             )
@@ -181,7 +195,7 @@ class Buffer:
         """
         Update the actor and critic networks using the sampled batch.
         """
-        if self.db_server:
+        if self.db:
             # get sampling range, if not enough data, batch is small
             self.logger.info(
                 f"start test_pool_sample of size {self.batch_size, self.truck.TruckName, self.driver}.",

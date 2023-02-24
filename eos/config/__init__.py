@@ -3,6 +3,7 @@ from .db_config import (
     db_servers_by_host,
     episode_schemas,
     record_schemas,
+    DB
 )
 from .messenger_config import (
     can_servers_by_name,
@@ -31,6 +32,7 @@ __all__ = [
     "VELOCITY_SCALES_MULE",
     "VELOCITY_SCALES_VB",
     "PEDAL_SCALES",
+    "DB",
     "db_servers_by_name",
     "db_servers_by_host",
     "can_servers_by_name",

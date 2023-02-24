@@ -5,6 +5,7 @@ from datetime import datetime
 
 from eos import Pool, dictLogger, logger
 from eos.config import (
+    DB,
     db_servers_by_name,
     db_servers_by_host,
     episode_schemas,
@@ -33,6 +34,7 @@ class DPG(abc.ABC):
     _datafolder: str = ("./",)
     _ckpt_interval: int = (5,)
     _db_server: str = ("mongo_local",)
+    _db: DB = (None,)
     _resume: bool = (True,)
     _infer_mode: bool = (False,)
     _pool: Pool = (None,)
@@ -327,3 +329,11 @@ class DPG(abc.ABC):
     @pool.setter
     def pool(self, value):
         raise AttributeError("pool is read-only")
+
+    @property
+    def db(self):
+        return self._db
+
+    @db.setter
+    def db(self, value: DB):
+        self._db = value
