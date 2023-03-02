@@ -7,8 +7,7 @@ import tensorflow as tf
 from keras import layers
 from pymongoarrow.monkey import patch_all
 
-from eos import Pool, dictLogger
-from eos.config import record_schemas
+from eos import dictLogger
 from ..utils import OUActionNoise
 from .buffer import Buffer
 from ..dpg import DPG
@@ -85,7 +84,7 @@ Now, let's see how is it implemented.
 """
 
 """
-We use [OpenAIGym](http://gym.openai.com/docs) to create the environment.
+We use [OpenAIGym](https://gym.openai.com/docs) to create the environment.
 We will use the `upper_bound` parameter to scale our actions later.
 """
 
@@ -131,6 +130,7 @@ class DDPG(DPG):
     ckpt_critic: tf.train.Checkpoint = None
     manager_actor: tf.train.CheckpointManager = None
     ckpt_actor: tf.train.Checkpoint = None
+    buffer: Buffer = None
 
     def __post__init__(self):
         super().__post_init__()
@@ -140,7 +140,7 @@ class DDPG(DPG):
             truck=self.truck,
             driver=self.driver,
             num_states=self.num_states,
-            num_actions=f.num_actions,
+            num_actions=self.num_actions,
             batch_size=self.batch_size,
             datafolder=self.datafolder,
         )
@@ -184,7 +184,6 @@ class DDPG(DPG):
         self.actor_optimizer = tf.keras.optimizers.Adam(self.lrAC[0])
         self.critic_optimizer = tf.keras.optimizers.Adam(self.lrAC[1])
 
-
         # ou_noise is a row vector of num_actions dimension
         self.ou_noise_std_dev = 0.2
         self.ou_noise = OUActionNoise(
@@ -194,12 +193,18 @@ class DDPG(DPG):
         self.init_checkpoint()
         self.touch_gpu()
 
+    def __del__(self):
+        if self.db:
+            # for database, exit needs drop interface.
+            self.buffer.drop_mongo()
+        else:
+            self.buffer.save_replay_buffer()
+
     def __repr__(self):
         return f"DDPG({self.truck.name}, {self.driver})"
 
     def __str__(self):
         return "DDPG"
-
 
     def init_checkpoint(self):
         # add checkpoints manager
@@ -477,55 +482,7 @@ class DDPG(DPG):
         return sampled_actions
 
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        if self.db_server:
-            rec = {
-                "timestamp": datetime.fromtimestamp(
-                    float(
-                        prev_ts.numpy()[0]
-                    )  # fromtimestamp need float, tf data precision set to float32
-                ),  # from ms to s
-                "plot": {
-                    "character": self.truck.TruckName,
-                    "driver": self.driver,
-                    "when": self.episode_start_dt,
-                    "tz": str(self.truck.tz),
-                    "where": "campus",
-                    "states": {
-                        "observations": [{"velocity_unit": "kmph"},
-                                         {"thrust_unit": "percentage"},
-                                         {"brake_unit": "percentage"}],
-                        "unit_number": self.truck.CloudUnitNumber,  # 4
-                        "unit_duration": self.truck.CloudUnitDuration,  # 1s
-                        "frequency": self.truck.CloudSignalFrequency,  # 50 hz
-                    },  # num_states = length * len(observations) 200*3=600
-                    #  length = unit_number * unit_duration  = 4*50=200
-
-                    "actions": {
-                        "action_row_number": self.truck.ActionFlashRow,
-                        "action_column_number": self.truck.PedalScale,
-                    },  # num_actions = action_row_number * action_column_number (4*17=68)
-                    "reward": {
-                        "reward_unit": "wh",
-                    },
-                },
-                "observation": {
-                    "state": prev_o_t.numpy().tolist(),
-                    "action": prev_a_t.numpy().tolist(),
-                    "action_start_row": prev_table_start,
-                    "reward": cycle_reward.numpy().tolist(),
-                    "next_state": o_t.numpy().tolist(),
-                },
-            }
-            self.buffer.store_db(rec)
-        else:
-            self.buffer.store_npa(
-                (
-                    prev_o_t,
-                    prev_a_t,
-                    cycle_reward,
-                    o_t,
-                )
-            )
+        self.buffer.store_record(prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t)
 
     def end_episode(self):
         self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
@@ -546,7 +503,7 @@ class DDPG(DPG):
 
         # warm up gpu training graph execution pipeline
         if self.buffer.buffer_counter != 0:
-            if not self.infer:
+            if not self.infer_mode:
                 self.logger.info(
                     f"ddpg warm up training!",
                     extra=dictLogger,

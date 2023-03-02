@@ -140,6 +140,7 @@ class RDPG(DPG):
     o_n_t: tf.Tensor = None
     a_n_t: tf.Tensor = None
     R: list = None
+    pool: Pool = None
 
     def __post_init__(
         self,
@@ -236,7 +237,16 @@ class RDPG(DPG):
         self.target_critic_net.clone_weights(self.critic_net)
         self.touch_gpu()
 
+
+    def __del__(self):
+        if self.db_server:
+            # for database, exit needs drop interface.
+            self.pool.drop_mongo()
+        else:
+            self.save_replay_buffer()
+
     def __repr__(self):
+
         return f"RDPG({self.truck.name}, {self.driver})"
 
     def __str__(self):
@@ -461,7 +471,7 @@ class RDPG(DPG):
                     },
                     "history": self.h_t,
                 }
-                self.add_to_db(episode)
+                self.add_to_replay_db(episode)
                 self.logger.info(
                     f"add episode history to db replay buffer!", extra=self.dictLogger
                 )
@@ -472,12 +482,12 @@ class RDPG(DPG):
                 )
 
         else:
-            self.add_to_replay(self.h_t)
+            self.add_to_replay_buffer(self.h_t)
             self.logger.info(
                 f"add episode history to npy replay buffer!", extra=self.dictLogger
             )
 
-    def add_to_db(self, episode):
+    def add_to_replay_db(self, episode):
         """add an episode to database
 
         db buffer is lists of lists
@@ -497,7 +507,7 @@ class RDPG(DPG):
         assert epi_inserted["plot"] == episode["plot"], "plot mismatch"
         assert epi_inserted["history"] == episode["history"], "history mismatch"
 
-    def add_to_replay(self, h_t):
+    def add_to_replay_buffer(self, h_t):
         """add the current h_t to the replay buffer.
 
         replay buffer is list of 2d numpy arrays
@@ -654,7 +664,7 @@ class RDPG(DPG):
             self.logger.error(f"ragged action state a_n_l1; Exeception: {X}!", extra=dictLogger)
         self.logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
-    def sample_mini_batch(self):
+    def sample_mini_batch_from_buffer(self):
         """sample a mini batch from the replay buffer. add post padding for masking
 
         replay buffer is list of 2d numpy arrays
@@ -775,7 +785,7 @@ class RDPG(DPG):
         if self.db:
             self.sample_mini_batch_from_db()
         else:
-            self.sample_mini_batch()
+            self.sample_mini_batch_from_buffer()
         actor_loss, critic_loss = self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
         return actor_loss, critic_loss
 

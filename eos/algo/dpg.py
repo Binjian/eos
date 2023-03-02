@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-from eos import Pool, dictLogger, logger
+from eos import dictLogger, logger
 from eos.config import (
     DB,
     db_servers_by_name,
@@ -37,7 +37,6 @@ class DPG(abc.ABC):
     _db: DB = (None,)
     _resume: bool = (True,)
     _infer_mode: bool = (False,)
-    _pool: Pool = (None,)
 
     def __post_init__(self):
         self.logger = logger.getchild("main").getchild(self.__str__())
@@ -74,13 +73,6 @@ class DPG(abc.ABC):
         # Number of "experiences" to store     at max
         # Num of tuples to train on.
         self.touch_gpu()
-
-    def __del__(self):
-        if self.db_server:
-            # for database, exit needs drop interface.
-            self.pool.drop_mongo()
-        else:
-            self.save_replay_buffer()
 
     def __repr__(self):
         return f"DPG({self.truck.name}, {self.driver})"
@@ -153,20 +145,6 @@ class DPG(abc.ABC):
     def save_ckpt(self):
         """
         save checkpoints of actor and critic
-        """
-        pass
-
-    @abc.abstractmethod
-    def save_replay_buffer(self):
-        """
-        save replay buffer when exit algo
-        """
-        pass
-
-    @abc.abstractmethod
-    def load_replay_buffer(self):
-        """
-        load replay buffer when start algo
         """
         pass
 
@@ -321,14 +299,6 @@ class DPG(abc.ABC):
     @infer_mode.setter
     def infer_mode(self, value):
         raise AttributeError("infer_mode is read-only")
-
-    @property
-    def pool(self):
-        return self._pool
-
-    @pool.setter
-    def pool(self, value):
-        raise AttributeError("pool is read-only")
 
     @property
     def db(self):
