@@ -1,6 +1,6 @@
 from collections import namedtuple
 from datetime import datetime
-
+from typing import TypedDict, NotRequired, Any
 from bson import ObjectId
 
 DB_CONFIG = namedtuple(
@@ -309,3 +309,38 @@ def get_db_config(db_key: str) -> DB_CONFIG:
 
     return db_config
 
+#  Define TypedDict for type hinting of typed collections: records and episodes
+
+
+class StateSpecs(TypedDict):
+    """Observation of the episode."""
+    observation_specs: list[dict[str, str]]
+    unit_number: int
+    unit_duration: int
+    frequency: int
+
+class Plot(TypedDict):
+    """Plot of the item specs"""
+    character: str
+    driver: str
+    when: datetime
+    tz: NotRequired[str]
+    where: str
+    length: NotRequired[int]  # only for episode property, not for record
+    state_specs: StateSpecs
+    action_specs: dict[str, int]
+    reward_specs: dict[str, str]
+
+
+class Record(TypedDict):
+    """Record of the observation """
+    timestamp: datetime
+    plot: Plot
+    observation: dict[str, list[dict[str, list[Any]]]]
+
+
+class Episode(TypedDict):
+    """Episode of the record """
+    timestamp: datetime
+    plot: Plot
+    history: list[dict[str, list[Any]]]

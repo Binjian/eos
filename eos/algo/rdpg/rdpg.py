@@ -15,7 +15,7 @@ from pymongoarrow.monkey import patch_all
 
 # local imports
 from eos import Pool, MongoStore, dictLogger
-from eos.config import episode_schemas, get_db_config
+from eos.config import episode_schemas, get_db_config, Episode
 from ..dpg import DPG, get_algo_data_info
 
 from .actor import ActorNet
@@ -448,7 +448,7 @@ class RDPG(DPG):
         """deposit the episode history into the agent replay buffer."""
         if self.db_key:
             if self.h_t:
-                episode = {
+                episode: Episode = {
                     "timestamp": self.episode_start_dt,
                     "plot": {
                         "character": self.truck.truckname,
@@ -457,19 +457,19 @@ class RDPG(DPG):
                         "tz": str(self.truck.tz),
                         "where": "campus",
                         "length": len(self.h_t),
-                        "states": {
-                            "observations": [{"velocity_unit": "kmph"},
+                        "state_specs": {
+                            "observation_specs": [{"velocity_unit": "kmph"},
                                              {"thrust_unit": "percentage"},
                                              {"brake_unit": "percentage"}],
                             "unit_number": self.truck.CloudUnitNumber,  # 4
                             "unit_duration": self.truck.CloudUnitDuration,  # 1s
                             "frequency": self.truck.CloudSignalFrequency,  # 50 hz
                         },
-                        "actions": {
+                        "action_specs": {
                             "action_row_number": self.truck.ActionFlashRow,
                             "action_column_number": self.truck.PedalScale,
                         },
-                        "reward": {
+                        "reward_specs": {
                             "reward_unit": "wh",
                         },
                     },

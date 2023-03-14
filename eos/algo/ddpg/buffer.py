@@ -9,7 +9,7 @@ from pymongoarrow.monkey import patch_all
 patch_all()
 
 from eos import MongoStore, NPAStore, dictLogger, logger
-from eos.config import Truck, trucks_by_name, record_schemas, DB_CONFIG, get_db_config
+from eos.config import Truck, trucks_by_name, record_schemas, DB_CONFIG, get_db_config, Record, Episode
 from ..dpg import get_algo_data_info
 
 """
@@ -126,7 +126,7 @@ class Buffer:
         """
         if self.db_key:
             # self.store_record_db(episode_start_dt, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t)
-            item = {
+            item: Record = {
                 "timestamp": datetime.fromtimestamp(
                     float(
                         prev_ts.numpy()[0]
@@ -138,21 +138,21 @@ class Buffer:
                     "when": episode_start_dt,
                     "tz": str(self.truck.tz),
                     "where": "campus",
-                    "states": {
-                        "observations": [{"velocity_unit": "kmph"},
-                                         {"thrust_unit": "percentage"},
-                                         {"brake_unit": "percentage"}],
+                    "state_specs": {
+                        "observation_specs": [{"velocity_unit": "kmph"},
+                                              {"thrust_unit": "percentage"},
+                                              {"brake_unit": "percentage"}],
                         "unit_number": self.truck.CloudUnitNumber,  # 4
                         "unit_duration": self.truck.CloudUnitDuration,  # 1s
                         "frequency": self.truck.CloudSignalFrequency,  # 50 hz
                     },  # num_states = length * len(observations) 200*3=600
                     #  length = unit_number * unit_duration  = 4*50=200
 
-                    "actions": {
+                    "action_specs": {
                         "action_row_number": self.truck.ActionFlashRow,
                         "action_column_number": self.truck.PedalScale,
                     },  # num_actions = action_row_number * action_column_number (4*17=68)
-                    "reward": {
+                    "reward_specs": {
                         "reward_unit": "wh",
                     },
                 },
