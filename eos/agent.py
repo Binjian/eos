@@ -20,6 +20,7 @@ as energy consumption
 """
 import abc
 from dataclasses import dataclass
+from typing import Optional, Any
 
 import argparse
 import json
@@ -112,6 +113,7 @@ class Agent(abc.ABC):
     proj_root: Path = Path(".")
     logger: logging.Logger = None
     _algo: DPG = None
+    data_root: Path = None
 
     def __post_init__(
         self,
@@ -137,11 +139,11 @@ class Agent(abc.ABC):
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
 
         if self.resume:
-            self.dataroot = projroot.joinpath(
+            self.data_root = projroot.joinpath(
                 "data/" + self.truck.VIN + "−" + self.driver
             ).joinpath(self.path)
         else:
-            self.dataroot = projroot.joinpath(
+            self.data_root = projroot.joinpath(
                 "data/scratch/" + self.truck.VIN + "−" + self.driver
             ).joinpath(self.path)
 
@@ -266,7 +268,7 @@ class Agent(abc.ABC):
             )
 
     def set_logger(self):
-        self.logroot = self.dataroot.joinpath("py_logs")
+        self.logroot = self.data_root.joinpath("py_logs")
         try:
             os.makedirs(self.logroot)
         except FileExistsError:
@@ -334,7 +336,7 @@ class Agent(abc.ABC):
         self.tflog.addHandler(skh)
         self.tflog.addHandler(strh)
 
-        self.tableroot = self.dataroot.joinpath("tables")
+        self.tableroot = self.data_root.joinpath("tables")
         try:
             os.makedirs(self.tableroot)
         except FileExistsError:
@@ -343,7 +345,7 @@ class Agent(abc.ABC):
     def set_data_path(self):
         # Create folder for ckpts loggings.
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.train_log_dir = self.dataroot.joinpath(
+        self.train_log_dir = self.data_root.joinpath(
             "tf_logs-"
             + str(self.algo)
             + self.truck.TruckName
@@ -392,7 +394,7 @@ class Agent(abc.ABC):
                 self.vcu_calib_table_row,
                 self.velocity_range,
                 3,
-                self.dataroot,
+                self.data_root,
             )
         else:
             self.vcu_calib_table0 = generate_vcu_calibration(
@@ -917,7 +919,7 @@ class Agent(abc.ABC):
 
         logger_flash.info(f"Save the last table!!!!", extra=self.dictLogger)
         last_table_store_path = (
-            self.dataroot.joinpath(  # there's no slash in the end of the string
+            self.data_root.joinpath(  # there's no slash in the end of the string
                 "last_table_"
                 + str(self.algo)
                 + "-"
@@ -1867,7 +1869,7 @@ class Agent(abc.ABC):
         logger_flash.info(f"Save the last table!!!!", extra=self.dictLogger)
 
         last_table_store_path = (
-            self.dataroot.joinpath(  # there's no slash in the end of the string
+            self.data_root.joinpath(  # there's no slash in the end of the string
                 "last_table_"
                 + str(self.algo)
                 + "-"

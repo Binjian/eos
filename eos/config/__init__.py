@@ -1,9 +1,10 @@
 from .db_config import (
-    db_servers_by_name,
-    db_servers_by_host,
+    db_config_servers_by_name,
+    db_config_servers_by_host,
     episode_schemas,
     record_schemas,
-    DB
+    DB_CONFIG,
+    get_db_config
 )
 from .messenger_config import (
     can_servers_by_name,
@@ -27,14 +28,14 @@ __all__ = [
     "Truck",
     "trucks_by_name",
     "trucks_by_vin",
-    "PEDAL_SCALES",
     "TRIANGLE_TEST_CASE_TARGET_VELOCITIES",
     "VELOCITY_SCALES_MULE",
     "VELOCITY_SCALES_VB",
     "PEDAL_SCALES",
-    "DB",
-    "db_servers_by_name",
-    "db_servers_by_host",
+    "DB_CONFIG",
+    "db_config_servers_by_name",
+    "db_config_servers_by_host",
+    "get_db_config",
     "can_servers_by_name",
     "trip_servers_by_name",
     "can_servers_by_host",

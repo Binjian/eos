@@ -1,12 +1,12 @@
 from datetime import datetime
 from dataclasses import dataclass
+from pathlib import Path
 import os
 import numpy as np
 import tensorflow as tf
 
 from keras import layers
 from pymongoarrow.monkey import patch_all
-
 from eos import dictLogger
 from ..utils import OUActionNoise
 from .buffer import Buffer
@@ -136,13 +136,10 @@ class DDPG(DPG):
         super().__post_init__()
 
         self.buffer = Buffer(
-            db=self.db,
+            db_key=self.db_key,
             truck=self.truck,
             driver=self.driver,
-            num_states=self.num_states,
-            num_actions=self.num_actions,
             batch_size=self.batch_size,
-            datafolder=self.datafolder,
         )
 
         # Initialize networks
@@ -193,12 +190,12 @@ class DDPG(DPG):
         self.init_checkpoint()
         self.touch_gpu()
 
-    def __del__(self):
-        if self.db:
-            # for database, exit needs drop interface.
-            self.buffer.drop_mongo()
-        else:
-            self.buffer.save_replay_buffer()
+    # def __del__(self):
+    #     if self.db_key:
+    #         # for database, exit needs drop interface.
+    #         self.buffer.drop()
+    #     else:
+    #         self.buffer.save_replay_buffer()
 
     def __repr__(self):
         return f"DDPG({self.truck.name}, {self.driver})"
@@ -209,7 +206,7 @@ class DDPG(DPG):
     def init_checkpoint(self):
         # add checkpoints manager
         if self.resume:
-            checkpoint_actor_dir = self.datafolder.joinpath(
+            checkpoint_actor_dir = Path(self.data_folder).joinpath(
                 "tf_ckpts-"
                 + self.__str__()
                 + "-"
@@ -219,7 +216,7 @@ class DDPG(DPG):
                 + "_"
                 + "actor"
             )
-            checkpoint_critic_dir = self.datafolder.joinpath(
+            checkpoint_critic_dir = Path(self.data_folder).joinpath(
                 "tf_ckpts-"
                 + self.__str__()
                 + "-"
@@ -230,7 +227,7 @@ class DDPG(DPG):
                 + "critic"
             )
         else:
-            checkpoint_actor_dir = self.datafolder.joinpath(
+            checkpoint_actor_dir = Path(self.data_folder).joinpath(
                 "tf_ckpts-"
                 + self.__str__()
                 + "/"
@@ -240,7 +237,7 @@ class DDPG(DPG):
                 + "_actor"
                 + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
-            checkpoint_critic_dir = self.datafolder.joinpath(
+            checkpoint_critic_dir = Path(self.data_folder).joinpath(
                 "tf_ckpts-"
                 + self.__str__()
                 + "/"
@@ -354,8 +351,10 @@ class DDPG(DPG):
     # actions = tf.reshape(get_actors(**), [vcu_calib_table_row, vcu_calib_table_col])\
     # then multiply by default values:
     # actions = tf.math.multiply(actions, vcu_calib_table0)
+
+    @classmethod
     def get_actor(
-        self,
+        cls,
         num_states: int,
         num_actions: int,
         num_hidden: int = 256,
@@ -400,8 +399,9 @@ class DDPG(DPG):
         # graph_model = tf.function(eager_model)
         return eager_model
 
+    @classmethod
     def get_critic(
-        self,
+        cls,
         num_states: int,
         num_actions: int,
         num_hidden0: int = 16,
@@ -470,7 +470,7 @@ class DDPG(DPG):
         `actor_predict()` returns an action sampled from our Actor network without noise.
         add optional t just to have uniform interface with rdpg
         """
-        tt = t  # ddpg is not sequential
+        _ = t  # ddpg is not sequential
         return self.policy(state)
 
     @tf.function
@@ -482,19 +482,21 @@ class DDPG(DPG):
         return sampled_actions
 
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        self.buffer.store_record(prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t)
+        self.buffer.store_record(self.episode_start_dt, prev_ts, prev_o_t, prev_a_t,
+                                 prev_table_start, cycle_reward, o_t)
 
     def end_episode(self):
         self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
 
     def touch_gpu(self):
         # tf.summary.trace_on(graph=True, profiler=True)
-        # ignites manual loading of tensorflow library, to guarantee the real-time processing of first data in main thread
+        # ignites manual loading of tensorflow library, to guarantee the real-time processing
+        # of first data in main thread
         init_states = tf.random.normal(
             (self.num_states,)
         )  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
 
-        action0 = self.policy(init_states)
+        _ = self.policy(init_states)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor",
             extra=dictLogger,
@@ -528,13 +530,11 @@ class DDPG(DPG):
                     extra=dictLogger,
                 )
 
-
     def train(self):
 
         state_batch, action_batch, reward_batch, next_state_batch = self.buffer.sample_minibatch_ddpg()
         critic_loss, actor_loss = self.update_with_batch(state_batch, action_batch, reward_batch, next_state_batch)
         return critic_loss, actor_loss
-
 
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
@@ -619,7 +619,6 @@ class DDPG(DPG):
 
         return critic_loss, actor_loss
 
-
     # We only compute the loss and don't update parameters
     def get_losses(self):
 
@@ -628,6 +627,7 @@ class DDPG(DPG):
             state_batch, action_batch, reward_batch, next_state_batch
         )
         return critic_loss, actor_loss
+
 
 """
 ## Training hyperparameters

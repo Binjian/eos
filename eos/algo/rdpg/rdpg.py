@@ -14,13 +14,12 @@ from pymongoarrow.monkey import patch_all
 
 
 # local imports
-from eos import Pool, dictLogger
-from eos.config import episode_schemas
-from ..dpg import DPG
+from eos import Pool, MongoStore, dictLogger
+from eos.config import episode_schemas, get_db_config
+from ..dpg import DPG, get_algo_data_info
 
 from .actor import ActorNet
 from .critic import CriticNet
-
 
 patch_all()
 
@@ -141,6 +140,7 @@ class RDPG(DPG):
     a_n_t: tf.Tensor = None
     R: list = None
     pool: Pool = None
+    query: dict = None
 
     def __post_init__(
         self,
@@ -153,27 +153,35 @@ class RDPG(DPG):
         """
         super().__post_init__()
 
-        if self.db:
+        if self.db_key:
+            self.db_config = get_db_config(self.db_key)
+            self.logger.info(
+                f"Using db server {self.db_key} for episode replay buffer..."
+            )
+
             self.db_schema = episode_schemas["episode_deep"]
-            self.pool = Pool(
-                url="mongodb://" + self.db.Host + ":" + self.db.Port,
-                username=self.db.Username,
-                password=self.db.Password,
-                schema=self.db_schema.STRUCTURE,
-                db_name=self.db.DatabaseName,
-                coll_name=self.db.EpiCollName,
-                debug=False,
+            url = self.db_config.Username + ":" + self.db_config.Password + "@" \
+                  + self.db_config.Host + ":" + self.db_config.Port
+            self.pool = MongoStore(
+                location = url,
+                collection_type="episode",
+                mongo_schema=self.db_schema.STRUCTURE,
             )
             self.logger.info(
-                f"Connected to MongoDB {self.db.DatabaseName}, collection {self.db.EpiCollName}"
+                f"Connected to MongoDB {self.db_config.DatabaseName}, collection {self.db_config.EpiCollName}"
             )
-            self.buffer_counter = self.pool.count_items(
-                vehicle_id=self.truck.TruckName, driver_id=self.driver
-            )
-        else:  # elif self.db is '':
+            self.query = {"vehicle_id": self.truck.TruckName,
+                          "driver_id": self.driver,
+                          "dt_start": None,
+                          "dt_end": None}
+            self.buffer_counter = self.pool.count(self.query)
+            # check plot with input vehicle and driver
+            batch_1 = self.pool.sample(size=1, query=self.query)
+            self.num_states, self.num_actions = get_algo_data_info(batch_1[0], self.truck)
+        else:  # elif self.db_server is '':
             # Instead of list of tuples as the exp.replay concept go
             # We use different np.arrays for each tuple element
-            self.file_replay = self.datafolder + "/replay_buffer.npy"
+            self.file_replay = self.data_folder + "/replay_buffer.npy"
             # Its tells us num of times record() was called.
             self.load_replay_buffer()
             self.buffer_counter = len(self.R)
@@ -237,11 +245,10 @@ class RDPG(DPG):
         self.target_critic_net.clone_weights(self.critic_net)
         self.touch_gpu()
 
-
     def __del__(self):
-        if self.db_server:
+        if self.db_key:
             # for database, exit needs drop interface.
-            self.pool.drop_mongo()
+            self.pool.close()
         else:
             self.save_replay_buffer()
 
@@ -290,7 +297,7 @@ class RDPG(DPG):
         # actor create or restore from checkpoint
         # add checkpoints manager
         self._ckpt_actor_dir = (
-            self._datafolder
+            self.data_folder
             + "-"
             + self.__str__()
             + "-"
@@ -318,7 +325,7 @@ class RDPG(DPG):
         # critic create or restore from checkpoint
         # add checkpoints manager
         self._ckpt_critic_dir = (
-            self._datafolder
+            self.data_folder
             + "-"
             + self.__str__()
             + "-"
@@ -384,10 +391,7 @@ class RDPG(DPG):
         return action
 
     def start_episode(self, dt: datetime):
-        self.logger.info(f"episode start at {dt}", extra=self.dictLogger)
-        # somehow mongodb does not like microseconds in rec['plot']
-        dt_milliseconds = int(dt.microsecond / 1000) * 1000
-        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
+        super().start_episode(dt)
         self.h_t = []
 
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
@@ -399,7 +403,7 @@ class RDPG(DPG):
         """
         _ = prev_ts
         _ = o_t
-        if self.db:
+        if self.db_key:
             if not self.h_t:  # first even step has $r_0$
                 self.h_t = [
                     {
@@ -442,7 +446,7 @@ class RDPG(DPG):
 
     def deposit_history(self):
         """deposit the episode history into the agent replay buffer."""
-        if self.db:
+        if self.db_key:
             if self.h_t:
                 episode = {
                     "timestamp": self.episode_start_dt,
@@ -462,8 +466,8 @@ class RDPG(DPG):
                             "frequency": self.truck.CloudSignalFrequency,  # 50 hz
                         },
                         "actions": {
-                            "action_row_number": self.truck.actionflashrow,
-                            "action_column_number": self.truck.pedalscale,
+                            "action_row_number": self.truck.ActionFlashRow,
+                            "action_column_number": self.truck.PedalScale,
                         },
                         "reward": {
                             "reward_unit": "wh",
@@ -494,14 +498,14 @@ class RDPG(DPG):
         """
 
         self.logger.info("start deposit an episode", extra=self.dictLogger)
-        result = self.pool.deposit_item(episode)
+        result = self.pool.store(episode)
         self.logger.info("episode inserted.", extra=self.dictLogger)
         assert result.acknowledged is True, "deposit result not acknowledged"
-        self.buffer_counter = self.pool.count_items(self.truck.truckname, self.driver)
+        self.buffer_counter = self.pool.count(self.query)
         self.logger.info(
             f"pool has {self.buffer_counter} records", extra=self.dictLogger
         )
-        epi_inserted = self.pool.find_item(result.inserted_id)
+        epi_inserted = self.pool.find(result.inserted_id)
         self.logger.info("episode found.", extra=self.dictLogger)
         assert epi_inserted["timestamp"] == episode["timestamp"], "timestamp mismatch"
         assert epi_inserted["plot"] == episode["plot"], "plot mismatch"
@@ -528,7 +532,7 @@ class RDPG(DPG):
             self.R.pop(0)
         self.logger.info(f"memory length: {len(self.R)}", extra=self.dictLogger)
 
-    def sample_mini_batch_from_db(self):
+    def sample_mini_batch_from_db(self, batch_size: int, query: dict = None):
         """sample a mini batch from the database.
 
         db buffer is lists of lists
@@ -538,16 +542,15 @@ class RDPG(DPG):
         )
 
         assert self.buffer_counter > 0, "pool is empty!"
-        batch = self.pool.sample_batch_items(
-            batch_size=self.batch_size,
-            vehicle_id=self.truck.truckname,
-            driver_id=self.driver,
+        batch = self.pool.sample(
+            size=batch_size,
+            query=query
         )
         assert (
-            len(batch) == self.batch_size
+            len(batch) == batch_size
         ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
         self.logger.info(
-            f"{self.batch_size} episodes sampled from {self.buffer_counter}.",
+            f"{batch_size} episodes sampled from {self.buffer_counter}.",
             extra=self.dictLogger,
         )
 
@@ -664,7 +667,7 @@ class RDPG(DPG):
             self.logger.error(f"ragged action state a_n_l1; Exeception: {X}!", extra=dictLogger)
         self.logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
-    def sample_mini_batch_from_buffer(self):
+    def sample_mini_batch_from_buffer(self, batch_size):
         """sample a mini batch from the replay buffer. add post padding for masking
 
         replay buffer is list of 2d numpy arrays
@@ -681,7 +684,7 @@ class RDPG(DPG):
         # sample random indexes
         record_range = min(len(self.R), self._buffer_capacity)
         self.logger.info(f"record_range: {record_range}", extra=dictLogger)
-        indexes = np.random.choice(record_range, self.batch_size)
+        indexes = np.random.choice(record_range, batch_size)
         self.logger.info(f"indexes: {indexes}", extra=dictLogger)
         # logger.info(f"r indices type: {type(indexes)}:{indexes}")
         # mini-batch for reward, observation and action
@@ -782,10 +785,10 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        if self.db:
-            self.sample_mini_batch_from_db()
+        if self.db_key:
+            self.sample_mini_batch_from_db(self.batch_size, self.query)
         else:
-            self.sample_mini_batch_from_buffer()
+            self.sample_mini_batch_from_buffer(self.batch_size)
         actor_loss, critic_loss = self.train_step(self.r_n_t, self.o_n_t, self.a_n_t)
         return actor_loss, critic_loss
 
@@ -886,10 +889,10 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        if self.db:
-            self.sample_mini_batch_from_db()
+        if self.db_key:
+            self.sample_mini_batch_from_db(batch_size=self.batch_size, query=self.query)
         else:
-            self.sample_mini_batch()
+            self.sample_mini_batch_from_buffer(batch_size=self.batch_size)
 
         # get critic loss
         # actions at h_t+1

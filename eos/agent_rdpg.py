@@ -41,7 +41,7 @@ class AgentRDPG(Agent):
             _gamma=self.gamma,
             _tauAC=self.tauAC,
             _lrAC=self.lrAC,
-            _datafolder=str(self.dataroot),
+            _data_folder=str(self.data_root),
             _ckpt_interval=self.ckpt_interval,
             _db_server=self.mongo_srv,
             _infer_mode=self.infer_mode,

@@ -2,16 +2,58 @@ import abc
 from dataclasses import dataclass
 from datetime import datetime
 
-
 from eos import dictLogger, logger
 from eos.config import (
-    DB,
-    db_servers_by_name,
-    db_servers_by_host,
-    episode_schemas,
+    DB_CONFIG,
     Truck,
     trucks_by_name,
 )
+
+def get_algo_data_info(item: dict, truck: Truck) -> tuple:
+    """Check if the data is valid for the algorithm.
+
+    Args:
+        item (dict): data item
+        truck (Truck): truck object
+
+    Returns:
+        bool: True if the data is valid
+    """
+
+    obs = item["plot"]["states"]["observations"]
+    assert (
+            len(obs) == truck.ObservationNumber
+    ), f"observation number mismatch, {len(obs)} != {truck.ObservationNumber}!"
+    unit_number = item["plot"]["states"]["unit_number"]
+    assert (
+            unit_number == truck.CloudUnitNumber
+    ), f"unit number mismatch, {unit_number} != {truck.CloudUnitNumber}!"
+    unit_duration = item["plot"]["states"]["unit_duration"]
+    assert (
+            unit_duration == truck.CloudUnitDuration
+    ), f"unit duration mismatch, {unit_duration} != {truck.CloudUnitDuration}!"
+    frequency = item["plot"]["states"]["frequency"]
+    assert (
+            frequency == truck.CloudSignalFrequency
+    ), f"frequency mismatch, {frequency} != {truck.CloudSignalFrequency}!"
+
+    action_row_number = item["plot"]["actions"]["action_row_number"]
+    assert (
+            action_row_number == truck.ActionFlashRow
+    ), f"action row number mismatch, {action_row_number} != {truck.ActionFlashRow}!"
+    action_column_number = item["plot"]["actions"]["action_column_number"]
+    assert (
+            action_column_number == truck.PedalScale
+    ), f"action column number mismatch, {action_column_number} != {truck.PedalScale}!"
+    truckname_in_data = item["plot"]["character"]
+    assert (
+            truckname_in_data == truck.TruckName
+    ), f"truck name mismatch, {truckname_in_data} != {truck.TruckName}!"
+
+    num_states = len(obs) * unit_number * unit_duration * frequency
+    num_actions = action_row_number * action_column_number
+    return num_states, num_actions
+
 
 """Base class for differentiable policy gradient methods."""
 
@@ -31,51 +73,25 @@ class DPG(abc.ABC):
     _gamma: float = (0.99,)
     _tauAC: tuple = ((0.005, 0.005),)
     _lrAC: tuple = ((0.001, 0.002),)
-    _datafolder: str = ("./",)
+    _data_folder: str = ("./",)
     _ckpt_interval: int = (5,)
-    _db_server: str = ("mongo_local",)
-    _db: DB = (None,)
+    _db_key: str = ("mongo_local",)
+    _db_config: DB_CONFIG = (None,)
     _resume: bool = (True,)
     _infer_mode: bool = (False,)
+    _episode_start_dt: datetime = (None,)
 
     def __post_init__(self):
         self.logger = logger.getchild("main").getchild(self.__str__())
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
-        if self.db_server:
-            self.db = db_servers_by_name.get(self.db_server)
-            if self.db is None:
-                account_server = [s.split(":") for s in self.db_server.split("@")]
-                flat_account_server = [s for l in account_server for s in l]
-                assert (len(account_server) == 1 and len(flat_account_server) == 2) or (
-                    len(account_server) == 2 and len(flat_account_server) == 4
-                ), f"Wrong format for db server {self.db_server}!"
-                if len(account_server) == 1:
-                    self.db = db_servers_by_host.get(flat_account_server[0])
-                    assert (
-                        self.db is not None and self.db.Port == flat_account_server[1]
-                    ), f"Config mismatch for db server {self.db_server}!"
-
-                else:
-                    self.db = db_servers_by_host.get(flat_account_server[2])
-                    assert (
-                        self.db is not None
-                        and self.db.Port == flat_account_server[3]
-                        and self.db.Username == flat_account_server[0]
-                        and self.db.Password == flat_account_server[1]
-                    ), f"Config mismatch for db server {self.db_server}!"
-
-            self.logger.info(
-                f"Using db server {self.db_server} for episode replay buffer..."
-            )
-
         # Number of "experiences" to store     at max
         # Num of tuples to train on.
         self.touch_gpu()
 
     def __repr__(self):
-        return f"DPG({self.truck.name}, {self.driver})"
+        return f"DPG({self.truck.TruckName}, {self.driver})"
 
     def __str__(self):
         return "DPG"
@@ -103,7 +119,6 @@ class DPG(abc.ABC):
         # somehow mongodb does not like microseconds in rec['plot']
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
-        self.h_t = []
 
     @abc.abstractmethod
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
@@ -126,7 +141,7 @@ class DPG(abc.ABC):
         """
         pass
 
-    @abs.abstractmethod
+    @abc.abstractmethod
     def get_losses(self):
         """
         Get the actor and critic losses without calculating the gradients.
@@ -149,12 +164,12 @@ class DPG(abc.ABC):
         pass
 
     @property
-    def db_server(self):
-        return self._db_server
+    def db_key(self) -> str:
+        return self._db_key
 
-    @db_server.setter
-    def db_server(self, value):
-        raise AttributeError("db_server is read-only")
+    @db_key.setter
+    def db_key(self, value: str):
+        raise AttributeError("db_key is read-only")
 
     @property
     def truck(self):
@@ -261,11 +276,11 @@ class DPG(abc.ABC):
         raise AttributeError("lrAC is read-only")
 
     @property
-    def datafolder(self):
-        return self._datafolder
+    def data_folder(self) -> str:
+        return self._data_folder
 
-    @datafolder.setter
-    def datafolder(self, value):
+    @data_folder.setter
+    def data_folder(self, value: str):
         raise AttributeError("datafolder is read-only")
 
     @property
@@ -275,14 +290,6 @@ class DPG(abc.ABC):
     @ckpt_interval.setter
     def ckpt_interval(self, value):
         raise AttributeError("ckpt_interval is read-only")
-
-    @property
-    def db_server(self):
-        return self._db_server
-
-    @db_server.setter
-    def db_server(self, value):
-        raise AttributeError("db_server is read-only")
 
     @property
     def resume(self):
@@ -301,9 +308,17 @@ class DPG(abc.ABC):
         raise AttributeError("infer_mode is read-only")
 
     @property
-    def db(self):
-        return self._db
+    def db_config(self) -> DB_CONFIG:
+        return self._db_config
 
-    @db.setter
-    def db(self, value: DB):
-        self._db = value
+    @db_config.setter
+    def db_config(self, value: DB_CONFIG):
+        self._db_config = value
+
+    @property
+    def episode_start_dt(self) -> datetime:
+        return self._episode_start_dt
+
+    @episode_start_dt.setter
+    def episode_start_dt(self, value: datetime):
+        self._episode_start_dt = value
