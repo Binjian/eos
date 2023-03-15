@@ -128,6 +128,7 @@ class RDPG(DPG):
             - actor network
             - critic network
     """
+
     _seq_len: int = 8  # length of the sequence for recurrent network
     _ckpt_actor_dir: str = "ckpt_actor"
     _ckpt_critic_dir: str = "ckpt_critic"
@@ -160,24 +161,35 @@ class RDPG(DPG):
             )
 
             self.db_schema = episode_schemas["episode_deep"]
-            url = self.db_config.Username + ":" + self.db_config.Password + "@" \
-                  + self.db_config.Host + ":" + self.db_config.Port
+            url = (
+                self.db_config.Username
+                + ":"
+                + self.db_config.Password
+                + "@"
+                + self.db_config.Host
+                + ":"
+                + self.db_config.Port
+            )
             self.pool = MongoStore(
-                location = url,
+                location=url,
                 collection_type="episode",
                 mongo_schema=self.db_schema.STRUCTURE,
             )
             self.logger.info(
                 f"Connected to MongoDB {self.db_config.DatabaseName}, collection {self.db_config.EpiCollName}"
             )
-            self.query = {"vehicle_id": self.truck.TruckName,
-                          "driver_id": self.driver,
-                          "dt_start": None,
-                          "dt_end": None}
+            self.query = {
+                "vehicle_id": self.truck.TruckName,
+                "driver_id": self.driver,
+                "dt_start": None,
+                "dt_end": None,
+            }
             self.buffer_counter = self.pool.count(self.query)
             # check plot with input vehicle and driver
             batch_1 = self.pool.sample(size=1, query=self.query)
-            self.num_states, self.num_actions = get_algo_data_info(batch_1[0], self.truck)
+            self.num_states, self.num_actions = get_algo_data_info(
+                batch_1[0], self.truck
+            )
         else:  # elif self.db_server is '':
             # Instead of list of tuples as the exp.replay concept go
             # We use different np.arrays for each tuple element
@@ -253,7 +265,6 @@ class RDPG(DPG):
             self.save_replay_buffer()
 
     def __repr__(self):
-
         return f"RDPG({self.truck.name}, {self.driver})"
 
     def __str__(self):
@@ -458,9 +469,11 @@ class RDPG(DPG):
                         "where": "campus",
                         "length": len(self.h_t),
                         "state_specs": {
-                            "observation_specs": [{"velocity_unit": "kmph"},
-                                             {"thrust_unit": "percentage"},
-                                             {"brake_unit": "percentage"}],
+                            "observation_specs": [
+                                {"velocity_unit": "kmph"},
+                                {"thrust_unit": "percentage"},
+                                {"brake_unit": "percentage"},
+                            ],
                             "unit_number": self.truck.CloudUnitNumber,  # 4
                             "unit_duration": self.truck.CloudUnitDuration,  # 1s
                             "frequency": self.truck.CloudSignalFrequency,  # 50 hz
@@ -524,9 +537,7 @@ class RDPG(DPG):
         #     extra=self.dictLogger
         # )
         np_h_t = np.array(h_t)
-        self.logger.info(
-            f"h_t np array shape: {np_h_t.shape}.", extra=self.dictLogger
-        )
+        self.logger.info(f"h_t np array shape: {np_h_t.shape}.", extra=self.dictLogger)
         self.R.append(np_h_t)
         if len(self.R) > self._buffer_capacity:
             self.R.pop(0)
@@ -542,10 +553,7 @@ class RDPG(DPG):
         )
 
         assert self.buffer_counter > 0, "pool is empty!"
-        batch = self.pool.sample(
-            size=batch_size,
-            query=query
-        )
+        batch = self.pool.sample(size=batch_size, query=query)
         assert (
             len(batch) == batch_size
         ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
@@ -622,7 +630,9 @@ class RDPG(DPG):
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
             self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except Exception as X:
-            self.logger.error(f"ragged observation state o_n_l1; Exception: {X}!", extra=dictLogger)
+            self.logger.error(
+                f"ragged observation state o_n_l1; Exception: {X}!", extra=dictLogger
+            )
         self.logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         # decode starting row series, not used for now
@@ -664,7 +674,9 @@ class RDPG(DPG):
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
             self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except Exception as X:
-            self.logger.error(f"ragged action state a_n_l1; Exeception: {X}!", extra=dictLogger)
+            self.logger.error(
+                f"ragged action state a_n_l1; Exeception: {X}!", extra=dictLogger
+            )
         self.logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     def sample_mini_batch_from_buffer(self, batch_size):
@@ -710,7 +722,7 @@ class RDPG(DPG):
         # logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
 
         o_n_l0 = [
-            self.R[i][:, 0: self.num_states] for i in indexes
+            self.R[i][:, 0 : self.num_states] for i in indexes
         ]  # list of np.array with variable observation length
         # o_n_l1 = [
         #     o_n_l0[i].tolist() for i in np.arange(self._batch_size)
@@ -743,11 +755,13 @@ class RDPG(DPG):
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
             self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except Exception as X:
-            self.logger.error(f"ragged observation state o_n_l1; Exception: {X}!", extra=dictLogger)
+            self.logger.error(
+                f"ragged observation state o_n_l1; Exception: {X}!", extra=dictLogger
+            )
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
 
         a_n_l0 = [
-            self.R[i][:, self.num_states: self.num_states + self.num_actions]
+            self.R[i][:, self.num_states : self.num_states + self.num_actions]
             for i in indexes
         ]  # list of np.array with variable action length
         # a_n_l1 = [
@@ -774,7 +788,9 @@ class RDPG(DPG):
             )  # return numpy array list of size (batch_size,max(len(a_n_l1i)), num_actions)
             self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except Exception as X:
-            self.logger.error(f"ragged action state a_n_l1; Exception: {X}!", extra=dictLogger)
+            self.logger.error(
+                f"ragged action state a_n_l1; Exception: {X}!", extra=dictLogger
+            )
         # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
 
     def train(self):

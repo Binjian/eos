@@ -122,6 +122,7 @@ class DDPG(DPG):
             - actor network
             - critic network
     """
+
     actor_model: tf.keras.Model = None
     target_actor_model: tf.keras.Model = None
     critic_model: tf.keras.Model = None
@@ -482,8 +483,15 @@ class DDPG(DPG):
         return sampled_actions
 
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        self.buffer.store_record(self.episode_start_dt, prev_ts, prev_o_t, prev_a_t,
-                                 prev_table_start, cycle_reward, o_t)
+        self.buffer.store_record(
+            self.episode_start_dt,
+            prev_ts,
+            prev_o_t,
+            prev_a_t,
+            prev_table_start,
+            cycle_reward,
+            o_t,
+        )
 
     def end_episode(self):
         self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
@@ -531,9 +539,15 @@ class DDPG(DPG):
                 )
 
     def train(self):
-
-        state_batch, action_batch, reward_batch, next_state_batch = self.buffer.sample_minibatch_ddpg()
-        critic_loss, actor_loss = self.update_with_batch(state_batch, action_batch, reward_batch, next_state_batch)
+        (
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
+        ) = self.buffer.sample_minibatch_ddpg()
+        critic_loss, actor_loss = self.update_with_batch(
+            state_batch, action_batch, reward_batch, next_state_batch
+        )
         return critic_loss, actor_loss
 
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
@@ -541,11 +555,11 @@ class DDPG(DPG):
     # This provides a large speed-up for blocks of code that contain many small TensorFlow operations such as this one.
     @tf.function
     def update_with_batch(
-            self,
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -594,11 +608,11 @@ class DDPG(DPG):
     # we only calculate the loss
     @tf.function
     def infer_with_batch(
-            self,
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
+        self,
+        state_batch,
+        action_batch,
+        reward_batch,
+        next_state_batch,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -621,8 +635,12 @@ class DDPG(DPG):
 
     # We only compute the loss and don't update parameters
     def get_losses(self):
-
-        state_batch, action_batch, reward_batch, next_state_batch = self.buffer.sample_minibatch_ddpg()
+        (
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
+        ) = self.buffer.sample_minibatch_ddpg()
         critic_loss, actor_loss = self.infer_with_batch(
             state_batch, action_batch, reward_batch, next_state_batch
         )

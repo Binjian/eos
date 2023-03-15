@@ -6,7 +6,9 @@ from .db_config import (
     DB_CONFIG,
     get_db_config,
     Record,
+    RecordPlain,
     Episode,
+    EpisodePlain
 )
 from .messenger_config import (
     can_servers_by_name,
@@ -36,7 +38,9 @@ __all__ = [
     "PEDAL_SCALES",
     "DB_CONFIG",
     "Record",
+    "RecordPlain",
     "Episode",
+    "EpisodePlain",
     "db_config_servers_by_name",
     "db_config_servers_by_host",
     "get_db_config",

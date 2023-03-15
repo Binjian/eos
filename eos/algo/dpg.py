@@ -9,6 +9,7 @@ from eos.config import (
     trucks_by_name,
 )
 
+
 def get_algo_data_info(item: dict, truck: Truck) -> tuple:
     """Check if the data is valid for the algorithm.
 
@@ -22,32 +23,32 @@ def get_algo_data_info(item: dict, truck: Truck) -> tuple:
 
     obs = item["plot"]["states"]["observations"]
     assert (
-            len(obs) == truck.ObservationNumber
+        len(obs) == truck.ObservationNumber
     ), f"observation number mismatch, {len(obs)} != {truck.ObservationNumber}!"
     unit_number = item["plot"]["states"]["unit_number"]
     assert (
-            unit_number == truck.CloudUnitNumber
+        unit_number == truck.CloudUnitNumber
     ), f"unit number mismatch, {unit_number} != {truck.CloudUnitNumber}!"
     unit_duration = item["plot"]["states"]["unit_duration"]
     assert (
-            unit_duration == truck.CloudUnitDuration
+        unit_duration == truck.CloudUnitDuration
     ), f"unit duration mismatch, {unit_duration} != {truck.CloudUnitDuration}!"
     frequency = item["plot"]["states"]["frequency"]
     assert (
-            frequency == truck.CloudSignalFrequency
+        frequency == truck.CloudSignalFrequency
     ), f"frequency mismatch, {frequency} != {truck.CloudSignalFrequency}!"
 
     action_row_number = item["plot"]["actions"]["action_row_number"]
     assert (
-            action_row_number == truck.ActionFlashRow
+        action_row_number == truck.ActionFlashRow
     ), f"action row number mismatch, {action_row_number} != {truck.ActionFlashRow}!"
     action_column_number = item["plot"]["actions"]["action_column_number"]
     assert (
-            action_column_number == truck.PedalScale
+        action_column_number == truck.PedalScale
     ), f"action column number mismatch, {action_column_number} != {truck.PedalScale}!"
     truckname_in_data = item["plot"]["character"]
     assert (
-            truckname_in_data == truck.TruckName
+        truckname_in_data == truck.TruckName
     ), f"truck name mismatch, {truckname_in_data} != {truck.TruckName}!"
 
     num_states = len(obs) * unit_number * unit_duration * frequency
