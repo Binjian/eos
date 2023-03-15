@@ -1954,7 +1954,8 @@ class Agent(abc.ABC):
                 extra=self.dictLogger,
             )
 
-            self.algo.start_episode(datetime.now())
+            # mongodb default to UTC time
+            self.algo.start_episode(datetime.utcnow())
 
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
