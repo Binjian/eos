@@ -189,18 +189,18 @@ class Buffer:
                     },
                 },
                 "observation": {
-                    "state": prev_o_t.numpy().tolist(),
-                    "action": prev_a_t.numpy().tolist(),
+                    "states": prev_o_t.numpy().tolist(),
+                    "actions": prev_a_t.numpy().tolist(),
                     "action_start_row": prev_table_start,
-                    "reward": cycle_reward.numpy().tolist(),
-                    "next_state": o_t.numpy().tolist(),
+                    "rewards": cycle_reward.numpy().tolist(),
+                    "next_states": o_t.numpy().tolist(),
                 },
             }
         else:
             # self.store_record_npa(episode_start_dt, prev_ts, prev_o_t, prev_a_t, cycle_reward, o_t, prev_table_start)
             item: RecordPlain = {
                 "episode_starts": episode_start_dt,
-                "timestamps": prev_ts.numpy()
+                "timestamps": prev_ts.numpy(),
                 "states": prev_o_t.numpy(),
                 "actions": prev_a_t.numpy(),
                 "rewards": cycle_reward,
@@ -218,34 +218,27 @@ class Buffer:
         """
         Update the actor and critic networks using the sampled batch.
         """
-        if self.db_key:
-            # get sampling range, if not enough data, batch is small
-            self.logger.info(
-                f"start test_pool_sample of size {self.batch_size, self.truck.TruckName, self.driver}.",
-                extra=dictLogger,
-            )
-            assert self.buffer_counter > 0, "pool is empty"
-            batch = self.pool.sample(size=self.batch_size)
-            assert (
+        assert self.buffer_counter > 0, "pool is empty"
+        # get sampling range, if not enough data, batch is small
+        self.logger.info(
+            f"start sample from pool with size: {self.batch_size}, truck: {self.truck.TruckName}, driver: {self.driver}.",
+            extra=dictLogger,
+        )
+
+        batch = self.pool.sample(size=self.batch_size)
+        assert (
                 len(batch) == self.batch_size
-            ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
+        ), f"sampled batch size {len(batch)} not match sample size {self.batch_size}"
 
-            # TODO convert output from sample (numpy array) to tensor with tf.convert_to_tensor()
+        states = [rec["observation"]["states"] for rec in batch]
+        actions = [rec["observation"]["actions"] for rec in batch]
+        rewards = [rec["observation"]["rewards"] for rec in batch]
+        next_states = [rec["observation"]["next_states"] for rec in batch]
 
-        else:
-            batch = self.pool.sample(size=self.batch_size)
-            # get sampling range, if not enough data, batch is small,
-            # batch size starting from 1, until reach buffer
-            # logger.info(f"Tracing!", extra=dictLogger)
-            record_range = tf.math.minimum(self.buffer_counter, self.buffer_capacity)
-            # randomly sample indices , in case batch_size > record_range, numpy default is repeated samples
-            batch_indices = np.random.choice(record_range, self.batch_size)
+        # convert output from sample (list or numpy array) to tf.tensor
+        states = tf.convert_to_tensor(np.array(states), dtype=tf.float32)
+        actions = tf.convert_to_tensor(np.array(actions), dtype=tf.float32)
+        rewards = tf.convert_to_tensor(np.array(rewards), dtype=tf.float32)
+        next_states = tf.convert_to_tensor(np.array(next_states), dtype=tf.float32)
 
-            # convert to tensors
-            state_batch = tf.convert_to_tensor(self.states[batch_indices])
-            action_batch = tf.convert_to_tensor(self.actions[batch_indices])
-            reward_batch = tf.convert_to_tensor(self.rewards[batch_indices])
-            reward_batch = tf.cast(reward_batch, dtype=tf.float32)
-            next_state_batch = tf.convert_to_tensor(self.next_states[batch_indices])
-
-        return state_batch, action_batch, reward_batch, next_state_batch
+        return states, actions, rewards, next_states

@@ -313,12 +313,6 @@ class DDPG(DPG):
                 extra=dictLogger,
             )
 
-    def save_replay_buffer(self):
-        self.buffer.save_replay_buffer()
-
-    def load_replay_buffer(self):
-        self.buffer.load_replay_buffer()
-
     @tf.function
     def update_target(self, target_weights, weights, tau):
         for a, b in zip(target_weights, weights):
@@ -545,6 +539,7 @@ class DDPG(DPG):
             reward_batch,
             next_state_batch,
         ) = self.buffer.sample_minibatch_ddpg()
+
         critic_loss, actor_loss = self.update_with_batch(
             state_batch, action_batch, reward_batch, next_state_batch
         )
