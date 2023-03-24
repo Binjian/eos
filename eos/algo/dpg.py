@@ -7,52 +7,60 @@ from eos.config import (
     DB_CONFIG,
     Truck,
     trucks_by_name,
+    Plot
 )
 
 
-def get_algo_data_info(item: dict, truck: Truck) -> tuple:
+def get_algo_data_info(item: dict, truck: Truck, driver: str) -> tuple:
     """Check if the data is valid for the algorithm.
 
     Args:
         item (dict): data item
         truck (Truck): truck object
+        driver (str): driver name
 
     Returns:
         bool: True if the data is valid
     """
 
-    obs = item["plot"]["states"]["observations"]
+    obs = item['plot']['states']['observations']
     assert (
         len(obs) == truck.ObservationNumber
-    ), f"observation number mismatch, {len(obs)} != {truck.ObservationNumber}!"
-    unit_number = item["plot"]["states"]["unit_number"]
+    ), f'observation number mismatch, {len(obs)} != {truck.ObservationNumber}!'
+    unit_number = item['plot']['states']['unit_number']
     assert (
         unit_number == truck.CloudUnitNumber
-    ), f"unit number mismatch, {unit_number} != {truck.CloudUnitNumber}!"
-    unit_duration = item["plot"]["states"]["unit_duration"]
+    ), f'unit number mismatch, {unit_number} != {truck.CloudUnitNumber}!'
+    unit_duration = item['plot']['states']['unit_duration']
     assert (
         unit_duration == truck.CloudUnitDuration
-    ), f"unit duration mismatch, {unit_duration} != {truck.CloudUnitDuration}!"
-    frequency = item["plot"]["states"]["frequency"]
+    ), f'unit duration mismatch, {unit_duration} != {truck.CloudUnitDuration}!'
+    frequency = item['plot']['states']['frequency']
     assert (
         frequency == truck.CloudSignalFrequency
-    ), f"frequency mismatch, {frequency} != {truck.CloudSignalFrequency}!"
+    ), f'frequency mismatch, {frequency} != {truck.CloudSignalFrequency}!'
 
-    action_row_number = item["plot"]["actions"]["action_row_number"]
+    action_row_number = item['plot']['actions']['action_row_number']
     assert (
         action_row_number == truck.ActionFlashRow
-    ), f"action row number mismatch, {action_row_number} != {truck.ActionFlashRow}!"
-    action_column_number = item["plot"]["actions"]["action_column_number"]
+    ), f'action row number mismatch, {action_row_number} != {truck.ActionFlashRow}!'
+    action_column_number = item['plot']['actions']['action_column_number']
     assert (
         action_column_number == truck.PedalScale
-    ), f"action column number mismatch, {action_column_number} != {truck.PedalScale}!"
-    truckname_in_data = item["plot"]["character"]
+    ), f'action column number mismatch, {action_column_number} != {truck.PedalScale}!'
+    truckname_in_data = item['plot']['character']
     assert (
         truckname_in_data == truck.TruckName
-    ), f"truck name mismatch, {truckname_in_data} != {truck.TruckName}!"
+    ), f'truck name mismatch, {truckname_in_data} != {truck.TruckName}!'
 
     num_states = len(obs) * unit_number * unit_duration * frequency
     num_actions = action_row_number * action_column_number
+
+    driver_in_data = item['plot']['driver']
+    assert (
+        driver_in_data == driver
+    ), f'driver name mismatch, {driver_in_data} != {driver}!'
+
     return num_states, num_actions
 
 
@@ -61,8 +69,8 @@ def get_algo_data_info(item: dict, truck: Truck) -> tuple:
 
 @dataclass
 class DPG(abc.ABC):
-    _truck: Truck = (trucks_by_name["VB7"],)
-    _driver: str = ("longfei",)
+    _truck: Truck = (trucks_by_name['VB7'],)
+    _driver: str = ('longfei',)
     _num_states: int = (600,)
     _num_actions: int = (68,)
     _buffer_capacity: int = (10000,)
@@ -74,16 +82,17 @@ class DPG(abc.ABC):
     _gamma: float = (0.99,)
     _tauAC: tuple = ((0.005, 0.005),)
     _lrAC: tuple = ((0.001, 0.002),)
-    _data_folder: str = ("./",)
+    _data_folder: str = ('./',)
     _ckpt_interval: int = (5,)
-    _db_key: str = ("mongo_local",)
+    _db_key: str = ('mongo_local',)
     _db_config: DB_CONFIG = (None,)
     _resume: bool = (True,)
     _infer_mode: bool = (False,)
     _episode_start_dt: datetime = (None,)
+    plot: Plot = (None,)
 
     def __post_init__(self):
-        self.logger = logger.getchild("main").getchild(self.__str__())
+        self.logger = logger.getchild('main').getchild(self.__str__())
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
@@ -92,10 +101,10 @@ class DPG(abc.ABC):
         self.touch_gpu()
 
     def __repr__(self):
-        return f"DPG({self.truck.TruckName}, {self.driver})"
+        return f'DPG({self.truck.TruckName}, {self.driver})'
 
     def __str__(self):
-        return "DPG"
+        return 'DPG'
 
     @abc.abstractmethod
     def touch_gpu(self):
@@ -116,13 +125,42 @@ class DPG(abc.ABC):
         pass
 
     def start_episode(self, dt: datetime):
-        self.logger.info(f"Episode start at {dt}", extra=dictLogger)
+        self.logger.info(f'Episode start at {dt}', extra=dictLogger)
         # somehow mongodb does not like microseconds in rec['plot']
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
+        self.plot = Plot(
+            character=self.truck.TruckName,
+            driver=self.driver,
+            when=self.episode_start_dt,
+            tz=str(self.truck.tz),
+            where=self.truck.Location,
+            state_specs={
+                'observation_specs': [
+                    {'velocity_unit': 'kmph'},
+                    {'thrust_unit': 'percentage'},
+                    {'brake_unit': 'percentage'},
+                ],
+                'unit_number': self.truck.CloudUnitNumber,  # 4
+                'unit_duration': self.truck.CloudUnitDuration,  # 1s
+                'frequency': self.truck.CloudSignalFrequency,  # 50 hz
+            },
+            action_specs={
+                'action_row_number': self.truck.ActionFlashRow,
+                'action_column_number': self.truck.PedalScale,
+            },
+            reward_specs={
+                'reward_unit': 'wh',
+            }
+        )
+
+
+
     @abc.abstractmethod
-    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
+    def deposit(
+        self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t
+    ):
         """Deposit the experience into the replay buffer."""
         pass
 
@@ -170,7 +208,7 @@ class DPG(abc.ABC):
 
     @db_key.setter
     def db_key(self, value: str):
-        raise AttributeError("db_key is read-only")
+        raise AttributeError('db_key is read-only')
 
     @property
     def truck(self):
@@ -178,7 +216,7 @@ class DPG(abc.ABC):
 
     @truck.setter
     def truck(self, value):
-        raise AttributeError("truck is read-only")
+        raise AttributeError('truck is read-only')
 
     @property
     def driver(self):
@@ -186,7 +224,7 @@ class DPG(abc.ABC):
 
     @driver.setter
     def driver(self, value):
-        raise AttributeError("driver is read-only")
+        raise AttributeError('driver is read-only')
 
     @property
     def num_states(self):
@@ -194,7 +232,7 @@ class DPG(abc.ABC):
 
     @num_states.setter
     def num_states(self, value):
-        raise AttributeError("num_states is read-only")
+        raise AttributeError('num_states is read-only')
 
     @property
     def num_actions(self):
@@ -202,7 +240,7 @@ class DPG(abc.ABC):
 
     @num_actions.setter
     def num_actions(self, value):
-        raise AttributeError("num_actions is read-only")
+        raise AttributeError('num_actions is read-only')
 
     @property
     def buffer_capacity(self):
@@ -210,7 +248,7 @@ class DPG(abc.ABC):
 
     @buffer_capacity.setter
     def buffer_capacity(self, value):
-        raise AttributeError("seq_len is read-only")
+        raise AttributeError('seq_len is read-only')
 
     @property
     def batch_size(self):
@@ -218,7 +256,7 @@ class DPG(abc.ABC):
 
     @batch_size.setter
     def batch_size(self, value):
-        raise AttributeError("batch_size is read-only")
+        raise AttributeError('batch_size is read-only')
 
     @property
     def hidden_unitsAC(self):
@@ -226,7 +264,7 @@ class DPG(abc.ABC):
 
     @hidden_unitsAC.setter
     def hidden_unitsAC(self, value):
-        raise AttributeError("hidden_unitsAC is read-only")
+        raise AttributeError('hidden_unitsAC is read-only')
 
     @property
     def action_bias(self):
@@ -234,7 +272,7 @@ class DPG(abc.ABC):
 
     @action_bias.setter
     def action_bias(self, value):
-        raise AttributeError("action_bias is read-only")
+        raise AttributeError('action_bias is read-only')
 
     @property
     def n_layersAC(self):
@@ -242,7 +280,7 @@ class DPG(abc.ABC):
 
     @n_layersAC.setter
     def n_layersAC(self, value):
-        raise AttributeError("n_layersAC is read-only")
+        raise AttributeError('n_layersAC is read-only')
 
     @property
     def padding_value(self):
@@ -250,7 +288,7 @@ class DPG(abc.ABC):
 
     @padding_value.setter
     def padding_value(self, value):
-        raise AttributeError("padding_value is read-only")
+        raise AttributeError('padding_value is read-only')
 
     @property
     def gamma(self):
@@ -258,7 +296,7 @@ class DPG(abc.ABC):
 
     @gamma.setter
     def gamma(self, value):
-        raise AttributeError("gamma is read-only")
+        raise AttributeError('gamma is read-only')
 
     @property
     def tauAC(self):
@@ -266,7 +304,7 @@ class DPG(abc.ABC):
 
     @tauAC.setter
     def tauAC(self, value):
-        raise AttributeError("tauAC is read-only")
+        raise AttributeError('tauAC is read-only')
 
     @property
     def lrAC(self):
@@ -274,7 +312,7 @@ class DPG(abc.ABC):
 
     @lrAC.setter
     def lrAC(self, value):
-        raise AttributeError("lrAC is read-only")
+        raise AttributeError('lrAC is read-only')
 
     @property
     def data_folder(self) -> str:
@@ -282,7 +320,7 @@ class DPG(abc.ABC):
 
     @data_folder.setter
     def data_folder(self, value: str):
-        raise AttributeError("datafolder is read-only")
+        raise AttributeError('datafolder is read-only')
 
     @property
     def ckpt_interval(self):
@@ -290,7 +328,7 @@ class DPG(abc.ABC):
 
     @ckpt_interval.setter
     def ckpt_interval(self, value):
-        raise AttributeError("ckpt_interval is read-only")
+        raise AttributeError('ckpt_interval is read-only')
 
     @property
     def resume(self):
@@ -298,7 +336,7 @@ class DPG(abc.ABC):
 
     @resume.setter
     def resume(self, value):
-        raise AttributeError("resume is read-only")
+        raise AttributeError('resume is read-only')
 
     @property
     def infer_mode(self):
@@ -306,7 +344,7 @@ class DPG(abc.ABC):
 
     @infer_mode.setter
     def infer_mode(self, value):
-        raise AttributeError("infer_mode is read-only")
+        raise AttributeError('infer_mode is read-only')
 
     @property
     def db_config(self) -> DB_CONFIG:

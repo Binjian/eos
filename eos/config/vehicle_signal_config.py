@@ -85,52 +85,54 @@ TRIANGLE_TEST_CASE_TARGET_VELOCITIES = [
 ]  # triangle test case in km/h
 
 timezones = {
-    "la": ZoneInfo("America/Los_Angeles"),
-    "ny": ZoneInfo("America/New_York"),
-    "sh": ZoneInfo("Asia/Shanghai"),
-    "bl": ZoneInfo("Europe/Berlin"),
-    "LD": ZoneInfo("Europe/London"),
-    "sy": ZoneInfo("Australia/Sydney"),
-    "jp": ZoneInfo("Asia/Tokyo"),
-    "hk": ZoneInfo("Asia/Hong_Kong"),
+    'la': ZoneInfo('America/Los_Angeles'),
+    'ny': ZoneInfo('America/New_York'),
+    'sh': ZoneInfo('Asia/Shanghai'),
+    'bl': ZoneInfo('Europe/Berlin'),
+    'LD': ZoneInfo('Europe/London'),
+    'sy': ZoneInfo('Australia/Sydney'),
+    'jp': ZoneInfo('Asia/Tokyo'),
+    'hk': ZoneInfo('Asia/Hong_Kong'),
 }
 
 Truck = namedtuple(
-    "Truck",
+    'Truck',
     [
-        "TruckName",  # Name of the truck: VB7, M2, MP2, etc.
-        "VIN",  # Vehicle Identification Number
-        "Plate",  # License plate number
-        "Maturity",  # "VB", "MULE", "MP"
-        "tz",  # Timezone
-        "CloudSignalFrequency",  # Hz
-        "CloudGearFrequency",  # Hz
-        "CloudUnitDuration",  # cloud unit duration in seconds
-        "CloudUnitNumber",  # cloud number of units of cloud observation
-        "PedalRange",  # percentage of pedal opening [0, 100]
-        "PedalScale",  # scale number of pedal opening 17
-        "PedalScaleList",  # scale list of pedal
-        "VelocityRange",  # range of velocity [0, 100] in km/h
-        "VelocityScale",  # scale number of velocity 14 or 21
-        "VelocityScaleList",  # scale list of velocity
-        "ObservationNumber",  # number of observation, 3: velocity, throttle, brake
-        "KvaserObservationNumber",  # Kvaser number of one observation unit: 30 as count number
-        "KvaserObservationFrequency",  # Kvaser observation frequency: 20 Hz
-        "KvaserCountdownTime",  # Kvaser countdown time: 3 seconds
-        "ActionBudget",  # maximal delta torque to be overlapped on the torque map 250 in Nm
-        "ActionLowerBound",  # minimal percentage of delta torque to be overlapped on the torque map: 0.8
-        "ActionUpperBound",  # maximal percentage of delta torque to be overlapped on the torque map: 1.0
-        "ActionBias",  # bias of delta torque to be overlapped on the torque map: 0.0
-        "ActionFlashRow",  # number of rows to be flashed in the torque map: 4
+        'TruckName',  # Name of the truck: VB7, M2, MP2, etc.
+        'VIN',  # Vehicle Identification Number
+        'Plate',  # License plate number
+        'Maturity',  # "VB", "MULE", "MP"
+        'tz',  # Timezone
+        'Location',  # Location of the truck
+        'CloudSignalFrequency',  # Hz
+        'CloudGearFrequency',  # Hz
+        'CloudUnitDuration',  # cloud unit duration in seconds
+        'CloudUnitNumber',  # cloud number of units of cloud observation
+        'PedalRange',  # percentage of pedal opening [0, 100]
+        'PedalScale',  # scale number of pedal opening 17
+        'PedalScaleList',  # scale list of pedal
+        'VelocityRange',  # range of velocity [0, 100] in km/h
+        'VelocityScale',  # scale number of velocity 14 or 21
+        'VelocityScaleList',  # scale list of velocity
+        'ObservationNumber',  # number of observation, 3: velocity, throttle, brake
+        'KvaserObservationNumber',  # Kvaser number of one observation unit: 30 as count number
+        'KvaserObservationFrequency',  # Kvaser observation frequency: 20 Hz
+        'KvaserCountdownTime',  # Kvaser countdown time: 3 seconds
+        'ActionBudget',  # maximal delta torque to be overlapped on the torque map 250 in Nm
+        'ActionLowerBound',  # minimal percentage of delta torque to be overlapped on the torque map: 0.8
+        'ActionUpperBound',  # maximal percentage of delta torque to be overlapped on the torque map: 1.0
+        'ActionBias',  # bias of delta torque to be overlapped on the torque map: 0.0
+        'ActionFlashRow',  # number of rows to be flashed in the torque map: 4
     ],
 )
 truck_list = [
     Truck(
-        TruckName="VB4",
-        VIN="HMZABAAHXMF011054",
-        Plate="77777777",
-        Maturity="VB1",
-        tz=timezones["sh"],
+        TruckName='VB4',
+        VIN='HMZABAAHXMF011054',
+        Plate='77777777',
+        Maturity='VB1',
+        tz=timezones['sh'],
+        location='Jiangyin',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -152,11 +154,12 @@ truck_list = [
         ActionFlashRow=4,
     ),
     Truck(
-        TruckName="VB1",
-        VIN="HMZABAAH1MF011055",
-        Plate="77777777",
-        Maturity="VB1",
-        tz=timezones["sh"],
+        TruckName='VB1',
+        VIN='HMZABAAH1MF011055',
+        Plate='77777777',
+        Maturity='VB1',
+        tz=timezones['sh'],
+        location='Jiangyin',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -178,11 +181,12 @@ truck_list = [
         ActionFlashRow=4,
     ),
     Truck(
-        TruckName="SU_BDC8937",
-        VIN="HMZABAAH4MF014497",
-        Plate="SU-BDC8937",
-        Maturity="VB",
-        tz=timezones["sh"],
+        TruckName='SU_BDC8937',
+        VIN='HMZABAAH4MF014497',
+        Plate='SU-BDC8937',
+        Maturity='VB',
+        tz=timezones['sh'],
+        location='Jiangyin',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -204,11 +208,12 @@ truck_list = [
         ActionFlashRow=4,
     ),
     Truck(
-        TruckName="VB7",
-        VIN="HMZABAAH7MF011058",
-        Plate="77777777",
-        Maturity="VB",
-        tz=timezones["sh"],
+        TruckName='VB7',
+        VIN='HMZABAAH7MF011058',
+        Plate='77777777',
+        Maturity='VB',
+        tz=timezones['sh'],
+        Location='Anting',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -230,11 +235,12 @@ truck_list = [
         ActionFlashRow=4,
     ),
     Truck(
-        TruckName="VB6",
-        VIN="HMZABAAH5MF011057",
-        Plate="66666666",
-        Maturity="VB",
-        tz=timezones["sh"],
+        TruckName='VB6',
+        VIN='HMZABAAH5MF011057',
+        Plate='66666666',
+        Maturity='VB',
+        tz=timezones['sh'],
+        Location='Anting',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -256,11 +262,12 @@ truck_list = [
         ActionFlashRow=4,
     ),
     Truck(
-        TruckName="M2",
+        TruckName='M2',
         VIN=None,  # "987654321654321M4"
-        Plate="2222222",
-        Maturity="MULE",
-        tz=timezones["sh"],
+        Plate='2222222',
+        Maturity='MULE',
+        tz=timezones['sh'],
+        Location='Anting',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -282,11 +289,12 @@ truck_list = [
         ActionFlashRow=4,
     ),
     Truck(
-        TruckName="HQB",
-        VIN="NEWRIZON020220328",
-        Plate="00000000",
-        Maturity="VB",
-        tz=timezones["sh"],
+        TruckName='HQB',
+        VIN='NEWRIZON020220328',
+        Plate='00000000',
+        Maturity='VB',
+        tz=timezones['sh'],
+        Location='Hongqiao',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -309,5 +317,7 @@ truck_list = [
     ),  # HQ Bench
 ]
 
-trucks_by_name = dict(zip([truck.TruckName for truck in truck_list], truck_list))
+trucks_by_name = dict(
+    zip([truck.TruckName for truck in truck_list], truck_list)
+)
 trucks_by_vin = dict(zip([truck.VIN for truck in truck_list], truck_list))

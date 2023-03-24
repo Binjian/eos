@@ -10,7 +10,9 @@ import numpy as np
 
 
 class OUActionNoise:
-    def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
+    def __init__(
+        self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None
+    ):
         self.theta = theta
         self.mean = mean
         self.std_dev = std_deviation
@@ -23,7 +25,9 @@ class OUActionNoise:
         x = (
             self.x_prev
             + self.theta * (self.mean - self.x_prev) * self.dt
-            + self.std_dev * np.sqrt(self.dt) * np.random.normal(size=self.mean.shape)
+            + self.std_dev
+            * np.sqrt(self.dt)
+            * np.random.normal(size=self.mean.shape)
         )
         # Store x into x_prev
         # Makes next noise dependent on current one

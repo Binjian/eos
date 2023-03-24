@@ -2,7 +2,9 @@
 from numpy import cos, mgrid, pi, sin
 
 dphi, dtheta = pi / 250.0, pi / 250.0
-[phi, theta] = mgrid[0 : pi + dphi * 1.5 : dphi, 0 : 2 * pi + dtheta * 1.5 : dtheta]
+[phi, theta] = mgrid[
+    0 : pi + dphi * 1.5 : dphi, 0 : 2 * pi + dtheta * 1.5 : dtheta
+]
 m0 = 4
 m1 = 3
 m2 = 2

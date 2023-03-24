@@ -46,7 +46,9 @@ class CriticNet:
         inputs_action = layers.Input(shape=(None, action_dim))
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
-        inputs_state_action = layers.Concatenate(axis=-1)([inputs_state, inputs_action])
+        inputs_state_action = layers.Concatenate(axis=-1)(
+            [inputs_state, inputs_action]
+        )
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=self.padding_value)(
@@ -55,7 +57,9 @@ class CriticNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
+            x = layers.LSTM(
+                hidden_dim, return_sequences=True, return_state=False
+            )(x)
 
         lstm_output = layers.LSTM(
             hidden_dim, return_sequences=False, return_state=False
@@ -83,11 +87,11 @@ class CriticNet:
         self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
         if self.ckpt_manager.latest_checkpoint:
             logger.info(
-                f"Restored actor from {self.ckpt_manager.latest_checkpoint}",
+                f'Restored actor from {self.ckpt_manager.latest_checkpoint}',
                 extra=dictLogger,
             )
         else:
-            logger.info(f"Critic Initializing from scratch", extra=dictLogger)
+            logger.info(f'Critic Initializing from scratch', extra=dictLogger)
 
     def clone_weights(self, moving_net):
         """Clone weights from a model to another model."""
@@ -99,7 +103,8 @@ class CriticNet:
             [
                 self.tau * w + (1 - self.tau) * w_t
                 for w, w_t in zip(
-                    moving_net.eager_model.get_weights(), self.eager_model.get_weights()
+                    moving_net.eager_model.get_weights(),
+                    self.eager_model.get_weights(),
                 )
             ]
         )
@@ -109,7 +114,7 @@ class CriticNet:
         if int(self.ckpt.step) % self.ckpt_interval == 0:
             save_path = self.ckpt_manager.save()
             logger.info(
-                f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",
+                f'Saved ckpt for step {int(self.ckpt.step)}: {save_path}',
                 extra=dictLogger,
             )
 
@@ -137,7 +142,7 @@ class CriticNet:
 
     @state_dim.setter
     def state_dim(self, value):
-        raise ReadOnlyError("state_dim is read-only")
+        raise ReadOnlyError('state_dim is read-only')
 
     @property
     def action_dim(self):
@@ -145,7 +150,7 @@ class CriticNet:
 
     @action_dim.setter
     def action_dim(self, value):
-        raise ReadOnlyError("action_dim is read-only")
+        raise ReadOnlyError('action_dim is read-only')
 
     @property
     def hidden_dim(self):
@@ -153,7 +158,7 @@ class CriticNet:
 
     @hidden_dim.setter
     def hidden_dim(self, value):
-        raise ReadOnlyError("hidden_dim is read-only")
+        raise ReadOnlyError('hidden_dim is read-only')
 
     @property
     def lr(self):
@@ -161,7 +166,7 @@ class CriticNet:
 
     @lr.setter
     def lr(self, value):
-        raise ReadOnlyError("lr is read-only")
+        raise ReadOnlyError('lr is read-only')
 
     @property
     def padding_value(self):
@@ -169,7 +174,7 @@ class CriticNet:
 
     @padding_value.setter
     def padding_value(self, value):
-        raise ReadOnlyError("padding_value is read-only")
+        raise ReadOnlyError('padding_value is read-only')
 
     @property
     def n_layers(self):
@@ -177,7 +182,7 @@ class CriticNet:
 
     @n_layers.setter
     def n_layers(self, value):
-        raise ReadOnlyError("n_layers is read-only")
+        raise ReadOnlyError('n_layers is read-only')
 
     @property
     def tau(self):
@@ -185,7 +190,7 @@ class CriticNet:
 
     @tau.setter
     def tau(self, value):
-        raise ReadOnlyError("tau is read-only")
+        raise ReadOnlyError('tau is read-only')
 
     @property
     def ckpt_interval(self):
@@ -193,4 +198,4 @@ class CriticNet:
 
     @ckpt_interval.setter
     def ckpt_interval(self, value):
-        raise ReadOnlyError("ckpt_interval is read-only")
+        raise ReadOnlyError('ckpt_interval is read-only')

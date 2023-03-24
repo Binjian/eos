@@ -9,8 +9,9 @@ from keras import layers
 from pymongoarrow.monkey import patch_all
 from eos import dictLogger
 from ..utils import OUActionNoise
-from .buffer import Buffer
+from ..db_buffer import DBBuffer
 from ..dpg import DPG
+from eos.config import Record
 
 patch_all()
 """
@@ -131,12 +132,12 @@ class DDPG(DPG):
     ckpt_critic: tf.train.Checkpoint = None
     manager_actor: tf.train.CheckpointManager = None
     ckpt_actor: tf.train.Checkpoint = None
-    buffer: Buffer = None
+    buffer: DBBuffer[Record] = None
 
     def __post__init__(self):
         super().__post_init__()
 
-        self.buffer = Buffer(
+        self.buffer = DBBuffer[Record](
             db_key=self.db_key,
             truck=self.truck,
             driver=self.driver,
@@ -186,7 +187,8 @@ class DDPG(DPG):
         self.ou_noise_std_dev = 0.2
         self.ou_noise = OUActionNoise(
             mean=np.zeros(self.num_actions),
-            std_deviation=float(self.ou_noise_std_dev) * np.ones(self.num_actions),
+            std_deviation=float(self.ou_noise_std_dev)
+            * np.ones(self.num_actions),
         )
         self.init_checkpoint()
         self.touch_gpu()
@@ -199,68 +201,78 @@ class DDPG(DPG):
     #         self.buffer.save_replay_buffer()
 
     def __repr__(self):
-        return f"DDPG({self.truck.name}, {self.driver})"
+        return f'DDPG({self.truck.name}, {self.driver})'
 
     def __str__(self):
-        return "DDPG"
+        return 'DDPG'
 
     def init_checkpoint(self):
         # add checkpoints manager
         if self.resume:
             checkpoint_actor_dir = Path(self.data_folder).joinpath(
-                "tf_ckpts-"
+                'tf_ckpts-'
                 + self.__str__()
-                + "-"
+                + '-'
                 + self.truck.TruckName
-                + "-"
+                + '-'
                 + self.driver
-                + "_"
-                + "actor"
+                + '_'
+                + 'actor'
             )
             checkpoint_critic_dir = Path(self.data_folder).joinpath(
-                "tf_ckpts-"
+                'tf_ckpts-'
                 + self.__str__()
-                + "-"
+                + '-'
                 + self.truck.TruckName
-                + "-"
+                + '-'
                 + self.driver
-                + "_"
-                + "critic"
+                + '_'
+                + 'critic'
             )
         else:
             checkpoint_actor_dir = Path(self.data_folder).joinpath(
-                "tf_ckpts-"
+                'tf_ckpts-'
                 + self.__str__()
-                + "/"
+                + '/'
                 + self.truck.TruckName
-                + "-"
+                + '-'
                 + self.driver
-                + "_actor"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + '_actor'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
             )
             checkpoint_critic_dir = Path(self.data_folder).joinpath(
-                "tf_ckpts-"
+                'tf_ckpts-'
                 + self.__str__()
-                + "/"
+                + '/'
                 + self.truck.TruckName
-                + "-"
+                + '-'
                 + self.driver
-                + "_critic"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + '_critic'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
             )
         try:
             os.makedirs(checkpoint_actor_dir)
-            self.logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
+            self.logger.info(
+                "Actor folder doesn't exist. Created!", extra=dictLogger
+            )
         except FileExistsError:
-            self.logger.info("Actor folder exists, just resume!", extra=dictLogger)
+            self.logger.info(
+                'Actor folder exists, just resume!', extra=dictLogger
+            )
         try:
             os.makedirs(checkpoint_critic_dir)
-            self.logger.info("Critic folder doesn't exist. Created!", extra=dictLogger)
+            self.logger.info(
+                "Critic folder doesn't exist. Created!", extra=dictLogger
+            )
         except FileExistsError:
-            self.logger.info("Critic folder exists, just resume!", extra=dictLogger)
+            self.logger.info(
+                'Critic folder exists, just resume!', extra=dictLogger
+            )
 
         self.ckpt_actor = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.actor_optimizer, net=self.actor_model
+            step=tf.Variable(1),
+            optimizer=self.actor_optimizer,
+            net=self.actor_model,
         )
         self.manager_actor = tf.train.CheckpointManager(
             self.ckpt_actor, checkpoint_actor_dir, max_to_keep=10
@@ -268,14 +280,18 @@ class DDPG(DPG):
         self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
         if self.manager_actor.latest_checkpoint:
             self.logger.info(
-                f"Actor Restored from {self.manager_actor.latest_checkpoint}",
+                f'Actor Restored from {self.manager_actor.latest_checkpoint}',
                 extra=dictLogger,
             )
         else:
-            self.logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+            self.logger.info(
+                f'Actor Initializing from scratch', extra=dictLogger
+            )
 
         self.ckpt_critic = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.critic_optimizer, net=self.critic_model
+            step=tf.Variable(1),
+            optimizer=self.critic_optimizer,
+            net=self.critic_model,
         )
         self.manager_critic = tf.train.CheckpointManager(
             self.ckpt_critic, checkpoint_critic_dir, max_to_keep=10
@@ -283,11 +299,13 @@ class DDPG(DPG):
         self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
         if self.manager_critic.latest_checkpoint:
             self.logger.info(
-                f"Critic Restored from {self.manager_critic.latest_checkpoint}",
+                f'Critic Restored from {self.manager_critic.latest_checkpoint}',
                 extra=dictLogger,
             )
         else:
-            self.logger.info("Critic Initializing from scratch", extra=dictLogger)
+            self.logger.info(
+                'Critic Initializing from scratch', extra=dictLogger
+            )
 
         # Making the weights equal initially after checkpoints load
         self.target_actor.set_weights(self.actor_model.get_weights())
@@ -303,13 +321,13 @@ class DDPG(DPG):
         if int(self.ckpt_actor.step) % self.ckpt_interval == 0:
             save_path_actor = self.manager_actor.save()
             self.logger.info(
-                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
+                f'Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}',
                 extra=dictLogger,
             )
         if int(self.ckpt_critic.step) % self.ckpt_interval == 0:
             save_path_critic = self.manager_critic.save()
             self.logger.info(
-                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
+                f'Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}',
                 extra=dictLogger,
             )
 
@@ -323,10 +341,14 @@ class DDPG(DPG):
         # This update target parameters slowly
         # Based on rate `tau`, which is much less than one.
         self.update_target(
-            self.target_actor.variables, self.actor_model.variables, self.tauAC[0]
+            self.target_actor.variables,
+            self.actor_model.variables,
+            self.tauAC[0],
         )
         self.update_target(
-            self.target_critic.variables, self.critic_model.variables, self.tauAC[1]
+            self.target_critic.variables,
+            self.critic_model.variables,
+            self.tauAC[1],
         )
 
     """
@@ -364,7 +386,7 @@ class DDPG(DPG):
 
         x = layers.Dense(
             num_hidden,
-            activation="relu",
+            activation='relu',
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(inputs)
 
@@ -372,14 +394,14 @@ class DDPG(DPG):
         for i in range(num_layers - 1):
             x = layers.Dense(
                 num_hidden,
-                activation="relu",
+                activation='relu',
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
 
         # output layer
         out = layers.Dense(
             num_actions,
-            activation="tanh",
+            activation='tanh',
             kernel_initializer=last_init,
             bias_initializer=tf.keras.initializers.constant(action_bias),
         )(x)
@@ -406,14 +428,14 @@ class DDPG(DPG):
     ):
         # State as input
         state_input = layers.Input(shape=(num_states,))
-        state_out = layers.Dense(num_hidden0, activation="relu")(state_input)
-        state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
+        state_out = layers.Dense(num_hidden0, activation='relu')(state_input)
+        state_out = layers.Dense(num_hidden1, activation='relu')(state_out)
 
         # Action as input
         action_input = layers.Input(
             shape=(num_actions,)
         )  # action is defined as flattened.
-        action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
+        action_out = layers.Dense(num_hidden1, activation='relu')(action_input)
 
         # Both are passed through separate layer before concatenating
         x = layers.Concatenate()([state_out, action_out])
@@ -422,12 +444,12 @@ class DDPG(DPG):
         for i in range(num_layers - 1):
             x = layers.Dense(
                 num_hidden2,
-                activation="relu",
+                activation='relu',
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
         x = layers.Dense(
             num_hidden2,
-            activation="relu",
+            activation='relu',
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(x)
 
@@ -440,7 +462,7 @@ class DDPG(DPG):
         return eager_model
 
     def start_episode(self, dt: datetime):
-        self.logger.info(f"Episode start at {dt}", extra=dictLogger)
+        self.logger.info(f'Episode start at {dt}', extra=dictLogger)
         # somehow mongodb does not like microseconds in rec['plot']
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
@@ -471,24 +493,35 @@ class DDPG(DPG):
     @tf.function
     def infer_single_sample(self, state):
         # logger.info(f"Tracing", extra=dictLogger)
-        print("Tracing infer!")
+        print('Tracing infer!')
         sampled_actions = tf.squeeze(self.actor_model(state))
         # Adding noise to action
         return sampled_actions
 
-    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        self.buffer.store_record(
-            self.episode_start_dt,
-            prev_ts,
-            prev_o_t,
-            prev_a_t,
-            prev_table_start,
-            cycle_reward,
-            o_t,
-        )
+    def deposit(
+        self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t
+    ):
+        record: Record = {
+            'timestamp': datetime.fromtimestamp(
+                float(
+                    prev_ts.numpy()[0]
+                )  # fromtimestamp need float, tf data precision set to float32
+            ),  # from ms to s
+            'plot': self.plot,
+            'observation': {
+                'states': prev_o_t.numpy().tolist(),
+                'actions': prev_a_t.numpy().tolist(),
+                'action_start_row': prev_table_start,
+                'rewards': cycle_reward.numpy().tolist()[0],
+                'next_states': o_t.numpy().tolist(),
+            },
+        }
+        self.buffer.store(record)
 
     def end_episode(self):
-        self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
+        self.logger.info(f'Episode end at {datetime.now()}', extra=dictLogger)
+        # self.buffer.close()  # pool in buffer will be closed in finalize()
+        # fill in other necessary action for end of episode
 
     def touch_gpu(self):
         # tf.summary.trace_on(graph=True, profiler=True)
@@ -500,16 +533,16 @@ class DDPG(DPG):
 
         _ = self.policy(init_states)
         self.logger.info(
-            f"manual load tf library by calling convert_to_tensor",
+            f'manual load tf library by calling convert_to_tensor',
             extra=dictLogger,
         )
         self.ou_noise.reset()
 
         # warm up gpu training graph execution pipeline
-        if self.buffer.buffer_counter != 0:
+        if self.buffer.count() != 0:
             if not self.infer_mode:
                 self.logger.info(
-                    f"ddpg warm up training!",
+                    f'ddpg warm up training!',
                     extra=dictLogger,
                 )
 
@@ -528,20 +561,51 @@ class DDPG(DPG):
 
                 # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
                 self.logger.info(
-                    f"ddpg warm up training done!",
+                    f'ddpg warm up training done!',
                     extra=dictLogger,
                 )
 
+    def sample_minibatch(self):
+        """
+        Update the actor and critic networks using the sampled batch.
+        """
+        assert self.buffer.count() > 0, 'pool is empty'
+        # get sampling range, if not enough data, batch is small
+        self.logger.info(
+            f'start sample from pool with size: {self.batch_size}, '
+            f'truck: {self.truck.TruckName}, driver: {self.driver}.',
+            extra=dictLogger,
+        )
+
+        batch = self.buffer.sample()
+        assert (
+                len(batch) == self.batch_size
+        ), f'sampled batch size {len(batch)} not match sample size {self.batch_size}'
+
+        states = [rec['observation']['states'] for rec in batch]
+        actions = [rec['observation']['actions'] for rec in batch]
+        rewards = [rec['observation']['rewards'] for rec in batch]
+        next_states = [rec['observation']['next_states'] for rec in batch]
+
+        # convert output from sample (list or numpy array) to tf.tensor
+        states = tf.convert_to_tensor(np.array(states), dtype=tf.float32)
+        actions = tf.convert_to_tensor(np.array(actions), dtype=tf.float32)
+        rewards = tf.convert_to_tensor(np.array(rewards), dtype=tf.float32)
+        next_states = tf.convert_to_tensor(
+            np.array(next_states), dtype=tf.float32
+        )
+
+        return states, actions, rewards, next_states
     def train(self):
         (
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
-        ) = self.buffer.sample_minibatch_ddpg()
+            states,
+            actions,
+            rewards,
+            next_states,
+        ) = self.sample_minibatch()
 
         critic_loss, actor_loss = self.update_with_batch(
-            state_batch, action_batch, reward_batch, next_state_batch
+            states, actions, rewards, next_states
         )
         return critic_loss, actor_loss
 
@@ -558,7 +622,7 @@ class DDPG(DPG):
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
-        print("Tracing update!")
+        print('Tracing update!')
         with tf.GradientTape() as tape:
             target_actions = self.target_actor(next_state_batch, training=True)
             y = reward_batch + self.gamma * self.target_critic(
@@ -570,27 +634,35 @@ class DDPG(DPG):
             #             # )
             # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
             # ! the question above is not necessary, since deterministic policy is the maximum!
-            critic_value = self.critic_model([state_batch, action_batch], training=True)
+            critic_value = self.critic_model(
+                [state_batch, action_batch], training=True
+            )
             # scalar value, average over the batch
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
         # logger.info(f"BP done.", extra=dictLogger)
 
-        critic_grad = tape.gradient(critic_loss, self.critic_model.trainable_variables)
+        critic_grad = tape.gradient(
+            critic_loss, self.critic_model.trainable_variables
+        )
         self.critic_optimizer.apply_gradients(
             zip(critic_grad, self.critic_model.trainable_variables)
         )
 
         with tf.GradientTape() as tape:
             actions = self.actor_model(state_batch, training=True)
-            critic_value = self.critic_model([state_batch, actions], training=True)
+            critic_value = self.critic_model(
+                [state_batch, actions], training=True
+            )
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions
             # scalar value, average over the batch
             actor_loss = -tf.math.reduce_mean(critic_value)
 
         # gradient director directly over actor model weights
-        actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
+        actor_grad = tape.gradient(
+            actor_loss, self.actor_model.trainable_variables
+        )
         # TODO Check if this is correct. compare above actor_grad tensor with below
         # action_gradients= tape.gradient(actions, actor_model.trainable_variables)
         # actor_grad = tape.gradient(actor_loss, actions, action_gradients)
@@ -604,24 +676,26 @@ class DDPG(DPG):
     @tf.function
     def infer_with_batch(
         self,
-        state_batch,
-        action_batch,
-        reward_batch,
-        next_state_batch,
+        states,
+        actions,
+        rewards,
+        next_states,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
-        target_actions = self.target_actor(next_state_batch, training=True)
-        y = reward_batch + self.gamma * self.target_critic(
-            [next_state_batch, target_actions], training=True
+        target_actions = self.target_actor(next_states, training=True)
+        y = rewards + self.gamma * self.target_critic(
+            [next_states, target_actions], training=True
         )
-        critic_value = self.critic_model([state_batch, action_batch], training=True)
+        critic_value = self.critic_model(
+            [states, actions], training=True
+        )
         critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        self.logger.info(f"No update Calulate reward done.", extra=dictLogger)
+        self.logger.info(f'No update Calulate reward done.', extra=dictLogger)
 
-        actions = self.actor_model(state_batch, training=True)
-        critic_value = self.critic_model([state_batch, actions], training=True)
+        actions = self.actor_model(states, training=True)
+        critic_value = self.critic_model([states, actions], training=True)
         # Used `-value` as we want to maximize the value given
         # by the critic for our actions
         actor_loss = -tf.math.reduce_mean(critic_value)
@@ -631,132 +705,13 @@ class DDPG(DPG):
     # We only compute the loss and don't update parameters
     def get_losses(self):
         (
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
-        ) = self.buffer.sample_minibatch_ddpg()
+            states,
+            actions,
+            rewards,
+            next_states,
+        ) = self.sample_minibatch()
         critic_loss, actor_loss = self.infer_with_batch(
-            state_batch, action_batch, reward_batch, next_state_batch
+            states, actions, rewards, next_states
         )
         return critic_loss, actor_loss
 
-
-"""
-## Training hyperparameters
-"""
-
-# std_dev = 0.2
-# ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
-
-# actor_model = get_actor()
-# critic_model = get_critic()
-
-# target_actor = get_actor()
-# target_critic = get_critic()
-#
-# # Making the weights equal initially
-# target_actor.set_weights(actor_model.get_weights())
-# target_critic.set_weights(critic_model.get_weights())
-
-# # Learning rate for actor-critic models
-# critic_lr = 0.002
-# actor_lr = 0.001
-#
-# critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
-# actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
-
-# total_episodes = 100
-# # Discount factor for future rewards
-# gamma = 0.99
-# # Used to update target networks
-# tau = 0.005
-#
-# buffer = Buffer(50000, 64)
-
-"""
-Now we implement our main training loop, and iterate over episodes.
-We sample actions using `policy()` and train with `learn()` at each time step,
-along with updating the Target networks at a rate `tau`.
-"""
-#
-# # To store reward history of each episode
-# ep_reward_list = []
-# # To store average reward history of last few episodes
-# avg_reward_list = []
-#
-# # Takes about 4 min to train
-# for ep in range(total_episodes):
-#
-#     prev_state = env.reset()
-#     episodic_reward = 0
-#
-#     while True:
-#         # Uncomment this to see the Actor in action
-#         # But not in a python notebook.
-#         # env.render()
-#
-#         tf_prev_state = tf.expand_dims(tf.convert_to_tensor(prev_state), 0)
-#
-#         action = policy(tf_prev_state, ou_noise)
-#         # Recieve state and reward from environment.
-#         state, reward, done, info = env.step(action)
-#
-#         buffer.record((prev_state, action, reward, state))
-#         episodic_reward += reward
-#
-#         buffer.learn()
-#         update_target(target_actor.variables, actor_model.variables, tau)
-#         update_target(target_critic.variables, critic_model.variables, tau)
-#
-#         # End this episode when `done` is True
-#         if done:
-#             break
-#
-#         prev_state = state
-#
-#     ep_reward_list.append(episodic_reward)
-#
-#     # Mean of last 40 episodes
-#     avg_reward = np.mean(ep_reward_list[-40:])
-#     print("Episode * {} * Avg Reward is ==> {}".format(ep, avg_reward))
-#     avg_reward_list.append(avg_reward)
-#
-# # Plotting graph
-# # Episodes versus Avg. Rewards
-# plt.plot(avg_reward_list)
-# plt.xlabel("Episode")
-# plt.ylabel("Avg. Epsiodic Reward")
-# plt.show()
-
-"""
-If training proceeds correctly, the average episodic reward will increase with time.
-
-Feel free to try different learning rates, `tau` values, and architectures for the
-Actor and Critic networks.
-
-The Inverted Pendulum problem has low complexity, but DDPG work great on many other
-problems.
-
-Another great environment to try this on is `LunarLandingContinuous-v2`, but it will take
-more episodes to obtain good results.
-"""
-
-# # Save the weights
-# actor_model.save_weights("pendulum_actor.h5")
-# critic_model.save_weights("pendulum_critic.h5")
-#
-# target_actor.save_weights("pendulum_target_actor.h5")
-# target_critic.save_weights("pendulum_target_critic.h5")
-
-"""
-Before Training:
-
-![before_img](https://i.imgur.com/ox6b9rC.gif)
-"""
-
-"""
-After 100 episodes:
-
-![after_img](https://i.imgur.com/eEH8Cz6.gif)
-"""

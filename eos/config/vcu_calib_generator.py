@@ -25,7 +25,9 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
     Generate VCU calibration parameters for a given truck.
     return: pandas dataframe
     """
-    ped = np.linspace(pedal_range[0], pedal_range[1], num=npd)  # 0 - 100% pedal
+    ped = np.linspace(
+        pedal_range[0], pedal_range[1], num=npd
+    )  # 0 - 100% pedal
 
     if shortcut == 1:
         vel_ = np.linspace(
@@ -38,17 +40,17 @@ def generate_vcu_calibration(  # pedal is x(column), velocity is y(row) )
 
     elif shortcut == 2:  # import default eco calibration table
         table_path = dataroot.joinpath(
-            "vb7_init_table.csv"
+            'vb7_init_table.csv'
         )  # init table is driver independent in the pardir.
         pd_v = pd.read_csv(table_path, header=0, index_col=0)
         # table_path = datafolder + "/54_vertices_approx-regen3.csv"  # init table is driver independent in the pardir.
         # pd_data = pd.read_csv(table_path, header=0, index_col=0)
     elif shortcut == 3:  # import latest pedal map that was used
-        files = glob.glob(str(dataroot) + "/last_table*.csv")
+        files = glob.glob(str(dataroot) + '/last_table*.csv')
         if not files:  # files is empty list []
-            print("no last table is available. Get init table instead.")
+            print('no last table is available. Get init table instead.')
             latest_table = Path(__file__).parent.joinpath(
-                "vb7_init_table.csv"
+                'vb7_init_table.csv'
             )  # init table is driver independent in the pardir.
         else:
             latest_table = max(files, key=os.path.getmtime)
@@ -89,12 +91,12 @@ def generate_lookup_table(  # pedal in x(col), velocity in y(row)
         pedal_range[0] : pedal_range[1] : p_step,
     ]
     calib_lookup = interpolate.interp2d(
-        grid_p, grid_v, calib_table.to_numpy(), kind="linear"
+        grid_p, grid_v, calib_table.to_numpy(), kind='linear'
     )
     return calib_lookup
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 
     def test_generate_lookup_table():
         vcu_calib_table_row = 17  # number of pedal steps
@@ -102,7 +104,10 @@ if __name__ == "__main__":
         pedal_range = [0, 1.0]
         velocity_range = [0, 20.0]
         vcu_calib_table = generate_vcu_calibration(
-            vcu_calib_table_row, pedal_range, vcu_calib_table_col, velocity_range
+            vcu_calib_table_row,
+            pedal_range,
+            vcu_calib_table_col,
+            velocity_range,
         )
         vcu_lookup_table = generate_lookup_table(
             pedal_range, velocity_range, vcu_calib_table
@@ -115,7 +120,10 @@ if __name__ == "__main__":
         pedal_range = [0, 1.0]
         velocity_range = [0, 20.0]
         vcu_calib_table = generate_vcu_calibration(
-            vcu_calib_table_row, pedal_range, vcu_calib_table_col, velocity_range
+            vcu_calib_table_row,
+            pedal_range,
+            vcu_calib_table_col,
+            velocity_range,
         )
         return vcu_calib_table
 
@@ -138,18 +146,18 @@ if __name__ == "__main__":
     throttle = vcu_lookup_table(
         throt, speed
     )  # look up vcu table with pedal and speed  for throttle request
-    print("throttle={}".format(throttle))
+    print('throttle={}'.format(throttle))
 
     throt = 1
     speed = 0
     throttle = vcu_lookup_table(
         throt, speed
     )  # look up vcu table with pedal and speed  for throttle request
-    print("throttle={}".format(throttle))
+    print('throttle={}'.format(throttle))
 
     throt = 1
     speed = 10
     throttle = vcu_lookup_table(
         throt, speed
     )  # look up vcu table with pedal and speed  for throttle request
-    print("throttle={}".format(throttle))
+    print('throttle={}'.format(throttle))

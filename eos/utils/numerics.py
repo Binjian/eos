@@ -42,7 +42,9 @@ def nan_interp_1d(y: np.array) -> np.array:
     return y
 
 
-def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.array:
+def ragged_nparray_list_interp(
+    ragged_list_list: List[List], ob_num: int
+) -> np.array:
     """Linear interpolation of NaNs.
 
     Input:
@@ -62,7 +64,7 @@ def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.
         with np.testing.suppress_warnings() as sup:
             log_warning = sup.record(
                 np.VisibleDeprecationWarning,
-                "Creating an ndarray from ragged nested sequences",
+                'Creating an ndarray from ragged nested sequences',
             )
             ragged_nparray_list = np.array(ragged_list_list)
             if len(log_warning) > 0:
@@ -79,10 +81,14 @@ def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.
                             ragged_nparray_list[count]
                         )
                     elif item_len[count] > ob_num:
-                        ragged_nparray_list[count] = ragged_nparray_list[count][:ob_num]
+                        ragged_nparray_list[count] = ragged_nparray_list[
+                            count
+                        ][:ob_num]
                     else:
                         pass
-                aligned_nparray = np.array(list(ragged_nparray_list), dtype=np.float32)
+                aligned_nparray = np.array(
+                    list(ragged_nparray_list), dtype=np.float32
+                )
             else:
                 aligned_nparray = ragged_nparray_list
     return aligned_nparray

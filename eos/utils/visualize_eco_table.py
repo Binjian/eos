@@ -18,7 +18,7 @@
 import numpy as np
 import pandas as pd
 
-pd_data0 = pd.read_csv("../../data/init_table")
+pd_data0 = pd.read_csv('../../data/init_table')
 # create a matplotlib 3d figure, //export and save in log
 # pd_data0.columns = np.linspace(0, 1.0, num=17)
 # pd_data0.index = np.linspace(0, 30, num=21)
@@ -64,19 +64,19 @@ figure0 = go.Figure(
     data=[
         go.Surface(
             contours={
-                "y": {
-                    "show": True,
-                    "start": 0,
-                    "end": 10,
-                    "size": 0.5,
-                    "color": "cyan",
+                'y': {
+                    'show': True,
+                    'start': 0,
+                    'end': 10,
+                    'size': 0.5,
+                    'color': 'cyan',
                 },
-                "z": {
-                    "show": True,
-                    "start": -3000,
-                    "end": 4600,
-                    "size": 100,
-                    "color": "blue",
+                'z': {
+                    'show': True,
+                    'start': -3000,
+                    'end': 4600,
+                    'size': 100,
+                    'color': 'blue',
                 },
             },
             x=x,
@@ -89,9 +89,11 @@ figure0 = go.Figure(
 # figure.update_traces(contours_z=dict(show=True, usecolormap=True,
 #                                   highlightcolor="limegreen", project_z=True))
 figure0.update_layout(
-    title="Pedal Map",
+    title='Pedal Map',
     autosize=False,
-    scene=dict(xaxis_title="pedal", yaxis_title="velocity", zaxis_title="torque"),
+    scene=dict(
+        xaxis_title='pedal', yaxis_title='velocity', zaxis_title='torque'
+    ),
     width=700,
     height=700,
     margin=dict(l=65, r=50, b=65, t=90),

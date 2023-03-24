@@ -64,7 +64,9 @@ def train_step_a2c(net, history, optimizer, tape):
         # the actor must be updated so that it predicts an action that leads to
         # high rewards (compared to critic's estimate) with high probability.
         # Xin: use ret (action value samples) might have high variance. todo replace return with TD learning target
-        diff = ret - value  # return is reward (negative loss/energy consumption)
+        diff = (
+            ret - value
+        )  # return is reward (negative loss/energy consumption)
         loss_act, loss_entropy = customlossgaussian_a2c(mu_sigma, action, diff)
         act_losses.append(loss_act)
         entropy_losses.append(loss_entropy)
@@ -101,7 +103,12 @@ def train_step_a2c(net, history, optimizer, tape):
 # TODO add batch sample and ddpg
 # Actor and Critic share a backbone network (multitasking)
 def constructactorcriticnetwork_a2c(
-    num_observations, sequence_len, num_actions, num_hidden, bias_mu, bias_sigma
+    num_observations,
+    sequence_len,
+    num_actions,
+    num_hidden,
+    bias_mu,
+    bias_sigma,
 ):
     inputs = layers.Input(
         shape=(sequence_len, num_observations)  # DONE should be flattened
@@ -109,21 +116,25 @@ def constructactorcriticnetwork_a2c(
     # add flatten layer
     flatinputs = layers.Flatten()(inputs)
     hidden = layers.Dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
+        num_hidden,
+        activation='relu',
+        kernel_initializer=initializers.he_normal(),
     )(flatinputs)
     common = layers.Dense(
-        num_hidden, activation="relu", kernel_initializer=initializers.he_normal()
+        num_hidden,
+        activation='relu',
+        kernel_initializer=initializers.he_normal(),
     )(hidden)
     mu = layers.Dense(
         num_actions,
-        activation="tanh",  # tanh for mu between (-1,+1) to be scaled by a hyperparameter
+        activation='tanh',  # tanh for mu between (-1,+1) to be scaled by a hyperparameter
         # activation="linear",
         kernel_initializer=initializers.zeros(),
         bias_initializer=initializers.constant(bias_mu),
     )(common)
     sigma = layers.Dense(
         num_actions,
-        activation="sigmoid",  # optional to use sigmoid to get bounded sigma (0,1)
+        activation='sigmoid',  # optional to use sigmoid to get bounded sigma (0,1)
         # activation="softplus",  # use softplus to ensure positive sigma
         kernel_initializer=initializers.zeros(),
         bias_initializer=initializers.constant(bias_sigma),
@@ -133,7 +144,9 @@ def constructactorcriticnetwork_a2c(
 
     # sigma1 = sigma * 0.1 # first try using softplus without bound; next to try sigmoid with coefficent
     mu_sigma = tf.stack([mu, sigma])
-    actorcritic_network = keras.Model(inputs=inputs, outputs=[mu_sigma, critic_value])
+    actorcritic_network = keras.Model(
+        inputs=inputs, outputs=[mu_sigma, critic_value]
+    )
 
     return actorcritic_network
 
@@ -169,7 +182,10 @@ def customlossgaussian_a2c(mu_sigma, action, reward):
     # add entropy loss (Gaussian Entropy) to reduce randomness with training onging
     # entropy loss should be positive
     loss_entropy = (
-        tf.math.log(2 * np.float64(np.pi) * tf.math.square(tf.norm(nn_sigma)) + 1) / 2
+        tf.math.log(
+            2 * np.float64(np.pi) * tf.math.square(tf.norm(nn_sigma)) + 1
+        )
+        / 2
     )
 
     return loss_act, loss_entropy

@@ -13,30 +13,30 @@ from pythonjsonlogger import jsonlogger
 # internal import
 from eos.comm import generate_vcu_calibration, kvaser_send_float_array
 
-mpl_logger = logging.getLogger("matplotlib.font_manager")
+mpl_logger = logging.getLogger('matplotlib.font_manager')
 mpl_logger.disabled = True
 
 # logging.basicConfig(format=fmt)
-logger = logging.getLogger("l045a")
+logger = logging.getLogger('l045a')
 logger.propagate = False
 formatter = logging.Formatter(
-    "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+    '%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s'
 )
 json_file_formatter = jsonlogger.JsonFormatter(
-    "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+    '%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s'
 )
 
-datafolder = "../../data"
-logfolder = datafolder + "/py_logs"
+datafolder = '../../data'
+logfolder = datafolder + '/py_logs'
 try:
     os.makedirs(logfolder)
 except FileExistsError:
-    print("User folder exists, just resume!")
+    print('User folder exists, just resume!')
 
 logfilename = logfolder + (
-    "/l045a-transcribe-"
-    + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-    + ".log"
+    '/l045a-transcribe-'
+    + datetime.datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+    + '.log'
 )
 
 fh = logging.FileHandler(logfilename)
@@ -45,7 +45,7 @@ fh.setFormatter(json_file_formatter)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
-sh = SocketHandler("127.0.0.1", 19996)
+sh = SocketHandler('127.0.0.1', 19996)
 sh.setFormatter(formatter)
 
 logger.addHandler(fh)
@@ -55,11 +55,11 @@ logger.addHandler(sh)
 logger.setLevel(logging.DEBUG)
 # dictLogger = {'funcName': '__self__.__func__.__name__'}
 # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
-dictLogger = {"user": inspect.currentframe().f_code.co_name}
+dictLogger = {'user': inspect.currentframe().f_code.co_name}
 
-logc = logger.getChild("control flow")
+logc = logger.getChild('control flow')
 logc.propagate = True
-logd = logger.getChild("data flow")
+logd = logger.getChild('data flow')
 logd.propagate = True
 
 vcu_calib_table_col = 17  # number of pedal steps, x direction
@@ -80,18 +80,20 @@ vcu_calib_table0 = generate_vcu_calibration(
 )
 
 
-logger.info(f"Start flash initial table", extra=dictLogger)
+logger.info(f'Start flash initial table', extra=dictLogger)
 # time.sleep(1.0)
 returncode = kvaser_send_float_array(vcu_calib_table0, sw_diff=False)
-logger.info(f"The exit code was: {returncode}", extra=dictLogger)
-logger.info(f"Done flash initial table", extra=dictLogger)
+logger.info(f'The exit code was: {returncode}', extra=dictLogger)
+logger.info(f'Done flash initial table', extra=dictLogger)
 # TQD_trqTrqSetECO_MAP_v
 
 udp_logfilename = (
     str(datapath)
-    + "/udp-pcap/l045a-noAI-"
-    + datetime.datetime.now().strftime("%y-%m-%d-%h-%m-%s_%f")[:-3]
-    + ".pcap"
+    + '/udp-pcap/l045a-noAI-'
+    + datetime.datetime.now().strftime('%y-%m-%d-%h-%m-%s_%f')[:-3]
+    + '.pcap'
 )
 portNum = 8002  # port number
-p = os.execlp("tcpdump", "udp", "-w", udp_logfilename, "-i", "lo", "port", str(portNum))
+p = os.execlp(
+    'tcpdump', 'udp', '-w', udp_logfilename, '-i', 'lo', 'port', str(portNum)
+)
