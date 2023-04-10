@@ -18,13 +18,13 @@ import pymongoarrow as pmga
 
 # from pymongoarrow.api import Schema
 from bson import ObjectId
-from keras.utils import pad_sequences
+from tensorflow.keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all
 
 from eos import Pool, RemoteCan, projroot
 from eos.config import generate_vcu_calibration
 from eos.config import (
-    db_servers_by_name,
+    db_config_servers_by_name,
     can_servers_by_name,
     episode_schemas,
     record_schemas,
@@ -41,9 +41,7 @@ from eos.utils.exception import TruckIDError
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
 # ignore DeprecationWarning
-warnings.filterwarnings(
-    'ignore', message='currentThread', category=DeprecationWarning
-)
+warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
 np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 patch_all()
@@ -68,14 +66,12 @@ class TestRemoteCanPool(unittest.TestCase):
             'http': 'http://127.0.0.1:34663',
             'https': 'http://127.0.0.1:34663',
         }
-        os.environ[
-            'http_proxy'
-        ] = ''  # for native test (internal site force no proxy)
+        os.environ['http_proxy'] = ''  # for native test (internal site force no proxy)
         self.trucks_by_name = trucks_by_name
         self.truck_name = 'VB7'
 
         self.db_server_name = 'mongo_local'
-        self.db_server = db_servers_by_name[self.db_server_name]
+        self.db_server = db_config_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
 
         self.can_server_name = 'can_intra'
@@ -111,9 +107,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # check if the truck is valid
         self.assertEqual(self.truck_name, self.truck.TruckName)
 
-        self.observe_length = (
-            self.truck.CloudUnitNumber
-        )  # number of cloud units 5s
+        self.observe_length = self.truck.CloudUnitNumber  # number of cloud units 5s
 
         self.vcu_calib_table_default = generate_vcu_calibration(
             self.truck.PedalScale,
@@ -156,17 +150,13 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_episode(self):
         self.logger.info('Start test_pool_deposit', extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         self.epi_sch = self.episode_schemas['episode_deep']
 
         self.db_server_name = 'mongo_local'
-        self.db_server = db_servers_by_name[self.db_server_name]
+        self.db_server = db_config_servers_by_name[self.db_server_name]
         self.assertEqual(self.db_server_name, self.db_server.SRVName)
         # self.db = self.db["mongo_local"]
         # self.generate_epi_schemas()
@@ -196,9 +186,7 @@ class TestRemoteCanPool(unittest.TestCase):
         pool_count = self.pool.count_items(
             truck_id=self.truck.TruckName, driver_id='longfei'
         )
-        self.logger.info(
-            f'Pool has {pool_count} records', extra=self.dictLogger
-        )
+        self.logger.info(f'Pool has {pool_count} records', extra=self.dictLogger)
         epi_inserted = self.pool.find_item(result.inserted_id)
 
         self.logger.info('episode found.', extra=self.dictLogger)
@@ -213,12 +201,8 @@ class TestRemoteCanPool(unittest.TestCase):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
         self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
         self.epi_sch = self.episode_schemas['episode_deep']
@@ -256,44 +240,31 @@ class TestRemoteCanPool(unittest.TestCase):
             dt_start=dt_start,
             dt_end=dt_end,
         )
-        self.logger.info(
-            f'collection has {rec_cnt} episodes', extra=self.dictLogger
-        )
+        self.logger.info(f'collection has {rec_cnt} episodes', extra=self.dictLogger)
         # if rec_cnt < 8:
         #     self.logger.info("Start creating record pool", extra=self.dictLogger)
         #     self.add_to_episode_pool(pool_size=8)
 
-        self.logger.info(
-            'start test_pool_sample of size 4.', extra=self.dictLogger
-        )
+        self.logger.info('start test_pool_sample of size 4.', extra=self.dictLogger)
         # batch_4 = self.pool.sample_batch_items(batch_size=4)
         batch_4 = self.pool.sample_batch_items(
             batch_size=4, vehicle_id='VB7', dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info(
-            'done test_pool_sample of size 4.', extra=self.dictLogger
-        )
+        self.logger.info('done test_pool_sample of size 4.', extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
         # batch_24 = self.pool.sample_batch_items(batch_size=24)
-        self.logger.info(
-            'start test_pool_sample of size 30.', extra=self.dictLogger
-        )
+        self.logger.info('start test_pool_sample of size 30.', extra=self.dictLogger)
         batch_30 = self.pool.sample_batch_items(
             batch_size=30, vehicle_id='VB7', dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info(
-            'done test_pool_sample of size 30.', extra=self.dictLogger
-        )
+        self.logger.info('done test_pool_sample of size 30.', extra=self.dictLogger)
         self.assertEqual(len(batch_30), 30)
         # get dimension of the history
         state_length = (
-            batch_4[0]['plot']['states']['length']
-            * self.truck.ObservationNumber
+            batch_4[0]['plot']['states']['length'] * self.truck.ObservationNumber
         )
         action_row_number = batch_4[0]['plot']['actions']['action_row_number']
-        action_column_number = batch_4[0]['plot']['actions'][
-            'action_column_number'
-        ]
+        action_column_number = batch_4[0]['plot']['actions']['action_column_number']
         action_length = action_column_number * action_row_number
         self.logger.info(
             f'state length: {state_length}, action length: {action_length}.',
@@ -341,9 +312,7 @@ class TestRemoteCanPool(unittest.TestCase):
                 (1, 2, 0)
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
         except:
-            self.logger.error(
-                'Ragged observation state o_n_l1!', extra=self.dictLogger
-            )
+            self.logger.error('Ragged observation state o_n_l1!', extra=self.dictLogger)
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
         self.logger.info('done decoding states.', extra=self.dictLogger)
 
@@ -387,15 +356,13 @@ class TestRemoteCanPool(unittest.TestCase):
                 (1, 2, 0)
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
         except:
-            self.logger.error(
-                'Ragged action state a_n_l1!', extra=self.dictLogger
-            )
+            self.logger.error('Ragged action state a_n_l1!', extra=self.dictLogger)
         self.logger.info('done decoding actions.', extra=self.dictLogger)
 
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_sample_record(self):
         # self.client = RemoteCan(
-        #     truckname=self.truck.TruckName,
+        #     truck_name=self.truck.TruckName,
         #     url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         # )
         # self.generate_record_schemas()
@@ -424,9 +391,7 @@ class TestRemoteCanPool(unittest.TestCase):
         #     self.logger.info("Start creating record pool", extra=self.dictLogger)
         #     self.add_to_record_pool(pool_size=16)
 
-        self.logger.info(
-            'start test_pool_sample of size 4.', extra=self.dictLogger
-        )
+        self.logger.info('start test_pool_sample of size 4.', extra=self.dictLogger)
 
         dt_start = datetime.fromisoformat(
             '2022-10-25T11:30:00.000'
@@ -437,23 +402,17 @@ class TestRemoteCanPool(unittest.TestCase):
         batch_4 = self.pool.sample_batch_items(
             batch_size=4, vehicle_id='VB7', dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info(
-            'done test_pool_sample of size 4.', extra=self.dictLogger
-        )
+        self.logger.info('done test_pool_sample of size 4.', extra=self.dictLogger)
         self.assertEqual(len(batch_4), 4)
         batch_24 = self.pool.sample_batch_items(
             batch_size=24, vehicle_id='VB7', dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info(
-            'done test_pool_sample of size 24.', extra=self.dictLogger
-        )
+        self.logger.info('done test_pool_sample of size 24.', extra=self.dictLogger)
         self.assertEqual(len(batch_24), 24)
         batch_64 = self.pool.sample_batch_items(
             batch_size=64, vehicle_id='VB7', dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info(
-            'done test_pool_sample of size 64.', extra=self.dictLogger
-        )
+        self.logger.info('done test_pool_sample of size 64.', extra=self.dictLogger)
         self.assertEqual(len(batch_64), 64)
 
         # test decoding
@@ -466,12 +425,8 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_record(self):
         self.logger.info('Start test_pool_deposit', extra=self.dictLogger)
         self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas['record_deep']
@@ -499,9 +454,7 @@ class TestRemoteCanPool(unittest.TestCase):
             rec_cnt = self.pool.count_items(
                 vehicle_id=self.truck.TruckName, driver_id='longfei'
             )
-            self.logger.info(
-                f'Pool has {rec_cnt} records', extra=self.dictLogger
-            )
+            self.logger.info(f'Pool has {rec_cnt} records', extra=self.dictLogger)
             rec_inserted = self.pool.find_item(result.inserted_id)
 
             self.logger.info('record found.', extra=self.dictLogger)
@@ -514,12 +467,8 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
         # hostip = self.can_server.Url
@@ -590,12 +539,8 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         # self.generate_record_schemas()
         self.rec_sch = self.record_schemas['record_deep']
@@ -641,12 +586,8 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         # self.generate_record_schemas()
         hostip = self.can_server.Host
@@ -683,9 +624,7 @@ class TestRemoteCanPool(unittest.TestCase):
         #     extra=self.dictLogger,
         # )
 
-        self.logger.info(
-            'Start consecutive flashing test', extra=self.dictLogger
-        )
+        self.logger.info('Start consecutive flashing test', extra=self.dictLogger)
         for rec_cnt in range(2):
             self.native_send()
             time.sleep(0.5)
@@ -867,14 +806,10 @@ class TestRemoteCanPool(unittest.TestCase):
             pool_size = self.pool.count_items(
                 vehicle_id=self.truck.TruckName, driver_id='longfei'
             )
-            self.logger.info(
-                f'Pool has {pool_size} records', extra=self.dictLogger
-            )
+            self.logger.info(f'Pool has {pool_size} records', extra=self.dictLogger)
             epi_inserted = self.pool.find_item(result.inserted_id)
             self.logger.info('episode found.', extra=self.dictLogger)
-            self.assertEqual(
-                epi_inserted['timestamp'], self.episode['timestamp']
-            )
+            self.assertEqual(epi_inserted['timestamp'], self.episode['timestamp'])
             self.assertEqual(epi_inserted['plot'], self.episode['plot'])
             self.assertEqual(epi_inserted['history'], self.episode['history'])
 
@@ -884,9 +819,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # action
         k0 = 0
         N0 = 5
-        map2d_5rows = (
-            self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
-        )
+        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
         wh1 = 0
 
         action_row_number = N0
@@ -899,15 +832,11 @@ class TestRemoteCanPool(unittest.TestCase):
 
         for i in range(5):
             self.native_get()
-            out = np.split(
-                self.observation, [1, 4, 5], axis=1
-            )  # split by empty string
+            out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
             (ts, o_t0, gr_t, pow_t) = [np.squeeze(e) for e in out]
             o_t = o_t0.reshape(-1)
             ui_sum = np.sum(np.prod(pow_t, axis=1))
-            wh = (
-                ui_sum / 3600.0 / self.truck.CloudSignalFrequency
-            )  # convert to Wh
+            wh = ui_sum / 3600.0 / self.truck.CloudSignalFrequency  # convert to Wh
 
             if i % 2 == 0:
                 prev_r_t = wh1 + wh
@@ -1000,9 +929,7 @@ class TestRemoteCanPool(unittest.TestCase):
         }
         # current state
         self.native_get()
-        out = np.split(
-            self.observation, [1, 4, 5], axis=1
-        )  # split by empty string
+        out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
         (timestamp0, motion_states0, gear_states0, power_states0) = [
             np.squeeze(e) for e in out
         ]
@@ -1024,8 +951,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # next state
         self.native_get()
         out = [
-            np.squeeze(e)
-            for e in np.split(self.observation, [1, 4, 5], axis=1)
+            np.squeeze(e) for e in np.split(self.observation, [1, 4, 5], axis=1)
         ]  # split by empty string
         (timestamp1, motion_states1, gear_states1, power_states1) = [
             np.squeeze(e) for e in out
@@ -1050,9 +976,7 @@ class TestRemoteCanPool(unittest.TestCase):
                 },
                 'actions': {
                     'action_row_number': N0,
-                    'action_column_number': self.vcu_calib_table_default.shape[
-                        1
-                    ],
+                    'action_column_number': self.vcu_calib_table_default.shape[1],
                     'action_start_row': k0,
                 },
                 'reward': {
@@ -1070,9 +994,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def get_records(self):
         # current state
         self.native_get()
-        out = np.split(
-            self.observation, [1, 4, 5], axis=1
-        )  # split by empty string
+        out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
         (timestamp0, motion_states0, gear_states0, power_states0) = [
             np.squeeze(e) for e in out
         ]
@@ -1094,9 +1016,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # action
         k0 = 0
         N0 = 5
-        map2d_5rows = (
-            self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
-        )
+        map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
         self.logger.info(
             f'Create torque map: from {k0}th to the {k0+N0-1}th row.',
             extra=self.dictLogger,
@@ -1105,8 +1025,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # next state
         self.native_get()
         out = [
-            np.squeeze(e)
-            for e in np.split(self.observation, [1, 4, 5], axis=1)
+            np.squeeze(e) for e in np.split(self.observation, [1, 4, 5], axis=1)
         ]  # split by empty string
         (timestamp1, motion_states1, gear_states1, power_states1) = [
             np.squeeze(e) for e in out
@@ -1132,9 +1051,7 @@ class TestRemoteCanPool(unittest.TestCase):
                     },
                     'actions': {
                         'action_row_number': N0,
-                        'action_column_number': self.vcu_calib_table_default.shape[
-                            1
-                        ],
+                        'action_column_number': self.vcu_calib_table_default.shape[1],
                         'action_start_row': k0,
                     },
                     'reward': {
@@ -1172,9 +1089,7 @@ class TestRemoteCanPool(unittest.TestCase):
                     },
                     'actions': {
                         'action_row_number': N0,
-                        'action_column_number': self.vcu_calib_table_default.shape[
-                            1
-                        ],
+                        'action_column_number': self.vcu_calib_table_default.shape[1],
                         'action_start_row': k0,
                     },
                     'reward': {
@@ -1200,9 +1115,7 @@ class TestRemoteCanPool(unittest.TestCase):
             pool_size = self.pool.count_items(
                 truck_id=self.truck.TruckName, driver_id='longfei'
             )
-            self.logger.info(
-                f'Pool has {pool_size} records', extra=self.dictLogger
-            )
+            self.logger.info(f'Pool has {pool_size} records', extra=self.dictLogger)
 
     def native_get(self):
         timeout = self.truck.CloudUnitNumber + 9
@@ -1225,9 +1138,7 @@ class TestRemoteCanPool(unittest.TestCase):
                 # )
                 # print(f"print whole json string:{json_string}")
 
-                self.logger.info(
-                    'convert remotecan_data', extra=self.dictLogger
-                )
+                self.logger.info('convert remotecan_data', extra=self.dictLogger)
                 signal_freq = self.truck.CloudSignalFrequency
                 gear_freq = self.truck.CloudGearFrequency
                 unit_duration = self.truck.CloudUnitDuration
@@ -1235,8 +1146,7 @@ class TestRemoteCanPool(unittest.TestCase):
                 unit_gear_num = unit_duration * gear_freq
                 unit_num = self.truck.CloudUnitNumber
                 timestamp_upsample_rate = (
-                    self.truck.CloudSignalFrequency
-                    * self.truck.CloudUnitDuration
+                    self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
                 )
                 # timestamp_num = int(self.observe_length // duration)
 
@@ -1246,7 +1156,9 @@ class TestRemoteCanPool(unittest.TestCase):
 
                         # timestamp processing
                         timestamps = []
-                        separators = '--T::.'  # adaption separators of the raw intest string
+                        separators = (
+                            '--T::.'  # adaption separators of the raw intest string
+                        )
                         start_century = '20'
                         for ts in value['timestamps']:
                             # create standard iso string datetime format
@@ -1269,9 +1181,7 @@ class TestRemoteCanPool(unittest.TestCase):
                                 f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
                             )
                         # upsample gears from 2Hz to 50Hz
-                        timestamps_seconds = (
-                            list(timestamps_units) / 1000
-                        )  # in s
+                        timestamps_seconds = list(timestamps_units) / 1000  # in s
                         sampling_interval = 1.0 / signal_freq  # in s
                         timestamps = [
                             i + j * sampling_interval
@@ -1306,9 +1216,7 @@ class TestRemoteCanPool(unittest.TestCase):
                             value['list_gears'], ob_num=unit_gear_num
                         )
                         # upsample gears from 2Hz to 50Hz
-                        gears = np.repeat(
-                            gears, (signal_freq // gear_freq), axis=1
-                        )
+                        gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
                         self.observation = np.c_[
                             timestamps.reshape((-1, 1)),
                             velocity.reshape(-1, 1),

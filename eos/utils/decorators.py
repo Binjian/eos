@@ -5,7 +5,7 @@ function decorator to prepend a string argument to a function
 """
 
 
-def prepend_string_arg(strArg='TQD_trqTrqSetNormal_MAP_v'):
+def prepend_string_arg(strArg="TQD_trqTrqSetNormal_MAP_v"):
     def decorate(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):

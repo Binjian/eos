@@ -19,7 +19,7 @@ from pythonjsonlogger import jsonlogger
 
 
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
-mpl_logger = logging.getLogger('matplotlib.font_manager')
+mpl_logger = logging.getLogger("matplotlib.font_manager")
 mpl_logger.disabled = True
 
 
@@ -35,20 +35,20 @@ def get_logger(folder, name, level=logging.INFO):
     logger.setLevel(level)
     logger.propagate = False
     formatter = logging.Formatter(
-        '%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s'
+        "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
     )
     json_file_formatter = jsonlogger.JsonFormatter(
-        '%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s'
+        "%(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
     )
 
-    logfolder = folder + '/py_logs/' + name
+    logfolder = folder + "/py_logs/" + name
     try:
         os.makedirs(logfolder)
     except FileExistsError:
-        print('User folder exists, just resume!')
+        print("User folder exists, just resume!")
 
     logfilename = logfolder + (
-        name + datetime.datetime.now().strftime('%y-%m-%d-%H-%M-%S') + '.log'
+        name + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
     )
 
     fh = logging.FileHandler(logfilename)
@@ -58,7 +58,7 @@ def get_logger(folder, name, level=logging.INFO):
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
     #  Cutelog socket
-    sh = SocketHandler('127.0.0.1', 19996)
+    sh = SocketHandler("127.0.0.1", 19996)
     sh.setFormatter(formatter)
 
     logger.addHandler(fh)
@@ -67,5 +67,5 @@ def get_logger(folder, name, level=logging.INFO):
 
     # dictLogger = {'funcName': '__self__.__func__.__name__'}
     # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
-    dictLogger = {'user': inspect.currentframe().f_code.co_name}
+    dictLogger = {"user": inspect.currentframe().f_code.co_name}
     return logger, dictLogger

@@ -2,26 +2,26 @@
 import os
 from datetime import datetime
 from dataclasses import dataclass
-
+from typing import Dict
+import logging
 
 # third-party imports
 import numpy as np
 import tensorflow as tf
 
 # from pymongoarrow.api import schema
-from keras.utils import pad_sequences
-from pymongoarrow.monkey import patch_all
-
+from tensorflow.keras.utils import pad_sequences  # type: ignore
+from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
-from eos import Pool, DBPool, dictLogger
-from eos.config import episode_schemas, get_db_config, Episode
-from ..dpg import DPG, get_algo_data_info
+from eos import dictLogger, logger
+from eos.config import Episode, Truck, trucks_by_name, ObservationSpecs, Plot
+from ..dpg import DPG, get_algo_data_info  # type: ignore
 
-from .actor import ActorNet
-from .critic import CriticNet
+from .actor import ActorNet  # type: ignore
+from .critic import CriticNet  # type: ignore
 
-from ..db_buffer import DBBuffer
+from ..db_buffer import DBBuffer  # type: ignore
 
 patch_all()
 
@@ -51,19 +51,19 @@ class RDPG(DPG):
             - critic network
     """
 
-    _seq_len: int = 8  # length of the sequence for recurrent network
-    _ckpt_actor_dir: str = 'ckpt_actor'
-    _ckpt_critic_dir: str = 'ckpt_critic'
-    obs_t: list = None
-    episode_start_dt: datetime = None
-    h_t: list = None
-    buffer_count: int = 0
-    R: list = None
-    buffer: DBBuffer[Episode] = None
+    _buffer: DBBuffer[Episode] = None  # must have default value
+    logger: logging.Logger = None
     actor_net: ActorNet = None
     critic_net: CriticNet = None
     target_actor_net: ActorNet = None
     target_critic_net: CriticNet = None
+    obs_t: list = None
+    R: list = None
+    h_t: list = None
+    buffer_count: int = 0
+    _seq_len: int = 8  # length of the sequence for recurrent network
+    _ckpt_actor_dir: str = 'ckpt_actor'
+    _ckpt_critic_dir: str = 'ckpt_critic'
 
     def __post_init__(
         self,
@@ -76,6 +76,12 @@ class RDPG(DPG):
         """
         super().__post_init__()
 
+        self.logger = logger.getChild('main').getChild(self.__str__())
+        self.logger.propagate = True
+        self.dictLogger = dictLogger
+
+        self.resume: bool = True
+        self.infer_mode: bool = False
         self.buffer = DBBuffer[Episode](
             db_key=self.db_key,
             truck=self.truck,
@@ -99,11 +105,11 @@ class RDPG(DPG):
         self.actor_net = ActorNet(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[0],
-            self.n_layersAC[0],
+            self.hidden_units_ac[0],
+            self.n_layers_ac[0],
             self.padding_value,
-            self.tauAC[0],
-            self.lrAC[0],
+            self.tau_ac[0],
+            self.lr_ac[0],
             self._ckpt_actor_dir,
             self.ckpt_interval,
         )
@@ -111,11 +117,11 @@ class RDPG(DPG):
         self.target_actor_net = ActorNet(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[0],
-            self.n_layersAC[0],
+            self.hidden_units_ac[0],
+            self.n_layers_ac[0],
             self.padding_value,
-            self.tauAC[0],
-            self.lrAC[0],
+            self.tau_ac[0],
+            self.lr_ac[0],
             self._ckpt_actor_dir,
             self.ckpt_interval,
         )
@@ -127,11 +133,11 @@ class RDPG(DPG):
         self.critic_net = CriticNet(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[1],
-            self.n_layersAC[1],
+            self.hidden_units_ac[1],
+            self.n_layers_ac[1],
             self.padding_value,
-            self.tauAC[1],
-            self.lrAC[1],
+            self.tau_ac[1],
+            self.lr_ac[1],
             self._ckpt_critic_dir,
             self.ckpt_interval,
         )
@@ -139,11 +145,11 @@ class RDPG(DPG):
         self.target_critic_net = CriticNet(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[1],
-            self.n_layersAC[1],
+            self.hidden_units_ac[1],
+            self.n_layers_ac[1],
             self.padding_value,
-            self.tauAC[1],
-            self.lrAC[1],
+            self.tau_ac[1],
+            self.lr_ac[1],
             self._ckpt_critic_dir,
             self.ckpt_interval,
         )
@@ -273,15 +279,11 @@ class RDPG(DPG):
         )
         # action = self.actor_net.predict(input_arra)
         action = self.actor_predict_step(input_array)
-        self.logger.info(
-            f'action.shape: {action.shape}', extra=self.dictLogger
-        )
+        self.logger.info(f'action.shape: {action.shape}', extra=self.dictLogger)
         return action
 
     @tf.function(
-        input_signature=[
-            tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)
-        ]
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
     )
     def actor_predict_step(self, obs):
         """
@@ -293,13 +295,7 @@ class RDPG(DPG):
         action = self.actor_net.predict(obs)
         return action
 
-    def start_episode(self, dt: datetime):
-        super().start_episode(dt)
-        self.h_t = []
-
-    def deposit(
-        self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t
-    ):
+    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
         """deposit the experience into the replay buffer.
         the following are not used for rdpg,
         just to have a uniform interface with ddpg
@@ -351,15 +347,13 @@ class RDPG(DPG):
     def end_episode(self):
         """deposit the experience into the replay buffer."""
         self.deposit_history()
-        self.logger.info(
-            f'episode end at {datetime.now()}', extra=self.dictLogger
-        )
+        self.logger.info(f'episode end at {datetime.now()}', extra=self.dictLogger)
 
-    def deposit_history(self):
+    def deposit_history(self) -> None:
         """deposit the episode history into the agent replay buffer."""
         if self.h_t:
             episode: Episode = {
-                'timestamp': self.episode_start_dt,
+                'start': self.episode_start_dt,
                 'plot': self.plot,
                 'history': self.h_t,
             }
@@ -392,18 +386,12 @@ class RDPG(DPG):
         self.logger.info('episode inserted.', extra=self.dictLogger)
         assert result.acknowledged is True, 'deposit result not acknowledged'
         self.buffer_count = self.buffer.count()
-        self.logger.info(
-            f'pool has {self.buffer_count} records', extra=self.dictLogger
-        )
+        self.logger.info(f'pool has {self.buffer_count} records', extra=self.dictLogger)
         epi_inserted = self.buffer.find(result.inserted_id)
         self.logger.info('episode found.', extra=self.dictLogger)
-        assert (
-            epi_inserted['timestamp'] == episode['timestamp']
-        ), 'timestamp mismatch'
+        assert epi_inserted['timestamp'] == episode['timestamp'], 'timestamp mismatch'
         assert epi_inserted['plot'] == episode['plot'], 'plot mismatch'
-        assert (
-            epi_inserted['history'] == episode['history']
-        ), 'history mismatch'
+        assert epi_inserted['history'] == episode['history'], 'history mismatch'
 
     # def add_to_replay_buffer(self, h_t):
     #     """add the current h_t to the replay buffer.
@@ -428,7 +416,7 @@ class RDPG(DPG):
     #         f'memory length: {len(self.R)}', extra=self.dictLogger
     #     )
 
-    def sample_minibatch(self, batch_size: int, query: dict = None):
+    def sample_minibatch(self):
         """sample a mini batch from the database.
 
         db buffer is lists of lists
@@ -442,10 +430,10 @@ class RDPG(DPG):
         assert self.buffer_count > 0, 'pool is empty!'
         batch = self.buffer.sample()
         assert (
-            len(batch) == batch_size
+            len(batch) == self.batch_size
         ), f'sampled batch size {len(batch)} not match sample size {self.batch_size}'
         self.logger.info(
-            f'{batch_size} episodes sampled from {self.buffer_count}.',
+            f'{self.batch_size} episodes sampled from {self.buffer_count}.',
             extra=self.dictLogger,
         )
 
@@ -456,9 +444,7 @@ class RDPG(DPG):
         frequency = batch[0]['plot']['state_specs']['frequency']
         states_length = unit_number * unit_duration * frequency * num_obs
         action_row_number = batch[0]['plot']['action_specs']['action_row_number']
-        action_column_number = batch[0]['plot']['action_specs'][
-            'action_column_number'
-        ]
+        action_column_number = batch[0]['plot']['action_specs']['action_column_number']
 
         assert (
             self.num_states == states_length
@@ -472,8 +458,7 @@ class RDPG(DPG):
         # decode and padding rewards, states and actions
         # decode reward series
         r_n_t = [
-            [history['reward'] for history in episode['history']]
-            for episode in batch
+            [history['reward'] for history in episode['history']] for episode in batch
         ]  # list of lists
         np_r_n_t = pad_sequences(
             r_n_t,
@@ -483,22 +468,17 @@ class RDPG(DPG):
         )
 
         # for alignment with critic output with extra feature dimension
-        r_n_t = tf.convert_to_tensor(
-            np.expand_dims(np_r_n_t, axis=2), dtype=tf.float32
-        )
+        r_n_t = tf.convert_to_tensor(np.expand_dims(np_r_n_t, axis=2), dtype=tf.float32)
         self.logger.info(f'r_n_t.shape: {r_n_t.shape}')
         # self.logger.info("done decoding reward.", extra=self.dictLogger)
 
         #  history['states'] for history in episdoe["history"] is the time sequence of states
-        o_n_l0 = [
-            [history['states'] for history in episode['history']]
-            for episode in batch
-        ]
+        o_n_l0 = [[obs['state'] for obs in episode['history']] for episode in batch]
 
         # state in o_n_l0 is the time sequence of states [o1, o2, o3, ..., o7]
-        # o1=[v0, t0, b0, v1, t1, b1, ...] (3x50x3=450)
+        # o1=[v0, t0, b0, v1, t1, b1, ...] (4x50x3=600)
         # state has n steps (for example 7)
-        # each step has dimension of num_states(450)
+        # each step has dimension of num_states(600)
         # [step[i] for step in state] is the time sequence of the i-th feature
         o_n_l1 = [
             [[step[i] for step in state] for state in o_n_l0]
@@ -524,10 +504,8 @@ class RDPG(DPG):
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
             o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
         except Exception as X:
-            self.logger.error(
-                f'ragged observation state o_n_l1; Exception: {X}!',
-                extra=dictLogger,
-            )
+            assert False, f'ragged observation state o_n_l1; Exception: {X}!'
+
         self.logger.info(f'o_n_t.shape: {o_n_t.shape}')
 
         # decode starting row series, not used for now
@@ -544,11 +522,9 @@ class RDPG(DPG):
         self.logger.info('done decoding starting row.', extra=self.dictLogger)
 
         # decode action series, not used for now
-        a_n_l0 = [
-            [obs['actions'] for obs in episode['history']] for episode in batch
-        ]
+        a_n_l0 = [[obs['action'] for obs in episode['history']] for episode in batch]
         a_n_l1 = [
-            [[step[i] for step in act] for act in a_n_l0]
+            [[step['action'][i] for step in act] for act in a_n_l0]
             for i in np.arange(self.num_actions)
         ]  # list (num_actions) of lists (batch_size) of lists with variable observation length
 
@@ -571,10 +547,8 @@ class RDPG(DPG):
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
             a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
         except Exception as X:
-            self.logger.error(
-                f'ragged action state a_n_l1; Exeception: {X}!',
-                extra=dictLogger,
-            )
+            assert False, f'ragged action state a_n_l1; Exeception: {X}!'
+
         self.logger.info(f'a_n_t.shape: {a_n_t.shape}')
 
         return o_n_t, a_n_t, r_n_t
@@ -707,9 +681,7 @@ class RDPG(DPG):
         o_n_t, a_n_t, r_n_t = self.sample_minibatch(self.batch_size)
         # else:
         #     self.sample_mini_batch_from_buffer(self.batch_size)
-        actor_loss, critic_loss = self.train_step(
-            o_n_t, a_n_t, r_n_t
-        )
+        actor_loss, critic_loss = self.train_step(o_n_t, a_n_t, r_n_t)
         return actor_loss, critic_loss
 
     # @tf.function(input_signature=[tf.tensorspec(shape=[none,none,1], dtype=tf.float32),
@@ -730,9 +702,7 @@ class RDPG(DPG):
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             self.logger.info(f'start critic evaluate_q')
             t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
-            self.logger.info(
-                f'critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}'
-            )
+            self.logger.info(f'critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}')
 
             # compute the target action value at h_t for the current batch
             # using fancy indexing

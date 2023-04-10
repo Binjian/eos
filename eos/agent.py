@@ -19,7 +19,6 @@ as energy consumption
 """
 import abc
 from dataclasses import dataclass
-from typing import Optional, Any
 
 import argparse
 import json
@@ -92,9 +91,7 @@ from eos import DPG
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # system warnings and numpy warnings handling
-warnings.filterwarnings(
-    'ignore', message='currentThread', category=DeprecationWarning
-)
+warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
 np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
@@ -204,13 +201,9 @@ class Agent(abc.ABC):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.logc.info(
-            f'VCU and GPU Initialization done!', extra=self.dictLogger
-        )
+        self.logc.info(f'VCU and GPU Initialization done!', extra=self.dictLogger)
         self.init_threads_data()
-        self.logc.info(
-            f'Thread data Initialization done!', extra=self.dictLogger
-        )
+        self.logc.info(f'Thread data Initialization done!', extra=self.dictLogger)
 
     @property
     def algo(self) -> DPG:
@@ -224,34 +217,24 @@ class Agent(abc.ABC):
         os.environ['http_proxy'] = ''
         self.can_server = can_servers_by_name.get(self.remotecan_srv)
         if self.can_server is None:
-            self.can_server = can_servers_by_host.get(
-                self.remotecan_srv.split(':')[0]
-            )
+            self.can_server = can_servers_by_host.get(self.remotecan_srv.split(':')[0])
             assert (
                 self.can_server is not None
             ), f'No such remotecan host {self.remotecan_srv} found!'
             assert (
                 self.remotecan_srv.split(':')[1] == self.can_server.Port
             ), f'Port mismatch for remotecan host {self.remotecan_srv}!'
-        self.logc.info(
-            f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger
-        )
+        self.logc.info(f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
         if self.ui == 'mobile':
             self.trip_server = trip_servers_by_name.get(self.web_srv)
             if self.trip_server is None:
-                self.trip_server = trip_servers_by_host.get(
-                    self.web_srv.split(':')[0]
-                )
+                self.trip_server = trip_servers_by_host.get(self.web_srv.split(':')[0])
                 assert (
                     self.trip_server is not None
                 ), f'No such trip server {self.web_srv} found!'
@@ -320,9 +303,7 @@ class Agent(abc.ABC):
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(json_file_formatter)
         # strfilename = PurePosixPath(logfilename).stem + ".json"
-        strfilename = self.logroot.joinpath(
-            PurePosixPath(logfilename).stem + '.json'
-        )
+        strfilename = self.logroot.joinpath(PurePosixPath(logfilename).stem + '.json')
         strh = logging.FileHandler(strfilename, mode='a')
         strh.setLevel(logging.DEBUG)
         strh.setFormatter(json_file_formatter)
@@ -390,9 +371,7 @@ class Agent(abc.ABC):
         self.vcu_calib_table_row = (
             self.truck.VelocityScale
         )  # 14 numnber of velocity steps, y direction
-        self.vcu_calib_table_size = (
-            self.vcu_calib_table_row * self.vcu_calib_table_col
-        )
+        self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
         self.action_budget = self.truck.ActionBudget  # action_budget 250 Nm
         self.action_lower = self.truck.ActionLowerBound  # 0.8
         self.action_upper = self.truck.ActionUpperBound  # 1.0
@@ -437,9 +416,7 @@ class Agent(abc.ABC):
                 extra=self.dictLogger,
             )
         else:
-            return_code = kvaser_send_float_array(
-                self.vcu_calib_table1, sw_diff=False
-            )
+            return_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
             self.logger.info(
                 f'Done flash initial table. returncode: {return_code}',
                 extra=self.dictLogger,
@@ -576,7 +553,9 @@ class Agent(abc.ABC):
 
             with self.hmi_lock:
                 self.episode_count += 1  # valid round increments
-                self.episode_done = True  # TODO delay episode_done to make main thread keep running
+                self.episode_done = (
+                    True  # TODO delay episode_done to make main thread keep running
+                )
                 self.episode_end = True
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
@@ -620,9 +599,7 @@ class Agent(abc.ABC):
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        logger_kvaser_get.info(
-            f'Socket Initialization Done!', extra=self.dictLogger
-        )
+        logger_kvaser_get.info(f'Socket Initialization Done!', extra=self.dictLogger)
 
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -634,9 +611,7 @@ class Agent(abc.ABC):
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_kvaser_get.info(
                         '%s',
                         'Capture thread exit due to processing request!!!',
@@ -686,9 +661,7 @@ class Agent(abc.ABC):
                         # set flag for countdown thread
                         with self.done_env_lock:
                             evt_epi_done.set()
-                        logger_kvaser_get.info(
-                            f'Episode end starts countdown!'
-                        )
+                        logger_kvaser_get.info(f'Episode end starts countdown!')
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
@@ -774,9 +747,7 @@ class Agent(abc.ABC):
                                         extra=self.dictLogger,
                                     )
 
-                                vel_aver = (
-                                    sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
-                                )
+                                vel_aver = sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
                                 vel_min = min(vel_cycle_dQ)
                                 vel_max = max(vel_cycle_dQ)
 
@@ -834,9 +805,7 @@ class Agent(abc.ABC):
 
                     break
 
-        logger_kvaser_get.info(
-            f'get_truck_status dies!!!', extra=self.dictLogger
-        )
+        logger_kvaser_get.info(f'get_truck_status dies!!!', extra=self.dictLogger)
 
         s.close()
 
@@ -882,14 +851,11 @@ class Agent(abc.ABC):
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = (
-                    vcu_calib_table_reduced * self.action_budget
-                )
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start,
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
@@ -906,8 +872,7 @@ class Agent(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start
+                    table_start : self.vcu_calib_table_row_reduced + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -954,16 +919,18 @@ class Agent(abc.ABC):
                 # watch(flash_count)
 
         logger_flash.info(f'Save the last table!!!!', extra=self.dictLogger)
-        last_table_store_path = self.data_root.joinpath(  # there's no slash in the end of the string
-            'last_table_'
-            + str(self.algo)
-            + '-'
-            + self.truck.TruckName
-            + '-'
-            + self.driver
-            + '-'
-            + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
-            + '.csv'
+        last_table_store_path = (
+            self.data_root.joinpath(  # there's no slash in the end of the string
+                'last_table_'
+                + str(self.algo)
+                + '-'
+                + self.truck.TruckName
+                + '-'
+                + self.driver
+                + '-'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + '.csv'
+            )
         )
         with open(last_table_store_path, 'wb') as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
@@ -1020,10 +987,7 @@ class Agent(abc.ABC):
                 extra=self.dictLogger,
             )
             with self.remoteClient_lock:
-                (
-                    signal_success,
-                    remotecan_data,
-                ) = self.remotecan_client.get_signals(
+                (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
                     duration=self.truck.CloudUnitNumber, timeout=timeout
                 )  # timeout is 1 second longer than duration
                 if signal_success != 0:  # in case of failure, ping server
@@ -1127,21 +1091,18 @@ class Agent(abc.ABC):
                                 for ts in value['timestamps']:
                                     # create standard iso string datetime format
                                     ts_substrings = [
-                                        ts[i : i + 2]
-                                        for i in range(0, len(ts), 2)
+                                        ts[i : i + 2] for i in range(0, len(ts), 2)
                                     ]
                                     ts_iso = start_century
                                     for i, sep in enumerate(separators):
-                                        ts_iso = (
-                                            ts_iso + ts_substrings[i] + sep
-                                        )
+                                        ts_iso = ts_iso + ts_substrings[i] + sep
                                     ts_iso = ts_iso + ts_substrings[-1]
                                     timestamps.append(ts_iso)
                                 timestamps_units = list(
                                     (
                                         np.array(timestamps).astype(
-                                            'datetime64[ms]'
-                                        )
+                                            'datetime64[s]'
+                                        )  # convert to seconds
                                         - np.timedelta64(8, 'h')
                                     ).astype(  # convert to UTC+8
                                         'int'
@@ -1152,13 +1113,10 @@ class Agent(abc.ABC):
                                         f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
                                     )
                                 # upsample gears from 2Hz to 50Hz
-                                timestamps_seconds = list(
-                                    timestamps_units / 1000.0
-                                )  # in s
                                 sampling_interval = 1.0 / signal_freq  # in s
                                 timestamps = [
                                     i + j * sampling_interval
-                                    for i in timestamps_seconds
+                                    for i in timestamps_units
                                     for j in np.arange(unit_ob_num)
                                 ]
                                 timestamps = np.array(timestamps).reshape(
@@ -1272,9 +1230,7 @@ class Agent(abc.ABC):
             with self.get_env_lock:
                 evt_remote_get.clear()
 
-        logger_remote_get.info(
-            f'thr_remoteget dies!!!!!', extra=self.dictLogger
-        )
+        logger_remote_get.info(f'thr_remoteget dies!!!!!', extra=self.dictLogger)
 
     def remote_webhmi_state_machine(
         self,
@@ -1344,9 +1300,7 @@ class Agent(abc.ABC):
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_webhmi_sm.info(
                         '%s',
                         'Capture thread exit due to processing request!!!',
@@ -1363,9 +1317,7 @@ class Agent(abc.ABC):
                         extra=self.dictLogger,
                     )
                     raise TypeError('rocketmq server sending wrong data type!')
-                logger_webhmi_sm.info(
-                    f'Get message {msg_body}!', extra=self.dictLogger
-                )
+                logger_webhmi_sm.info(f'Get message {msg_body}!', extra=self.dictLogger)
                 if msg_body['vin'] != self.truck.VIN:
                     continue
 
@@ -1413,9 +1365,7 @@ class Agent(abc.ABC):
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                    logger_webhmi_sm.info(
-                        'End Valid!!!!!!', extra=self.dictLogger
-                    )
+                    logger_webhmi_sm.info('End Valid!!!!!!', extra=self.dictLogger)
                     self.get_truck_status_start = (
                         True  # do not stopping data capture immediately
                     )
@@ -1547,9 +1497,7 @@ class Agent(abc.ABC):
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 # Check if the runner is trying to kill the process
                 # kill signal captured from main thread
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_cloudhmi_sm.info(
                         '%s',
                         'UI thread exit due to processing request!!!',
@@ -1609,15 +1557,11 @@ class Agent(abc.ABC):
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        logger_hmi_sm.info(
-            f'Socket Initialization Done!', extra=self.dictLogger
-        )
+        logger_hmi_sm.info(f'Socket Initialization Done!', extra=self.dictLogger)
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_hmi_sm.info(
                         '%s',
                         'Capture thread exit due to processing request!!!',
@@ -1670,9 +1614,7 @@ class Agent(abc.ABC):
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                        logger_hmi_sm.info(
-                            'End Valid!!!!!!', extra=self.dictLogger
-                        )
+                        logger_hmi_sm.info('End Valid!!!!!!', extra=self.dictLogger)
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
@@ -1824,14 +1766,11 @@ class Agent(abc.ABC):
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = (
-                    vcu_calib_table_reduced * self.action_budget
-                )
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start,
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
@@ -1848,8 +1787,7 @@ class Agent(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start
+                    table_start : self.vcu_calib_table_row_reduced + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1896,13 +1834,9 @@ class Agent(abc.ABC):
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
-                    (
-                        returncode,
-                        ret_str,
-                    ) = self.remotecan_client.send_torque_map(
+                    (returncode, ret_str,) = self.remotecan_client.send_torque_map(
                         pedalmap=self.vcu_calib_table1.iloc[
-                            table_start : self.vcu_calib_table_row_reduced
-                            + table_start
+                            table_start : self.vcu_calib_table_row_reduced + table_start
                         ],
                         swap=False,
                         timeout=timeout,
@@ -1940,16 +1874,18 @@ class Agent(abc.ABC):
 
         logger_flash.info(f'Save the last table!!!!', extra=self.dictLogger)
 
-        last_table_store_path = self.data_root.joinpath(  # there's no slash in the end of the string
-            'last_table_'
-            + str(self.algo)
-            + '-'
-            + self.truck.TruckName
-            + '-'
-            + self.driver
-            + '-'
-            + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
-            + '.csv'
+        last_table_store_path = (
+            self.data_root.joinpath(  # there's no slash in the end of the string
+                'last_table_'
+                + str(self.algo)
+                + '-'
+                + self.truck.TruckName
+                + '-'
+                + self.driver
+                + '-'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + '.csv'
+            )
         )
         with open(last_table_store_path, 'wb') as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
@@ -1999,9 +1935,7 @@ class Agent(abc.ABC):
         killer = GracefulKiller()
 
         self.logc.info(f'main Initialization done!', extra=self.dictLogger)
-        while (
-            not th_exit
-        ):  # run until solved or program exit; th_exit is local
+        while not th_exit:  # run until solved or program exit; th_exit is local
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 th_exit = self.program_exit  # if program_exit is False,
                 epi_cnt = self.episode_count  # get episode counts
@@ -2052,15 +1986,15 @@ class Agent(abc.ABC):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                    self.logc.info(
-                        f'motionpowerQueue.qsize(): {motionpowerqueue_size}'
-                    )
+                    self.logc.info(f'motionpowerQueue.qsize(): {motionpowerqueue_size}')
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
                             f'Residue in Queue is a sign of disordered sequence, interrupted!'
                         )
-                        done = False  # this local done is true done with data exploitation
+                        done = (
+                            False  # this local done is true done with data exploitation
+                        )
 
                     if epi_end:  # stop observing and inferring
                         continue
@@ -2216,7 +2150,7 @@ class Agent(abc.ABC):
                 self.logc.info('Learning and updating 6 times!')
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    if self.algo.buffer_counter > 0:
+                    if self.algo.buffer.count() > 0:
                         (critic_loss, actor_loss) = self.algo.train()
                         self.algo.soft_update_target()
                     else:
@@ -2237,9 +2171,7 @@ class Agent(abc.ABC):
             )
 
             # update running reward to check condition for solving
-            running_reward = (
-                0.05 * (-episode_reward) + (1 - 0.05) * running_reward
-            )
+            running_reward = 0.05 * (-episode_reward) + (1 - 0.05) * running_reward
 
             # Create a matplotlib 3d figure, //export and save in log
             fig = plot_3d_figure(self.vcu_calib_table1)
@@ -2249,13 +2181,9 @@ class Agent(abc.ABC):
             with self.train_summary_writer.as_default():
                 tf.summary.scalar('WH', -episode_reward, step=epi_cnt_local)
                 tf.summary.scalar('actor loss', actor_loss, step=epi_cnt_local)
-                tf.summary.scalar(
-                    'critic loss', critic_loss, step=epi_cnt_local
-                )
+                tf.summary.scalar('critic loss', critic_loss, step=epi_cnt_local)
                 tf.summary.scalar('reward', episode_reward, step=epi_cnt_local)
-                tf.summary.scalar(
-                    'running reward', running_reward, step=epi_cnt_local
-                )
+                tf.summary.scalar('running reward', running_reward, step=epi_cnt_local)
                 tf.summary.image(
                     'Calibration Table', plot_to_image(fig), step=epi_cnt_local
                 )
@@ -2281,16 +2209,12 @@ class Agent(abc.ABC):
             )
             self.logc.info('----------------------', extra=self.dictLogger)
             if epi_cnt % 10 == 0:
-                self.logc.info(
-                    '++++++++++++++++++++++++', extra=self.dictLogger
-                )
+                self.logc.info('++++++++++++++++++++++++', extra=self.dictLogger)
                 self.logc.info(
                     f'Running reward: {running_reward:.2f} at E{epi_cnt}',
                     extra=self.dictLogger,
                 )
-                self.logc.info(
-                    '++++++++++++++++++++++++', extra=self.dictLogger
-                )
+                self.logc.info('++++++++++++++++++++++++', extra=self.dictLogger)
 
             # send ready signal to trip server
             if self.ui == 'mobile':

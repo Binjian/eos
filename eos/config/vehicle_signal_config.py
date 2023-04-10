@@ -132,7 +132,7 @@ truck_list = [
         Plate='77777777',
         Maturity='VB1',
         tz=timezones['sh'],
-        location='Jiangyin',
+        Location='Jiangyin',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -159,7 +159,7 @@ truck_list = [
         Plate='77777777',
         Maturity='VB1',
         tz=timezones['sh'],
-        location='Jiangyin',
+        Location='Jiangyin',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -186,7 +186,7 @@ truck_list = [
         Plate='SU-BDC8937',
         Maturity='VB',
         tz=timezones['sh'],
-        location='Jiangyin',
+        Location='Jiangyin',
         CloudSignalFrequency=50,
         CloudGearFrequency=2,
         CloudUnitDuration=1,
@@ -317,7 +317,5 @@ truck_list = [
     ),  # HQ Bench
 ]
 
-trucks_by_name = dict(
-    zip([truck.TruckName for truck in truck_list], truck_list)
-)
+trucks_by_name = dict(zip([truck.TruckName for truck in truck_list], truck_list))
 trucks_by_vin = dict(zip([truck.VIN for truck in truck_list], truck_list))

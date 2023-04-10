@@ -1,17 +1,20 @@
 from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
+from contextlib import redirect_stdout
 import os
+import logging
+from typing import Optional
 import numpy as np
 import tensorflow as tf
 
 from keras import layers
 from pymongoarrow.monkey import patch_all
-from eos import dictLogger
+from eos import dictLogger, logger
 from ..utils import OUActionNoise
 from ..db_buffer import DBBuffer
 from ..dpg import DPG
-from eos.config import Record
+from eos.config import Record, Truck, trucks_by_name, ObservationSpecs, Plot
 
 patch_all()
 """
@@ -115,7 +118,7 @@ the maximum predicted value as seen by the Critic, for a given state.
 @dataclass
 class DDPG(DPG):
     """
-    RDPG agent for VEOS.
+    DDPG agent for VEOS.
         data interface:
             - pool in mongodb
             - buffer in memory (numpy array)
@@ -124,18 +127,27 @@ class DDPG(DPG):
             - critic network
     """
 
-    actor_model: tf.keras.Model = None
-    target_actor_model: tf.keras.Model = None
-    critic_model: tf.keras.Model = None
-    target_critic_model: tf.keras.Model = None
+    _buffer: Optional[
+        DBBuffer[Record]
+    ] = None  # cannot have default value, because it precedes _plot in base class DPG
+    logger: logging.Logger = None
+    _episode_start_dt: datetime = None
+    _actor_model: tf.keras.Model = None
+    _critic_model: tf.keras.Model = None
+    _target_actor_model: tf.keras.Model = None
+    _target_critic_model: tf.keras.Model = None
     manager_critic: tf.train.CheckpointManager = None
     ckpt_critic: tf.train.Checkpoint = None
     manager_actor: tf.train.CheckpointManager = None
     ckpt_actor: tf.train.Checkpoint = None
-    buffer: DBBuffer[Record] = None
+    actor_saved_model_path: Path = None
+    critic_saved_model_path: Path = None
 
-    def __post__init__(self):
-        super().__post_init__()
+    def __post_init__(self):
+
+        self.logger = logger.getChild('eos').getChild(self.__str__())
+        self.logger.propagate = True
+        self.dictLogger = dictLogger
 
         self.buffer = DBBuffer[Record](
             db_key=self.db_key,
@@ -143,54 +155,54 @@ class DDPG(DPG):
             driver=self.driver,
             batch_size=self.batch_size,
         )
-
+        print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks
         self.actor_model = self.get_actor(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[0],
-            self.n_layersAC[0],
+            self.hidden_units_ac[0],
+            self.n_layers_ac[0],
             self.action_bias,
         )
 
         # Initialize networks
-        self.target_actor = self.get_actor(
+        self.target_actor_model = self.get_actor(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[0],
-            self.n_layersAC[0],
+            self.hidden_units_ac[0],
+            self.n_layers_ac[0],
             self.action_bias,
         )
 
         self.critic_model = self.get_critic(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[1],
-            self.hidden_unitsAC[2],
-            self.hidden_unitsAC[0],
-            self.n_layersAC[1],
+            self.hidden_units_ac[1],
+            self.hidden_units_ac[2],
+            self.hidden_units_ac[0],
+            self.n_layers_ac[1],
         )
 
-        self.target_critic = self.get_critic(
+        self.target_critic_model = self.get_critic(
             self.num_states,
             self.num_actions,
-            self.hidden_unitsAC[1],
-            self.hidden_unitsAC[2],
-            self.hidden_unitsAC[0],
-            self.n_layersAC[1],
+            self.hidden_units_ac[1],
+            self.hidden_units_ac[2],
+            self.hidden_units_ac[0],
+            self.n_layers_ac[1],
         )
 
-        self.actor_optimizer = tf.keras.optimizers.Adam(self.lrAC[0])
-        self.critic_optimizer = tf.keras.optimizers.Adam(self.lrAC[1])
+        self.actor_optimizer = tf.keras.optimizers.Adam(self.lr_ac[0])
+        self.critic_optimizer = tf.keras.optimizers.Adam(self.lr_ac[1])
 
         # ou_noise is a row vector of num_actions dimension
         self.ou_noise_std_dev = 0.2
         self.ou_noise = OUActionNoise(
             mean=np.zeros(self.num_actions),
-            std_deviation=float(self.ou_noise_std_dev)
-            * np.ones(self.num_actions),
+            std_deviation=float(self.ou_noise_std_dev) * np.ones(self.num_actions),
         )
         self.init_checkpoint()
+        # super().__post_init__()
         self.touch_gpu()
 
     # def __del__(self):
@@ -201,10 +213,13 @@ class DDPG(DPG):
     #         self.buffer.save_replay_buffer()
 
     def __repr__(self):
-        return f'DDPG({self.truck.name}, {self.driver})'
+        return f'DDPG({self.truck.TruckName}, {self.driver})'
 
     def __str__(self):
         return 'DDPG'
+
+    def __hash__(self):
+        return hash(self.__repr__())
 
     def init_checkpoint(self):
         # add checkpoints manager
@@ -252,22 +267,14 @@ class DDPG(DPG):
             )
         try:
             os.makedirs(checkpoint_actor_dir)
-            self.logger.info(
-                "Actor folder doesn't exist. Created!", extra=dictLogger
-            )
+            self.logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
         except FileExistsError:
-            self.logger.info(
-                'Actor folder exists, just resume!', extra=dictLogger
-            )
+            self.logger.info('Actor folder exists, just resume!', extra=dictLogger)
         try:
             os.makedirs(checkpoint_critic_dir)
-            self.logger.info(
-                "Critic folder doesn't exist. Created!", extra=dictLogger
-            )
+            self.logger.info("Critic folder doesn't exist. Created!", extra=dictLogger)
         except FileExistsError:
-            self.logger.info(
-                'Critic folder exists, just resume!', extra=dictLogger
-            )
+            self.logger.info('Critic folder exists, just resume!', extra=dictLogger)
 
         self.ckpt_actor = tf.train.Checkpoint(
             step=tf.Variable(1),
@@ -277,6 +284,7 @@ class DDPG(DPG):
         self.manager_actor = tf.train.CheckpointManager(
             self.ckpt_actor, checkpoint_actor_dir, max_to_keep=10
         )
+        # restore the latest checkpoint to self.actor_model via self.ckpt_actor from self.manager_actor
         self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
         if self.manager_actor.latest_checkpoint:
             self.logger.info(
@@ -284,9 +292,7 @@ class DDPG(DPG):
                 extra=dictLogger,
             )
         else:
-            self.logger.info(
-                f'Actor Initializing from scratch', extra=dictLogger
-            )
+            self.logger.info(f'Actor Initializing from scratch', extra=dictLogger)
 
         self.ckpt_critic = tf.train.Checkpoint(
             step=tf.Variable(1),
@@ -296,6 +302,7 @@ class DDPG(DPG):
         self.manager_critic = tf.train.CheckpointManager(
             self.ckpt_critic, checkpoint_critic_dir, max_to_keep=10
         )
+        # restore the latest checkpoint to self.critic_model via self.ckpt_critic from self.manager_critic
         self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
         if self.manager_critic.latest_checkpoint:
             self.logger.info(
@@ -303,13 +310,94 @@ class DDPG(DPG):
                 extra=dictLogger,
             )
         else:
-            self.logger.info(
-                'Critic Initializing from scratch', extra=dictLogger
-            )
+            self.logger.info('Critic Initializing from scratch', extra=dictLogger)
 
         # Making the weights equal initially after checkpoints load
-        self.target_actor.set_weights(self.actor_model.get_weights())
-        self.target_critic.set_weights(self.critic_model.get_weights())
+        self.target_actor_model.set_weights(self.actor_model.get_weights())
+        self.target_critic_model.set_weights(self.critic_model.get_weights())
+
+        self.actor_saved_model_path = Path(self.data_folder).joinpath(
+            'tf_ckpts-'
+            + self.__str__()
+            + '-'
+            + self.truck.TruckName
+            + '-'
+            + self.driver
+            + '_'
+            + 'actor_saved_model'
+        )
+        self.critic_saved_model_path = Path(self.data_folder).joinpath(
+            'tf_ckpts-'
+            + self.__str__()
+            + '-'
+            + self.truck.TruckName
+            + '-'
+            + self.driver
+            + '_'
+            + 'critic_saved_model'
+        )
+
+    def save_as_saved_model(self):  # TODO bugfixing
+        """save the actor and critic networks as saved model"""
+
+        tf.saved_model.save(self.actor_model, self.actor_saved_model_path)
+        tf.saved_model.save(self.critic_model, self.critic_saved_model_path)
+
+    def load_saved_model(self):
+
+        self.actor_model = tf.saved_model.load(self.actor_saved_model_path)
+        self.target_actor_model.clone_weights(self.actor_model)
+        self.critic_model = tf.saved_model.load(self.actor_saved_model_path)
+        self.target_critic_model.clone_weights(self.critic_model)
+
+        self.logger.info(
+            f"actor_loaded signatures: {self.actor_model.signatures.keys()}"
+        )
+        self.logger.info(
+            f"critic_loaded signatures: {self.critic_model.signatures.keys()}"
+        )
+
+        # convert to tflite
+
+    def convert_to_tflite(self):
+        converter = tf.lite.TFLiteConverter.from_saved_model(
+            self.actor_saved_model_path
+        )
+        tflite_model = converter.convert()
+        with open('actor_model.tflite', 'wb') as f:
+            f.write(tflite_model)
+        converter = tf.lite.TFLiteConverter.from_saved_model(
+            self.critic_saved_model_path
+        )
+        tflite_model = converter.convert()
+        with open('critic_model.tflite', 'wb') as f:
+            f.write(tflite_model)
+
+        self.model_summary_print(
+            self.actor_model, self.actor_saved_model_path / '/../actor_model_spec.txt'
+        )
+        self.tflite_analytics_print(
+            self.actor_saved_model_path / '/../actor_model.tflite'
+        )
+        self.model_summary_print(
+            self.critic_model,
+            self.critic_saved_model_path / '/../critic_model_spec.txt',
+        )
+        self.tflite_analytics_print(
+            self.critic_saved_model_path / '/../critic_model.tflite'
+        )
+
+    @classmethod
+    def model_summary_print(cls, mdl: tf.keras.Model, file_path: Path):
+        with file_path.open(mode='w') as f:
+            with redirect_stdout(f):
+                mdl.summary()
+
+    @classmethod
+    def tflite_analytics_print(cls, tflite_file_path: Path):
+        with tflite_file_path.open(mode='w') as f:
+            with redirect_stdout(f):
+                tf.lite.experimental.Analyzer.analyze(tflite_file_path)
 
     def save_ckpt(self):
         """
@@ -341,14 +429,14 @@ class DDPG(DPG):
         # This update target parameters slowly
         # Based on rate `tau`, which is much less than one.
         self.update_target(
-            self.target_actor.variables,
+            self.target_actor_model.variables,
             self.actor_model.variables,
-            self.tauAC[0],
+            self.tau_ac[0],
         )
         self.update_target(
-            self.target_critic.variables,
+            self.target_critic_model.variables,
             self.critic_model.variables,
-            self.tauAC[1],
+            self.tau_ac[1],
         )
 
     """
@@ -461,12 +549,6 @@ class DDPG(DPG):
 
         return eager_model
 
-    def start_episode(self, dt: datetime):
-        self.logger.info(f'Episode start at {dt}', extra=dictLogger)
-        # somehow mongodb does not like microseconds in rec['plot']
-        dt_milliseconds = int(dt.microsecond / 1000) * 1000
-        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
-
     """
     `policy()` returns an action sampled from our Actor network plus some noise for
     exploration.
@@ -498,9 +580,7 @@ class DDPG(DPG):
         # Adding noise to action
         return sampled_actions
 
-    def deposit(
-        self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t
-    ):
+    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
         record: Record = {
             'timestamp': datetime.fromtimestamp(
                 float(
@@ -509,11 +589,12 @@ class DDPG(DPG):
             ),  # from ms to s
             'plot': self.plot,
             'observation': {
-                'states': prev_o_t.numpy().tolist(),
-                'actions': prev_a_t.numpy().tolist(),
+                'timestamp': prev_ts,
+                'state': prev_o_t.numpy().tolist(),
+                'action': prev_a_t.numpy().tolist(),
                 'action_start_row': prev_table_start,
-                'rewards': cycle_reward.numpy().tolist()[0],
-                'next_states': o_t.numpy().tolist(),
+                'reward': cycle_reward.numpy().tolist()[0],
+                'next_state': o_t.numpy().tolist(),
             },
         }
         self.buffer.store(record)
@@ -527,6 +608,7 @@ class DDPG(DPG):
         # tf.summary.trace_on(graph=True, profiler=True)
         # ignites manual loading of tensorflow library, to guarantee the real-time processing
         # of first data in main thread
+        print('touch gpu in DDPG')
         init_states = tf.random.normal(
             (self.num_states,)
         )  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
@@ -548,15 +630,15 @@ class DDPG(DPG):
 
                 (_, _) = self.train()
                 self.update_target(
-                    self.target_actor.variables,
+                    self.target_actor_model.variables,
                     self.actor_model.variables,
-                    self.tauAC[0],
+                    self.tau_ac[0],
                 )
                 # self.logger.info(f"Updated target actor", extra=self.dictLogger)
                 self.update_target(
-                    self.target_critic.variables,
+                    self.target_critic_model.variables,
                     self.critic_model.variables,
-                    self.tauAC[1],
+                    self.tau_ac[1],
                 )
 
                 # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
@@ -579,23 +661,22 @@ class DDPG(DPG):
 
         batch = self.buffer.sample()
         assert (
-                len(batch) == self.batch_size
+            len(batch) == self.batch_size
         ), f'sampled batch size {len(batch)} not match sample size {self.batch_size}'
 
-        states = [rec['observation']['states'] for rec in batch]
-        actions = [rec['observation']['actions'] for rec in batch]
-        rewards = [rec['observation']['rewards'] for rec in batch]
-        next_states = [rec['observation']['next_states'] for rec in batch]
+        states = [rec['observation']['state'] for rec in batch]
+        actions = [rec['observation']['action'] for rec in batch]
+        rewards = [rec['observation']['reward'] for rec in batch]
+        next_states = [rec['observation']['next_state'] for rec in batch]
 
         # convert output from sample (list or numpy array) to tf.tensor
         states = tf.convert_to_tensor(np.array(states), dtype=tf.float32)
         actions = tf.convert_to_tensor(np.array(actions), dtype=tf.float32)
         rewards = tf.convert_to_tensor(np.array(rewards), dtype=tf.float32)
-        next_states = tf.convert_to_tensor(
-            np.array(next_states), dtype=tf.float32
-        )
+        next_states = tf.convert_to_tensor(np.array(next_states), dtype=tf.float32)
 
         return states, actions, rewards, next_states
+
     def train(self):
         (
             states,
@@ -619,13 +700,16 @@ class DDPG(DPG):
         action_batch,
         reward_batch,
         next_state_batch,
+        training=True,
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
         print('Tracing update!')
-        with tf.GradientTape() as tape:
-            target_actions = self.target_actor(next_state_batch, training=True)
-            y = reward_batch + self.gamma * self.target_critic(
+        with tf.GradientTape(watch_accessed_variables=training) as tape:
+            target_actions = self.target_actor_model(
+                next_state_batch, training=training
+            )
+            y = reward_batch + self.gamma * self.target_critic_model(
                 [next_state_batch, target_actions], training=True
             )
             # ? need to confirm since replay buffer will take max over the actions of Q function.:with
@@ -635,72 +719,46 @@ class DDPG(DPG):
             # y = reward_batch + self.gamma * tf.reduce_max(future_rewards, axis = 1)
             # ! the question above is not necessary, since deterministic policy is the maximum!
             critic_value = self.critic_model(
-                [state_batch, action_batch], training=True
+                [state_batch, action_batch], training=training
             )
             # scalar value, average over the batch
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
         # logger.info(f"BP done.", extra=dictLogger)
-
-        critic_grad = tape.gradient(
-            critic_loss, self.critic_model.trainable_variables
-        )
-        self.critic_optimizer.apply_gradients(
-            zip(critic_grad, self.critic_model.trainable_variables)
-        )
-
-        with tf.GradientTape() as tape:
-            actions = self.actor_model(state_batch, training=True)
-            critic_value = self.critic_model(
-                [state_batch, actions], training=True
+        if training:
+            critic_grad = tape.gradient(
+                critic_loss, self.critic_model.trainable_variables
             )
+            self.critic_optimizer.apply_gradients(
+                zip(critic_grad, self.critic_model.trainable_variables)
+            )
+        else:
+            self.logger.info(f'No critic model update!.', extra=dictLogger)
+
+        with tf.GradientTape(watch_accessed_variables=training) as tape:
+            actions = self.actor_model(state_batch, training=training)
+            critic_value = self.critic_model([state_batch, actions], training=training)
             # Used `-value` as we want to maximize the value given
             # by the critic for our actions
             # scalar value, average over the batch
             actor_loss = -tf.math.reduce_mean(critic_value)
 
-        # gradient director directly over actor model weights
-        actor_grad = tape.gradient(
-            actor_loss, self.actor_model.trainable_variables
-        )
-        # TODO Check if this is correct. compare above actor_grad tensor with below
-        # action_gradients= tape.gradient(actions, actor_model.trainable_variables)
-        # actor_grad = tape.gradient(actor_loss, actions, action_gradients)
+        if training:
+            # gradient director directly over actor model weights
+            actor_grad = tape.gradient(actor_loss, self.actor_model.trainable_variables)
+            # TODO Check if this is correct. compare above actor_grad tensor with below
+            # action_gradients= tape.gradient(actions, actor_model.trainable_variables)
+            # actor_grad = tape.gradient(actor_loss, actions, action_gradients)
 
-        self.actor_optimizer.apply_gradients(
-            zip(actor_grad, self.actor_model.trainable_variables)
-        )
+            self.actor_optimizer.apply_gradients(
+                zip(actor_grad, self.actor_model.trainable_variables)
+            )
+        else:
+            self.logger.info(f'No actor model updates!', extra=dictLogger)
+
         return critic_loss, actor_loss
 
     # we only calculate the loss
-    @tf.function
-    def infer_with_batch(
-        self,
-        states,
-        actions,
-        rewards,
-        next_states,
-    ):
-        # Training and updating Actor & Critic networks.
-        # See Pseudo Code.
-        target_actions = self.target_actor(next_states, training=True)
-        y = rewards + self.gamma * self.target_critic(
-            [next_states, target_actions], training=True
-        )
-        critic_value = self.critic_model(
-            [states, actions], training=True
-        )
-        critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
-
-        self.logger.info(f'No update Calulate reward done.', extra=dictLogger)
-
-        actions = self.actor_model(states, training=True)
-        critic_value = self.critic_model([states, actions], training=True)
-        # Used `-value` as we want to maximize the value given
-        # by the critic for our actions
-        actor_loss = -tf.math.reduce_mean(critic_value)
-
-        return critic_loss, actor_loss
 
     # We only compute the loss and don't update parameters
     def get_losses(self):
@@ -710,8 +768,39 @@ class DDPG(DPG):
             rewards,
             next_states,
         ) = self.sample_minibatch()
-        critic_loss, actor_loss = self.infer_with_batch(
-            states, actions, rewards, next_states
+        critic_loss, actor_loss = self.update_with_batch(
+            states, actions, rewards, next_states, training=False
         )
         return critic_loss, actor_loss
 
+    @property
+    def actor_model(self) -> tf.keras.Model:
+        return self._actor_model
+
+    @actor_model.setter
+    def actor_model(self, actor_model: tf.keras.Model):
+        self._actor_model = actor_model
+
+    @property
+    def critic_model(self) -> tf.keras.Model:
+        return self._critic_model
+
+    @critic_model.setter
+    def critic_model(self, critic_model: tf.keras.Model):
+        self._critic_model = critic_model
+
+    @property
+    def target_actor_model(self) -> tf.keras.Model:
+        return self._target_actor_model
+
+    @target_actor_model.setter
+    def target_actor_model(self, target_actor_model: tf.keras.Model):
+        self._target_actor_model = target_actor_model
+
+    @property
+    def target_critic_model(self) -> tf.keras.Model:
+        return self._target_critic_model
+
+    @target_critic_model.setter
+    def target_critic_model(self, target_critic_model: tf.keras.Model):
+        self._target_critic_model = target_critic_model

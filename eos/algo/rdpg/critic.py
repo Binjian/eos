@@ -1,6 +1,6 @@
 # third-party imports
 import tensorflow as tf
-from keras import layers
+from tensorflow.keras import layers
 
 # local imports
 from eos import dictLogger, logger
@@ -46,9 +46,7 @@ class CriticNet:
         inputs_action = layers.Input(shape=(None, action_dim))
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
-        inputs_state_action = layers.Concatenate(axis=-1)(
-            [inputs_state, inputs_action]
-        )
+        inputs_state_action = layers.Concatenate(axis=-1)([inputs_state, inputs_action])
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=self.padding_value)(
@@ -57,9 +55,7 @@ class CriticNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(
-                hidden_dim, return_sequences=True, return_state=False
-            )(x)
+            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
 
         lstm_output = layers.LSTM(
             hidden_dim, return_sequences=False, return_state=False

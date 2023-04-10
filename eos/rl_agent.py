@@ -91,9 +91,7 @@ from eos.visualization import plot_3d_figure, plot_to_image
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # system warnings and numpy warnings handling
-warnings.filterwarnings(
-    'ignore', message='currentThread', category=DeprecationWarning
-)
+warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
 np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
@@ -124,9 +122,7 @@ class RL_Agent(object):
         self.ui = ui
         self.trucks_by_name = trucks_by_name
         self.trucks_by_vin = trucks_by_vin
-        self.vehicle = (
-            vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
-        )
+        self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
         self.remotecan_srv = remotecan_srv
         self.web_srv = web_srv
         self.mongo_srv = mongo_srv
@@ -224,46 +220,32 @@ class RL_Agent(object):
 
         self.init_vehicle()
         self.build_actor_critic()
-        self.logc.info(
-            f'VCU and GPU Initialization done!', extra=self.dictLogger
-        )
+        self.logc.info(f'VCU and GPU Initialization done!', extra=self.dictLogger)
         self.init_threads_data()
-        self.logc.info(
-            f'Thread data Initialization done!', extra=self.dictLogger
-        )
+        self.logc.info(f'Thread data Initialization done!', extra=self.dictLogger)
 
     def init_cloud(self):
         os.environ['http_proxy'] = ''
         self.can_server = can_servers_by_name.get(self.remotecan_srv)
         if self.can_server is None:
-            self.can_server = can_servers_by_host.get(
-                self.remotecan_srv.split(':')[0]
-            )
+            self.can_server = can_servers_by_host.get(self.remotecan_srv.split(':')[0])
             assert (
                 self.can_server is not None
             ), f'No such remotecan host {self.remotecan_srv} found!'
             assert (
                 self.remotecan_srv.split(':')[1] == self.can_server.Port
             ), f'Port mismatch for remotecan host {self.remotecan_srv}!'
-        self.logc.info(
-            f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger
-        )
+        self.logc.info(f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url='http://'
-            + self.can_server.Host
-            + ':'
-            + self.can_server.Port
-            + '/',
+            truck_name=self.truck.TruckName,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
         if self.ui == 'mobile':
             self.trip_server = trip_servers_by_name.get(self.web_srv)
             if self.trip_server is None:
-                self.trip_server = trip_servers_by_host.get(
-                    self.web_srv.split(':')[0]
-                )
+                self.trip_server = trip_servers_by_host.get(self.web_srv.split(':')[0])
                 assert (
                     self.trip_server is not None
                 ), f'No such trip server {self.web_srv} found!'
@@ -330,9 +312,7 @@ class RL_Agent(object):
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(json_file_formatter)
         # strfilename = PurePosixPath(logfilename).stem + ".json"
-        strfilename = self.logroot.joinpath(
-            PurePosixPath(logfilename).stem + '.json'
-        )
+        strfilename = self.logroot.joinpath(PurePosixPath(logfilename).stem + '.json')
         strh = logging.FileHandler(strfilename, mode='a')
         strh.setLevel(logging.DEBUG)
         strh.setFormatter(json_file_formatter)
@@ -373,11 +353,7 @@ class RL_Agent(object):
         # Create folder for ckpts loggings.
         current_time = datetime.now().strftime('%Y%m%d-%H%M%S')
         self.train_log_dir = self.dataroot.joinpath(
-            'tf_logs-vb/'
-            + self.agent
-            + '/gradient_tape/'
-            + current_time
-            + '/train'
+            'tf_logs-vb/' + self.agent + '/gradient_tape/' + current_time + '/train'
         )
         self.train_summary_writer = tf.summary.create_file_writer(
             str(self.train_log_dir)
@@ -399,9 +375,7 @@ class RL_Agent(object):
         self.vcu_calib_table_row = (
             self.truck.VelocityScale
         )  #  14 numnber of velocity steps, y direction
-        self.vcu_calib_table_size = (
-            self.vcu_calib_table_row * self.vcu_calib_table_col
-        )
+        self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
         self.action_budget = self.truck.ActionBudget  # action_budget 250 Nm
         self.action_lower = self.truck.ActionLowerBound  # 0.8
         self.action_upper = self.truck.ActionUpperBound  # 1.0
@@ -446,9 +420,7 @@ class RL_Agent(object):
                 extra=self.dictLogger,
             )
         else:
-            return_code = kvaser_send_float_array(
-                self.vcu_calib_table1, sw_diff=False
-            )
+            return_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
             self.logger.info(
                 f'Done flash initial table. returncode: {return_code}',
                 extra=self.dictLogger,
@@ -517,19 +489,19 @@ class RL_Agent(object):
         self.gamma = 0.99
         # Used to update target networks
         if self.agent == 'ddpg':
-            self.tauAC = (0.005, 0.005)
-            self.hidden_unitsAC = (256, 16, 32)
+            self.tau_ac = (0.005, 0.005)
+            self.hidden_units_ac = (256, 16, 32)
             self.action_bias = 0
         else:  # self.agent == "rdpg"
-            self.tauAC = (0.001, 0.001)
-            self.hidden_unitsAC = (256, 256)
-        self.lrAC = (0.001, 0.002)
+            self.tau_ac = (0.001, 0.001)
+            self.hidden_units_ac = (256, 256)
+        self.lr_ac = (0.001, 0.002)
         self.seq_len = 8  # TODO  7 maximum sequence length
         self.buffer_capacity = 300000
         self.batch_size = 4
         # number of hidden units in the actor and critic networks
         # number of layer in the actor-critic network
-        self.n_layerAC = (2, 2)
+        self.n_layers_ac = (2, 2)
         # padding value for the input, impossible value for observation, action or reward
         self.padding_value = -10000
         self.ckpt_interval = 5
@@ -543,13 +515,13 @@ class RL_Agent(object):
                 self.num_actions,
                 buffer_capacity=self.buffer_capacity,
                 batch_size=self.batch_size,
-                hidden_unitsAC=self.hidden_unitsAC,
+                hidden_units_ac=self.hidden_units_ac,
                 action_bias=self.action_bias,
-                n_layersAC=self.n_layerAC,
+                n_layers_ac=self.n_layers_ac,
                 padding_value=self.padding_value,
                 gamma=self.gamma,
-                tauAC=self.tauAC,
-                lrAC=self.lrAC,
+                tau_ac=self.tau_ac,
+                lr_ac=self.lr_ac,
                 datafolder=str(self.dataroot),
                 ckpt_interval=self.ckpt_interval,
                 db_server=self.mongo_srv,
@@ -565,12 +537,12 @@ class RL_Agent(object):
                 self.num_actions,
                 buffer_capacity=self.buffer_capacity,
                 batch_size=self.batch_size,
-                hidden_unitsAC=self.hidden_unitsAC,
-                n_layersAC=self.n_layerAC,
+                hidden_units_ac=self.hidden_units_ac,
+                n_layers_ac=self.n_layers_ac,
                 padding_value=self.padding_value,
                 gamma=self.gamma,
-                tauAC=self.tauAC,
-                lrAC=self.lrAC,
+                tau_ac=self.tau_ac,
+                lr_ac=self.lr_ac,
                 datafolder=str(self.dataroot),
                 ckpt_interval=self.ckpt_interval,
                 db_server=self.mongo_srv,
@@ -650,7 +622,9 @@ class RL_Agent(object):
 
             with self.hmi_lock:
                 self.episode_count += 1  # valid round increments
-                self.episode_done = True  # TODO delay episode_done to make main thread keep running
+                self.episode_done = (
+                    True  # TODO delay episode_done to make main thread keep running
+                )
                 self.episode_end = True
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
@@ -694,9 +668,7 @@ class RL_Agent(object):
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        logger_kvaser_get.info(
-            f'Socket Initialization Done!', extra=self.dictLogger
-        )
+        logger_kvaser_get.info(f'Socket Initialization Done!', extra=self.dictLogger)
 
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
@@ -708,9 +680,7 @@ class RL_Agent(object):
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_kvaser_get.info(
                         '%s',
                         'Capture thread exit due to processing request!!!',
@@ -760,9 +730,7 @@ class RL_Agent(object):
                         # set flag for countdown thread
                         with self.done_env_lock:
                             evt_epi_done.set()
-                        logger_kvaser_get.info(
-                            f'Episode end starts countdown!'
-                        )
+                        logger_kvaser_get.info(f'Episode end starts countdown!')
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
@@ -848,9 +816,7 @@ class RL_Agent(object):
                                         extra=self.dictLogger,
                                     )
 
-                                vel_aver = (
-                                    sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
-                                )
+                                vel_aver = sum(vel_cycle_dQ) / vel_cycle_dQ.maxlen
                                 vel_min = min(vel_cycle_dQ)
                                 vel_max = max(vel_cycle_dQ)
 
@@ -908,9 +874,7 @@ class RL_Agent(object):
 
                     break
 
-        logger_kvaser_get.info(
-            f'get_truck_status dies!!!', extra=self.dictLogger
-        )
+        logger_kvaser_get.info(f'get_truck_status dies!!!', extra=self.dictLogger)
 
         s.close()
 
@@ -956,14 +920,11 @@ class RL_Agent(object):
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = (
-                    vcu_calib_table_reduced * self.action_budget
-                )
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start,
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
@@ -980,8 +941,7 @@ class RL_Agent(object):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start
+                    table_start : self.vcu_calib_table_row_reduced + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1024,10 +984,12 @@ class RL_Agent(object):
                 # watch(flash_count)
 
         logger_flash.info(f'Save the last table!!!!', extra=self.dictLogger)
-        last_table_store_path = self.dataroot.joinpath(  #  there's no slash in the end of the string
-            'last_table_ddpg-'
-            + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
-            + '.csv'
+        last_table_store_path = (
+            self.dataroot.joinpath(  #  there's no slash in the end of the string
+                'last_table_ddpg-'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + '.csv'
+            )
         )
         with open(last_table_store_path, 'wb') as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
@@ -1084,10 +1046,7 @@ class RL_Agent(object):
                 extra=self.dictLogger,
             )
             with self.remoteClient_lock:
-                (
-                    signal_success,
-                    remotecan_data,
-                ) = self.remotecan_client.get_signals(
+                (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
                     duration=self.truck.CloudUnitNumber, timeout=timeout
                 )  # timeout is 1 second longer than duration
                 if signal_success != 0:  # in case of failure, ping server
@@ -1191,20 +1150,15 @@ class RL_Agent(object):
                                 for ts in value['timestamps']:
                                     # create standard iso string datetime format
                                     ts_substrings = [
-                                        ts[i : i + 2]
-                                        for i in range(0, len(ts), 2)
+                                        ts[i : i + 2] for i in range(0, len(ts), 2)
                                     ]
                                     ts_iso = start_century
                                     for i, sep in enumerate(separators):
-                                        ts_iso = (
-                                            ts_iso + ts_substrings[i] + sep
-                                        )
+                                        ts_iso = ts_iso + ts_substrings[i] + sep
                                     ts_iso = ts_iso + ts_substrings[-1]
                                     timestamps.append(ts_iso)
                                 timestamps_units = (
-                                    np.array(timestamps).astype(
-                                        'datetime64[ms]'
-                                    )
+                                    np.array(timestamps).astype('datetime64[ms]')
                                     - np.timedelta64(8, 'h')
                                 ).astype(  # convert to UTC+8
                                     'int'
@@ -1334,9 +1288,7 @@ class RL_Agent(object):
             with self.get_env_lock:
                 evt_remote_get.clear()
 
-        logger_remote_get.info(
-            f'thr_remoteget dies!!!!!', extra=self.dictLogger
-        )
+        logger_remote_get.info(f'thr_remoteget dies!!!!!', extra=self.dictLogger)
 
     def remote_webhmi_state_machine(
         self,
@@ -1406,9 +1358,7 @@ class RL_Agent(object):
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_webhmi_sm.info(
                         '%s',
                         'Capture thread exit due to processing request!!!',
@@ -1425,9 +1375,7 @@ class RL_Agent(object):
                         extra=self.dictLogger,
                     )
                     raise TypeError('rocketmq server sending wrong data type!')
-                logger_webhmi_sm.info(
-                    f'Get message {msg_body}!', extra=self.dictLogger
-                )
+                logger_webhmi_sm.info(f'Get message {msg_body}!', extra=self.dictLogger)
                 if msg_body['vin'] != self.truck.VIN:
                     continue
 
@@ -1475,9 +1423,7 @@ class RL_Agent(object):
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                    logger_webhmi_sm.info(
-                        'End Valid!!!!!!', extra=self.dictLogger
-                    )
+                    logger_webhmi_sm.info('End Valid!!!!!!', extra=self.dictLogger)
                     self.get_truck_status_start = (
                         True  # do not stopping data capture immediately
                     )
@@ -1609,9 +1555,7 @@ class RL_Agent(object):
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 # Check if the runner is trying to kill the process
                 # kill signal captured from main thread
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_cloudhmi_sm.info(
                         '%s',
                         'UI thread exit due to processing request!!!',
@@ -1671,15 +1615,11 @@ class RL_Agent(object):
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        logger_hmi_sm.info(
-            f'Socket Initialization Done!', extra=self.dictLogger
-        )
+        logger_hmi_sm.info(f'Socket Initialization Done!', extra=self.dictLogger)
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
-                if (
-                    self.program_exit == True
-                ):  # if program_exit is True, exit thread
+                if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_hmi_sm.info(
                         '%s',
                         'Capture thread exit due to processing request!!!',
@@ -1732,9 +1672,7 @@ class RL_Agent(object):
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                        logger_hmi_sm.info(
-                            'End Valid!!!!!!', extra=self.dictLogger
-                        )
+                        logger_hmi_sm.info('End Valid!!!!!!', extra=self.dictLogger)
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
@@ -1886,14 +1824,11 @@ class RL_Agent(object):
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = (
-                    vcu_calib_table_reduced * self.action_budget
-                )
+                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start,
+                    table_start : self.vcu_calib_table_row_reduced + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
@@ -1910,8 +1845,7 @@ class RL_Agent(object):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced
-                    + table_start
+                    table_start : self.vcu_calib_table_row_reduced + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1952,13 +1886,9 @@ class RL_Agent(object):
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
-                    (
-                        returncode,
-                        ret_str,
-                    ) = self.remotecan_client.send_torque_map(
+                    (returncode, ret_str,) = self.remotecan_client.send_torque_map(
                         pedalmap=self.vcu_calib_table1.iloc[
-                            table_start : self.vcu_calib_table_row_reduced
-                            + table_start
+                            table_start : self.vcu_calib_table_row_reduced + table_start
                         ],
                         swap=False,
                         timeout=timeout,
@@ -1996,10 +1926,12 @@ class RL_Agent(object):
 
         logger_flash.info(f'Save the last table!!!!', extra=self.dictLogger)
 
-        last_table_store_path = self.dataroot.joinpath(  #  there's no slash in the end of the string
-            'last_table_ddpg-'
-            + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
-            + '.csv'
+        last_table_store_path = (
+            self.dataroot.joinpath(  #  there's no slash in the end of the string
+                'last_table_ddpg-'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + '.csv'
+            )
         )
         with open(last_table_store_path, 'wb') as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
@@ -2050,9 +1982,7 @@ class RL_Agent(object):
         killer = GracefulKiller()
 
         self.logc.info(f'main Initialization done!', extra=self.dictLogger)
-        while (
-            not th_exit
-        ):  # run until solved or program exit; th_exit is local
+        while not th_exit:  # run until solved or program exit; th_exit is local
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 th_exit = self.program_exit  # if program_exit is False,
                 epi_cnt = self.episode_count  # get episode counts
@@ -2111,7 +2041,9 @@ class RL_Agent(object):
                         self.logc.info(
                             f'Residue in Queue is a sign of disordered sequence, interrupted!'
                         )
-                        done = False  # this local done is true done with data exploitation
+                        done = (
+                            False  # this local done is true done with data exploitation
+                        )
 
                     if epi_end:  # stop observing and inferring
                         continue
@@ -2329,9 +2261,7 @@ class RL_Agent(object):
             )
 
             # update running reward to check condition for solving
-            running_reward = (
-                0.05 * (-episode_reward) + (1 - 0.05) * running_reward
-            )
+            running_reward = 0.05 * (-episode_reward) + (1 - 0.05) * running_reward
 
             # Create a matplotlib 3d figure, //export and save in log
             fig = plot_3d_figure(self.vcu_calib_table1)
@@ -2341,13 +2271,9 @@ class RL_Agent(object):
             with self.train_summary_writer.as_default():
                 tf.summary.scalar('WH', -episode_reward, step=epi_cnt_local)
                 tf.summary.scalar('actor loss', actor_loss, step=epi_cnt_local)
-                tf.summary.scalar(
-                    'critic loss', critic_loss, step=epi_cnt_local
-                )
+                tf.summary.scalar('critic loss', critic_loss, step=epi_cnt_local)
                 tf.summary.scalar('reward', episode_reward, step=epi_cnt_local)
-                tf.summary.scalar(
-                    'running reward', running_reward, step=epi_cnt_local
-                )
+                tf.summary.scalar('running reward', running_reward, step=epi_cnt_local)
                 tf.summary.image(
                     'Calibration Table', plot_to_image(fig), step=epi_cnt_local
                 )
@@ -2374,16 +2300,12 @@ class RL_Agent(object):
             )
             self.logc.info('----------------------', extra=self.dictLogger)
             if epi_cnt % 10 == 0:
-                self.logc.info(
-                    '++++++++++++++++++++++++', extra=self.dictLogger
-                )
+                self.logc.info('++++++++++++++++++++++++', extra=self.dictLogger)
                 self.logc.info(
                     f'Running reward: {running_reward:.2f} at E{epi_cnt}',
                     extra=self.dictLogger,
                 )
-                self.logc.info(
-                    '++++++++++++++++++++++++', extra=self.dictLogger
-                )
+                self.logc.info('++++++++++++++++++++++++', extra=self.dictLogger)
 
             # send ready signal to trip server
             if self.ui == 'mobile':

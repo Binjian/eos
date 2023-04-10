@@ -19,9 +19,7 @@ from eos.config import generate_vcu_calibration
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 
 # ignore DeprecationWarning
-warnings.filterwarnings(
-    'ignore', message='currentThread', category=DeprecationWarning
-)
+warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
 np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
@@ -44,13 +42,9 @@ class TestRemoteCanGet(unittest.TestCase):
             'http': 'http://127.0.0.1:34663',
             'https': 'http://127.0.0.1:34663',
         }
-        os.environ[
-            'http_proxy'
-        ] = ''  # for native test (internal site force no proxy)
+        os.environ['http_proxy'] = ''  # for native test (internal site force no proxy)
         self.trucks = trucks
-        self.truck_name = (
-            'VB7'  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
-        )
+        self.truck_name = 'VB7'  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
 
         self.projroot = projroot
         self.logger = logging.getLogger('eostest')
@@ -121,7 +115,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # def test_native_get(self):
     #     self.logger.info("Start test_native_get", extra=self.dictLogger)
     #     self.client = RemoteCan(
-    #         truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+    #         truck_name=self.truck.TruckName, url=self.truck.RemoteCANHost
     #     )
     #     self.logger.info("Set client", extra=self.dictLogger)
     #     self.native_get()
@@ -130,7 +124,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # def test_native_send(self):
     #     self.logger.info("Start test_native_send", extra=self.dictLogger)
     #     self.client = RemoteCan(
-    #         truckname=self.truck.TruckName, url=self.truck.RemoteCANHost
+    #         truck_name=self.truck.TruckName, url=self.truck.RemoteCANHost
     #     )
     #     self.logger.info("Set client", extra=self.dictLogger)
     #
@@ -164,8 +158,7 @@ class TestRemoteCanGet(unittest.TestCase):
                 unit_gear_num = unit_duration * gear_freq
                 unit_num = self.truck.CloudUnitNumber
                 timestamp_upsample_rate = (
-                    self.truck.CloudSignalFrequency
-                    * self.truck.CloudUnitDuration
+                    self.truck.CloudSignalFrequency * self.truck.CloudUnitDuration
                 )
                 # timestamp_num = int(self.observe_length // duration)
 
@@ -175,7 +168,9 @@ class TestRemoteCanGet(unittest.TestCase):
 
                         # timestamp processing
                         timestamps = []
-                        separators = '--T::.'  # adaption separators of the raw intest string
+                        separators = (
+                            '--T::.'  # adaption separators of the raw intest string
+                        )
                         start_century = '20'
                         timezone = '+0800'
                         for ts in value['timestamps']:
@@ -208,9 +203,7 @@ class TestRemoteCanGet(unittest.TestCase):
                         timestamps = np.array(timestamps).reshape(
                             (self.truck.CloudUnitNumber, -1)
                         )
-                        self.logger.info(
-                            f'Timestamps{timestamps.shape}:{timestamps}'
-                        )
+                        self.logger.info(f'Timestamps{timestamps.shape}:{timestamps}')
 
                         # current = np.array(value["list_current_1s"])
                         current = ragged_nparray_list_interp(
@@ -241,17 +234,13 @@ class TestRemoteCanGet(unittest.TestCase):
                         velocity = ragged_nparray_list_interp(
                             value['list_speed_1s'], ob_num=unit_ob_num
                         )
-                        self.logger.info(
-                            f'velocity{velocity.shape}:{velocity}'
-                        )
+                        self.logger.info(f'velocity{velocity.shape}:{velocity}')
 
                         gears = ragged_nparray_list_interp(
                             value['list_gears'], ob_num=unit_gear_num
                         )
                         # upsample gears from 2Hz to 50Hz
-                        gears = np.repeat(
-                            gears, (signal_freq // gear_freq), axis=1
-                        )
+                        gears = np.repeat(gears, (signal_freq // gear_freq), axis=1)
                         self.logger.info(f'gears{gears.shape}:{gears}')
 
                         observation = np.c_[
@@ -339,9 +328,7 @@ class TestRemoteCanGet(unittest.TestCase):
         # flashing the whole calibration table
         map2d = self.vcu_calib_table_default
         self.logger.info(f'start sending torque map.', extra=self.dictLogger)
-        returncode, ret_str = self.client.send_torque_map(
-            pedalmap=map2d, swap=False
-        )
+        returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         self.logger.info(
             f'finish sending torque map: returncode={returncode}, ret_str={ret_str}',
             extra=self.dictLogger,

@@ -1,10 +1,3 @@
-from .ac_gaussian import (
-    constructactorcriticnetwork_a2c,
-    customlossgaussian_a2c,
-    train_step_a2c,
-    train_step_ddpg,
-)
-
 from .dpg import DPG
 from .ddpg.ddpg import DDPG
 from .rdpg.rdpg import RDPG
@@ -15,8 +8,4 @@ __all__ = [
     DDPG,
     RDPG,
     OUActionNoise,
-    train_step_a2c,
-    train_step_ddpg,
-    constructactorcriticnetwork_a2c,
-    customlossgaussian_a2c,
 ]

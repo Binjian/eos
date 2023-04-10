@@ -11,7 +11,6 @@ from eos.config import (
     trucks_by_name,
     DBItemT,
     get_db_config,
-    record_schemas,
 )
 from eos import DBPool, dictLogger, logger
 from .dpg import get_algo_data_info
@@ -57,23 +56,15 @@ class DBBuffer(Buffer, Generic[DBItemT]):
 
     def load(self):
         self.db_config = get_db_config(self.db_key)
-        if 'record' in DBItemT.__name__.lower():
-            db_schema = record_schemas['record_deep']
-        elif 'episode' in DBItemT.__name__.lower():
-            db_schema = record_schemas['episode_deep']
-        else:
-            raise ValueError(
-                f'Unknown DBItemT {DBItemT.__name__} for DBBuffer'
-            )
 
         url = (
-                self.db_config.Username
-                + ':'
-                + self.db_config.Password
-                + '@'
-                + self.db_config.Host
-                + ':'
-                + self.db_config.Port
+            self.db_config.Username
+            + ':'
+            + self.db_config.Password
+            + '@'
+            + self.db_config.Host
+            + ':'
+            + self.db_config.Port
         )
         self.query = {
             'vehicle_id': self.truck.TruckName,
@@ -83,7 +74,6 @@ class DBBuffer(Buffer, Generic[DBItemT]):
         }
         self.pool = DBPool[DBItemT](
             location=url,
-            mongo_schema=db_schema.STRUCTURE,
             query=self.query,
         )
         self.buffer_count = self.pool.count()

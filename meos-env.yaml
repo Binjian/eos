@@ -36,6 +36,7 @@ dependencies:
   - reportlab
   - pymongo
   - pyarrow
+  - pymongoarrow
   - gitpython
   - tqdm
   - pip
@@ -45,5 +46,4 @@ dependencies:
     - nvidia-cudnn-cu11
     - rocketmq
     - cutelog
-    - pymongoarrow
     - pyqt5

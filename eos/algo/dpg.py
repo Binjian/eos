@@ -1,14 +1,10 @@
 import abc
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
-from eos import dictLogger, logger
-from eos.config import (
-    DB_CONFIG,
-    Truck,
-    trucks_by_name,
-    Plot
-)
+from eos.config import Truck, trucks_by_name, ObservationSpecs, Plot
+from .buffer import Buffer
 
 
 def get_algo_data_info(item: dict, truck: Truck, driver: str) -> tuple:
@@ -48,10 +44,10 @@ def get_algo_data_info(item: dict, truck: Truck, driver: str) -> tuple:
     assert (
         action_column_number == truck.PedalScale
     ), f'action column number mismatch, {action_column_number} != {truck.PedalScale}!'
-    truckname_in_data = item['plot']['character']
+    truck_name_in_data = item['plot']['character']
     assert (
-        truckname_in_data == truck.TruckName
-    ), f'truck name mismatch, {truckname_in_data} != {truck.TruckName}!'
+        truck_name_in_data == truck.TruckName
+    ), f'truck name mismatch, {truck_name_in_data} != {truck.TruckName}!'
 
     num_states = len(obs) * unit_number * unit_duration * frequency
     num_actions = action_row_number * action_column_number
@@ -69,42 +65,46 @@ def get_algo_data_info(item: dict, truck: Truck, driver: str) -> tuple:
 
 @dataclass
 class DPG(abc.ABC):
-    _truck: Truck = (trucks_by_name['VB7'],)
-    _driver: str = ('longfei',)
-    _num_states: int = (600,)
-    _num_actions: int = (68,)
-    _buffer_capacity: int = (10000,)
-    _batch_size: int = (4,)
-    _hidden_unitsAC: tuple = ((256, 16, 32),)
-    _action_bias: float = (0.0,)
-    _n_layersAC: tuple = ((2, 2),)
-    _padding_value: float = (0,)
-    _gamma: float = (0.99,)
-    _tauAC: tuple = ((0.005, 0.005),)
-    _lrAC: tuple = ((0.001, 0.002),)
-    _data_folder: str = ('./',)
-    _ckpt_interval: int = (5,)
-    _db_key: str = ('mongo_local',)
-    _db_config: DB_CONFIG = (None,)
-    _resume: bool = (True,)
-    _infer_mode: bool = (False,)
-    _episode_start_dt: datetime = (None,)
-    plot: Plot = (None,)
+    """Base class for differentiable policy gradient methods."""
+
+    _buffer: Optional[
+        Buffer
+    ] = None  # as last of non-default parameters, so that derived class can override with default
+    _plot: Optional[Plot] = None
+    _episode_start_dt: datetime = None
+    _truck: Truck = trucks_by_name['VB7']
+    _driver: str = 'longfei'
+    _num_states: int = 600
+    _num_actions: int = 68
+    _buffer_capacity: int = 10000
+    _batch_size: int = 4
+    _hidden_units_ac: tuple = (256, 16, 32)
+    _action_bias: float = 0.0
+    _n_layers_ac: tuple = (2, 2)
+    _padding_value: float = 0
+    _gamma: float = 0.99
+    _tau_ac: tuple = (0.005, 0.005)
+    _lr_ac: tuple = (0.001, 0.002)
+    _data_folder: str = './'
+    _ckpt_interval: int = 5
+    _db_key: str = 'mongo_local'
+    _resume: bool = True
+    _infer_mode: bool = False
 
     def __post_init__(self):
-        self.logger = logger.getchild('main').getchild(self.__str__())
-        self.logger.propagate = True
-        self.dictLogger = dictLogger
-
+        # pass
         # Number of "experiences" to store     at max
         # Num of tuples to train on.
-        self.touch_gpu()
+        print(f"In DPG buffer is {self.buffer}!")
 
     def __repr__(self):
         return f'DPG({self.truck.TruckName}, {self.driver})'
 
     def __str__(self):
         return 'DPG'
+
+    def __hash__(self):
+        return hash(self.__repr__())
 
     @abc.abstractmethod
     def touch_gpu(self):
@@ -120,12 +120,12 @@ class DPG(abc.ABC):
     def actor_predict(self, obs, t):
         """
         Evaluate the actors given a single observations.
-        Batchsize is 1.
+        batch_size is 1.
         """
         pass
 
     def start_episode(self, dt: datetime):
-        self.logger.info(f'Episode start at {dt}', extra=dictLogger)
+        # self.logger.info(f'Episode start at {dt}', extra=dictLogger)
         # somehow mongodb does not like microseconds in rec['plot']
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
@@ -137,11 +137,11 @@ class DPG(abc.ABC):
             tz=str(self.truck.tz),
             where=self.truck.Location,
             state_specs={
-                'observation_specs': [
-                    {'velocity_unit': 'kmph'},
-                    {'thrust_unit': 'percentage'},
-                    {'brake_unit': 'percentage'},
-                ],
+                'observation_specs': ObservationSpecs(
+                    velocity_unit='kmph',
+                    thrust_unit='percentage',
+                    brake_unit='percentage',
+                ),
                 'unit_number': self.truck.CloudUnitNumber,  # 4
                 'unit_duration': self.truck.CloudUnitDuration,  # 1s
                 'frequency': self.truck.CloudSignalFrequency,  # 50 hz
@@ -152,15 +152,11 @@ class DPG(abc.ABC):
             },
             reward_specs={
                 'reward_unit': 'wh',
-            }
+            },
         )
 
-
-
     @abc.abstractmethod
-    def deposit(
-        self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t
-    ):
+    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
         """Deposit the experience into the replay buffer."""
         pass
 
@@ -259,12 +255,12 @@ class DPG(abc.ABC):
         raise AttributeError('batch_size is read-only')
 
     @property
-    def hidden_unitsAC(self):
-        return self._hidden_unitsAC
+    def hidden_units_ac(self):
+        return self._hidden_units_ac
 
-    @hidden_unitsAC.setter
-    def hidden_unitsAC(self, value):
-        raise AttributeError('hidden_unitsAC is read-only')
+    @hidden_units_ac.setter
+    def hidden_units_ac(self, value):
+        raise AttributeError('hidden_units_ac is read-only')
 
     @property
     def action_bias(self):
@@ -275,12 +271,12 @@ class DPG(abc.ABC):
         raise AttributeError('action_bias is read-only')
 
     @property
-    def n_layersAC(self):
-        return self._n_layersAC
+    def n_layers_ac(self):
+        return self._n_layers_ac
 
-    @n_layersAC.setter
-    def n_layersAC(self, value):
-        raise AttributeError('n_layersAC is read-only')
+    @n_layers_ac.setter
+    def n_layers_ac(self, value):
+        raise AttributeError('n_layers_ac is read-only')
 
     @property
     def padding_value(self):
@@ -299,20 +295,20 @@ class DPG(abc.ABC):
         raise AttributeError('gamma is read-only')
 
     @property
-    def tauAC(self):
-        return self._tauAC
+    def tau_ac(self):
+        return self._tau_ac
 
-    @tauAC.setter
-    def tauAC(self, value):
-        raise AttributeError('tauAC is read-only')
+    @tau_ac.setter
+    def tau_ac(self, value):
+        raise AttributeError('tau_ac is read-only')
 
     @property
-    def lrAC(self):
-        return self._lrAC
+    def lr_ac(self):
+        return self._lr_ac
 
-    @lrAC.setter
-    def lrAC(self, value):
-        raise AttributeError('lrAC is read-only')
+    @lr_ac.setter
+    def lr_ac(self, value):
+        raise AttributeError('lr_ac is read-only')
 
     @property
     def data_folder(self) -> str:
@@ -347,17 +343,25 @@ class DPG(abc.ABC):
         raise AttributeError('infer_mode is read-only')
 
     @property
-    def db_config(self) -> DB_CONFIG:
-        return self._db_config
-
-    @db_config.setter
-    def db_config(self, value: DB_CONFIG):
-        self._db_config = value
-
-    @property
     def episode_start_dt(self) -> datetime:
         return self._episode_start_dt
 
     @episode_start_dt.setter
     def episode_start_dt(self, value: datetime):
         self._episode_start_dt = value
+
+    @property
+    def plot(self) -> Plot:
+        return self._plot
+
+    @plot.setter
+    def plot(self, value: Plot):
+        self._plot = value
+
+    @property
+    def buffer(self) -> Buffer:
+        return self._buffer
+
+    @buffer.setter
+    def buffer(self, value: Buffer):
+        self._buffer = value

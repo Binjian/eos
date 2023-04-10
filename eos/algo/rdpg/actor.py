@@ -1,8 +1,8 @@
 # third-party imports
-import keras.initializers as initializers
+from tensorflow.keras import initializers
 import numpy as np
 import tensorflow as tf
-from keras import layers
+from tensorflow.keras import layers
 
 from eos import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
@@ -58,18 +58,14 @@ class ActorNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(
-                hidden_dim, return_sequences=True, return_state=False
-            )(x)
+            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
 
         lstm_output = layers.LSTM(
             hidden_dim, return_sequences=False, return_state=False
         )(x)
 
         # rescale the output of the lstm layer to (-1, 1)
-        action_output = layers.Dense(action_dim, activation='tanh')(
-            lstm_output
-        )
+        action_output = layers.Dense(action_dim, activation='tanh')(lstm_output)
 
         self.eager_model = tf.keras.Model(inputs, action_output)
         # no need to evaluate the last action separately
@@ -145,16 +141,12 @@ class ActorNet:
 
         # get the last step action and squeeze the batch dimension
         action = self.predict_step(state)
-        sampled_action = (
-            action + self.ou_noise()
-        )  # noise object is a row vector
+        sampled_action = action + self.ou_noise()  # noise object is a row vector
         # logc("ActorNet.predict")
         return sampled_action
 
     @tf.function(
-        input_signature=[
-            tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)
-        ]
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
     )
     def predict_step(self, state):
         """Predict the action given the state.
@@ -172,9 +164,7 @@ class ActorNet:
         return last_action
 
     @tf.function(
-        input_signature=[
-            tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)
-        ]
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
     )
     def evaluate_actions(self, state):
         """Evaluate the action given the state.

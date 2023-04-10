@@ -19,9 +19,9 @@ from .comm import (
 )
 from .comm import kvaser_send_float_array
 from .config.vcu_calib_generator import generate_vcu_calibration
-from .realtime_train_infer_ddpg import RealtimeDDPG
-from .realtime_train_infer_rdpg import RealtimeRDPG
 from .algo import DPG
+from .algo import DDPG
+from .algo import RDPG
 
 projroot = Path(__file__).parent.parent
 
@@ -31,9 +31,10 @@ projroot = Path(__file__).parent.parent
 
 
 __all__ = [
+    DPG,
+    DDPG,
+    RDPG,
     RemoteCan,
-    RealtimeDDPG,
-    RealtimeRDPG,
     Pool,
     DBPool,
     RecordFilePool,
