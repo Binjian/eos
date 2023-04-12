@@ -43,7 +43,7 @@ class AgentRDPG(Agent):
             _lr_ac=self.lr_ac,
             _data_folder=str(self.data_root),
             _ckpt_interval=self.ckpt_interval,
-            _db_server=self.mongo_srv,
+            _db_key=self.mongo_srv,
             _infer_mode=self.infer_mode,
         )
         super().__post_init__()

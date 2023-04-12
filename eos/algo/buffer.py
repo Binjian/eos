@@ -1,8 +1,10 @@
 from __future__ import annotations
 import abc
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Optional
 import weakref
+
+from eos.struct import ItemT
 
 
 @dataclass

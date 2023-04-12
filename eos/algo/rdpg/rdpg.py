@@ -15,7 +15,8 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos import dictLogger, logger
-from eos.config import Episode, Truck, trucks_by_name, ObservationSpecs, Plot
+from eos.struct import Episode, ObservationSpecs, Plot
+from eos.config import Truck, trucks_by_name
 from ..dpg import DPG, get_algo_data_info  # type: ignore
 
 from .actor import ActorNet  # type: ignore

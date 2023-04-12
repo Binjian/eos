@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from eos.config import Truck, trucks_by_name, ObservationSpecs, Plot
+from eos.config import Truck, trucks_by_name
+from eos.struct import ObservationSpecs, Plot
 from .buffer import Buffer
 
 
@@ -70,6 +71,7 @@ class DPG(abc.ABC):
     _buffer: Optional[
         Buffer
     ] = None  # as last of non-default parameters, so that derived class can override with default
+    _buf_key: str = 'mongo_local'
     _plot: Optional[Plot] = None
     _episode_start_dt: datetime = None
     _truck: Truck = trucks_by_name['VB7']
@@ -87,7 +89,6 @@ class DPG(abc.ABC):
     _lr_ac: tuple = (0.001, 0.002)
     _data_folder: str = './'
     _ckpt_interval: int = 5
-    _db_key: str = 'mongo_local'
     _resume: bool = True
     _infer_mode: bool = False
 
@@ -199,12 +200,12 @@ class DPG(abc.ABC):
         pass
 
     @property
-    def db_key(self) -> str:
-        return self._db_key
+    def buf_key(self) -> str:
+        return self._buf_key
 
-    @db_key.setter
-    def db_key(self, value: str):
-        raise AttributeError('db_key is read-only')
+    @buf_key.setter
+    def buf_key(self, value: str):
+        raise AttributeError('buf_key is read-only')
 
     @property
     def truck(self):

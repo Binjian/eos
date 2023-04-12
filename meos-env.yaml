@@ -15,6 +15,7 @@ dependencies:
   - python>=3.10
   - mypy
   - pylint
+  - typing_inspect
   - poetry
   - tensorflow=2.11.0
   - tensorflow-estimator

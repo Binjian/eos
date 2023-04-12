@@ -13,12 +13,11 @@ from eos import DBPool, RecordFilePool, dictLogger, logger
 from eos.config import (
     Truck,
     trucks_by_name,
-    record_schemas,
     DB_CONFIG,
     get_db_config,
-    Record,
-    RecordPlain,
 )
+from eos.struct import Record, RecordPlain
+
 from .dpg import get_algo_data_info
 
 patch_all()
@@ -73,9 +72,7 @@ class Buffer:
     query: dict = (None,)
 
     def __post_init__(self):
-        self.logger = (
-            logger.getChild('main').getChild('ddpg').getChild('Buffer')
-        )
+        self.logger = logger.getChild('main').getChild('ddpg').getChild('Buffer')
         self.logger.propagate = True
         # Number of "experiences" to store at max
         # Num of tuples to train on.
@@ -89,7 +86,6 @@ class Buffer:
             self.logger.info(
                 f'Using db server {self.db_key} for episode replay buffer...'
             )
-            self.db_schema = record_schemas['record_deep']
             url = (
                 self.db_config.Username
                 + ':'
@@ -109,7 +105,6 @@ class Buffer:
 
             self.pool = DBPool[Record](
                 location=url,
-                mongo_schema=self.db_schema.STRUCTURE,
                 query=self.query,
             )
 
@@ -147,9 +142,7 @@ class Buffer:
                 },
             }
 
-            self.pool = RecordFilePool(
-                location=self.data_folder, recipe=recipe
-            )
+            self.pool = RecordFilePool(location=self.data_folder, recipe=recipe)
 
     def store_record(
         self,
@@ -221,9 +214,7 @@ class Buffer:
         self.buffer_counter = (
             self.pool.count()
         )  # use query in the initialization of the pool in case of MongoStore
-        self.logger.info(
-            f'Pool has {self.buffer_counter} records', extra=dictLogger
-        )
+        self.logger.info(f'Pool has {self.buffer_counter} records', extra=dictLogger)
 
     def sample_minibatch_record(self):
         """
@@ -251,8 +242,6 @@ class Buffer:
         states = tf.convert_to_tensor(np.array(states), dtype=tf.float32)
         actions = tf.convert_to_tensor(np.array(actions), dtype=tf.float32)
         rewards = tf.convert_to_tensor(np.array(rewards), dtype=tf.float32)
-        next_states = tf.convert_to_tensor(
-            np.array(next_states), dtype=tf.float32
-        )
+        next_states = tf.convert_to_tensor(np.array(next_states), dtype=tf.float32)
 
         return states, actions, rewards, next_states

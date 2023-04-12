@@ -14,7 +14,8 @@ from eos import dictLogger, logger
 from ..utils import OUActionNoise
 from ..db_buffer import DBBuffer
 from ..dpg import DPG
-from eos.config import Record, Truck, trucks_by_name, ObservationSpecs, Plot
+from eos.config import Truck, trucks_by_name, get_db_config
+from eos.struct import Record, ObservationSpecs, Plot
 
 patch_all()
 """
@@ -149,8 +150,10 @@ class DDPG(DPG):
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
+        key = get_db_config(self.buf_key)
+        key._replace(type='RECORD')  # update the db_config type to record
         self.buffer = DBBuffer[Record](
-            db_key=self.db_key,
+            db_key=key,
             truck=self.truck,
             driver=self.driver,
             batch_size=self.batch_size,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Generic
+from typing import Optional, Generic, TypeVar, Any, get_args
 
 
 from .buffer import Buffer
@@ -9,9 +9,9 @@ from eos.config import (
     DB_CONFIG,
     Truck,
     trucks_by_name,
-    DBItemT,
     get_db_config,
 )
+from eos.struct import DBItemT
 from eos import DBPool, dictLogger, logger
 from .dpg import get_algo_data_info
 
@@ -21,7 +21,7 @@ class DBBuffer(Buffer, Generic[DBItemT]):
     """
     A Buffer connected with a database pool
     Args:
-        db_key: is a key for mongodb (str),
+        key: is a key for mongodb (str) or DB_CONFIG (dict)
         the key leads to a config with db_name and
         collection name with a swtich for record or episode:
             - string for db server name
@@ -34,7 +34,7 @@ class DBBuffer(Buffer, Generic[DBItemT]):
                     ==> mongo_key = "admin:ty02ydhVqDj3QFjT@10.10.0.4:23000"
     """
 
-    db_key: str = ('127.0.0.1:27017',)  # required  # if None
+    key: str | DB_CONFIG  # required  # if None
     truck: Truck = trucks_by_name['VB7']
     driver: str = ('longfei-zheng',)
     batch_size: int = (4,)
@@ -55,7 +55,10 @@ class DBBuffer(Buffer, Generic[DBItemT]):
         self.load()
 
     def load(self):
-        self.db_config = get_db_config(self.db_key)
+        if isinstance(self.key, str):
+            self.db_config = get_db_config(self.key)
+        else:
+            self.db_config = self.key
 
         url = (
             self.db_config.Username
@@ -73,7 +76,7 @@ class DBBuffer(Buffer, Generic[DBItemT]):
             'dt_end': None,
         }
         self.pool = DBPool[DBItemT](
-            location=url,
+            key=self.key,
             query=self.query,
         )
         self.buffer_count = self.pool.count()
