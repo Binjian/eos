@@ -23,7 +23,7 @@ class DBBuffer(Buffer, Generic[DBItemT]):
     Args:
         key: is a key for mongodb (str) or DB_CONFIG (dict)
         the key leads to a config with db_name and
-        collection name with a swtich for record or episode:
+        collection name with a switch for record or episode:
             - string for db server name
             - or string of the format "usr:password@host:port"
                 for mongo_cluster:
@@ -34,13 +34,11 @@ class DBBuffer(Buffer, Generic[DBItemT]):
                     ==> mongo_key = "admin:ty02ydhVqDj3QFjT@10.10.0.4:23000"
     """
 
-    key: str | DB_CONFIG  # required  # if None
+    db_config: DB_CONFIG  # required  # if None
     truck: Truck = trucks_by_name['VB7']
     driver: str = ('longfei-zheng',)
     batch_size: int = (4,)
-    padding_value: float = (0,)
     data_folder: str = ('./',)
-    db_config: DB_CONFIG = (None,)
     num_states: int = (600,)
     num_actions: int = (68,)
     buffer_capacity: int = (10000,)
@@ -55,10 +53,6 @@ class DBBuffer(Buffer, Generic[DBItemT]):
         self.load()
 
     def load(self):
-        if isinstance(self.key, str):
-            self.db_config = get_db_config(self.key)
-        else:
-            self.db_config = self.key
 
         url = (
             self.db_config.Username
@@ -76,12 +70,13 @@ class DBBuffer(Buffer, Generic[DBItemT]):
             'dt_end': None,
         }
         self.pool = DBPool[DBItemT](
-            key=self.key,
+            key=self.db_config,
             query=self.query,
         )
         self.buffer_count = self.pool.count()
         # check plot with input vehicle and driver
         batch_1 = self.pool.sample(size=1, query=self.query)
+        print(f'batch_1: {batch_1}')
         self.num_states, self.num_actions = get_algo_data_info(
             batch_1[0], self.truck, self.driver
         )

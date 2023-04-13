@@ -16,7 +16,7 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 # local imports
 from eos import dictLogger, logger
 from eos.struct import Episode, ObservationSpecs, Plot
-from eos.config import Truck, trucks_by_name
+from eos.config import Truck, trucks_by_name, get_db_config
 from ..dpg import DPG, get_algo_data_info  # type: ignore
 
 from .actor import ActorNet  # type: ignore
@@ -83,12 +83,13 @@ class RDPG(DPG):
 
         self.resume: bool = True
         self.infer_mode: bool = False
+        db_config = get_db_config(self.pool_key)
+        db_config._replace(type='EPISODE')  # update the db_config type to record
         self.buffer = DBBuffer[Episode](
-            db_key=self.db_key,
+            db_config=db_config,
             truck=self.truck,
             driver=self.driver,
             batch_size=self.batch_size,
-            padding_value=self.padding_value,
         )
 
         # else:  # elif self.db_server is '':

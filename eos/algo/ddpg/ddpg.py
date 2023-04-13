@@ -150,15 +150,15 @@ class DDPG(DPG):
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
-        key = get_db_config(self.buf_key)
-        key._replace(type='RECORD')  # update the db_config type to record
-        self.buffer = DBBuffer[Record](
-            db_key=key,
-            truck=self.truck,
-            driver=self.driver,
-            batch_size=self.batch_size,
-        )
-        print(f"In DDPG buffer is {self.buffer}!")
+        db_config = get_db_config(self.pool_key)
+        db_config._replace(type='RECORD')  # update the db_config type to record
+        # self.buffer = DBBuffer[Record](  # choose item type: Record/Episode
+        #     db_config=db_config,
+        #     truck=self.truck,
+        #     driver=self.driver,
+        #     batch_size=self.batch_size,
+        # )
+        # print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks
         self.actor_model = self.get_actor(
             self.num_states,
@@ -206,7 +206,7 @@ class DDPG(DPG):
         )
         self.init_checkpoint()
         # super().__post_init__()
-        self.touch_gpu()
+        # self.touch_gpu()
 
     # def __del__(self):
     #     if self.db_key:
@@ -348,17 +348,17 @@ class DDPG(DPG):
 
     def load_saved_model(self):
 
-        self.actor_model = tf.saved_model.load(self.actor_saved_model_path)
-        self.target_actor_model.clone_weights(self.actor_model)
-        self.critic_model = tf.saved_model.load(self.actor_saved_model_path)
-        self.target_critic_model.clone_weights(self.critic_model)
+        # self.actor_model = tf.saved_model.load(self.actor_saved_model_path)
+        # self.target_actor_model.clone_weights(self.actor_model)
+        # self.critic_model = tf.saved_model.load(self.actor_saved_model_path)
+        # self.target_critic_model.clone_weights(self.critic_model)
 
-        self.logger.info(
-            f"actor_loaded signatures: {self.actor_model.signatures.keys()}"
-        )
-        self.logger.info(
-            f"critic_loaded signatures: {self.critic_model.signatures.keys()}"
-        )
+        actor_model = tf.saved_model.load(self.actor_saved_model_path)
+        critic_model = tf.saved_model.load(self.actor_saved_model_path)
+        self.logger.info(f"actor_loaded signatures: {actor_model.signatures.keys()}")
+        self.logger.info(f"critic_loaded signatures: {critic_model.signatures.keys()}")
+
+        return actor_model, critic_model
 
         # convert to tflite
 

@@ -20,43 +20,45 @@ def get_algo_data_info(item: dict, truck: Truck, driver: str) -> tuple:
         bool: True if the data is valid
     """
 
-    obs = item['plot']['states']['observations']
-    assert (
-        len(obs) == truck.ObservationNumber
-    ), f'observation number mismatch, {len(obs)} != {truck.ObservationNumber}!'
-    unit_number = item['plot']['states']['unit_number']
+    # print(f'plot: {item["plot"]}')
+    obs_specs = item['plot']['state_specs']['observation_specs']
+    assert len(obs_specs) == truck.ObservationNumber, (
+        f'observation number mismatch, database {len(obs_specs)} != truck {truck.ObservationNumber}'
+        f'observations in database are: {obs_specs.keys()}'
+    )
+    unit_number = item['plot']['state_specs']['unit_number']
     assert (
         unit_number == truck.CloudUnitNumber
-    ), f'unit number mismatch, {unit_number} != {truck.CloudUnitNumber}!'
-    unit_duration = item['plot']['states']['unit_duration']
+    ), f'unit number mismatch, database {unit_number} != truck {truck.CloudUnitNumber}!'
+    unit_duration = item['plot']['state_specs']['unit_duration']
     assert (
         unit_duration == truck.CloudUnitDuration
-    ), f'unit duration mismatch, {unit_duration} != {truck.CloudUnitDuration}!'
-    frequency = item['plot']['states']['frequency']
+    ), f'unit duration mismatch, database {unit_duration} != truck {truck.CloudUnitDuration}!'
+    frequency = item['plot']['state_specs']['frequency']
     assert (
         frequency == truck.CloudSignalFrequency
-    ), f'frequency mismatch, {frequency} != {truck.CloudSignalFrequency}!'
+    ), f'frequency mismatch, database {frequency} != truck {truck.CloudSignalFrequency}!'
 
-    action_row_number = item['plot']['actions']['action_row_number']
+    action_row_number = item['plot']['action_specs']['action_row_number']
     assert (
         action_row_number == truck.ActionFlashRow
-    ), f'action row number mismatch, {action_row_number} != {truck.ActionFlashRow}!'
-    action_column_number = item['plot']['actions']['action_column_number']
+    ), f'action row number mismatch, database {action_row_number} != truck {truck.ActionFlashRow}!'
+    action_column_number = item['plot']['action_specs']['action_column_number']
     assert (
         action_column_number == truck.PedalScale
-    ), f'action column number mismatch, {action_column_number} != {truck.PedalScale}!'
+    ), f'action column number mismatch, database {action_column_number} != truck {truck.PedalScale}!'
     truck_name_in_data = item['plot']['character']
     assert (
         truck_name_in_data == truck.TruckName
-    ), f'truck name mismatch, {truck_name_in_data} != {truck.TruckName}!'
+    ), f'truck name mismatch, database {truck_name_in_data} != truck {truck.TruckName}!'
 
-    num_states = len(obs) * unit_number * unit_duration * frequency
+    num_states = len(obs_specs) * unit_number * unit_duration * frequency
     num_actions = action_row_number * action_column_number
 
     driver_in_data = item['plot']['driver']
     assert (
         driver_in_data == driver
-    ), f'driver name mismatch, {driver_in_data} != {driver}!'
+    ), f'driver name mismatch, database {driver_in_data} != truck {driver}!'
 
     return num_states, num_actions
 
@@ -71,7 +73,7 @@ class DPG(abc.ABC):
     _buffer: Optional[
         Buffer
     ] = None  # as last of non-default parameters, so that derived class can override with default
-    _buf_key: str = 'mongo_local'
+    _pool_key: str = 'mongo_local'
     _plot: Optional[Plot] = None
     _episode_start_dt: datetime = None
     _truck: Truck = trucks_by_name['VB7']
@@ -200,12 +202,12 @@ class DPG(abc.ABC):
         pass
 
     @property
-    def buf_key(self) -> str:
-        return self._buf_key
+    def pool_key(self) -> str:
+        return self._pool_key
 
-    @buf_key.setter
-    def buf_key(self, value: str):
-        raise AttributeError('buf_key is read-only')
+    @pool_key.setter
+    def pool_key(self, value: str):
+        raise AttributeError('pool_key is read-only')
 
     @property
     def truck(self):
