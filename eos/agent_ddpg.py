@@ -28,9 +28,8 @@ class AgentDDPG(Agent):
     def __post__init__(self):
         self.algo = DDPG(
             _truck=self.truck,
+            _pool_key=self.mongo_srv,
             _driver=self.driver,
-            _num_states=self.num_states,
-            _num_actions=self.num_actions,
             _buffer_capacity=self.buffer_capacity,
             _batch_size=self.batch_size,
             _hidden_units_ac=self.hidden_units_ac,

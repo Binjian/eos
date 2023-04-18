@@ -8,61 +8,6 @@ from eos.struct import ObservationSpecs, Plot
 from .buffer import Buffer
 
 
-def get_algo_data_info(item: dict, truck: Truck, driver: str) -> tuple:
-    """Check if the data is valid for the algorithm.
-
-    Args:
-        item (dict): data item
-        truck (Truck): truck object
-        driver (str): driver name
-
-    Returns:
-        bool: True if the data is valid
-    """
-
-    # print(f'plot: {item["plot"]}')
-    obs_specs = item['plot']['state_specs']['observation_specs']
-    assert len(obs_specs) == truck.ObservationNumber, (
-        f'observation number mismatch, database {len(obs_specs)} != truck {truck.ObservationNumber}'
-        f'observations in database are: {obs_specs.keys()}'
-    )
-    unit_number = item['plot']['state_specs']['unit_number']
-    assert (
-        unit_number == truck.CloudUnitNumber
-    ), f'unit number mismatch, database {unit_number} != truck {truck.CloudUnitNumber}!'
-    unit_duration = item['plot']['state_specs']['unit_duration']
-    assert (
-        unit_duration == truck.CloudUnitDuration
-    ), f'unit duration mismatch, database {unit_duration} != truck {truck.CloudUnitDuration}!'
-    frequency = item['plot']['state_specs']['frequency']
-    assert (
-        frequency == truck.CloudSignalFrequency
-    ), f'frequency mismatch, database {frequency} != truck {truck.CloudSignalFrequency}!'
-
-    action_row_number = item['plot']['action_specs']['action_row_number']
-    assert (
-        action_row_number == truck.ActionFlashRow
-    ), f'action row number mismatch, database {action_row_number} != truck {truck.ActionFlashRow}!'
-    action_column_number = item['plot']['action_specs']['action_column_number']
-    assert (
-        action_column_number == truck.PedalScale
-    ), f'action column number mismatch, database {action_column_number} != truck {truck.PedalScale}!'
-    truck_name_in_data = item['plot']['character']
-    assert (
-        truck_name_in_data == truck.TruckName
-    ), f'truck name mismatch, database {truck_name_in_data} != truck {truck.TruckName}!'
-
-    num_states = len(obs_specs) * unit_number * unit_duration * frequency
-    num_actions = action_row_number * action_column_number
-
-    driver_in_data = item['plot']['driver']
-    assert (
-        driver_in_data == driver
-    ), f'driver name mismatch, database {driver_in_data} != truck {driver}!'
-
-    return num_states, num_actions
-
-
 """Base class for differentiable policy gradient methods."""
 
 
@@ -73,7 +18,10 @@ class DPG(abc.ABC):
     _buffer: Optional[
         Buffer
     ] = None  # as last of non-default parameters, so that derived class can override with default
-    _pool_key: str = 'mongo_local'
+    _data_folder: str = './'
+    _pool_key: str = 'mongo_local'  # 'mongo_***'
+    # or 'veos:asdf@localhost:27017' for databse access
+    # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
     _plot: Optional[Plot] = None
     _episode_start_dt: datetime = None
     _truck: Truck = trucks_by_name['VB7']
@@ -89,7 +37,6 @@ class DPG(abc.ABC):
     _gamma: float = 0.99
     _tau_ac: tuple = (0.005, 0.005)
     _lr_ac: tuple = (0.001, 0.002)
-    _data_folder: str = './'
     _ckpt_interval: int = 5
     _resume: bool = True
     _infer_mode: bool = False
@@ -98,7 +45,39 @@ class DPG(abc.ABC):
         # pass
         # Number of "experiences" to store     at max
         # Num of tuples to train on.
-        print(f"In DPG buffer is {self.buffer}!")
+
+        dt = datetime.now()
+        dt_milliseconds = int(dt.microsecond / 1000) * 1000
+        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
+
+        #  init plot object, episode start time will be updated for each episode, for now it is the time when the algo is created
+        self.plot = (
+            Plot(  # self.plot is a Plot object generated from realtime truck object
+                character=self.truck.TruckName,
+                driver=self.driver,
+                when=self.episode_start_dt,
+                tz=str(self.truck.tz),
+                where=self.truck.Location,
+                state_specs={
+                    'observation_specs': ObservationSpecs(
+                        velocity_unit='kph',
+                        thrust_unit='pct',
+                        brake_unit='pct',
+                    ),
+                    'unit_number': self.truck.CloudUnitNumber,  # 4
+                    'unit_duration': self.truck.CloudUnitDuration,  # 1s
+                    'frequency': self.truck.CloudSignalFrequency,  # 50 hz
+                },
+                action_specs={
+                    'action_row_number': self.truck.ActionFlashRow,
+                    'action_column_number': self.truck.PedalScale,
+                },
+                reward_specs={
+                    'reward_unit': 'wh',
+                },
+            )
+        )
+        self.num_states, self.num_actions = self.plot.get_number_of_states_actions()
 
     def __repr__(self):
         return f'DPG({self.truck.TruckName}, {self.driver})'
@@ -133,30 +112,7 @@ class DPG(abc.ABC):
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
-        self.plot = Plot(
-            character=self.truck.TruckName,
-            driver=self.driver,
-            when=self.episode_start_dt,
-            tz=str(self.truck.tz),
-            where=self.truck.Location,
-            state_specs={
-                'observation_specs': ObservationSpecs(
-                    velocity_unit='kmph',
-                    thrust_unit='percentage',
-                    brake_unit='percentage',
-                ),
-                'unit_number': self.truck.CloudUnitNumber,  # 4
-                'unit_duration': self.truck.CloudUnitDuration,  # 1s
-                'frequency': self.truck.CloudSignalFrequency,  # 50 hz
-            },
-            action_specs={
-                'action_row_number': self.truck.ActionFlashRow,
-                'action_column_number': self.truck.PedalScale,
-            },
-            reward_specs={
-                'reward_unit': 'wh',
-            },
-        )
+        self.plot.when = self.episode_start_dt  # only update when an episode starts
 
     @abc.abstractmethod
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):

@@ -4,6 +4,7 @@ from .remote import (
     Pool,
     DBPool,
     RecordFilePool,
+    EpisodeFilePool,
     ClearablePullConsumer,
     RemoteCan,
 )
@@ -18,6 +19,7 @@ __all__ = [
     'kvaser_send_float_array',
     'DBPool',
     'RecordFilePool',
+    'EpisodeFilePool',
     'Pool',
     'ClearablePullConsumer',
 ]

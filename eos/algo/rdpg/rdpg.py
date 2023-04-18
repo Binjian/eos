@@ -15,7 +15,7 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos import dictLogger, logger
-from eos.struct import Episode, ObservationSpecs, Plot
+from eos.struct import EpisodeDoc, ObservationSpecs, Plot
 from eos.config import Truck, trucks_by_name, get_db_config
 from ..dpg import DPG, get_algo_data_info  # type: ignore
 
@@ -52,7 +52,7 @@ class RDPG(DPG):
             - critic network
     """
 
-    _buffer: DBBuffer[Episode] = None  # must have default value
+    _buffer: DBBuffer[EpisodeDoc] = None  # must have default value
     logger: logging.Logger = None
     actor_net: ActorNet = None
     critic_net: CriticNet = None
@@ -85,7 +85,7 @@ class RDPG(DPG):
         self.infer_mode: bool = False
         db_config = get_db_config(self.pool_key)
         db_config._replace(type='EPISODE')  # update the db_config type to record
-        self.buffer = DBBuffer[Episode](
+        self.buffer = DBBuffer[EpisodeDoc](
             db_config=db_config,
             truck=self.truck,
             driver=self.driver,
@@ -309,8 +309,8 @@ class RDPG(DPG):
             self.h_t = [
                 {
                     'timestamp': prev_ts,
-                    'states': prev_o_t.numpy().tolist(),
-                    'actions': prev_a_t.numpy().tolist(),
+                    'state': prev_o_t.numpy().tolist(),
+                    'action': prev_a_t.numpy().tolist(),
                     'action_start_row': prev_table_start,
                     'reward': cycle_reward.numpy().tolist()[
                         0
@@ -321,8 +321,8 @@ class RDPG(DPG):
             self.h_t.append(
                 {
                     'timestamp': prev_ts,
-                    'states': prev_o_t.numpy().tolist(),
-                    'actions': prev_a_t.numpy().tolist(),
+                    'state': prev_o_t.numpy().tolist(),
+                    'action': prev_a_t.numpy().tolist(),
                     'action_start_row': prev_table_start,
                     'reward': cycle_reward.numpy().tolist()[
                         0
@@ -354,8 +354,8 @@ class RDPG(DPG):
     def deposit_history(self) -> None:
         """deposit the episode history into the agent replay buffer."""
         if self.h_t:
-            episode: Episode = {
-                'start': self.episode_start_dt,
+            episode: EpisodeDoc = {
+                'timestamp': self.episode_start_dt,  # start of the episode
                 'plot': self.plot,
                 'history': self.h_t,
             }

@@ -11,13 +11,12 @@ from eos.config import (
     trucks_by_name,
     get_db_config,
 )
-from eos.struct import DBItemT
+from eos.struct import DocItemT
 from eos import DBPool, dictLogger, logger
-from .dpg import get_algo_data_info
 
 
 @dataclass
-class DBBuffer(Buffer, Generic[DBItemT]):
+class DocBuffer(Buffer, Generic[DocItemT]):
     """
     A Buffer connected with a database pool
     Args:
@@ -34,16 +33,11 @@ class DBBuffer(Buffer, Generic[DBItemT]):
                     ==> mongo_key = "admin:ty02ydhVqDj3QFjT@10.10.0.4:23000"
     """
 
-    db_config: DB_CONFIG  # required  # if None
-    truck: Truck = trucks_by_name['VB7']
-    driver: str = ('longfei-zheng',)
+    db_config: Optional[DB_CONFIG] = None
     batch_size: int = (4,)
-    data_folder: str = ('./',)
-    num_states: int = (600,)
-    num_actions: int = (68,)
     buffer_capacity: int = (10000,)
     buffer_count: int = (0,)
-    pool: DBPool[DBItemT] = (None,)
+    pool: DBPool[DocItemT] = (None,)
     query: dict = (None,)
 
     def __post_init__(self):
@@ -54,37 +48,31 @@ class DBBuffer(Buffer, Generic[DBItemT]):
 
     def load(self):
 
-        url = (
-            self.db_config.Username
-            + ':'
-            + self.db_config.Password
-            + '@'
-            + self.db_config.Host
-            + ':'
-            + self.db_config.Port
-        )
         self.query = {
-            'vehicle_id': self.truck.TruckName,
-            'driver_id': self.driver,
+            'vehicle_id': self.plot['character'],
+            'driver_id': self.plot['driver'],
             'dt_start': None,
             'dt_end': None,
         }
-        self.pool = DBPool[DBItemT](
+        self.pool = DBPool[DocItemT](
             key=self.db_config,
             query=self.query,
         )
         self.buffer_count = self.pool.count()
         # check plot with input vehicle and driver
         batch_1 = self.pool.sample(size=1, query=self.query)
-        print(f'batch_1: {batch_1}')
-        self.num_states, self.num_actions = get_algo_data_info(
-            batch_1[0], self.truck, self.driver
-        )
+        assert self.plot.are_same_plots(
+            batch_1[0].plot
+        ), f'plot in db is {batch_1[0].plot}, but plot in config is {self.plot}'
+        (
+            num_states,
+            num_actions,
+        ) = self.plot.get_number_of_states_actions()  # the realtime number
         self.logger.info(
             f'Connected to MongoDB {self.db_config.DatabaseName}, '
             f'collection {self.db_config.RecCollName}, '
             f'record number {self.buffer_count}',
-            f'num_states: {self.num_states}, num_actions: {self.num_actions}',
+            f'num_states: {num_states}, num_actions: {num_actions}',
             extra=dictLogger,
         )
 
@@ -92,14 +80,14 @@ class DBBuffer(Buffer, Generic[DBItemT]):
         # self.pool.close()  # close the connection is done by pool finalizer
         pass
 
-    def store(self, item: DBItemT):
+    def store(self, item: DocItemT):
         result = self.pool.store(item)
         return result
 
     def find(self, idx):
         return self.pool.find(idx)
 
-    def sample(self) -> list[DBItemT]:
+    def sample(self) -> list[DocItemT]:
         batch = self.pool.sample(size=self.batch_size)
         return batch
 

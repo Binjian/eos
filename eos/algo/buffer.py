@@ -1,14 +1,14 @@
 from __future__ import annotations
 import abc
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Generic, get_args, get_origin
 import weakref
 
-from eos.struct import ItemT
+from eos.struct import ItemT, Plot
 
 
 @dataclass
-class Buffer(abc.ABC):
+class Buffer(abc.ABC, Generic[ItemT]):
     """
     Buffer is the internal dynamic memory object for pooling the experience tuples.
     It can have PoolMixin as storage in mongodb or numpy array file.
@@ -16,6 +16,15 @@ class Buffer(abc.ABC):
     and multi-inheritance for the pool.
     It can provide load(), save(), store(), sample()
     """
+
+    plot: Optional[Plot]
+
+    def __init_subclass__(cls):
+        cls._type_T = get_args(cls.__orig_bases__[0])[0]
+        cls._name = get_origin(cls.__orig_bases__[0]).__name__
+        print(
+            f"Pool.__init_subclass__(): {cls._type_T}; Concrete Class: {cls.__orig_bases__}"
+        )
 
     def __post_init__(self):
         """User weakref finalizer to make sure close is called when the object is destroyed"""

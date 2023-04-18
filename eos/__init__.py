@@ -14,6 +14,7 @@ from .comm import (
     Pool,
     DBPool,
     RecordFilePool,
+    EpisodeFilePool,
     RemoteCan,
     ClearablePullConsumer,
 )
@@ -38,6 +39,7 @@ __all__ = [
     Pool,
     DBPool,
     RecordFilePool,
+    EpisodeFilePool,
     RemoteCan,
     ClearablePullConsumer,
     kvaser_send_float_array,

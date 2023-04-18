@@ -16,7 +16,7 @@ from eos.config import (
     DB_CONFIG,
     get_db_config,
 )
-from eos.struct import Record, RecordPlain
+from eos.struct import RecordDoc, RecordArr, Plot, ObservationSpecs
 
 from .dpg import get_algo_data_info
 
@@ -103,7 +103,7 @@ class Buffer:
                 'dt_end': None,
             }
 
-            self.pool = DBPool[Record](
+            self.pool = DBPool[RecordDoc](
                 location=url,
                 query=self.query,
             )
@@ -157,51 +157,54 @@ class Buffer:
         """
         Store a record in the replay buffer.
         """
+        plot = Plot(
+            character=self.truck.TruckName,
+            driver=self.driver,
+            when=self.episode_start_dt,
+            tz=str(self.truck.tz),
+            where=self.truck.Location,
+            state_specs={
+                'observation_specs': ObservationSpecs(
+                    velocity_unit='kph',
+                    thrust_unit='pct',
+                    brake_unit='pct',
+                ),
+                'unit_number': self.truck.CloudUnitNumber,  # 4
+                'unit_duration': self.truck.CloudUnitDuration,  # 1s
+                'frequency': self.truck.CloudSignalFrequency,  # 50 hz
+            },
+            action_specs={
+                'action_row_number': self.truck.ActionFlashRow,
+                'action_column_number': self.truck.PedalScale,
+            },
+            reward_specs={
+                'reward_unit': 'wh',
+            },
+        )
         if self.db_key:
             # self.store_record_db(episode_start_dt, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t)
-            item: Record = {
+
+            item: RecordDoc = {
                 'timestamp': datetime.fromtimestamp(
                     float(
                         prev_ts.numpy()[0]
                     )  # fromtimestamp need float, tf data precision set to float32
                 ),  # from ms to s
-                'plot': {
-                    'character': self.truck.TruckName,
-                    'driver': self.driver,
-                    'when': episode_start_dt,
-                    'tz': str(self.truck.tz),
-                    'where': 'campus',
-                    'state_specs': {
-                        'observation_specs': [
-                            {'velocity_unit': 'kmph'},
-                            {'thrust_unit': 'percentage'},
-                            {'brake_unit': 'percentage'},
-                        ],
-                        'unit_number': self.truck.CloudUnitNumber,  # 4
-                        'unit_duration': self.truck.CloudUnitDuration,  # 1s
-                        'frequency': self.truck.CloudSignalFrequency,  # 50 hz
-                    },  # num_states = length * len(observations) 200*3=600
-                    #  length = unit_number * unit_duration  = 4*50=200
-                    'action_specs': {
-                        'action_row_number': self.truck.ActionFlashRow,
-                        'action_column_number': self.truck.PedalScale,
-                    },  # num_actions = action_row_number * action_column_number (4*17=68)
-                    'reward_specs': {
-                        'reward_unit': 'wh',
-                    },
-                },
+                'plot': plot,
                 'observation': {
-                    'states': prev_o_t.numpy().tolist(),
-                    'actions': prev_a_t.numpy().tolist(),
+                    'timestamp': prev_ts,
+                    'state': prev_o_t.numpy().tolist(),
+                    'action': prev_a_t.numpy().tolist(),
                     'action_start_row': prev_table_start,
-                    'rewards': cycle_reward.numpy().tolist(),
-                    'next_states': o_t.numpy().tolist(),
+                    'reward': cycle_reward.numpy().tolist(),
+                    'next_state': o_t.numpy().tolist(),
                 },
             }
         else:
             # self.store_record_npa(episode_start_dt, prev_ts, prev_o_t, prev_a_t, cycle_reward, o_t, prev_table_start)
-            item: RecordPlain = {
+            item: RecordArr = {
                 'episode_starts': episode_start_dt,
+                'plot': Plot,
                 'timestamps': prev_ts.numpy(),
                 'states': prev_o_t.numpy(),
                 'actions': prev_a_t.numpy(),
@@ -233,10 +236,10 @@ class Buffer:
             len(batch) == self.batch_size
         ), f'sampled batch size {len(batch)} not match sample size {self.batch_size}'
 
-        states = [rec['observation']['states'] for rec in batch]
-        actions = [rec['observation']['actions'] for rec in batch]
-        rewards = [rec['observation']['rewards'] for rec in batch]
-        next_states = [rec['observation']['next_states'] for rec in batch]
+        states = [rec['observation']['state'] for rec in batch]
+        actions = [rec['observation']['action'] for rec in batch]
+        rewards = [rec['observation']['reward'] for rec in batch]
+        next_states = [rec['observation']['next_state'] for rec in batch]
 
         # convert output from sample (list or numpy array) to tf.tensor
         states = tf.convert_to_tensor(np.array(states), dtype=tf.float32)

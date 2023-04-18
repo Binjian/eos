@@ -31,8 +31,6 @@ class AgentRDPG(Agent):
         self.algo = RDPG(
             _truck=self.truck,
             _driver=self.driver,
-            _num_states=self.num_observations,
-            _num_actions=self.num_actions,
             _buffer_capacity=self.buffer_capacity,
             _batch_size=self.batch_size,
             _hidden_units_ac=self.hidden_units_ac,

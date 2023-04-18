@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,15 +9,17 @@ import logging
 from typing import Optional
 import numpy as np
 import tensorflow as tf
+import re
 
 from keras import layers
 from pymongoarrow.monkey import patch_all
 from eos import dictLogger, logger
 from ..utils import OUActionNoise
-from ..db_buffer import DBBuffer
+from ..doc_buffer import DocBuffer
 from ..dpg import DPG
 from eos.config import Truck, trucks_by_name, get_db_config
-from eos.struct import Record, ObservationSpecs, Plot
+from eos.struct import RecordDoc, ObservationSpecs, Plot, RecordArr
+from ..arr_buffer import ArrBuffer
 
 patch_all()
 """
@@ -129,7 +133,7 @@ class DDPG(DPG):
     """
 
     _buffer: Optional[
-        DBBuffer[Record]
+        DocBuffer[RecordDoc] | ArrBuffer[RecordArr]
     ] = None  # cannot have default value, because it precedes _plot in base class DPG
     logger: logging.Logger = None
     _episode_start_dt: datetime = None
@@ -150,14 +154,34 @@ class DDPG(DPG):
         self.logger.propagate = True
         self.dictLogger = dictLogger
 
-        db_config = get_db_config(self.pool_key)
-        db_config._replace(type='RECORD')  # update the db_config type to record
-        # self.buffer = DBBuffer[Record](  # choose item type: Record/Episode
-        #     db_config=db_config,
-        #     truck=self.truck,
-        #     driver=self.driver,
-        #     batch_size=self.batch_size,
-        # )
+        # p is the validation pattern for pool_key as mongodb login string "account:password@ip:port"
+        login_p = re.compile(
+            r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
+        )
+        recipe_p = re.compile(r'^[A-Za-z]\w*\.ini$')
+        # if pool_key is an url or a mongodb name
+        if 'mongo' in self.pool_key.lower() or login_p.match(self.pool_key):
+            db_config = get_db_config(self.pool_key)
+            db_config._replace(type='RECORD')  # update the db_config type to record
+            self.buffer = DocBuffer[RecordDoc](  # choose item type: Record/Episode
+                plot=self.plot,
+                db_config=db_config,
+                batch_size=self.batch_size,
+            )
+        elif recipe_p.match(
+            self.pool_key
+        ):  # if pool_key is an ini filename, use local files as pool
+            self.buffer = ArrBuffer[RecordArr](
+                plot=self.plot,
+                data_folder=self.data_folder,
+                config_file=self.pool_key,
+                batch_size=self.batch_size,
+            )
+        else:
+            raise ValueError(
+                f'pool_key {self.pool_key} is not a valid mongodb login string nor an ini filename.'
+            )
+
         # print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks
         self.actor_model = self.get_actor(
@@ -206,7 +230,7 @@ class DDPG(DPG):
         )
         self.init_checkpoint()
         # super().__post_init__()
-        # self.touch_gpu()
+        self.touch_gpu()
 
     # def __del__(self):
     #     if self.db_key:
@@ -584,7 +608,7 @@ class DDPG(DPG):
         return sampled_actions
 
     def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        record: Record = {
+        record: RecordDoc = {
             'timestamp': datetime.fromtimestamp(
                 float(
                     prev_ts.numpy()[0]

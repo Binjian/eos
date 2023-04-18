@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import namedtuple
-
+import re
 #  Define TypedDict for type hinting of typed collections: records and episodes
 
 DB_CONFIG = namedtuple(
@@ -137,10 +137,21 @@ def get_db_config(db_key: str) -> DB_CONFIG:
         dict: db_config
     """
 
-    db_config = db_config_servers_by_name.get(db_key)
-    if (
-        db_config is None
-    ):  # if not given as name then parse the format "usr:password@host:port"
+    # p is the validation pattern for pool_key as mongodb login string "usr:password@host:port"
+    login_p = re.compile(
+        r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
+    )
+    assert 'mongo' in db_key or login_p.match(db_key), (
+        f'Wrong format for db key {db_key}! '
+        'It should be either the name of the db server (containing substring "mongo") or '
+        'the format "usr:password@host:port"'
+    )
+
+    if 'mongo' in db_key:
+        db_config = db_config_servers_by_name.get(db_key)
+        assert db_config is not None, f'No database found for db_key {db_key}!'
+    else:
+        # if not given as name then parse the format "usr:password@host:port"
         account_server = [s.split(':') for s in db_key.split('@')]
         flat_account_server = [s for sg in account_server for s in sg]
         assert (len(account_server) == 1 and len(flat_account_server) == 2) or (
