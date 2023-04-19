@@ -1,5 +1,5 @@
 from collections import namedtuple
-from zoneinfo import ZoneInfo
+from eos.struct import timezones
 
 PEDAL_SCALES = [
     0,
@@ -84,16 +84,6 @@ TRIANGLE_TEST_CASE_TARGET_VELOCITIES = [
     0,
 ]  # triangle test case in km/h
 
-timezones = {
-    'la': ZoneInfo('America/Los_Angeles'),
-    'ny': ZoneInfo('America/New_York'),
-    'sh': ZoneInfo('Asia/Shanghai'),
-    'bl': ZoneInfo('Europe/Berlin'),
-    'LD': ZoneInfo('Europe/London'),
-    'sy': ZoneInfo('Australia/Sydney'),
-    'jp': ZoneInfo('Asia/Tokyo'),
-    'hk': ZoneInfo('Asia/Hong_Kong'),
-}
 
 Truck = namedtuple(
     'Truck',

@@ -1097,23 +1097,27 @@ class Agent(abc.ABC):
                                     for i, sep in enumerate(separators):
                                         ts_iso = ts_iso + ts_substrings[i] + sep
                                     ts_iso = ts_iso + ts_substrings[-1]
-                                    timestamps.append(ts_iso)
+                                    timestamps.append(
+                                        ts_iso
+                                    )  # string of timestamps in iso format, UTC-0
                                 timestamps_units = list(
                                     (
                                         np.array(timestamps).astype(
-                                            'datetime64[s]'
-                                        )  # convert to seconds
-                                        - np.timedelta64(8, 'h')
-                                    ).astype(  # convert to UTC+8
+                                            'datetime64[ms]'
+                                        )  # convert to milliseconds
+                                        - np.timedelta64(
+                                            8, 'h'
+                                        )  # to np.datetime64 (in local time UTC-8)
+                                    ).astype(  # convert to UTC+8  TODO using pytz.timezone for conversion
                                         'int'
-                                    )
-                                )  # convert to int
+                                    )  # convert to int, time unit is millisecond
+                                )  # convert to list of int
                                 if len(timestamps_units) != unit_num:
                                     raise ValueError(
                                         f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
                                     )
                                 # upsample gears from 2Hz to 50Hz
-                                sampling_interval = 1.0 / signal_freq  # in s
+                                sampling_interval = 1.0 / signal_freq * 1000  # in ms
                                 timestamps = [
                                     i + j * sampling_interval
                                     for i in timestamps_units
@@ -1121,7 +1125,7 @@ class Agent(abc.ABC):
                                 ]
                                 timestamps = np.array(timestamps).reshape(
                                     (self.truck.CloudUnitNumber, -1)
-                                )
+                                )  # final format is a list of timestamps in ms
                                 current = ragged_nparray_list_interp(
                                     value['list_current_1s'],
                                     ob_num=unit_ob_num,
@@ -1961,7 +1965,7 @@ class Agent(abc.ABC):
             )
 
             # mongodb default to UTC time
-            self.algo.start_episode(datetime.utcnow())
+            self.algo.start_episode(datetime.now())
 
             tf.debugging.set_log_device_placement(True)
             with tf.device('/GPU:0'):
