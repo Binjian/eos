@@ -75,11 +75,13 @@ class RDPG(DPG):
             truck.ObservationNumber (int): dimension of the state space.
             padding_value (float): value to pad the state with, impossible value for observation, action or re
         """
-        super().__post_init__()
 
         self.logger = logger.getChild('main').getChild(self.__str__())
         self.logger.propagate = True
         self.dictLogger = dictLogger
+
+        self.coll_type = 'EPISODE'
+        super().__post_init__()  # call DPG post_init for pool init and plot init
 
         self.resume: bool = True
         self.infer_mode: bool = False

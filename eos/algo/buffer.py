@@ -17,7 +17,8 @@ class Buffer(abc.ABC, Generic[ItemT]):
     It can provide load(), save(), store(), sample()
     """
 
-    plot: Optional[Plot]
+    plot: Plot
+    coll_type: str  # only required for ArrBuffer; doc_buffer (mongodb) does not need it
 
     def __init_subclass__(cls):
         cls._type_T = get_args(cls.__orig_bases__[0])[0]

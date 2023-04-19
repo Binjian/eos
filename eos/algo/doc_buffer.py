@@ -33,12 +33,11 @@ class DocBuffer(Buffer, Generic[DocItemT]):
                     ==> mongo_key = "admin:ty02ydhVqDj3QFjT@10.10.0.4:23000"
     """
 
-    db_config: Optional[DB_CONFIG] = None
+    db_config: DB_CONFIG
     batch_size: int = (4,)
-    buffer_capacity: int = (10000,)
-    buffer_count: int = (0,)
     pool: DBPool[DocItemT] = (None,)
     query: dict = (None,)
+    buffer_count: int = (0,)
 
     def __post_init__(self):
         self.logger = logger.getChild('main').getChild('DBBuffer')
@@ -49,13 +48,13 @@ class DocBuffer(Buffer, Generic[DocItemT]):
     def load(self):
 
         self.query = {
-            'vehicle_id': self.plot['character'],
-            'driver_id': self.plot['driver'],
+            'vehicle_id': self.plot.plot_dict['character'],
+            'driver_id': self.plot.plot_dict['driver'],
             'dt_start': None,
             'dt_end': None,
         }
         self.pool = DBPool[DocItemT](
-            key=self.db_config,
+            db_config=self.db_config,
             query=self.query,
         )
         self.buffer_count = self.pool.count()

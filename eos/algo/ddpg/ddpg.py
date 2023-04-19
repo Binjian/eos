@@ -10,6 +10,7 @@ from typing import Optional
 import numpy as np
 import tensorflow as tf
 import re
+from configparser import ConfigParser
 
 from keras import layers
 from pymongoarrow.monkey import patch_all
@@ -18,7 +19,7 @@ from ..utils import OUActionNoise
 from ..doc_buffer import DocBuffer
 from ..dpg import DPG
 from eos.config import Truck, trucks_by_name, get_db_config
-from eos.struct import RecordDoc, ObservationSpecs, Plot, RecordArr
+from eos.struct import RecordDoc, ObservationSpecs, Plot, RecordArr, get_filepool_config
 from ..arr_buffer import ArrBuffer
 
 patch_all()
@@ -153,34 +154,9 @@ class DDPG(DPG):
         self.logger = logger.getChild('eos').getChild(self.__str__())
         self.logger.propagate = True
         self.dictLogger = dictLogger
+        self.coll_type = 'RECORD'
 
-        # p is the validation pattern for pool_key as mongodb login string "account:password@ip:port"
-        login_p = re.compile(
-            r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
-        )
-        recipe_p = re.compile(r'^[A-Za-z]\w*\.ini$')
-        # if pool_key is an url or a mongodb name
-        if 'mongo' in self.pool_key.lower() or login_p.match(self.pool_key):
-            db_config = get_db_config(self.pool_key)
-            db_config._replace(type='RECORD')  # update the db_config type to record
-            self.buffer = DocBuffer[RecordDoc](  # choose item type: Record/Episode
-                plot=self.plot,
-                db_config=db_config,
-                batch_size=self.batch_size,
-            )
-        elif recipe_p.match(
-            self.pool_key
-        ):  # if pool_key is an ini filename, use local files as pool
-            self.buffer = ArrBuffer[RecordArr](
-                plot=self.plot,
-                data_folder=self.data_folder,
-                config_file=self.pool_key,
-                batch_size=self.batch_size,
-            )
-        else:
-            raise ValueError(
-                f'pool_key {self.pool_key} is not a valid mongodb login string nor an ini filename.'
-            )
+        super().__post_init__()  # call DPG post_init for pool init and plot init
 
         # print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks

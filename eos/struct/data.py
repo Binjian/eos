@@ -4,6 +4,8 @@ from typing import TypeVar, Dict, List, Optional
 from typing_extensions import NotRequired, TypedDict
 from bson import ObjectId
 from numpy import ndarray
+from configparser import ConfigParser
+import re
 
 
 #  Define TypedDict for type hinting of typed collections: records and episodes
@@ -220,3 +222,57 @@ class EpisodeArr(TypedDict):
 ItemT = TypeVar('ItemT', RecordDoc, EpisodeDoc, RecordArr, EpisodeArr)
 DocItemT = TypeVar('DocItemT', RecordDoc, EpisodeDoc)
 ArrItemT = TypeVar('ArrItemT', RecordArr, EpisodeArr)
+
+
+def get_filepool_config(
+    data_folder: str, config_file: Optional[str], coll_type: str, plot: Plot
+) -> ConfigParser:
+    """Get the filepool config from the specified path
+        data_folder + '\' + config_file
+        and compare the meat data with the plot info
+    Returns:
+        ConfigParser: filepool config
+    """
+
+    recipe_p = re.compile(r'^[A-Za-z]\w*\.ini$')
+    if config_file is None:
+        config_file = 'recipe.ini'
+    elif not recipe_p.match(config_file):
+        raise ValueError('config_file name is not valid')
+    number_states, number_actions = plot.get_number_of_states_actions()
+    default_recipe_from_plot: ConfigParser = ConfigParser()
+    default_recipe_from_plot.read_dict(
+        {
+            'DEFAULT': {
+                'data_folder': data_folder,  # '.',
+                'recipe_file_name': config_file,  # 'recipe.ini',
+                'coll_type': coll_type,
+                'capacity': '300000',
+                'index': '0',
+                'full': 'False',  # flag True if the storage is full
+            },
+            'array_specs': {
+                'character': plot.plot_dict['character'],  # vehicle the agent
+                'driver': plot.plot_dict['driver'],
+                'states': str(number_states),  # 50*4*3
+                'actions': str(number_actions),  # 17*4
+                'rewards': '1',
+                'next_states': str(number_states),  # 50*4*3
+                'table_start_rows': '1',
+            },
+        }
+    )
+
+    recipe = ConfigParser()
+    try:
+        recipe.read(data_folder + '/' + config_file)
+        # check if the recipe is matching with the truck specs
+        assert (
+            recipe['array_specs'] == default_recipe_from_plot['array_specs']
+        ), f"ini file array_specs is not matching the realtime truck signal specs"
+    except FileNotFoundError:
+        recipe = default_recipe_from_plot
+    except Exception as e:
+        raise e
+
+    return recipe

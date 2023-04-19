@@ -2,10 +2,21 @@ import abc
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
+import re
 
-from eos.config import Truck, trucks_by_name
-from eos.struct import ObservationSpecs, Plot
+from eos.config import Truck, trucks_by_name, get_db_config
+from eos.struct import (
+    ObservationSpecs,
+    Plot,
+    RecordArr,
+    RecordDoc,
+    EpisodeDoc,
+    EpisodeArr,
+    get_filepool_config,
+)
 from .buffer import Buffer
+from .doc_buffer import DocBuffer
+from .arr_buffer import ArrBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -15,6 +26,7 @@ from .buffer import Buffer
 class DPG(abc.ABC):
     """Base class for differentiable policy gradient methods."""
 
+    _coll_type: str = 'RECORD'
     _buffer: Optional[
         Buffer
     ] = None  # as last of non-default parameters, so that derived class can override with default
@@ -42,6 +54,10 @@ class DPG(abc.ABC):
     _infer_mode: bool = False
 
     def __post_init__(self):
+        """
+        Initialize the DPG object.
+        Heavy lifting of data interface (buffer, pool) for both DDPG and RDPG
+        """
         # pass
         # Number of "experiences" to store     at max
         # Num of tuples to train on.
@@ -78,6 +94,64 @@ class DPG(abc.ABC):
             )
         )
         self.num_states, self.num_actions = self.plot.get_number_of_states_actions()
+
+        login_p = re.compile(
+            r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
+        )
+        recipe_p = re.compile(r'^[A-Za-z]\w*\.ini$')
+        # if pool_key is an url or a mongodb name
+        if 'mongo' in self.pool_key.lower() or login_p.match(self.pool_key):
+            db_config = get_db_config(self.pool_key)
+            db_config._replace(type='RECORD')  # update the db_config type to record
+            if 'RECORD' in self.coll_type.upper():
+                self.buffer = DocBuffer[RecordDoc](  # choose item type: Record/Episode
+                    plot=self.plot,
+                    db_config=db_config,
+                    batch_size=self.batch_size,
+                )
+            elif 'EPISODE' in self.coll_type.upper():
+                self.buffer = DocBuffer[EpisodeDoc](  # choose item type: Record/Episode
+                    plot=self.plot,
+                    db_config=db_config,
+                    batch_size=self.batch_size,
+                )
+            else:
+                raise ValueError(
+                    f'coll_type {self.coll_type} is not a valid collection type. It should be RECORD or EPISODE.'
+                )
+        elif self.pool_key is None or recipe_p.match(
+            self.pool_key
+        ):  # if pool_key is an ini filename, use local files as pool
+            if 'RECORD' in self.coll_type.upper():
+                recipe = get_filepool_config(
+                    data_folder=self.data_folder,
+                    config_file=self.pool_key,
+                    coll_type='RECORD',
+                    plot=self.plot,
+                )
+                self.buffer = ArrBuffer[RecordArr](
+                    plot=self.plot,
+                    recipe=recipe,
+                    batch_size=self.batch_size,
+                    coll_type='RECORD',  # choose item type: Record/Episode
+                )
+            elif 'EPISODE' in self.coll_type.upper():
+                recipe = get_filepool_config(
+                    data_folder=self.data_folder,
+                    config_file=self.pool_key,
+                    coll_type='EPISODE',
+                    plot=self.plot,
+                )
+                self.buffer = ArrBuffer[EpisodeArr](
+                    plot=self.plot,
+                    recipe=recipe,
+                    batch_size=self.batch_size,
+                    coll_type='EPISODE',  # choose item type: Record/Episode
+                )
+        else:
+            raise ValueError(
+                f'pool_key {self.pool_key} is not a valid mongodb login string nor an ini filename.'
+            )
 
     def __repr__(self):
         return f'DPG({self.truck.TruckName}, {self.driver})'
@@ -324,3 +398,11 @@ class DPG(abc.ABC):
     @buffer.setter
     def buffer(self, value: Buffer):
         self._buffer = value
+
+    @property
+    def coll_type(self) -> str:
+        return self._coll_type
+
+    @coll_type.setter
+    def coll_type(self, value: str):
+        self._coll_type = value

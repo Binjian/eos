@@ -11,7 +11,10 @@ from .data import (
     ItemT,
     DocItemT,
     ArrItemT,
+    get_filepool_config,
 )
+
+from eos_time import timezones
 
 __all__ = [
     'ObservationSpecs',
@@ -24,4 +27,6 @@ __all__ = [
     'ItemT',
     'DocItemT',
     'ArrItemT',
+    'get_filepool_config',
+    'timezones',
 ]
