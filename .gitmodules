@@ -6,3 +6,6 @@
 	path = eos/comm/remote
 	url = ssh://git@gitlab.newrizon.work:2222/its/ai/remotecan.git
 	branch = subm
+[submodule "eos/data_io"]
+	path = eos/data_io
+	url = ssh://git@gitlab.newrizon.work:2222/its/ai/data_io.git

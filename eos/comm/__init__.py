@@ -3,8 +3,9 @@ from pathlib import Path
 from .remote import (
     Pool,
     DBPool,
-    RecordFilePool,
-    EpisodeFilePool,
+    RecordNumpyArrayPool,
+    RecordDataframePool,
+    EpisodeDataframePool,
     ClearablePullConsumer,
     RemoteCan,
 )
@@ -18,7 +19,8 @@ __all__ = [
     'RemoteCan',
     'kvaser_send_float_array',
     'DBPool',
-    'RecordFilePool',
+    'RecordNumpyArrayPool',
+    'RecordDataFramePool',
     'EpisodeFilePool',
     'Pool',
     'ClearablePullConsumer',

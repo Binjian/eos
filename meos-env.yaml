@@ -24,7 +24,7 @@ dependencies:
   - python-json-logger
   - plotly
   - Pillow
-  - pandas
+  - pandas=2.0
   - opt-einsum
   - jupyterlab
   - keras
@@ -38,6 +38,7 @@ dependencies:
   - pymongo
   - pyarrow
   - pymongoarrow
+  - dask
   - gitpython
   - tqdm
   - pip
