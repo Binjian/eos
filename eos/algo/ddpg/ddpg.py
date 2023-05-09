@@ -16,11 +16,16 @@ from keras import layers
 from pymongoarrow.monkey import patch_all
 from eos import dictLogger, logger
 from ..utils import OUActionNoise
-from ..doc_buffer import DocBuffer
+from eos.data_io.buffer import DocBuffer, ArrBuffer
 from ..dpg import DPG
-from eos.config import Truck, trucks_by_name, get_db_config
-from eos.struct import RecordDoc, ObservationSpecs, Plot, RecordArr, get_filepool_config
-from ..arr_buffer import ArrBuffer
+from eos.data_io import Truck, trucks_by_name, get_db_config
+from eos.data_io.struct import (
+    RecordDoc,
+    ObservationSpecs,
+    Plot,
+    RecordArr,
+    get_filepool_config,
+)
 
 patch_all()
 """
@@ -583,16 +588,20 @@ class DDPG(DPG):
         # Adding noise to action
         return sampled_actions
 
-    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
-        record: RecordDoc = {
-            'timestamp': datetime.fromtimestamp(
-                float(
-                    prev_ts.numpy()[0]
-                )  # fromtimestamp need float, tf data precision set to float32
-            ),  # from ms to s
+    def deposit(
+        self,
+        prev_ts: tf.Tensor,
+        prev_o_t: tf.Tensor,
+        prev_a_t: tf.Tensor,
+        prev_table_start: int,
+        cycle_reward: float,
+        o_t: tf.Tensor,
+    ):
+        record: RecordDoc = {  # both ArrBuffer and DocBuffer accept RecordDoc
+            'episode_start': self.episode_start_dt,  # datetime
             'plot': self.plot,
             'observation': {
-                'timestamp': prev_ts,
+                'timestamp': prev_ts.numpy().tolist(),  # integers as timestamps in ms
                 'state': prev_o_t.numpy().tolist(),
                 'action': prev_a_t.numpy().tolist(),
                 'action_start_row': prev_table_start,
@@ -600,6 +609,7 @@ class DDPG(DPG):
                 'next_state': o_t.numpy().tolist(),
             },
         }
+
         self.buffer.store(record)
 
     def end_episode(self):

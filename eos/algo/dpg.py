@@ -4,8 +4,10 @@ from datetime import datetime
 from typing import Optional
 import re
 
-from eos.config import Truck, trucks_by_name, get_db_config
-from eos.struct import (
+import tensorflow as tf
+
+from eos.data_io.config import Truck, trucks_by_name, get_db_config
+from eos.data_io.struct import (
     ObservationSpecs,
     Plot,
     RecordArr,
@@ -14,9 +16,7 @@ from eos.struct import (
     EpisodeArr,
     get_filepool_config,
 )
-from .buffer import Buffer
-from .doc_buffer import DocBuffer
-from .arr_buffer import ArrBuffer
+from eos.data_io.buffer import Buffer, DocBuffer, ArrBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -95,12 +95,12 @@ class DPG(abc.ABC):
         )
         self.num_states, self.num_actions = self.plot.get_number_of_states_actions()
 
-        login_p = re.compile(
+        login_pattern = re.compile(
             r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
         )
-        recipe_p = re.compile(r'^[A-Za-z]\w*\.ini$')
+        recipe_pattern = re.compile(r'^[A-Za-z]\w*\.ini$')
         # if pool_key is an url or a mongodb name
-        if 'mongo' in self.pool_key.lower() or login_p.match(self.pool_key):
+        if 'mongo' in self.pool_key.lower() or login_pattern.match(self.pool_key):
             db_config = get_db_config(self.pool_key)
             db_config._replace(type='RECORD')  # update the db_config type to record
             if 'RECORD' in self.coll_type.upper():
@@ -119,7 +119,7 @@ class DPG(abc.ABC):
                 raise ValueError(
                     f'coll_type {self.coll_type} is not a valid collection type. It should be RECORD or EPISODE.'
                 )
-        elif self.pool_key is None or recipe_p.match(
+        elif self.pool_key is None or recipe_pattern.match(
             self.pool_key
         ):  # if pool_key is an ini filename, use local files as pool
             if 'RECORD' in self.coll_type.upper():
@@ -129,11 +129,10 @@ class DPG(abc.ABC):
                     coll_type='RECORD',
                     plot=self.plot,
                 )
-                self.buffer = ArrBuffer[RecordArr](
+                self.buffer = ArrBuffer[RecordDoc](
                     plot=self.plot,
                     recipe=recipe,
                     batch_size=self.batch_size,
-                    coll_type='RECORD',  # choose item type: Record/Episode
                 )
             elif 'EPISODE' in self.coll_type.upper():
                 recipe = get_filepool_config(
@@ -189,7 +188,15 @@ class DPG(abc.ABC):
         self.plot.when = self.episode_start_dt  # only update when an episode starts
 
     @abc.abstractmethod
-    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
+    def deposit(
+        self,
+        prev_ts: tf.Tensor,
+        prev_o_t: tf.Tensor,
+        prev_a_t: tf.Tensor,
+        prev_table_start: int,
+        cycle_reward: float,
+        o_t: tf.Tensor,
+    ):
         """Deposit the experience into the replay buffer."""
         pass
 

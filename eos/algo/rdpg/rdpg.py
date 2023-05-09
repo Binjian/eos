@@ -15,14 +15,14 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos import dictLogger, logger
-from eos.struct import EpisodeDoc, ObservationSpecs, Plot
-from eos.config import Truck, trucks_by_name, get_db_config
+from eos.data_io.struct import EpisodeDoc, ObservationSpecs, Plot
+from eos.data_io.config import Truck, trucks_by_name, get_db_config
 from ..dpg import DPG, get_algo_data_info  # type: ignore
 
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
-from ..db_buffer import DBBuffer  # type: ignore
+from eos.data_io.buffer import DocBuffer  # type: ignore
 
 patch_all()
 
@@ -52,7 +52,7 @@ class RDPG(DPG):
             - critic network
     """
 
-    _buffer: DBBuffer[EpisodeDoc] = None  # must have default value
+    _buffer: DocBuffer[EpisodeDoc] = None  # must have default value
     logger: logging.Logger = None
     actor_net: ActorNet = None
     critic_net: CriticNet = None
@@ -87,7 +87,7 @@ class RDPG(DPG):
         self.infer_mode: bool = False
         db_config = get_db_config(self.pool_key)
         db_config._replace(type='EPISODE')  # update the db_config type to record
-        self.buffer = DBBuffer[EpisodeDoc](
+        self.buffer = DocBuffer[EpisodeDoc](
             db_config=db_config,
             truck=self.truck,
             driver=self.driver,
@@ -299,7 +299,15 @@ class RDPG(DPG):
         action = self.actor_net.predict(obs)
         return action
 
-    def deposit(self, prev_ts, prev_o_t, prev_a_t, prev_table_start, cycle_reward, o_t):
+    def deposit(
+        self,
+        prev_ts: tf.Tensor,
+        prev_o_t: tf.Tensor,
+        prev_a_t: tf.Tensor,
+        prev_table_start: int,
+        cycle_reward: float,
+        o_t: tf.Tensor,
+    ):
         """deposit the experience into the replay buffer.
         the following are not used for rdpg,
         just to have a uniform interface with ddpg

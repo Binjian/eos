@@ -60,7 +60,7 @@ from rocketmq.client import Message, Producer
 
 from eos import dictLogger, logger, projroot
 from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
-from eos.config import (
+from eos.data_io.config import (
     PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
@@ -1125,7 +1125,7 @@ class Agent(abc.ABC):
                                 ]
                                 timestamps = np.array(timestamps).reshape(
                                     (self.truck.CloudUnitNumber, -1)
-                                )  # final format is a list of timestamps in ms
+                                )  # final format is a list of integers as timestamps in ms
                                 current = ragged_nparray_list_interp(
                                     value['list_current_1s'],
                                     ob_num=unit_ob_num,
