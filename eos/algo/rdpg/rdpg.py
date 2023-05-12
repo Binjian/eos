@@ -22,7 +22,7 @@ from ..dpg import DPG, get_algo_data_info  # type: ignore
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
-from eos.data_io.buffer import DocBuffer  # type: ignore
+from eos.data_io.buffer import DBBuffer, FileBuffer  # type: ignore
 
 patch_all()
 
@@ -52,7 +52,7 @@ class RDPG(DPG):
             - critic network
     """
 
-    _buffer: DocBuffer[EpisodeDoc] = None  # must have default value
+    _buffer: DBBuffer[EpisodeDoc] = None  # must have default value
     logger: logging.Logger = None
     actor_net: ActorNet = None
     critic_net: CriticNet = None
@@ -87,7 +87,7 @@ class RDPG(DPG):
         self.infer_mode: bool = False
         db_config = get_db_config(self.pool_key)
         db_config._replace(type='EPISODE')  # update the db_config type to record
-        self.buffer = DocBuffer[EpisodeDoc](
+        self.buffer = DBBuffer[EpisodeDoc](
             db_config=db_config,
             truck=self.truck,
             driver=self.driver,

@@ -16,7 +16,7 @@ from eos.data_io.struct import (
     EpisodeArr,
     get_filepool_config,
 )
-from eos.data_io.buffer import Buffer, DocBuffer, ArrBuffer
+from eos.data_io.buffer import Buffer, DBBuffer, FileBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -104,13 +104,13 @@ class DPG(abc.ABC):
             db_config = get_db_config(self.pool_key)
             db_config._replace(type='RECORD')  # update the db_config type to record
             if 'RECORD' in self.coll_type.upper():
-                self.buffer = DocBuffer[RecordDoc](  # choose item type: Record/Episode
+                self.buffer = DBBuffer[RecordDoc](  # choose item type: Record/Episode
                     plot=self.plot,
                     db_config=db_config,
                     batch_size=self.batch_size,
                 )
             elif 'EPISODE' in self.coll_type.upper():
-                self.buffer = DocBuffer[EpisodeDoc](  # choose item type: Record/Episode
+                self.buffer = DBBuffer[EpisodeDoc](  # choose item type: Record/Episode
                     plot=self.plot,
                     db_config=db_config,
                     batch_size=self.batch_size,
@@ -129,7 +129,7 @@ class DPG(abc.ABC):
                     coll_type='RECORD',
                     plot=self.plot,
                 )
-                self.buffer = ArrBuffer[RecordDoc](
+                self.buffer = FileBuffer[RecordDoc](
                     plot=self.plot,
                     recipe=recipe,
                     batch_size=self.batch_size,
@@ -141,7 +141,7 @@ class DPG(abc.ABC):
                     coll_type='EPISODE',
                     plot=self.plot,
                 )
-                self.buffer = ArrBuffer[EpisodeArr](
+                self.buffer = FileBuffer[EpisodeDoc](
                     plot=self.plot,
                     recipe=recipe,
                     batch_size=self.batch_size,
