@@ -46,6 +46,7 @@ from threading import Lock, Thread
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 # tf.debugging.set_log_device_placement(True)
 # visualization import
@@ -779,11 +780,21 @@ class Agent(abc.ABC):
                                 # self.logc.info(
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
+                                df_motion_power = pd.DataFrame(
+                                    self.get_truck_status_motpow_t,
+                                    columns=[
+                                        'ts',
+                                        'velocity',
+                                        'thrust',
+                                        'brake  ',
+                                        'current',
+                                        'voltage',
+                                    ],
+                                )
+                                df_motion_power.set_index('ts', inplace=True)
 
                                 with self.captureQ_lock:
-                                    self.motionpowerQueue.put(
-                                        self.get_truck_status_motpow_t
-                                    )
+                                    self.motionpowerQueue.put(df_motion_power)
                                     motionpowerQueue_size = (
                                         self.motionpowerQueue.qsize()
                                     )
@@ -1128,8 +1139,8 @@ class Agent(abc.ABC):
                                 )  # final format is a list of integers as timestamps in ms
                                 current = ragged_nparray_list_interp(
                                     value['list_current_1s'],
-                                    ob_num=unit_ob_num,
-                                )
+                                    ob_num=unit_ob_num,  # 4s * 1s * 50Hz
+                                )  # 4x50
                                 voltage = ragged_nparray_list_interp(
                                     value['list_voltage_1s'],
                                     ob_num=unit_ob_num,
@@ -1145,7 +1156,7 @@ class Agent(abc.ABC):
                                 velocity = ragged_nparray_list_interp(
                                     value['list_speed_1s'],
                                     ob_num=unit_ob_num,
-                                )
+                                )  # 4*50
                                 gears = ragged_nparray_list_interp(
                                     value['list_gears'],
                                     ob_num=unit_gear_num,
@@ -1157,15 +1168,29 @@ class Agent(abc.ABC):
                                     axis=1,
                                 )
 
-                                motion_power = np.c_[
-                                    timestamps.reshape(-1, 1),
-                                    velocity.reshape(-1, 1),
-                                    thrust.reshape(-1, 1),
-                                    brake.reshape(-1, 1),
-                                    gears.reshape(-1, 1),
-                                    current.reshape(-1, 1),
-                                    voltage.reshape(-1, 1),
-                                ]  # 1 + 3 + 1 + 2  : im 7
+                                idx = pd.DatetimeIndex(
+                                    timestamps.flatten(), tz='Asia/Shanghai'
+                                )
+                                df_motion_power = pd.DataFrame(
+                                    {
+                                        'velocity': velocity.flatten(),
+                                        'thrust': thrust.flatten(),
+                                        'brake': brake.flatten(),
+                                        'gears': gears.flatten(),
+                                        'current': current.flatten(),
+                                        'voltage': voltage.flatten(),
+                                    },
+                                    index=idx,
+                                )
+                                # motion_power = np.c_[
+                                #     timestamps.reshape(-1, 1),  # 200
+                                #     velocity.reshape(-1, 1),  # 200
+                                #     thrust.reshape(-1, 1),  # 200
+                                #     brake.reshape(-1, 1),  # 200
+                                #     gears.reshape(-1, 1),  # 200
+                                #     current.reshape(-1, 1),  # 200
+                                #     voltage.reshape(-1, 1),  # 200
+                                # ]  # 1 + 3 + 1 + 2  : im 7  # 200*7
 
                                 # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
                                 # average concept
@@ -1194,7 +1219,7 @@ class Agent(abc.ABC):
                                 )
 
                                 with self.captureQ_lock:
-                                    self.motionpowerQueue.put(motion_power)
+                                    self.motionpowerQueue.put(df_motion_power)
 
                                 logger_remote_get.info(
                                     f'Get one record, wait for remote_flash!!!',
@@ -2025,26 +2050,33 @@ class Agent(abc.ABC):
                     )  # env.step(action) action is flash the vcu calibration table
                     # watch(step_count)
                     # reward history
-                    motpow_t = tf.convert_to_tensor(
-                        motionpower
-                    )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    if self.cloud:
-                        out = tf.split(
-                            motpow_t, [1, 3, 1, 2], 1
-                        )  # note the difference of split between np and tf
-                        (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
-                        o_t = tf.reshape(o_t0, -1)  # [200, 3] -> [600]
-                    else:
-                        ts, o_t0, pow_t = tf.split(motpow_t, [1, 3, 2], 1)
-                        o_t = tf.reshape(o_t0, -1)
+                    # motpow_t = tf.convert_to_tensor(
+                    #     motionpower
+                    # )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
+                    # if self.cloud:
+                    #     # out = tf.split(
+                    #     #     motpow, [1, 3, 1, 2], 1
+                    #     # )  # note the difference of split between np and tf
+                    #     # (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
+                    #     # o_t = tf.reshape(o_t0, -1)  # [200, 3] -> [600]
+                    #     o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
+                    #     pow_t = motionpower.loc[:, ['current', 'voltage']]
+                    # else:
+                    #     # ts, o_t0, pow_t = tf.split(motpow_t, [1, 3, 2], 1)
+                    #     # o_t = tf.reshape(o_t0, -1)
+                    #     o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
+                    #     pow_t = motionpower.loc[:, ['current', 'voltage']]
+                    o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
+                    pow_t = motionpower.loc[:, ['current', 'voltage']]
 
                     self.logc.info(
                         f'E{epi_cnt} tensor convert and split!',
                         extra=self.dictLogger,
                     )
-                    ui_sum = tf.reduce_sum(
-                        tf.reduce_prod(pow_t, 1)
-                    )  # vcu reward is a scalar
+                    # ui_sum = tf.reduce_sum(
+                    #     tf.reduce_prod(pow_t, 1)
+                    # )  # vcu reward is a scalar
+                    ui_sum = pow_t.prod(axis=1).sum()
                     wh = (
                         ui_sum / 3600.0 * self.sample_rate
                     )  # rate 0.05 for kvaser, 0.02 remote # negative wh

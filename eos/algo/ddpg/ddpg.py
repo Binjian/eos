@@ -8,6 +8,7 @@ import os
 import logging
 from typing import Optional
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import re
 from configparser import ConfigParser
@@ -597,20 +598,32 @@ class DDPG(DPG):
         cycle_reward: float,
         o_t: tf.Tensor,
     ):
-        record: RecordDoc = {  # both ArrBuffer and DocBuffer accept RecordDoc
-            'episode_start': self.episode_start_dt,  # datetime
-            'plot': self.plot,
-            'observation': {
-                'timestamp': prev_ts.numpy().tolist(),  # integers as timestamps in ms
-                'state': prev_o_t.numpy().tolist(),
-                'action': prev_a_t.numpy().tolist(),
-                'action_start_row': prev_table_start,
-                'reward': cycle_reward.numpy().tolist()[0],
-                'next_state': o_t.numpy().tolist(),
-            },
-        }
+        # record: RecordDoc = {  # both ArrBuffer and DocBuffer accept RecordDoc
+        #     'episode_start': self.episode_start_dt,  # datetime
+        #     'plot': self.plot,
+        #     'observation': {
+        #         'timestamp': prev_ts.numpy().tolist(),  # integers as timestamps in ms
+        #         'state': prev_o_t.numpy().tolist(),
+        #         'action': prev_a_t.numpy().tolist(),
+        #         'action_start_row': prev_table_start,
+        #         'reward': cycle_reward.numpy().tolist()[0],
+        #         'next_state': o_t.numpy().tolist(),
+        #     },
+        # }
 
-        self.buffer.store(record)
+        df_observation: pd.DataFrame = pd.concat(
+            [
+                pd.DataFrame(prev_ts.numpy(), columns=['timestamp']),
+                pd.DataFrame(prev_o_t.numpy(), columns=['state']),
+                pd.DataFrame(prev_a_t.numpy(), columns=['action']),
+                pd.DataFrame(cycle_reward.numpy(), columns=['reward']),
+                pd.DataFrame(prev_table_start, columns=['action_start_row']),
+                pd.DataFrame(o_t.numpy(), columns=['next_state']),
+            ],
+            axis=1,  # column-wise concatenation)
+        )
+        df_observation.set_index('timestamp', inplace=True)
+        self.buffer.store(df_observation)
 
     def end_episode(self):
         self.logger.info(f'Episode end at {datetime.now()}', extra=dictLogger)
