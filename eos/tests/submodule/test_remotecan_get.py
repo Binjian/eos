@@ -54,7 +54,7 @@ class TestRemoteCanGet(unittest.TestCase):
         self.set_logger(projroot)
 
         # check if the truck is valid
-        self.assertEqual(self.truck_name, self.truck.TruckName)
+        self.assertEqual(self.truck_name, self.truck.vid)
 
         self.vcu_calib_table_default = generate_vcu_calibration(
             self.truck.PedalScale,
@@ -73,7 +73,7 @@ class TestRemoteCanGet(unittest.TestCase):
             pass
         logfile = logroot.joinpath(
             'test_remotecan_get-'
-            + self.truck.TruckName
+            + self.truck.vid
             + datetime.datetime.now().isoformat().replace(':', '-')
             + '.log'
         )
@@ -115,7 +115,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # def test_native_get(self):
     #     self.logger.info("Start test_native_get", extra=self.dictLogger)
     #     self.client = RemoteCan(
-    #         truck_name=self.truck.TruckName, url=self.truck.RemoteCANHost
+    #         truck_name=self.truck.vid, url=self.truck.RemoteCANHost
     #     )
     #     self.logger.info("Set client", extra=self.dictLogger)
     #     self.native_get()
@@ -124,7 +124,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # def test_native_send(self):
     #     self.logger.info("Start test_native_send", extra=self.dictLogger)
     #     self.client = RemoteCan(
-    #         truck_name=self.truck.TruckName, url=self.truck.RemoteCANHost
+    #         truck_name=self.truck.vid, url=self.truck.RemoteCANHost
     #     )
     #     self.logger.info("Set client", extra=self.dictLogger)
     #

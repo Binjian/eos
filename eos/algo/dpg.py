@@ -2,6 +2,7 @@ import abc
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
+import pandas as pd
 import re
 
 import tensorflow as tf
@@ -10,10 +11,8 @@ from eos.data_io.config import Truck, trucks_by_name, get_db_config
 from eos.data_io.struct import (
     ObservationSpecs,
     Plot,
-    RecordArr,
     RecordDoc,
     EpisodeDoc,
-    EpisodeArr,
     get_filepool_config,
 )
 from eos.data_io.buffer import Buffer, DBBuffer, FileBuffer
@@ -69,11 +68,11 @@ class DPG(abc.ABC):
         #  init plot object, episode start time will be updated for each episode, for now it is the time when the algo is created
         self.plot = (
             Plot(  # self.plot is a Plot object generated from realtime truck object
-                character=self.truck.TruckName,
+                character=self.truck.vid,
                 driver=self.driver,
                 when=self.episode_start_dt,
                 tz=str(self.truck.tz),
-                where=self.truck.Location,
+                where=self.truck.location,
                 state_specs={
                     'observation_specs': ObservationSpecs(
                         velocity_unit='kph',
@@ -102,14 +101,19 @@ class DPG(abc.ABC):
         # if pool_key is an url or a mongodb name
         if 'mongo' in self.pool_key.lower() or login_pattern.match(self.pool_key):
             db_config = get_db_config(self.pool_key)
-            db_config._replace(type='RECORD')  # update the db_config type to record
             if 'RECORD' in self.coll_type.upper():
+                db_config._replace(
+                    dbtype='RECORD'
+                )  # update the db_config type to record
                 self.buffer = DBBuffer[RecordDoc](  # choose item type: Record/Episode
                     plot=self.plot,
                     db_config=db_config,
                     batch_size=self.batch_size,
                 )
             elif 'EPISODE' in self.coll_type.upper():
+                db_config._replace(
+                    dbtype='EPISODE'
+                )  # update the db_config type to record
                 self.buffer = DBBuffer[EpisodeDoc](  # choose item type: Record/Episode
                     plot=self.plot,
                     db_config=db_config,
@@ -145,7 +149,6 @@ class DPG(abc.ABC):
                     plot=self.plot,
                     recipe=recipe,
                     batch_size=self.batch_size,
-                    coll_type='EPISODE',  # choose item type: Record/Episode
                 )
         else:
             raise ValueError(
@@ -153,7 +156,7 @@ class DPG(abc.ABC):
             )
 
     def __repr__(self):
-        return f'DPG({self.truck.TruckName}, {self.driver})'
+        return f'DPG({self.truck.vid}, {self.driver})'
 
     def __str__(self):
         return 'DPG'
@@ -190,12 +193,12 @@ class DPG(abc.ABC):
     @abc.abstractmethod
     def deposit(
         self,
-        prev_ts: tf.Tensor,
-        prev_o_t: tf.Tensor,
-        prev_a_t: tf.Tensor,
+        prev_ts: pd.Timestamp,
+        prev_o_t: pd.DataFrame,
+        prev_a_t: pd.DataFrame,
         prev_table_start: int,
         cycle_reward: float,
-        o_t: tf.Tensor,
+        o_t: pd.DataFrame,
     ):
         """Deposit the experience into the replay buffer."""
         pass

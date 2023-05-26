@@ -92,7 +92,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.truck = self.trucks_by_name[self.truck_name]
         self.set_logger(projroot)
         self.logger.info(
-            f'Truck: {self.truck.TruckName}-{self.truck.VIN}',
+            f'Truck: {self.truck.vid}-{self.truck.vin}',
             extra=self.dictLogger,
         )
         self.logger.info(
@@ -105,7 +105,7 @@ class TestRemoteCanPool(unittest.TestCase):
         )
 
         # check if the truck is valid
-        self.assertEqual(self.truck_name, self.truck.TruckName)
+        self.assertEqual(self.truck_name, self.truck.vid)
 
         self.observe_length = self.truck.CloudUnitNumber  # number of cloud units 5s
 
@@ -126,7 +126,7 @@ class TestRemoteCanPool(unittest.TestCase):
             pass
         logfile = logroot.joinpath(
             'test_remotecan_pool-'
-            + self.truck.TruckName
+            + self.truck.vid
             + '-'
             + datetime.now().isoformat().replace(':', '-')
             + '.log'
@@ -150,7 +150,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_episode(self):
         self.logger.info('Start test_pool_deposit', extra=self.dictLogger)
         self.client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         self.epi_sch = self.episode_schemas['episode_deep']
@@ -184,7 +184,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info('Episode inserted.', extra=self.dictLogger)
         self.assertEqual(result.acknowledged, True)
         pool_count = self.pool.count_items(
-            truck_id=self.truck.TruckName, driver_id='longfei'
+            truck_id=self.truck.vid, driver_id='zheng-longfei'
         )
         self.logger.info(f'Pool has {pool_count} records', extra=self.dictLogger)
         epi_inserted = self.pool.find_item(result.inserted_id)
@@ -201,7 +201,7 @@ class TestRemoteCanPool(unittest.TestCase):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
         self.client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
@@ -235,7 +235,7 @@ class TestRemoteCanPool(unittest.TestCase):
         )  # start from 2022-01-01T08:00:00.000
         self.logger.info('start count_times.', extra=self.dictLogger)
         rec_cnt = self.pool.count_items(
-            vehicle_id=self.truck.TruckName,
+            vehicle_id=self.truck.vid,
             driver_id='longfei',
             dt_start=dt_start,
             dt_end=dt_end,
@@ -362,7 +362,7 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_sample_record(self):
         # self.client = RemoteCan(
-        #     truck_name=self.truck.TruckName,
+        #     truck_name=self.truck.vid,
         #     url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         # )
         # self.generate_record_schemas()
@@ -385,7 +385,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info('Set client and pool', extra=self.dictLogger)
 
         rec_cnt = self.pool.count_items(
-            vehicle_id=self.truck.TruckName, driver_id='longfei'
+            vehicle_id=self.truck.vid, driver_id='zheng-longfei'
         )
         # if rec_cnt < 4:
         #     self.logger.info("Start creating record pool", extra=self.dictLogger)
@@ -425,7 +425,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_deposit_record(self):
         self.logger.info('Start test_pool_deposit', extra=self.dictLogger)
         self.client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         # self.generate_record_schemas()
@@ -452,7 +452,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info('Record inserted.', extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
             rec_cnt = self.pool.count_items(
-                vehicle_id=self.truck.TruckName, driver_id='longfei'
+                vehicle_id=self.truck.vid, driver_id='zheng-longfei'
             )
             self.logger.info(f'Pool has {rec_cnt} records', extra=self.dictLogger)
             rec_inserted = self.pool.find_item(result.inserted_id)
@@ -467,7 +467,7 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
         self.client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
@@ -539,7 +539,7 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_consecutive_records(self):
         self.client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         # self.generate_record_schemas()
@@ -559,7 +559,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.info('Set client and pool', extra=self.dictLogger)
 
         rec_count = self.pool.count_items(
-            truck_id=self.truck.TruckName, driver_id='longfei'
+            truck_id=self.truck.vid, driver_id='zheng-longfei'
         )
         self.logger.info(
             f'Start observation test wth {rec_count} records',
@@ -586,7 +586,7 @@ class TestRemoteCanPool(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_flash_test(self):
         self.client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
         # self.generate_record_schemas()
@@ -804,7 +804,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info('Record inserted.', extra=self.dictLogger)
             self.assertEqual(result.acknowledged, True)
             pool_size = self.pool.count_items(
-                vehicle_id=self.truck.TruckName, driver_id='longfei'
+                vehicle_id=self.truck.vid, driver_id='zheng-longfei'
             )
             self.logger.info(f'Pool has {pool_size} records', extra=self.dictLogger)
             epi_inserted = self.pool.find_item(result.inserted_id)
@@ -873,7 +873,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.episode = {
             'timestamp': timestamp0,
             'plot': {
-                'character': self.truck.TruckName,
+                'character': self.truck.vid,
                 'when': timestamp0,
                 'where': 'campus',
                 'length': len(self.h_t),
@@ -965,7 +965,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.ddpg_record = {
             'timestamp': datetime.fromtimestamp(timestamp0[0]),
             'plot': {
-                'character': self.truck.TruckName,
+                'character': self.truck.vid,
                 'when': datetime.fromtimestamp(timestamp0[0]),
                 'where': 'campus',
                 'states': {
@@ -1005,7 +1005,7 @@ class TestRemoteCanPool(unittest.TestCase):
             {
                 'timestamp': datetime.fromtimestamp(timestamp0[0]),
                 'plot': {
-                    'character': self.truck.TruckName,
+                    'character': self.truck.vid,
                     'when': datetime.fromtimestamp(timestamp0[0]),
                     'where': 'campus',
                 },
@@ -1040,7 +1040,7 @@ class TestRemoteCanPool(unittest.TestCase):
             {
                 'timestamp': datetime.fromtimestamp(timestamp0[0]),
                 'plot': {
-                    'character': self.truck.TruckName,
+                    'character': self.truck.vid,
                     'when': datetime.fromtimestamp(timestamp0[0]),
                     'where': 'campus',
                     'states': {
@@ -1078,7 +1078,7 @@ class TestRemoteCanPool(unittest.TestCase):
             {
                 'timestamp': datetime.fromtimestamp(timestamp0[0]),
                 'plot': {
-                    'character': self.truck.TruckName,
+                    'character': self.truck.vid,
                     'when': datetime.fromtimestamp(timestamp0[0]),
                     'where': 'campus',
                     'states': {
@@ -1113,7 +1113,7 @@ class TestRemoteCanPool(unittest.TestCase):
             self.pool.deposit_item(self.ddpg_record)
 
             pool_size = self.pool.count_items(
-                truck_id=self.truck.TruckName, driver_id='longfei'
+                truck_id=self.truck.vid, driver_id='zheng-longfei'
             )
             self.logger.info(f'Pool has {pool_size} records', extra=self.dictLogger)
 

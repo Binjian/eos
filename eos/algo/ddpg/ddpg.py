@@ -222,7 +222,7 @@ class DDPG(DPG):
     #         self.buffer.save_replay_buffer()
 
     def __repr__(self):
-        return f'DDPG({self.truck.TruckName}, {self.driver})'
+        return f'DDPG({self.truck.vid}, {self.driver.pid})'
 
     def __str__(self):
         return 'DDPG'
@@ -237,9 +237,9 @@ class DDPG(DPG):
                 'tf_ckpts-'
                 + self.__str__()
                 + '-'
-                + self.truck.TruckName
+                + self.truck.vid
                 + '-'
-                + self.driver
+                + self.driver.pid
                 + '_'
                 + 'actor'
             )
@@ -247,9 +247,9 @@ class DDPG(DPG):
                 'tf_ckpts-'
                 + self.__str__()
                 + '-'
-                + self.truck.TruckName
+                + self.truck.vid
                 + '-'
-                + self.driver
+                + self.driver.pid
                 + '_'
                 + 'critic'
             )
@@ -258,9 +258,9 @@ class DDPG(DPG):
                 'tf_ckpts-'
                 + self.__str__()
                 + '/'
-                + self.truck.TruckName
+                + self.truck.vid
                 + '-'
-                + self.driver
+                + self.driver.pid
                 + '_actor'
                 + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
             )
@@ -268,9 +268,9 @@ class DDPG(DPG):
                 'tf_ckpts-'
                 + self.__str__()
                 + '/'
-                + self.truck.TruckName
+                + self.truck.vid
                 + '-'
-                + self.driver
+                + self.driver.pid
                 + '_critic'
                 + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
             )
@@ -329,9 +329,9 @@ class DDPG(DPG):
             'tf_ckpts-'
             + self.__str__()
             + '-'
-            + self.truck.TruckName
+            + self.truck.vid
             + '-'
-            + self.driver
+            + self.driver.pid
             + '_'
             + 'actor_saved_model'
         )
@@ -339,9 +339,9 @@ class DDPG(DPG):
             'tf_ckpts-'
             + self.__str__()
             + '-'
-            + self.truck.TruckName
+            + self.truck.vid
             + '-'
-            + self.driver
+            + self.driver.pid
             + '_'
             + 'critic_saved_model'
         )
@@ -591,12 +591,12 @@ class DDPG(DPG):
 
     def deposit(
         self,
-        prev_ts: tf.Tensor,
-        prev_o_t: tf.Tensor,
-        prev_a_t: tf.Tensor,
+        prev_ts: pd.Timestamp,
+        prev_o_t: pd.DataFrame,
+        prev_a_t: pd.DataFrame,
         prev_table_start: int,
         cycle_reward: float,
-        o_t: tf.Tensor,
+        o_t: pd.DataFrame,
     ):
         # record: RecordDoc = {  # both ArrBuffer and DocBuffer accept RecordDoc
         #     'episode_start': self.episode_start_dt,  # datetime
@@ -613,15 +613,15 @@ class DDPG(DPG):
 
         df_observation: pd.DataFrame = pd.concat(
             [
-                pd.DataFrame(prev_ts.numpy(), columns=['timestamp']),
+                pd.DataFrame(np.array([prev_ts]), columns=['timestamp']),
                 pd.DataFrame(prev_o_t.numpy(), columns=['state']),
                 pd.DataFrame(prev_a_t.numpy(), columns=['action']),
-                pd.DataFrame(cycle_reward.numpy(), columns=['reward']),
+                pd.DataFrame(np.array([cycle_reward]), columns=['reward']),
                 pd.DataFrame(prev_table_start, columns=['action_start_row']),
                 pd.DataFrame(o_t.numpy(), columns=['next_state']),
             ],
             axis=1,  # column-wise concatenation)
-        )
+        )  # TODO check if join() is better for combine timestamp index
         df_observation.set_index('timestamp', inplace=True)
         self.buffer.store(df_observation)
 
@@ -681,7 +681,7 @@ class DDPG(DPG):
         # get sampling range, if not enough data, batch is small
         self.logger.info(
             f'start sample from pool with size: {self.batch_size}, '
-            f'truck: {self.truck.TruckName}, driver: {self.driver}.',
+            f'truck: {self.truck.vid}, driver: {self.driver.pid}.',
             extra=dictLogger,
         )
 

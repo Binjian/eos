@@ -25,6 +25,7 @@ dependencies:
   - plotly
   - Pillow
   - pandas=2.0
+  - ordered-set
   - opt-einsum
   - jupyterlab
   - keras
@@ -44,6 +45,7 @@ dependencies:
   - pip
   - pip:
     - poetry2conda
+    - backports.zoneinfo
     - cuda-python
     - nvidia-cudnn-cu11
     - rocketmq

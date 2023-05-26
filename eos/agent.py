@@ -17,6 +17,8 @@ as energy consumption
 
 - [DDPG ](https://keras.io/examples/rl/ddpg_pendulum/)
 """
+from __future__ import annotations
+
 import abc
 from dataclasses import dataclass
 
@@ -62,7 +64,6 @@ from rocketmq.client import Message, Producer
 from eos import dictLogger, logger, projroot
 from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.data_io.config import (
-    PEDAL_SCALES,
     trucks_by_name,
     trucks_by_vin,
     can_servers_by_host,
@@ -70,7 +71,11 @@ from eos.data_io.config import (
     trip_servers_by_name,
     trip_servers_by_host,
     generate_vcu_calibration,
+    eos_drivers_by_id,
+    Driver,
+    Truck,
 )
+
 from eos.utils import ragged_nparray_list_interp, GracefulKiller
 from eos.visualization import plot_3d_figure, plot_to_image
 from eos import DPG
@@ -104,8 +109,8 @@ class Agent(abc.ABC):
     infer_mode: bool = False
     record: bool = True
     path: str = '.'
-    vehicle: str = 'HMZABAAH7MF011058'  # "VB7",
-    driver: str = 'Longfei.Zheng'
+    vehicle_str: str = 'HMZABAAH7MF011058'  # "VB7",
+    driver_str: str = 'zheng-longfei'
     remotecan_srv: str = 'can_intra'
     web_srv: str = 'rocket_intra'
     mongo_srv: str = 'mongo_local'
@@ -113,37 +118,52 @@ class Agent(abc.ABC):
     logger: logging.Logger = None
     _algo: DPG = None
     data_root: Path = None
+    driver: Driver = None
+    truck: Truck = None
 
     def __post_init__(
         self,
     ):
+        self.repo = Repo(self.proj_root)
+        # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
+        print(
+            f"project root: {self.proj_root}, git head: {str(self.repo.head.commit)[:7]}, "
+            f"author: {self.repo.head.commit.author}, "
+            f"git message: {self.repo.head.commit.message}"
+        )
+        print(f"vehicle: {self.vehicle_str}")
+        print(f"driver: {self.driver_str}")
+
         # Regex for VIN: HMZABAAH\wMF\d{6}
         p = re.compile(r'^HMZABAAH\wMF\d{6}$')
-        if p.match(self.vehicle):
+        if p.match(self.vehicle_str):
             # validate truck id
             # assert self.vehicle in self.trucks_by_vin.keys()
-            self.truck = trucks_by_vin.get(self.vehicle)
-            assert self.truck is not None, f'No Truck with VIN {self.vehicle}'
-            self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
+            self.truck = trucks_by_vin.get(self.vehicle_str)
+            assert self.truck is not None, f'No Truck with VIN {self.vehicle_str}'
         else:
             # validate truck id
             # assert self.vehicle in self.trucks_by_name.keys()
-            self.truck = trucks_by_name.get(self.vehicle)
-            assert self.truck is not None, f'No Truck with name {self.vehicle}'
-            self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
+            self.truck = trucks_by_name.get(self.vehicle_str)
+            assert self.truck is not None, f'No Truck with name {self.vehicle_str}'
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
-        self.repo = Repo(self.proj_root)
-        # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
-
+        # Regex for driver: ^[a-z]{1,10}[-,_][a-z]{1,10}(\d?){1,2}$
+        p = re.compile(r"^[A-Za-z]{1,10}[-_.][A-Za-z]{1,10}(\d?){1,5}$")
+        # validate driver id
+        assert p.match(
+            self.driver_str
+        ), "Driver name must be in format: String1[-,_,.]String2"
+        self.driver = eos_drivers_by_id.get(self.driver_str)
+        assert self.driver is not None, f"Driver with ID {self.driver_str} not found!"
         if self.resume:
             self.data_root = projroot.joinpath(
-                'data/' + self.truck.VIN + '−' + self.driver
+                'data/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
         else:
             self.data_root = projroot.joinpath(
-                'data/scratch/' + self.truck.VIN + '−' + self.driver
+                'data/scratch/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
 
         self.set_logger()
@@ -152,8 +172,8 @@ class Agent(abc.ABC):
             f'project root: {self.proj_root}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}',
             extra=self.dictLogger,
         )
-        self.logc.info(f'vehicle: {self.vehicle}', extra=self.dictLogger)
-        self.logc.info(f'driver: {self.driver}', extra=self.dictLogger)
+        self.logc.info(f'vehicle: {self.truck.vid}', extra=self.dictLogger)
+        self.logc.info(f'driver: {self.driver.pid}', extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -228,7 +248,7 @@ class Agent(abc.ABC):
         self.logc.info(f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
-            truck_name=self.truck.TruckName,
+            truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
@@ -257,7 +277,7 @@ class Agent(abc.ABC):
             self.rmq_message_ready.set_keys('what is keys mean')
             self.rmq_message_ready.set_tags('tags ------')
             self.rmq_message_ready.set_body(
-                json.dumps({'vin': self.truck.VIN, 'is_ready': True})
+                json.dumps({'vin': self.truck.vin, 'is_ready': True})
             )
             # self.rmq_message_ready.set_keys('trip_server')
             # self.rmq_message_ready.set_tags('tags')
@@ -277,9 +297,9 @@ class Agent(abc.ABC):
             'eos-rt-'
             + str(self.algo)
             + '-'
-            + self.truck.TruckName
+            + self.truck.vid
             + '-'
-            + self.driver
+            + self.driver.pid
             + '-'
             + datetime.now().isoformat().replace(':', '-')
             + '.log'
@@ -347,7 +367,7 @@ class Agent(abc.ABC):
         self.train_log_dir = self.data_root.joinpath(
             'tf_logs-'
             + str(self.algo)
-            + self.truck.TruckName
+            + self.truck.vid
             + '/gradient_tape/'
             + current_time
             + '/train'
@@ -366,41 +386,45 @@ class Agent(abc.ABC):
         # resume last pedal map / scratch from default table
 
         # initialize pedal map parameters
-        self.vcu_calib_table_col = (
-            self.truck.PedalScale
+        self.vcu_calib_table_col = len(
+            self.truck.pedal_scale
         )  # 17 number of pedal steps, x direction
-        self.vcu_calib_table_row = (
-            self.truck.VelocityScale
+        self.vcu_calib_table_row = len(
+            self.truck.velocity_scale
         )  # 14 numnber of velocity steps, y direction
         self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
-        self.action_budget = self.truck.ActionBudget  # action_budget 250 Nm
-        self.action_lower = self.truck.ActionLowerBound  # 0.8
-        self.action_upper = self.truck.ActionUpperBound  # 1.0
-        self.action_bias = self.truck.ActionBias  # 0.0
+        self.action_budget = self.truck.action_budget  # action_budget 250 Nm
+        self.action_lower = self.truck.action_lowerbound  # 0.8
+        self.action_upper = self.truck.action_upperbound  # 1.0
+        self.action_bias = self.truck.action_bias  # 0.0
 
+        pedal_range = [min(self.truck.pedal_scale), max(self.truck.pedal_scale)]
+        velocity_range = [
+            min(self.truck.velocity_scale),
+            max(self.truck.velocity_scale),
+        ]  # [0, 120.0]
         # index of the current pedal map is speed in kmph
-        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
+        pd_ind = np.linspace(
+            velocity_range[0], velocity_range[1], self.vcu_calib_table_row - 1
+        )
         self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
-        self.pd_columns = np.array(PEDAL_SCALES)
-
-        self.pedal_range = self.truck.PedalRange  # [0, 1.0]
-        self.velocity_range = self.truck.VelocityRange  # [0, 120.0]
+        self.pd_columns = np.array(self.truck.pedal_scale)
 
         if self.resume:
             self.vcu_calib_table0 = generate_vcu_calibration(
                 self.vcu_calib_table_col,
-                self.pedal_range,
+                pedal_range,
                 self.vcu_calib_table_row,
-                self.velocity_range,
+                velocity_range,
                 3,
                 self.data_root,
             )
         else:
             self.vcu_calib_table0 = generate_vcu_calibration(
                 self.vcu_calib_table_col,
-                self.pedal_range,
+                pedal_range,
                 self.vcu_calib_table_row,
-                self.velocity_range,
+                velocity_range,
                 2,
                 self.proj_root.joinpath('eos/config'),
             )
@@ -442,31 +466,31 @@ class Agent(abc.ABC):
         """
 
         # create actor-critic network
-        self.num_observations = self.truck.ObservationNumber
+        self.num_observations = self.truck.observation_number
         # self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
         if self.cloud:
             self.observation_len = (
-                self.truck.CloudUnitNumber * self.truck.CloudSignalFrequency
+                self.truck.cloud_unit_number * self.truck.cloud_signal_frequency
             )  # 250 observation tuples as a valid observation for agent, for period of 20ms, this is equal to 5 second
             # self.observation_len = 250  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
             self.sample_rate = (
-                1.0 / self.truck.CloudSignalFrequency
+                1.0 / self.truck.cloud_signal_frequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.02  # sample rate 20ms of the observation tuples
         else:
             self.observation_len = (
-                self.truck.KvaserObservationNumber
+                self.truck.kvaser_observation_number
             )  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
             # self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
             self.sample_rate = (
-                1.0 / self.truck.KvaserObservationFrequency
+                1.0 / self.truck.kvaser_observation_frequency
             )  # sample rate of the observation tuples
             # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
         self.num_states = (
             self.observation_len * self.num_observations
         )  # 60 subsequent observations
         self.vcu_calib_table_row_reduced = (
-            self.truck.ActionFlashRow
+            self.truck.action_flashrow
         )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
         self.num_actions = (
             # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
@@ -508,12 +532,12 @@ class Agent(abc.ABC):
         self.step_count = 0
         if self.cloud:
             self.epi_countdown_time = (
-                self.truck.CloudUnitNumber
-                * self.truck.CloudUnitDuration  # extend capture time after valid episode temrination
+                self.truck.cloud_unit_number
+                * self.truck.cloud_unit_duration  # extend capture time after valid episode temrination
             )
         else:
             self.epi_countdown_time = (
-                self.truck.KvaserCountdownTime  # extend capture time after valid episode temrination (3s)
+                self.truck.kvaser_countdown  # extend capture time after valid episode temrination (3s)
             )
 
         # use timer object
@@ -891,9 +915,9 @@ class Agent(abc.ABC):
                         'instant_table_'
                         + str(self.algo)
                         + '-'
-                        + self.truck.TruckName
+                        + self.truck.vid
                         + '-'
-                        + self.driver
+                        + self.driver.pid
                         + '-'
                         + datetime.now().strftime('%y-%m-%d-%h-%m-%s-')
                         + 'e-'
@@ -935,9 +959,9 @@ class Agent(abc.ABC):
                 'last_table_'
                 + str(self.algo)
                 + '-'
-                + self.truck.TruckName
+                + self.truck.vid
                 + '-'
-                + self.driver
+                + self.driver.pid
                 + '-'
                 + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
                 + '.csv'
@@ -992,14 +1016,14 @@ class Agent(abc.ABC):
 
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
-            timeout = self.truck.CloudUnitNumber + 7
+            timeout = self.truck.cloud_unit_number + 7
             logger_remote_get.info(
-                f'Wake up to fetch remote data, duration={self.truck.CloudUnitNumber}s timeout={timeout}s',
+                f'Wake up to fetch remote data, duration={self.truck.cloud_unit_number}s timeout={timeout}s',
                 extra=self.dictLogger,
             )
             with self.remoteClient_lock:
                 (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
-                    duration=self.truck.CloudUnitNumber, timeout=timeout
+                    duration=self.truck.cloud_unit_number, timeout=timeout
                 )  # timeout is 1 second longer than duration
                 if signal_success != 0:  # in case of failure, ping server
                     logger_remote_get.warning(
@@ -1083,12 +1107,12 @@ class Agent(abc.ABC):
                         continue
 
                     try:
-                        signal_freq = self.truck.CloudSignalFrequency
-                        gear_freq = self.truck.CloudGearFrequency
-                        unit_duration = self.truck.CloudUnitDuration
+                        signal_freq = self.truck.cloud_signal_frequency
+                        gear_freq = self.truck.cloud_gear_frequency
+                        unit_duration = self.truck.cloud_unit_duration
                         unit_ob_num = unit_duration * signal_freq
                         unit_gear_num = unit_duration * gear_freq
-                        unit_num = self.truck.CloudUnitNumber
+                        unit_num = self.truck.cloud_unit_number
                         for key, value in remotecan_data.items():
                             if key == 'result':
                                 logger_remote_get.info(
@@ -1135,7 +1159,7 @@ class Agent(abc.ABC):
                                     for j in np.arange(unit_ob_num)
                                 ]
                                 timestamps = np.array(timestamps).reshape(
-                                    (self.truck.CloudUnitNumber, -1)
+                                    (self.truck.cloud_unit_number, -1)
                                 )  # final format is a list of integers as timestamps in ms
                                 current = ragged_nparray_list_interp(
                                     value['list_current_1s'],
@@ -1157,30 +1181,32 @@ class Agent(abc.ABC):
                                     value['list_speed_1s'],
                                     ob_num=unit_ob_num,
                                 )  # 4*50
-                                gears = ragged_nparray_list_interp(
+                                gear = ragged_nparray_list_interp(
                                     value['list_gears'],
                                     ob_num=unit_gear_num,
                                 )
                                 # upsample gears from 2Hz to 50Hz
-                                gears = np.repeat(
-                                    gears,
+                                gear = np.repeat(
+                                    gear,
                                     (signal_freq // gear_freq),
                                     axis=1,
                                 )
 
                                 idx = pd.DatetimeIndex(
-                                    timestamps.flatten(), tz='Asia/Shanghai'
+                                    timestamps.flatten(), tz=self.truck.tz
                                 )
-                                df_motion_power = pd.DataFrame(
+                                df_motion_power = (
                                     {
+                                        'timestamp': timestamps[
+                                            0
+                                        ],  # only the first timestamp is used
                                         'velocity': velocity.flatten(),
                                         'thrust': thrust.flatten(),
                                         'brake': brake.flatten(),
-                                        'gears': gears.flatten(),
+                                        'gear': gear.flatten(),
                                         'current': current.flatten(),
                                         'voltage': voltage.flatten(),
                                     },
-                                    index=idx,
                                 )
                                 # motion_power = np.c_[
                                 #     timestamps.reshape(-1, 1),  # 200
@@ -1283,7 +1309,7 @@ class Agent(abc.ABC):
                 extra=self.dictLogger,
             )
 
-            msg_topic = self.driver + '_' + self.truck.VIN
+            msg_topic = self.driver.pid + '_' + self.truck.vid
 
             broker_msgs = self.rmq_consumer.pull(msg_topic)
             logger_webhmi_sm.info(
@@ -1347,7 +1373,7 @@ class Agent(abc.ABC):
                     )
                     raise TypeError('rocketmq server sending wrong data type!')
                 logger_webhmi_sm.info(f'Get message {msg_body}!', extra=self.dictLogger)
-                if msg_body['vin'] != self.truck.VIN:
+                if msg_body['vin'] != self.truck.vin:
                     continue
 
                 if msg_body['code'] == 5:  # "config/start testing"
@@ -1501,7 +1527,7 @@ class Agent(abc.ABC):
         logger_cloudhmi_sm.propagate = True
 
         logger_cloudhmi_sm.info(
-            f'Start/Configure message VIN: {self.truck.VIN}; driver {self.driver}!',
+            f'Start/Configure message VIN: {self.truck.vin}; driver {self.driver.pid}!',
             extra=self.dictLogger,
         )
 
@@ -1824,9 +1850,9 @@ class Agent(abc.ABC):
                         'instant_table_'
                         + str(self.algo)
                         + '-'
-                        + self.truck.TruckName
+                        + self.truck.vid
                         + '-'
-                        + self.driver
+                        + self.driver.pid
                         + '-'
                         + datetime.now().strftime('%y-%m-%d-%h-%m-%s-')
                         + 'e-'
@@ -1908,9 +1934,9 @@ class Agent(abc.ABC):
                 'last_table_'
                 + str(self.algo)
                 + '-'
-                + self.truck.TruckName
+                + self.truck.vid
                 + '-'
-                + self.driver
+                + self.driver.pid
                 + '-'
                 + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
                 + '.csv'
@@ -2066,7 +2092,11 @@ class Agent(abc.ABC):
                     #     # o_t = tf.reshape(o_t0, -1)
                     #     o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
                     #     pow_t = motionpower.loc[:, ['current', 'voltage']]
+                    ts = motionpower.index[
+                        0
+                    ]  # only take the first timestamp, as frequency is fixed at 50Hz
                     o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
+                    o_t_flat = o_t.to_numpy().flatten()
                     pow_t = motionpower.loc[:, ['current', 'voltage']]
 
                     self.logc.info(
@@ -2099,7 +2129,7 @@ class Agent(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    a_t = self.algo.actor_predict(o_t, int(step_count / 1))
+                    a_t = self.algo.actor_predict(o_t_flat, int(step_count / 1))
 
                     self.logc.info(
                         f'E{epi_cnt} inference done with reduced action space!',
@@ -2131,9 +2161,9 @@ class Agent(abc.ABC):
                             o_t,
                         )
 
+                    prev_ts = ts
                     prev_o_t = o_t
                     prev_a_t = a_t
-                    prev_ts = ts  # for ddpg
                     prev_table_start = table_start
 
                     # TODO add speed sum as positive reward

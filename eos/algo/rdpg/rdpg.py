@@ -7,6 +7,7 @@ import logging
 
 # third-party imports
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 # from pymongoarrow.api import schema
@@ -210,9 +211,9 @@ class RDPG(DPG):
             + '-'
             + self.__str__()
             + '-'
-            + self.truck.TruckName
+            + self.truck.vid
             + '-'
-            + self.driver
+            + self.driver.pid
             + '_'
             + '/actor'
         )
@@ -238,9 +239,9 @@ class RDPG(DPG):
             + '-'
             + self.__str__()
             + '-'
-            + self.truck.TruckName
+            + self.truck.vid
             + '-'
-            + self.driver
+            + self.driver.pid
             + '_'
             + '/critic'
         )
@@ -301,12 +302,12 @@ class RDPG(DPG):
 
     def deposit(
         self,
-        prev_ts: tf.Tensor,
-        prev_o_t: tf.Tensor,
-        prev_a_t: tf.Tensor,
+        prev_ts: pd.Timestamp,
+        prev_o_t: pd.DataFrame,
+        prev_a_t: pd.DataFrame,
         prev_table_start: int,
         cycle_reward: float,
-        o_t: tf.Tensor,
+        o_t: pd.DataFrame,
     ):
         """deposit the experience into the replay buffer.
         the following are not used for rdpg,
@@ -322,9 +323,7 @@ class RDPG(DPG):
                     'state': prev_o_t.numpy().tolist(),
                     'action': prev_a_t.numpy().tolist(),
                     'action_start_row': prev_table_start,
-                    'reward': cycle_reward.numpy().tolist()[
-                        0
-                    ],  # unpack list to single value
+                    'reward': cycle_reward,
                 }
             ]
         else:
@@ -334,9 +333,7 @@ class RDPG(DPG):
                     'state': prev_o_t.numpy().tolist(),
                     'action': prev_a_t.numpy().tolist(),
                     'action_start_row': prev_table_start,
-                    'reward': cycle_reward.numpy().tolist()[
-                        0
-                    ],  # unpack list to single value
+                    'reward': cycle_reward,  # unpack list to single value
                 }
             )
 
