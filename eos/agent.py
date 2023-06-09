@@ -71,7 +71,7 @@ from eos.data_io.config import (
     trip_servers_by_name,
     trip_servers_by_host,
     generate_vcu_calibration,
-    eos_drivers_by_id,
+    drivers_by_id,
     Driver,
     Truck,
 )
@@ -155,7 +155,7 @@ class Agent(abc.ABC):
         assert p.match(
             self.driver_str
         ), "Driver name must be in format: String1[-,_,.]String2"
-        self.driver = eos_drivers_by_id.get(self.driver_str)
+        self.driver = drivers_by_id.get(self.driver_str)
         assert self.driver is not None, f"Driver with ID {self.driver_str} not found!"
         if self.resume:
             self.data_root = projroot.joinpath(
@@ -169,7 +169,10 @@ class Agent(abc.ABC):
         self.set_logger()
         self.logc.info(f'Start Logging', extra=self.dictLogger)
         self.logc.info(
-            f'project root: {self.proj_root}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}',
+            f'project root: {self.proj_root}, '
+            f'git head: {str(self.repo.head.commit)[:7]}, '
+            f'author: {self.repo.head.commit.author}, '
+            f'git message: {self.repo.head.commit.message}',
             extra=self.dictLogger,
         )
         self.logc.info(f'vehicle: {self.truck.vid}', extra=self.dictLogger)
@@ -807,15 +810,15 @@ class Agent(abc.ABC):
                                 df_motion_power = pd.DataFrame(
                                     self.get_truck_status_motpow_t,
                                     columns=[
-                                        'ts',
+                                        'timestamp',
                                         'velocity',
                                         'thrust',
-                                        'brake  ',
+                                        'brake',
                                         'current',
                                         'voltage',
                                     ],
                                 )
-                                df_motion_power.set_index('ts', inplace=True)
+                                df_motion_power.set_index('timestamp', inplace=True)
 
                                 with self.captureQ_lock:
                                     self.motionpowerQueue.put(df_motion_power)
@@ -1195,11 +1198,9 @@ class Agent(abc.ABC):
                                 idx = pd.DatetimeIndex(
                                     timestamps.flatten(), tz=self.truck.tz
                                 )
-                                df_motion_power = (
+                                df_motion_power = pd.DataFrame(
                                     {
-                                        'timestamp': timestamps[
-                                            0
-                                        ],  # only the first timestamp is used
+                                        'timestamp': timestamps.flatten(),
                                         'velocity': velocity.flatten(),
                                         'thrust': thrust.flatten(),
                                         'brake': brake.flatten(),
@@ -1208,6 +1209,7 @@ class Agent(abc.ABC):
                                         'voltage': voltage.flatten(),
                                     },
                                 )
+                                df_motion_power.set_index('timestamp', inplace=True)
                                 # motion_power = np.c_[
                                 #     timestamps.reshape(-1, 1),  # 200
                                 #     velocity.reshape(-1, 1),  # 200
