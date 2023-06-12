@@ -6,6 +6,9 @@ logging service for the package
 import datetime
 import inspect
 
+import inspect
+import logging
+
 # Logging Service Initialization
 import logging
 
@@ -21,6 +24,15 @@ from pythonjsonlogger import jsonlogger
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
 mpl_logger = logging.getLogger("matplotlib.font_manager")
 mpl_logger.disabled = True
+
+
+# logging.basicConfig(level=logging.DEBUG, format=fmt)
+mpl_logger = logging.getLogger('matplotlib.font_manager')
+mpl_logger.disabled = True
+# logging.basicConfig(format=fmt)
+logger = logging.getLogger('eos')
+logger.propagate = False
+dictLogger = {'user': inspect.currentframe().f_code.co_name}
 
 
 def get_logger(folder, name, level=logging.INFO):

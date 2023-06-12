@@ -15,10 +15,10 @@ from tensorflow.keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
-from eos import dictLogger, logger
+from eos.utils import dictLogger, logger
 from eos.data_io.struct import EpisodeDoc, ObservationSpecs, Plot
 from eos.data_io.config import Truck, trucks_by_name, get_db_config
-from ..dpg import DPG, get_algo_data_info  # type: ignore
+from ..dpg import DPG  # type: ignore
 
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore

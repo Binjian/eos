@@ -1,9 +1,9 @@
 # third-party imports
 import tensorflow as tf
-from tensorflow.keras import layers
+from keras import layers
 
 # local imports
-from eos import dictLogger, logger
+from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
 
 

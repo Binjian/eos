@@ -15,7 +15,7 @@ from configparser import ConfigParser
 
 from keras import layers
 from pymongoarrow.monkey import patch_all
-from eos import dictLogger, logger
+from eos.utils import dictLogger, logger
 from ..utils import OUActionNoise
 from eos.data_io.buffer import DBBuffer, FileBuffer
 from ..dpg import DPG

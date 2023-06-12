@@ -61,7 +61,8 @@ from pythonjsonlogger import jsonlogger
 from tensorflow.python.client import device_lib
 from rocketmq.client import Message, Producer
 
-from eos import dictLogger, logger, projroot
+from eos import projroot
+from eos.utils import dictLogger, logger
 from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.data_io.config import (
     trucks_by_name,
@@ -2097,8 +2098,12 @@ class Agent(abc.ABC):
                     ts = motionpower.index[
                         0
                     ]  # only take the first timestamp, as frequency is fixed at 50Hz
-                    o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
-                    o_t_flat = o_t.to_numpy().flatten()
+                    o_t = (
+                        motionpower.loc[:, ['velocity', 'thrust', 'brake']]
+                        .stack()
+                        .swaplevel(0, 1)
+                        .sort_index()
+                    )
                     pow_t = motionpower.loc[:, ['current', 'voltage']]
 
                     self.logc.info(
