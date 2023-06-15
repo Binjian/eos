@@ -175,7 +175,7 @@ class DPG(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def actor_predict(self, obs, t):
+    def actor_predict(self, state: pd.DataFrame, t: int):
         """
         Evaluate the actors given a single observations.
         batch_size is 1.
@@ -193,12 +193,11 @@ class DPG(abc.ABC):
     @abc.abstractmethod
     def deposit(
         self,
-        prev_ts: pd.Timestamp,
-        prev_o_t: pd.DataFrame,
-        prev_a_t: pd.DataFrame,
-        prev_table_start: int,
-        cycle_reward: float,
-        o_t: pd.DataFrame,
+        timestamp: pd.Timestamp,
+        state: pd.DataFrame,
+        action: pd.DataFrame,
+        reward: pd.DataFrame,
+        nstate: pd.DataFrame,
     ):
         """Deposit the experience into the replay buffer."""
         pass

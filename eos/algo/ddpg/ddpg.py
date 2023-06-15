@@ -564,16 +564,17 @@ class DDPG(DPG):
     """
 
     # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
-    def policy(self, state):
+    def policy(self, state: pd.DataFrame):
         # We make sure action is within bounds
         # legal_action = np.clip(sampled_actions, action_lower, action_upper)
-
-        states = tf.expand_dims(state, 0)  # motion states is 30*3 matrix
+        # get flat interleaved (not column-wise stacked) tensor from dataframe
+        state_flat = tf.convert_to_tensor(state.to_numpy().flatten())
+        states = tf.expand_dims(state_flat, 0)  # motion states is 30*3 matrix
         sampled_actions = self.infer_single_sample(states)
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
-    def actor_predict(self, state, t):
+    def actor_predict(self, state: pd.DataFrame, t: int):
         """
         `actor_predict()` returns an action sampled from our Actor network without noise.
         add optional t just to have uniform interface with rdpg
@@ -582,47 +583,38 @@ class DDPG(DPG):
         return self.policy(state)
 
     @tf.function
-    def infer_single_sample(self, state):
+    def infer_single_sample(self, state_flat: tf.Tensor):
         # logger.info(f"Tracing", extra=dictLogger)
         print('Tracing infer!')
-        sampled_actions = tf.squeeze(self.actor_model(state))
+        sampled_actions = tf.squeeze(self.actor_model(state_flat))
         # Adding noise to action
         return sampled_actions
 
     def deposit(
         self,
-        prev_ts: pd.Timestamp,
-        prev_o_t: pd.DataFrame,
-        prev_a_t: pd.DataFrame,
-        prev_table_start: int,
-        cycle_reward: float,
-        o_t: pd.DataFrame,
+        timestamp: pd.Timestamp,
+        state: pd.DataFrame,
+        action: pd.DataFrame,
+        reward: pd.DataFrame,
+        nstate: pd.DataFrame,
     ):
-        # record: RecordDoc = {  # both ArrBuffer and DocBuffer accept RecordDoc
-        #     'episode_start': self.episode_start_dt,  # datetime
-        #     'plot': self.plot,
-        #     'observation': {
-        #         'timestamp': prev_ts.numpy().tolist(),  # integers as timestamps in ms
-        #         'state': prev_o_t.numpy().tolist(),
-        #         'action': prev_a_t.numpy().tolist(),
-        #         'action_start_row': prev_table_start,
-        #         'reward': cycle_reward.numpy().tolist()[0],
-        #         'next_state': o_t.numpy().tolist(),
-        #     },
-        # }
 
-        df_observation: pd.DataFrame = pd.concat(
-            [
-                pd.DataFrame(np.array([prev_ts]), columns=['timestamp']),
-                pd.DataFrame(prev_o_t.numpy(), columns=['state']),
-                pd.DataFrame(prev_a_t.numpy(), columns=['action']),
-                pd.DataFrame(np.array([cycle_reward]), columns=['reward']),
-                pd.DataFrame(prev_table_start, columns=['action_start_row']),
-                pd.DataFrame(o_t.numpy(), columns=['next_state']),
-            ],
-            axis=1,  # column-wise concatenation)
-        )  # TODO check if join() is better for combine timestamp index
-        df_observation.set_index('timestamp', inplace=True)
+        # Create MultiIndex
+        ts = pd.Series([timestamp], name='timestamp')
+        ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=['rows', 'idx'])
+        timestamp_index = (ts.name, '', 0)
+        state_index = [(state.name, *i) for i in state.index]
+        reward_index = [(reward.name, *i) for i in reward.index]
+        action_index = [(action.name, *i) for i in action.index]
+        nstate_index = [(nstate.name, *i) for i in nstate.index]
+
+        multiindex = pd.MultiIndex.from_tuples(
+            [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
+        )
+        observation_list = [timestamp, state, action, reward, nstate]
+        observation = pd.concat(observation_list)
+        observation.index = multiindex
+
         self.buffer.store(df_observation)
 
     def end_episode(self):

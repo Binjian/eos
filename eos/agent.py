@@ -38,6 +38,7 @@ import threading
 import time
 import warnings
 import re
+from functools import reduce
 
 # third party imports
 from collections import deque
@@ -811,7 +812,7 @@ class Agent(abc.ABC):
                                 df_motion_power = pd.DataFrame(
                                     self.get_truck_status_motpow_t,
                                     columns=[
-                                        'timestamp',
+                                        'timestep',
                                         'velocity',
                                         'thrust',
                                         'brake',
@@ -819,7 +820,8 @@ class Agent(abc.ABC):
                                         'voltage',
                                     ],
                                 )
-                                df_motion_power.set_index('timestamp', inplace=True)
+                                # df_motion_power.set_index('timestamp', inplace=True)
+                                df_motion_power.columns.name = 'tuple'
 
                                 with self.captureQ_lock:
                                     self.motionpowerQueue.put(df_motion_power)
@@ -1201,7 +1203,7 @@ class Agent(abc.ABC):
                                 )
                                 df_motion_power = pd.DataFrame(
                                     {
-                                        'timestamp': timestamps.flatten(),
+                                        'timestep': timestamps.flatten(),
                                         'velocity': velocity.flatten(),
                                         'thrust': thrust.flatten(),
                                         'brake': brake.flatten(),
@@ -1210,7 +1212,8 @@ class Agent(abc.ABC):
                                         'voltage': voltage.flatten(),
                                     },
                                 )
-                                df_motion_power.set_index('timestamp', inplace=True)
+                                df_motion_power.columns.name = 'tuple'
+                                # df_motion_power.set_index('timestamp', inplace=True)
                                 # motion_power = np.c_[
                                 #     timestamps.reshape(-1, 1),  # 200
                                 #     velocity.reshape(-1, 1),  # 200
@@ -1950,6 +1953,94 @@ class Agent(abc.ABC):
         # motionpowerQueue.join()
         logger_flash.info(f'remote_flash_vcu dies!!!', extra=self.dictLogger)
 
+    def assemble_state_df(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+        state = (
+            motionpower.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+            .stack()
+            .swaplevel(0, 1)
+        )
+        state.name = 'state'
+        state.index.names = ['rows', 'idx']
+        state.sort_index(inplace=True)
+
+        return state
+
+    def assemble_reward_df(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+
+        pow_t = motionpower.loc[:, ['current', 'voltage']]
+        ui_sum = pow_t.prod(axis=1).sum()
+        wh = (
+            ui_sum / 3600.0 * self.sample_rate
+        )  # rate 0.05 for kvaser, 0.02 remote # negative wh
+        self.logc.info(
+            f'wh: {wh}',
+            extra=self.dictLogger,
+        )
+        work = wh * (-1.0)
+        reward_ts = pd.to_datetime(datetime.now())
+        reward = (
+            pd.DataFrame({'work': work, 'timestep': reward_ts}, index=[0])
+            .stack()
+            .swaplevel(0, 1)
+            .sort_index()
+        )
+        reward.name = 'reward'
+        reward.index.names = ['rows', 'idx']
+        return reward
+
+    def generate_action_df(
+        self,
+        torque_map_line: tf.Tensor,
+        table_start: int,
+        evt_remote_flash: threading.Event,
+    ) -> pd.DataFrame:
+
+        flash_start_ts = pd.to_datetime(datetime.now())
+        with self.tableQ_lock:
+            self.tableQueue.put(torque_map_line)
+            self.logc.info(
+                f'StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}',
+                extra=self.dictLogger,
+            )
+        # assemble_action_df
+        speed_ser = self.truck.velocity_scale[
+            table_start : table_start + self.truck.action_flashrow
+        ]
+        throttle_ser = self.truck.pedal_scale
+        torque_map = tf.reshape(
+            torque_map_line,
+            [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
+        )
+        df_torque_map = pd.DataFrame(torque_map.to_numpy())
+
+        # wait for remote flash to finish
+        evt_remote_flash.wait()
+        flash_end_ts = pd.to_datetime(datetime.now())
+        row_num = self.truck.action_flashrow
+        span_each_row = (flash_end_ts - flash_start_ts) / row_num
+        flash_timestamps = flash_start_ts + pd.date_range(
+            np.linspace(1, row_num, row_num) * span_each_row, unit='ms'
+        )
+        action = (
+            reduce(
+                lambda left, right: pd.merge(
+                    left,
+                    right,
+                    how='outer',
+                    left_index=True,
+                    right_index=True,
+                ),
+                [df_torque_map, flash_timestamps, speed_ser, throttle_ser],
+            )
+            .stack()
+            .swaplevel(0, 1)
+            .sort_index()
+        )
+        action.name = 'action'
+        action.index.names = ['rows', 'idx']
+
+        return action
+
     def run(self):
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
@@ -2077,101 +2168,54 @@ class Agent(abc.ABC):
                         f'E{epi_cnt} start step {step_count}',
                         extra=self.dictLogger,
                     )  # env.step(action) action is flash the vcu calibration table
-                    # watch(step_count)
-                    # reward history
-                    # motpow_t = tf.convert_to_tensor(
-                    #     motionpower
-                    # )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    # if self.cloud:
-                    #     # out = tf.split(
-                    #     #     motpow, [1, 3, 1, 2], 1
-                    #     # )  # note the difference of split between np and tf
-                    #     # (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
-                    #     # o_t = tf.reshape(o_t0, -1)  # [200, 3] -> [600]
-                    #     o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
-                    #     pow_t = motionpower.loc[:, ['current', 'voltage']]
-                    # else:
-                    #     # ts, o_t0, pow_t = tf.split(motpow_t, [1, 3, 2], 1)
-                    #     # o_t = tf.reshape(o_t0, -1)
-                    #     o_t = motionpower.loc[:, ['velocity', 'thrust', 'brake']]
-                    #     pow_t = motionpower.loc[:, ['current', 'voltage']]
-                    ts = motionpower.index[
-                        0
-                    ]  # only take the first timestamp, as frequency is fixed at 50Hz
-                    o_t = (
-                        motionpower.loc[:, ['velocity', 'thrust', 'brake']]
-                        .stack()
-                        .swaplevel(0, 1)
-                        .sort_index()
-                    )
-                    pow_t = motionpower.loc[:, ['current', 'voltage']]
-
-                    self.logc.info(
-                        f'E{epi_cnt} tensor convert and split!',
-                        extra=self.dictLogger,
-                    )
-                    # ui_sum = tf.reduce_sum(
-                    #     tf.reduce_prod(pow_t, 1)
-                    # )  # vcu reward is a scalar
-                    ui_sum = pow_t.prod(axis=1).sum()
-                    wh = (
-                        ui_sum / 3600.0 * self.sample_rate
-                    )  # rate 0.05 for kvaser, 0.02 remote # negative wh
-                    # self.logger.info(
-                    #     f"ui_sum: {ui_sum}",
-                    #     extra=self.dictLogger,
-                    # )
-                    self.logc.info(
-                        f'wh: {wh}',
-                        extra=self.dictLogger,
-                    )
 
                     # !!!no parallel even!!!
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causal rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
+
+                    # assemble state
+                    timestamp = motionpower.loc[
+                        0, 'timestep'
+                    ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
+                    state = self.assemble_state_df(motionpower)
+
+                    # assemble reward
+                    reward = self.assemble_reward_df(work)
+                    work = reward[('work', 0)]
+                    episode_reward += work
+
                     self.logc.info(
-                        f'E{epi_cnt} before inference!',
+                        f'E{epi_cnt} assembling state and reward!',
                         extra=self.dictLogger,
                     )
-
-                    a_t = self.algo.actor_predict(o_t_flat, int(step_count / 1))
+                    # stripping timestamps from state, (later flatten and convert to tensor)
+                    torque_map_line = self.algo.actor_predict(
+                        state[['velocity', 'thrust', 'brake']], int(step_count / 1)
+                    )
 
                     self.logc.info(
                         f'E{epi_cnt} inference done with reduced action space!',
                         extra=self.dictLogger,
                     )
-
-                    with self.tableQ_lock:
-                        self.tableQueue.put(a_t)
-                        self.logc.info(
-                            f'E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}',
-                            extra=self.dictLogger,
-                        )
-                    self.logc.info(
-                        f'E{epi_cnt} Finish Inference Step: {step_count}',
-                        extra=self.dictLogger,
+                    # flash the vcu calibration table and assemble action
+                    action = self.generate_action_df(
+                        torque_map_line, table_start, evt_remote_flash
                     )
-
-                    # !!!no parallel even!!!
-                    cycle_reward = wh * (-1.0)
-                    episode_reward += cycle_reward
 
                     if step_count > 0:
                         self.algo.deposit(
-                            prev_ts,
-                            prev_o_t,
-                            prev_a_t,
-                            prev_table_start,
-                            cycle_reward,
-                            o_t,
+                            prev_timestamp,
+                            prev_state,
+                            prev_action,
+                            reward,
+                            state,
                         )
 
-                    prev_ts = ts
-                    prev_o_t = o_t
-                    prev_a_t = a_t
-                    prev_table_start = table_start
+                    prev_timestamp = timestamp
+                    prev_state = state
+                    prev_action = action
 
                     # TODO add speed sum as positive reward
                     self.logc.info(
