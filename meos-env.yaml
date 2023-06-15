@@ -17,10 +17,11 @@ dependencies:
   - pylint
   - typing_inspect
   - poetry
-  - tensorflow=2.11.0
+  - tensorflow=2.11.1
   - tensorflow-estimator
   - tensorflow-probability
   - tensorboard
+  - flatbuffers=23.3.3
   - python-json-logger
   - plotly
   - Pillow
