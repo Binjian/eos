@@ -12,7 +12,7 @@ import numpy as np
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
 from eos import RemoteCan, projroot
-from eos.config import trucks_by_name, trucks_by_vin, trip_servers, can_servers
+from eos.config import trucks_by_id, trucks_by_vin, trip_servers, can_servers
 from eos.utils import ragged_nparray_list_interp
 from eos.config import generate_vcu_calibration
 

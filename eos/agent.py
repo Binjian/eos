@@ -66,7 +66,7 @@ from eos import projroot
 from eos.utils import dictLogger, logger
 from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.data_io.config import (
-    trucks_by_name,
+    trucks_by_id,
     trucks_by_vin,
     can_servers_by_host,
     can_servers_by_name,
@@ -145,8 +145,8 @@ class Agent(abc.ABC):
             assert self.truck is not None, f'No Truck with VIN {self.vehicle_str}'
         else:
             # validate truck id
-            # assert self.vehicle in self.trucks_by_name.keys()
-            self.truck = trucks_by_name.get(self.vehicle_str)
+            # assert self.vehicle in self.trucks_by_id.keys()
+            self.truck = trucks_by_id.get(self.vehicle_str)
             assert self.truck is not None, f'No Truck with name {self.vehicle_str}'
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
@@ -253,7 +253,7 @@ class Agent(abc.ABC):
         self.logc.info(f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger)
 
         self.remotecan_client = RemoteCan(
-            truck_name=self.truck.vid,
+            truckname=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
 
@@ -2003,23 +2003,36 @@ class Agent(abc.ABC):
                 extra=self.dictLogger,
             )
         # assemble_action_df
-        speed_ser = self.truck.velocity_scale[
-            table_start : table_start + self.truck.action_flashrow
-        ]
-        throttle_ser = self.truck.pedal_scale
+        row_num = self.truck.action_flashrow
+        speed_ser = pd.Series(
+            self.truck.velocity_scale[
+                table_start : table_start + self.truck.action_flashrow
+            ],
+            name='speed',
+        )
+
+        throttle_ser = pd.Series(self.truck.pedal_scale, name='throttle')
         torque_map = tf.reshape(
             torque_map_line,
             [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
         )
-        df_torque_map = pd.DataFrame(torque_map.to_numpy())
+        df_torque_map = pd.DataFrame(
+            torque_map.to_numpy()
+        ).transpose()  # row to columns
+        df_torque_map.columns = [
+            f'r{i}' for i in np.arange(row_num)
+        ]  # index: [r0, r1, ...]
 
         # wait for remote flash to finish
         evt_remote_flash.wait()
         flash_end_ts = pd.to_datetime(datetime.now())
-        row_num = self.truck.action_flashrow
         span_each_row = (flash_end_ts - flash_start_ts) / row_num
-        flash_timestamps = flash_start_ts + pd.date_range(
-            np.linspace(1, row_num, row_num) * span_each_row, unit='ms'
+        flash_timestamps_ser = pd.Series(
+            flash_start_ts
+            + pd.date_range(
+                np.linspace(1, row_num, row_num) * span_each_row, unit='ms'
+            ),
+            name='timestep',
         )
         action = (
             reduce(
@@ -2030,7 +2043,7 @@ class Agent(abc.ABC):
                     left_index=True,
                     right_index=True,
                 ),
-                [df_torque_map, flash_timestamps, speed_ser, throttle_ser],
+                [df_torque_map, flash_timestamps_ser, speed_ser, throttle_ser],
             )
             .stack()
             .swaplevel(0, 1)
@@ -2038,6 +2051,7 @@ class Agent(abc.ABC):
         )
         action.name = 'action'
         action.index.names = ['rows', 'idx']
+        action.columns.names = []
 
         return action
 

@@ -29,7 +29,7 @@ from eos.config import (
     episode_schemas,
     record_schemas,
     trucks_by_vin,
-    trucks_by_name,
+    trucks_by_id,
 )
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
@@ -67,7 +67,7 @@ class TestRemoteCanPool(unittest.TestCase):
             'https': 'http://127.0.0.1:34663',
         }
         os.environ['http_proxy'] = ''  # for native test (internal site force no proxy)
-        self.trucks_by_name = trucks_by_name
+        self.trucks_by_id = trucks_by_id
         self.truck_name = 'VB7'
 
         self.db_server_name = 'mongo_local'
@@ -89,7 +89,7 @@ class TestRemoteCanPool(unittest.TestCase):
         self.logger.propagate = False
         self.dictLogger = {'user': inspect.currentframe().f_code.co_name}
 
-        self.truck = self.trucks_by_name[self.truck_name]
+        self.truck = self.trucks_by_id[self.truck_name]
         self.set_logger(projroot)
         self.logger.info(
             f'Truck: {self.truck.vid}-{self.truck.vin}',
@@ -670,9 +670,9 @@ class TestRemoteCanPool(unittest.TestCase):
                     'where': str,
                     'length': int,
                     'states': {
-                        'velocity_unit': 'kmph',
-                        'thrust_unit': 'percentage',
-                        'brake_unit': 'percentage',
+                        'velocity_unit_code': 'kmph',
+                        'thrust_unit_code': 'percentage',
+                        'brake_unit_code': 'percentage',
                         'length': int,
                     },
                     'actions': {
@@ -698,9 +698,9 @@ class TestRemoteCanPool(unittest.TestCase):
                     'where': str,
                     'length': int,
                     'states': {
-                        'velocity_unit': 'kmph',
-                        'thrust_unit': 'percentage',
-                        'brake_unit': 'percentage',
+                        'velocity_unit_code': 'kmph',
+                        'thrust_unit_code': 'percentage',
+                        'brake_unit_code': 'percentage',
                         'length': int,
                     },
                     'actions': {
@@ -769,9 +769,9 @@ class TestRemoteCanPool(unittest.TestCase):
                     'when': datetime,
                     'where': str,
                     'states': {
-                        'velocity_unit': 'kmph',
-                        'thrust_unit': 'percentage',
-                        'brake_unit': 'percentage',
+                        'velocity_unit_code': 'kmph',
+                        'thrust_unit_code': 'percentage',
+                        'brake_unit_code': 'percentage',
                         'length': int,
                     },
                     'actions': {
@@ -878,9 +878,9 @@ class TestRemoteCanPool(unittest.TestCase):
                 'where': 'campus',
                 'length': len(self.h_t),
                 'states': {
-                    'velocity_unit': 'kmph',
-                    'thrust_unit': 'percentage',
-                    'brake_unit': 'percentage',
+                    'velocity_unit_code': 'kmph',
+                    'thrust_unit_code': 'percentage',
+                    'brake_unit_code': 'percentage',
                     'length': observation_length,
                 },
                 'actions': {
@@ -905,9 +905,9 @@ class TestRemoteCanPool(unittest.TestCase):
                 'when': datetime,
                 'where': str,
                 'states': {
-                    'velocity_unit': 'kmph',
-                    'thrust_unit': 'percentage',
-                    'brake_unit': 'percentage',
+                    'velocity_unit_code': 'kmph',
+                    'thrust_unit_code': 'percentage',
+                    'brake_unit_code': 'percentage',
                     'length': int,
                 },
                 'actions': {
@@ -969,9 +969,9 @@ class TestRemoteCanPool(unittest.TestCase):
                 'when': datetime.fromtimestamp(timestamp0[0]),
                 'where': 'campus',
                 'states': {
-                    'velocity_unit': 'kmph',
-                    'thrust_unit': 'percentage',
-                    'brake_unit': 'percentage',
+                    'velocity_unit_code': 'kmph',
+                    'thrust_unit_code': 'percentage',
+                    'brake_unit_code': 'percentage',
                     'length': motion_states0.shape[0],
                 },
                 'actions': {
@@ -1044,9 +1044,9 @@ class TestRemoteCanPool(unittest.TestCase):
                     'when': datetime.fromtimestamp(timestamp0[0]),
                     'where': 'campus',
                     'states': {
-                        'velocity_unit': 'kmph',
-                        'thrust_unit': 'percentage',
-                        'brake_unit': 'percentage',
+                        'velocity_unit_code': 'kmph',
+                        'thrust_unit_code': 'percentage',
+                        'brake_unit_code': 'percentage',
                         'length': motion_states0.shape[0],
                     },
                     'actions': {
@@ -1082,9 +1082,9 @@ class TestRemoteCanPool(unittest.TestCase):
                     'when': datetime.fromtimestamp(timestamp0[0]),
                     'where': 'campus',
                     'states': {
-                        'velocity_unit': 'kmph',
-                        'thrust_unit': 'percentage',
-                        'brake_unit': 'percentage',
+                        'velocity_unit_code': 'kmph',
+                        'thrust_unit_code': 'percentage',
+                        'brake_unit_code': 'percentage',
                         'length': motion_states0.shape[0],
                     },
                     'actions': {

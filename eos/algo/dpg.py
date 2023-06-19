@@ -1,5 +1,5 @@
 import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 import pandas as pd
@@ -7,15 +7,15 @@ import re
 
 import tensorflow as tf
 
-from eos.data_io.config import Truck, trucks_by_name, get_db_config
+from eos.data_io.config import Truck, trucks_by_id, get_db_config, Driver, drivers_by_id
 from eos.data_io.struct import (
-    ObservationSpecs,
-    Plot,
-    RecordDoc,
-    EpisodeDoc,
-    get_filepool_config,
+    StateUnitCodes,
+    ObservationMeta,
+    StateSpecs,
+    ActionSpecs,
+    get_filemeta_config,
 )
-from eos.data_io.buffer import Buffer, DBBuffer, FileBuffer
+from eos.data_io.buffer import Buffer, DBDFBuffer, FileDFBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -33,10 +33,10 @@ class DPG(abc.ABC):
     _pool_key: str = 'mongo_local'  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for databse access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
-    _plot: Optional[Plot] = None
+    _observation_meta: Optional[ObservationMeta] = None
     _episode_start_dt: datetime = None
-    _truck: Truck = trucks_by_name['VB7']
-    _driver: str = 'longfei'
+    _truck: Truck = trucks_by_id['VB7']
+    _driver: Driver = drivers_by_id['zheng-longfei']
     _num_states: int = 600
     _num_actions: int = 68
     _buffer_capacity: int = 10000
@@ -51,6 +51,8 @@ class DPG(abc.ABC):
     _ckpt_interval: int = 5
     _resume: bool = True
     _infer_mode: bool = False
+    _observations: list[pd.DataFrame] = field(default_factory=list[pd.DataFrame])
+    _epi_no: int = 0
 
     def __post_init__(self):
         """
@@ -65,34 +67,34 @@ class DPG(abc.ABC):
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
-        #  init plot object, episode start time will be updated for each episode, for now it is the time when the algo is created
-        self.plot = (
-            Plot(  # self.plot is a Plot object generated from realtime truck object
-                character=self.truck.vid,
-                driver=self.driver,
-                when=self.episode_start_dt,
-                tz=str(self.truck.tz),
-                where=self.truck.location,
-                state_specs={
-                    'observation_specs': ObservationSpecs(
-                        velocity_unit='kph',
-                        thrust_unit='pct',
-                        brake_unit='pct',
-                    ),
-                    'unit_number': self.truck.CloudUnitNumber,  # 4
-                    'unit_duration': self.truck.CloudUnitDuration,  # 1s
-                    'frequency': self.truck.CloudSignalFrequency,  # 50 hz
-                },
-                action_specs={
-                    'action_row_number': self.truck.ActionFlashRow,
-                    'action_column_number': self.truck.PedalScale,
-                },
-                reward_specs={
-                    'reward_unit': 'wh',
-                },
-            )
+        #  init observation meta info object,
+        #  episode start time will be updated for each episode, for now it is the time when the algo is created
+
+        self.observation_meta = ObservationMeta(
+            state_specs=StateSpecs(
+                state_unit_codes=StateUnitCodes(
+                    velocity_unit_code='kph',
+                    thrust_unit_code='pct',
+                    brake_unit_code='pct',
+                ),
+                unit_number=self.truck.cloud_unit_number,  # 4
+                unit_duration=self.truck.cloud_unit_duration,  # 1s
+                frequency=self.truck.cloud_signal_frequency,  # 50 hz
+            ),
+            action_specs=ActionSpecs(
+                action_unit_code='nm',
+                action_row_number=self.truck.action_flashrow,
+                action_column_number=len(self.truck.pedal_scale),
+            ),
+            reward_specs={
+                'reward_unit': 'wh',
+            },
         )
-        self.num_states, self.num_actions = self.plot.get_number_of_states_actions()
+
+        (
+            self.num_states,
+            self.num_actions,
+        ) = self.observation_meta.get_number_of_states_actions()
 
         login_pattern = re.compile(
             r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
@@ -101,62 +103,34 @@ class DPG(abc.ABC):
         # if pool_key is an url or a mongodb name
         if 'mongo' in self.pool_key.lower() or login_pattern.match(self.pool_key):
             db_config = get_db_config(self.pool_key)
-            if 'RECORD' in self.coll_type.upper():
-                db_config._replace(
-                    dbtype='RECORD'
-                )  # update the db_config type to record
-                self.buffer = DBBuffer[RecordDoc](  # choose item type: Record/Episode
-                    plot=self.plot,
-                    db_config=db_config,
-                    batch_size=self.batch_size,
-                )
-            elif 'EPISODE' in self.coll_type.upper():
-                db_config._replace(
-                    dbtype='EPISODE'
-                )  # update the db_config type to record
-                self.buffer = DBBuffer[EpisodeDoc](  # choose item type: Record/Episode
-                    plot=self.plot,
-                    db_config=db_config,
-                    batch_size=self.batch_size,
-                )
-            else:
-                raise ValueError(
-                    f'coll_type {self.coll_type} is not a valid collection type. It should be RECORD or EPISODE.'
-                )
+            self.buffer = DBDFBuffer(  # choose item type: Record/Episode
+                db_config=db_config,
+                batch_size=self.batch_size,
+                driver=self.driver,
+                truck=self.truck,
+                meta=self.observation_meta,
+            )
         elif self.pool_key is None or recipe_pattern.match(
             self.pool_key
-        ):  # if pool_key is an ini filename, use local files as pool
-            if 'RECORD' in self.coll_type.upper():
-                recipe = get_filepool_config(
-                    data_folder=self.data_folder,
-                    config_file=self.pool_key,
-                    coll_type='RECORD',
-                    plot=self.plot,
-                )
-                self.buffer = FileBuffer[RecordDoc](
-                    plot=self.plot,
-                    recipe=recipe,
-                    batch_size=self.batch_size,
-                )
-            elif 'EPISODE' in self.coll_type.upper():
-                recipe = get_filepool_config(
-                    data_folder=self.data_folder,
-                    config_file=self.pool_key,
-                    coll_type='EPISODE',
-                    plot=self.plot,
-                )
-                self.buffer = FileBuffer[EpisodeDoc](
-                    plot=self.plot,
-                    recipe=recipe,
-                    batch_size=self.batch_size,
-                )
+        ):  # if pool_key is an ini filename, use parquet as pool
+            recipe = get_filemeta_config(
+                data_folder=self.data_folder,
+                config_file=self.pool_key,
+            )
+            self.buffer = FileDFBuffer(
+                recipe=recipe,
+                batch_size=self.batch_size,
+                driver=self.driver,
+                truck=self.truck,
+                meta=self.observation_meta,
+            )
         else:
             raise ValueError(
                 f'pool_key {self.pool_key} is not a valid mongodb login string nor an ini filename.'
             )
 
     def __repr__(self):
-        return f'DPG({self.truck.vid}, {self.driver})'
+        return f'DPG({self.truck.vid}, {self.driver.pid})'
 
     def __str__(self):
         return 'DPG'
@@ -189,6 +163,7 @@ class DPG(abc.ABC):
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
         self.plot.when = self.episode_start_dt  # only update when an episode starts
+        self.observations = []
 
     @abc.abstractmethod
     def deposit(
@@ -393,12 +368,12 @@ class DPG(abc.ABC):
         self._episode_start_dt = value
 
     @property
-    def plot(self) -> Plot:
-        return self._plot
+    def observation_meta(self) -> ObservationMeta:
+        return self._observation_meta
 
-    @plot.setter
-    def plot(self, value: Plot):
-        self._plot = value
+    @observation_meta.setter
+    def observation_meta(self, value: ObservationMeta):
+        self._observation_meta = value
 
     @property
     def buffer(self) -> Buffer:
@@ -415,3 +390,19 @@ class DPG(abc.ABC):
     @coll_type.setter
     def coll_type(self, value: str):
         self._coll_type = value
+
+    @property
+    def observations(self) -> list[pd.DataFrame]:
+        return self._observations
+
+    @observations.setter
+    def observations(self, value: list[pd.DataFrame]):
+        self._observations = value
+
+    @property
+    def epi_no(self) -> int:
+        return self._epi_no
+
+    @epi_no.setter
+    def epi_no(self, value: int):
+        self._epi_no = value

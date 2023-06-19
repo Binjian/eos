@@ -16,8 +16,8 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos.utils import dictLogger, logger
-from eos.data_io.struct import EpisodeDoc, ObservationSpecs, Plot
-from eos.data_io.config import Truck, trucks_by_name, get_db_config
+from eos.data_io.struct import EpisodeDoc, StateUnitCodes, Plot
+from eos.data_io.config import Truck, trucks_by_id, get_db_config
 from ..dpg import DPG  # type: ignore
 
 from .actor import ActorNet  # type: ignore
@@ -447,7 +447,7 @@ class RDPG(DPG):
         )
 
         # get dimension of the history
-        num_obs = len(batch[0]['plot']['state_specs']['observation_specs'])
+        num_obs = len(batch[0]['plot']['state_specs']['state_unit_codes'])
         unit_number = batch[0]['plot']['state_specs']['unit_number']
         unit_duration = batch[0]['plot']['state_specs']['unit_duration']
         frequency = batch[0]['plot']['state_specs']['frequency']

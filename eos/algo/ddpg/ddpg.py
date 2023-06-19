@@ -19,10 +19,10 @@ from eos.utils import dictLogger, logger
 from ..utils import OUActionNoise
 from eos.data_io.buffer import DBBuffer, FileBuffer
 from ..dpg import DPG
-from eos.data_io import Truck, trucks_by_name, get_db_config
+from eos.data_io import Truck, trucks_by_id, get_db_config
 from eos.data_io.struct import (
     RecordDoc,
-    ObservationSpecs,
+    StateUnitCodes,
     Plot,
     RecordArr,
     get_filepool_config,
@@ -602,7 +602,7 @@ class DDPG(DPG):
         # Create MultiIndex
         ts = pd.Series([timestamp], name='timestamp')
         ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=['rows', 'idx'])
-        timestamp_index = (ts.name, '', 0)
+        timestamp_index = (ts.name, '', 0)  # triple index (name, row, idx)
         state_index = [(state.name, *i) for i in state.index]
         reward_index = [(reward.name, *i) for i in reward.index]
         action_index = [(action.name, *i) for i in action.index]
@@ -612,13 +612,50 @@ class DDPG(DPG):
             [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
         )
         observation_list = [timestamp, state, action, reward, nstate]
-        observation = pd.concat(observation_list)
+        observation = pd.concat(observation_list)  # concat Series along MultiIndex
         observation.index = multiindex
-
-        self.buffer.store(df_observation)
+        self.observations.append(observation)
 
     def end_episode(self):
         self.logger.info(f'Episode end at {datetime.now()}', extra=dictLogger)
+
+        episode = pd.concat(
+            self.observations, axis=1
+        ).transpose()  # concat along columns and transpose to DataFrame
+        episode.columns.name = ['tuple', 'rows', 'idx']
+        episode.set_index(('timestamp', '', 0), append=False, inplace=True)
+        episode.index.name = 'timestamp'
+        # episode.sort_index(inplace=True)
+
+        # convert columns types to float where necessary
+        state_cols_float = [('state', col) for col in ['brake', 'thrust', 'velocity']]
+        action_row_names = [f'r{i}' for i in range(self.truck.action_flashrows)]
+        action_cols_float = [
+            ('action', col) for col in [*action_row_names, 'speed', 'throttle']
+        ]
+        reward_cols_float = [('reward', 'work')]
+        nstate_cols_float = [('nstate', col) for col in ['brake', 'thrust', 'velocity']]
+        for col in (
+            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
+        ):
+            episode[col[0], col[1]] = episode[col[0], col[1]].astype(
+                'float'
+            )  # float16 not allowed in parquet
+
+        # Create MultiIndex for the episode
+        episode = pd.concat([episode], keys=[self.driver.pid], names=['driver'])
+        episode = pd.concat([episode], keys=[self.truck.vid], names=['vehicle'])
+        episode = pd.concat(
+            [episode],
+            keys=[pd.to_datetime(self.episode_start_dt)],
+            names=['episodestart'],
+        )
+        episode.sort_index(inplace=True)
+
+        self.buffer.store(episode)
+        self.logger.info(f'Store episode {self.epi_no}.', extra=dictLogger)
+        self.epi_no += 1
+
         # self.buffer.close()  # pool in buffer will be closed in finalize()
         # fill in other necessary action for end of episode
 
