@@ -15,7 +15,7 @@ from eos.data_io.struct import (
     ActionSpecs,
     get_filemeta_config,
 )
-from eos.data_io.buffer import Buffer, DBDFBuffer, FileDFBuffer
+from eos.data_io.buffer import Buffer, MongoBuffer, ArrowBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -89,6 +89,7 @@ class DPG(abc.ABC):
             reward_specs={
                 'reward_unit': 'wh',
             },
+            site=self.truck.site,
         )
 
         (
@@ -103,7 +104,7 @@ class DPG(abc.ABC):
         # if pool_key is an url or a mongodb name
         if 'mongo' in self.pool_key.lower() or login_pattern.match(self.pool_key):
             db_config = get_db_config(self.pool_key)
-            self.buffer = DBDFBuffer(  # choose item type: Record/Episode
+            self.buffer = MongoBuffer(  # choose item type: Record/Episode
                 db_config=db_config,
                 batch_size=self.batch_size,
                 driver=self.driver,
@@ -116,8 +117,9 @@ class DPG(abc.ABC):
             recipe = get_filemeta_config(
                 data_folder=self.data_folder,
                 config_file=self.pool_key,
+                meta=self.observation_meta,
             )
-            self.buffer = FileDFBuffer(
+            self.buffer = ArrowBuffer(
                 recipe=recipe,
                 batch_size=self.batch_size,
                 driver=self.driver,

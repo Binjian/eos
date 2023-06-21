@@ -48,3 +48,5 @@ data
 /example.ini
 /packages.dot
 /recip.ini
+*.dot
+*.dot

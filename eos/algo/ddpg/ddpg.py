@@ -17,7 +17,7 @@ from keras import layers
 from pymongoarrow.monkey import patch_all
 from eos.utils import dictLogger, logger
 from ..utils import OUActionNoise
-from eos.data_io.buffer import DBBuffer, FileBuffer
+from eos.data_io.buffer import MongoBuffer, ArrowBuffer
 from ..dpg import DPG
 from eos.data_io import Truck, trucks_by_id, get_db_config
 from eos.data_io.struct import (
@@ -140,7 +140,7 @@ class DDPG(DPG):
     """
 
     _buffer: Optional[
-        DBBuffer[RecordDoc] | FileBuffer[RecordArr]
+        MongoBuffer | ArrowBuffer
     ] = None  # cannot have default value, because it precedes _plot in base class DPG
     logger: logging.Logger = None
     _episode_start_dt: datetime = None

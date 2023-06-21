@@ -8,7 +8,8 @@ from .data_io.pool import (
     Pool,
     DBPool,
     RecordNumpyArrayPool,
-    RecordFilePool,
+    ArrowPool,
+    MongoPool,
     EpisodeFilePool,
 )
 from .comm import kvaser_send_float_array
@@ -33,7 +34,8 @@ __all__ = [
     Pool,
     DBPool,
     RecordNumpyArrayPool,
-    RecordFilePool,
+    ArrowPool,
+    MongoPool,
     EpisodeFilePool,
     RemoteCan,
     ClearablePullConsumer,

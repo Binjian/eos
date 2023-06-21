@@ -23,7 +23,7 @@ from ..dpg import DPG  # type: ignore
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
-from eos.data_io.buffer import DBBuffer, FileBuffer  # type: ignore
+from eos.data_io.buffer import DBBuffer, ArrowBuffer  # type: ignore
 
 patch_all()
 
