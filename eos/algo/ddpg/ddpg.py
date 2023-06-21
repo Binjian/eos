@@ -704,7 +704,7 @@ class DDPG(DPG):
 
     def sample_minibatch(self):
         """
-        Update the actor and critic networks using the sampled batch.
+        Convert batch type from DataFrames to flattened tensors.
         """
         assert self.buffer.count() > 0, 'pool is empty'
         # get sampling range, if not enough data, batch is small
@@ -714,21 +714,18 @@ class DDPG(DPG):
             extra=dictLogger,
         )
 
-        batch = self.buffer.sample()
-        assert (
-            len(batch) == self.batch_size
-        ), f'sampled batch size {len(batch)} not match sample size {self.batch_size}'
+        state, action, reward, nstate = self.buffer.sample()
 
-        states = [rec['observation']['state'] for rec in batch]
-        actions = [rec['observation']['action'] for rec in batch]
-        rewards = [rec['observation']['reward'] for rec in batch]
-        next_states = [rec['observation']['next_state'] for rec in batch]
+        # states = [rec['observation']['state'] for rec in batch]
+        # actions = [rec['observation']['action'] for rec in batch]
+        # rewards = [rec['observation']['reward'] for rec in batch]
+        # next_states = [rec['observation']['next_state'] for rec in batch]
+        # Previously convert output from sample (list or numpy array) to tf.tensor
 
-        # convert output from sample (list or numpy array) to tf.tensor
-        states = tf.convert_to_tensor(np.array(states), dtype=tf.float32)
-        actions = tf.convert_to_tensor(np.array(actions), dtype=tf.float32)
-        rewards = tf.convert_to_tensor(np.array(rewards), dtype=tf.float32)
-        next_states = tf.convert_to_tensor(np.array(next_states), dtype=tf.float32)
+        states = tf.convert_to_tensor(state.values.flatten(), dtype=tf.float32)
+        actions = tf.convert_to_tensor(action.values.flatten(), dtype=tf.float32)
+        rewards = tf.convert_to_tensor(reward.values[0], dtype=tf.float32)
+        next_states = tf.convert_to_tensor(nstate.values.flatten(), dtype=tf.float32)
 
         return states, actions, rewards, next_states
 
