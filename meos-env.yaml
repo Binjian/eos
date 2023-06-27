@@ -42,6 +42,7 @@ dependencies:
   - pymongoarrow
   - dask
   - gitpython
+  - jupytext
   - tqdm
   - pip
   - pip:
