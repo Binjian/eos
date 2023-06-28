@@ -629,9 +629,9 @@ class DDPG(DPG):
 
         # convert columns types to float where necessary
         state_cols_float = [('state', col) for col in ['brake', 'thrust', 'velocity']]
-        action_row_names = [f'r{i}' for i in range(self.truck.action_flashrows)]
         action_cols_float = [
-            ('action', col) for col in [*action_row_names, 'speed', 'throttle']
+            ('action', col)
+            for col in [*self.torque_table_row_names, 'speed', 'throttle']
         ]
         reward_cols_float = [('reward', 'work')]
         nstate_cols_float = [('nstate', col) for col in ['brake', 'thrust', 'velocity']]

@@ -5,8 +5,6 @@ from typing import Optional
 import pandas as pd
 import re
 
-import tensorflow as tf
-
 from eos.data_io.config import Truck, trucks_by_id, get_db_config, Driver, drivers_by_id
 from eos.data_io.struct import (
     StateUnitCodes,
@@ -31,7 +29,7 @@ class DPG(abc.ABC):
     ] = None  # as last of non-default parameters, so that derived class can override with default
     _data_folder: str = './'
     _pool_key: str = 'mongo_local'  # 'mongo_***'
-    # or 'veos:asdf@localhost:27017' for databse access
+    # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
     _observation_meta: Optional[ObservationMeta] = None
     _episode_start_dt: datetime = None
@@ -52,6 +50,7 @@ class DPG(abc.ABC):
     _resume: bool = True
     _infer_mode: bool = False
     _observations: list[pd.DataFrame] = field(default_factory=list[pd.DataFrame])
+    _torque_table_row_names: list[str] = field(default_factory=list[str])
     _epi_no: int = 0
 
     def __post_init__(self):
@@ -97,6 +96,9 @@ class DPG(abc.ABC):
             self.num_actions,
         ) = self.observation_meta.get_number_of_states_actions()
 
+        self.torque_table_row_names = (
+            self.observation_meta.get_torque_table_row_names()
+        )  # part of the action MultiIndex
         login_pattern = re.compile(
             r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
         )
@@ -110,6 +112,7 @@ class DPG(abc.ABC):
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
+                torque_table_row_names=self.torque_table_row_names,
             )
         elif self.pool_key is None or recipe_pattern.match(
             self.pool_key
@@ -125,6 +128,7 @@ class DPG(abc.ABC):
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
+                torque_table_row_names=self.torque_table_row_names,
             )
         else:
             raise ValueError(
@@ -164,7 +168,6 @@ class DPG(abc.ABC):
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
-        self.plot.when = self.episode_start_dt  # only update when an episode starts
         self.observations = []
 
     @abc.abstractmethod
@@ -408,3 +411,11 @@ class DPG(abc.ABC):
     @epi_no.setter
     def epi_no(self, value: int):
         self._epi_no = value
+
+    @property
+    def torque_table_row_names(self) -> list[str]:
+        return self._torque_table_row_names
+
+    @torque_table_row_names.setter
+    def torque_table_row_names(self, value: list[str]):
+        self._torque_table_row_names = value

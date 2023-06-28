@@ -2126,9 +2126,7 @@ class Agent(abc.ABC):
         df_torque_map = pd.DataFrame(
             torque_map.to_numpy()
         ).transpose()  # row to columns
-        df_torque_map.columns = [
-            f'r{i}' for i in np.arange(row_num)
-        ]  # index: [r0, r1, ...]
+        df_torque_map.columns = self.algo.torque_table_row_names  # index: [r0, r1, ...]
 
         # wait for remote flash to finish
         evt_remote_flash.wait()
@@ -2598,11 +2596,16 @@ if __name__ == '__main__':
             logger,
         )
     except TypeError as e:
-        logger.error(f"{{\'header\': \'Project Exeception TypeError\', "
-                     f"\'exception\': \'{e}\'}}", extra=dictLogger)
+        logger.error(
+            f"{{\'header\': \'Project Exeception TypeError\', "
+            f"\'exception\': \'{e}\'}}",
+            extra=dictLogger,
+        )
         sys.exit(1)
     except Exception as e:
-        logger.error(f"{{\'header\': \main Exeception\', "
-                     f"\'exception\': \'{e}\'}}", extra=dictLogger)
+        logger.error(
+            f"{{\'header\': \main Exeception\', " f"\'exception\': \'{e}\'}}",
+            extra=dictLogger,
+        )
         sys.exit(1)
     app.run()
