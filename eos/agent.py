@@ -2060,7 +2060,12 @@ class Agent(abc.ABC):
             f"{{\'header\': \'remote_flash_vcu dies!!!\'}}", extra=self.dictLogger
         )
 
-    def assemble_state_df(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+    def assemble_state_ser(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+        """
+        assemble state df from motionpower df
+        order is vital for the model:
+        "velocity, thrust, brake"
+        """
         state = (
             motionpower.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
             .stack()
@@ -2072,7 +2077,7 @@ class Agent(abc.ABC):
 
         return state
 
-    def assemble_reward_df(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+    def assemble_reward_ser(self, motionpower: pd.DataFrame) -> pd.DataFrame:
 
         pow_t = motionpower.loc[:, ['current', 'voltage']]
         ui_sum = pow_t.prod(axis=1).sum()
@@ -2095,7 +2100,7 @@ class Agent(abc.ABC):
         reward.index.names = ['rows', 'idx']
         return reward
 
-    def generate_action_df(
+    def generate_action_ser(
         self,
         torque_map_line: tf.Tensor,
         table_start: int,
@@ -2298,10 +2303,10 @@ class Agent(abc.ABC):
                     timestamp = motionpower.loc[
                         0, 'timestep'
                     ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
-                    state = self.assemble_state_df(motionpower)
+                    state = self.assemble_state_ser(motionpower)
 
                     # assemble reward
-                    reward = self.assemble_reward_df(work)
+                    reward = self.assemble_reward_ser(work)
                     work = reward[('work', 0)]
                     episode_reward += work
 
@@ -2319,7 +2324,7 @@ class Agent(abc.ABC):
                         extra=self.dictLogger,
                     )
                     # flash the vcu calibration table and assemble action
-                    action = self.generate_action_df(
+                    action = self.generate_action_ser(
                         torque_map_line, table_start, evt_remote_flash
                     )
 
