@@ -708,26 +708,63 @@ class DDPG(DPG):
         """
         Convert batch type from DataFrames to flattened tensors.
         """
-        assert self.buffer.count() > 0, 'pool is empty'
-        # get sampling range, if not enough data, batch is small
-        self.logger.info(
-            f'start sample from pool with size: {self.batch_size}, '
-            f'truck: {self.truck.vid}, driver: {self.driver.pid}.',
-            extra=dictLogger,
-        )
+        if (
+            self.buffer.count() == 0
+        ):  # bootstrap for Episode 0 from the current self.observations list
+            self.logger.info(
+                f'no data in pool, bootstrap from observation_list, '
+                f'truck: {self.truck.vid}, driver: {self.driver.pid}.',
+                extra=dictLogger,
+            )
+            assert (
+                len(self.observations) > 0
+            ), 'no data in temporary buffer self.observations!'
 
-        state, action, reward, nstate = self.buffer.sample()
+            # sample from self.observations
 
-        # states = [rec['observation']['state'] for rec in batch]
-        # actions = [rec['observation']['action'] for rec in batch]
-        # rewards = [rec['observation']['reward'] for rec in batch]
-        # next_states = [rec['observation']['next_state'] for rec in batch]
-        # Previously convert output from sample (list or numpy array) to tf.tensor
+            batch_idx = np.random.choice(len(self.observations), self.batch_size)
+            observation_samples = [
+                self.observations[i] for i in batch_idx
+            ]  # a sampled list of Series
 
-        states = tf.convert_to_tensor(state.values.flatten(), dtype=tf.float32)
-        actions = tf.convert_to_tensor(action.values.flatten(), dtype=tf.float32)
-        rewards = tf.convert_to_tensor(reward.values[0], dtype=tf.float32)
-        next_states = tf.convert_to_tensor(nstate.values.flatten(), dtype=tf.float32)
+            idx = pd.IndexSlice
+            state = []
+            action = []
+            reward = []
+            nstate = []
+            for observation in observation_samples:
+                state.append(
+                    observation.loc[
+                        idx['state', ['velocity', 'thrust', 'brake']]
+                    ].values
+                )
+                action.append(observation.loc[idx['action', ['r0', 'r1', 'r2']]].values)
+                reward.append(observation.loc[idx['reward', ['work']]].values)
+                nstate.append(
+                    observation.loc[
+                        idx['nstate', ['velocity', 'thrust', 'brake']]
+                    ].values
+                )
+
+            states = tf.convert_to_tensor(np.stack(state), dtype=tf.float32)
+            actions = tf.convert_to_tensor(np.stack(action), dtype=tf.float32)
+            rewards = tf.convert_to_tensor(np.stack(reward), dtype=tf.float32)
+            next_states = tf.convert_to_tensor(np.stack(nstate), dtype=tf.float32)
+
+        else:
+            # get sampling range, if not enough data, batch is small
+            self.logger.info(
+                f'start sample from pool with size: {self.batch_size}, '
+                f'truck: {self.truck.vid}, driver: {self.driver.pid}.',
+                extra=dictLogger,
+            )
+
+            states, actions, rewards, nstates = self.buffer.sample()
+
+            states = tf.convert_to_tensor(states, dtype=tf.float32)
+            actions = tf.convert_to_tensor(actions, dtype=tf.float32)
+            rewards = tf.convert_to_tensor(rewards, dtype=tf.float32)
+            next_states = tf.convert_to_tensor(nstates.flatten(), dtype=tf.float32)
 
         return states, actions, rewards, next_states
 
