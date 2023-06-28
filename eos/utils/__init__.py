@@ -3,7 +3,7 @@ from .exception import ReadOnlyError, TruckIDError, WriteOnlyError
 from .log import get_logger, logger, dictLogger
 from .numerics import ragged_nparray_list_interp
 from .gracefulkiller import GracefulKiller
-from .eos_pandas import df_to_nested_dict
+from .eos_pandas import df_to_nested_dict, decode_mongo_documents
 
 __all__ = [
     "get_logger",
@@ -16,4 +16,5 @@ __all__ = [
     "WriteOnlyError",
     "GracefulKiller",
     "df_to_nested_dict",
+    "decode_mongo_documents",
 ]
