@@ -612,9 +612,11 @@ class DDPG(DPG):
             [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
         )
         observation_list = [timestamp, state, action, reward, nstate]
-        observation = pd.concat(observation_list)  # concat Series along MultiIndex
+        observation = pd.concat(observation_list)  # concat Series along MultiIndex,
         observation.index = multiindex
-        self.observations.append(observation)
+        self.observations.append(
+            observation
+        )  # each observation is a series for the quadruple (s,a,r,s')
 
     def end_episode(self):
         self.logger.info(f'Episode end at {datetime.now()}', extra=dictLogger)
