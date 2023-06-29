@@ -24,6 +24,7 @@ def df_to_nested_dict(df_multi_indexed_col: pd.DataFrame) -> dict:
 
 def decode_mongo_documents(
     df: pd.DataFrame,
+    torque_table_row_names: list[str],
 ) -> tuple[list[pd.DataFrame], list[pd.DataFrame], list[pd.Series], list[pd.DataFrame]]:
 
     """
@@ -31,30 +32,32 @@ def decode_mongo_documents(
     TODO need to check whether sort_index is necessary
     """
 
-    dict_observations_list = [
-        {
-            (
-                meta['episodestart'],
-                meta['vehicle'],
-                meta['driver'],
-                meta['timestamp'],
-                key1,
-                key2,
-                key3,
-            ): value
-            for key1, obs1 in obs.items()
-            for key2, obs2 in obs1.items()
-            for key3, value in obs2.items()
-        }
-        for meta, obs in zip(df['meta'], df['observation'])
-    ]
+    dict_observations_list = (
+        [  # list of observations as dict with tuple key suitable as MultiIndex
+            {
+                (
+                    meta['episodestart'],
+                    meta['vehicle'],
+                    meta['driver'],
+                    meta['timestamp'],
+                    key1,
+                    key2,
+                    key3,
+                ): value
+                for key1, obs1 in obs.items()
+                for key2, obs2 in obs1.items()
+                for key3, value in obs2.items()
+            }
+            for meta, obs in zip(df['meta'], df['observation'])
+        ]
+    )
 
     df_actions = []
     df_states = []
     df_nstates = []
     ser_rewards = []
     idx = pd.IndexSlice
-    for dict_observations in dict_observations_list:
+    for dict_observations in dict_observations_list:  # decode each measurement from
         ser_decoded = pd.Series(dict_observations)
         ser_decoded.index.names = [
             'episodestart',
@@ -66,11 +69,23 @@ def decode_mongo_documents(
             'idx',
         ]
 
+        # decode state
+        ser_state = ser_decoded.loc[
+            idx[:, :, :, :, 'state', ['brake', 'thrust', 'velocity', 'timestep']]
+        ]
+        df_state = ser_state.unstack([0, 1, 2, 3, 4, 5])
+        multiindex = df_state.columns
+        df_state.set_index(multiindex[-1], inplace=True)  # last index has timestep
+        df_states.append(df_state)
+
         # decode action
-        ser_action = ser_decoded.loc[idx[:, :, :, :, 'action', 'timestep']]
+        ser_action = ser_decoded.loc[
+            idx[:, :, :, :, 'action', [*torque_table_row_names, 'throttle']]
+        ]
         df_action = ser_action.unstack(level=[0, 1, 2, 3, 4, 5])
         multiindex = df_action.columns
-        df_action.set_index(multiindex[-1], inplace=True)
+        df_action.set_index(multiindex[-1], inplace=True)  # last index has throttle
+
         action_timestep = ser_decoded.loc[idx[:, :, :, :, 'action', 'timestep']]
         action_speed = ser_decoded.loc[idx[:, :, :, :, 'action', 'speed']]
         action_multi_col = [
@@ -94,14 +109,13 @@ def decode_mongo_documents(
         )
         df_actions.append(df_action)
 
-        # decode state
-        ser_state = ser_decoded.loc[
-            idx[:, :, :, :, 'state', ['brake', 'thrust', 'velocity', 'timestep']]
-        ]
-        df_state = ser_state.unstack([0, 1, 2, 3, 4, 5])
-        multiindex = df_state.columns
-        df_state.set_index(multiindex[-1], inplace=True)
-        df_states.append(df_state)
+        # decode reward
+        ser_reward = ser_decoded.loc[idx[:, :, :, :, 'reward', ['work', 'timestep']]]
+        ser_reward = ser_reward.unstack([0, 1, 2, 3, 4, 5])
+        multiindex = ser_reward.columns
+        ser_reward.set_index(multiindex[-1], inplace=True)  # last index has timestep
+        # ser_reward
+        ser_rewards.append(ser_reward)
 
         # decode nstate
         ser_nstate = ser_decoded.loc[
@@ -112,12 +126,4 @@ def decode_mongo_documents(
         df_nstate.set_index(multiindex[-1], inplace=True)
         df_nstates.append(df_nstate)
 
-        # decode reward
-        ser_reward = ser_decoded.loc[idx[:, :, :, :, 'reward', ['work', 'timestep']]]
-        ser_reward = ser_reward.unstack([0, 1, 2, 3, 4, 5])
-        multiindex = ser_reward.columns
-        ser_reward.set_index(multiindex[-1], inplace=True)
-        # ser_reward
-        ser_rewards.append(ser_reward)
-
-        return df_states, df_actions, ser_rewards, df_nstates
+    return df_states, df_actions, ser_rewards, df_nstates
