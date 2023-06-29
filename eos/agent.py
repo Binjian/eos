@@ -2060,13 +2060,14 @@ class Agent(abc.ABC):
             f"{{\'header\': \'remote_flash_vcu dies!!!\'}}", extra=self.dictLogger
         )
 
-    def assemble_state_ser(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+    def assemble_state_ser(self, motionpower: pd.DataFrame) -> pd.Series:
         """
         assemble state df from motionpower df
         order is vital for the model:
         "timestep, velocity, thrust, brake"
         contiguous storage in each measurement
-        [col0: timestep, col1: velocity, col2: thrust, col3: brake]
+        due to sort_index, output:
+        [col0: brake, col1: thrust, col2: timestep, col3: velocity]
         """
         state = (
             motionpower.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
@@ -2075,17 +2076,18 @@ class Agent(abc.ABC):
         )
         state.name = 'state'
         state.index.names = ['rows', 'idx']
-        state.sort_index(inplace=True)
+        state.sort_index(
+            inplace=True
+        )  # sort by rows and idx (brake, thrust, timestep, velocity)
 
         return state
 
-    def assemble_reward_ser(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+    def assemble_reward_ser(self, motionpower: pd.DataFrame) -> pd.Series:
         """
         assemble reward df from motionpower df
         order is vital for the model:
-        "r0, r1, r2, r3, ..., timestep, speed, throttle(map)"
-        contiguous storage in each row
-        [col0: r0, col1: r1, col2: r2, col3: r3, ..., colN: timestep, colN+1: speed, colN+2: throttle(map)]
+        contiguous storage in each row, due to sort_index, output:
+        [timestep, work]
         """
 
         pow_t = motionpower.loc[:, ['current', 'voltage']]
@@ -2103,7 +2105,7 @@ class Agent(abc.ABC):
             pd.DataFrame({'work': work, 'timestep': reward_ts}, index=[0])
             .stack()
             .swaplevel(0, 1)
-            .sort_index()
+            .sort_index()  # columns oder (timestep, work)
         )
         reward.name = 'reward'
         reward.index.names = ['rows', 'idx']
@@ -2130,7 +2132,6 @@ class Agent(abc.ABC):
             ],
             name='speed',
         )
-
         throttle_ser = pd.Series(self.truck.pedal_scale, name='throttle')
         torque_map = tf.reshape(
             torque_map_line,
@@ -2162,7 +2163,7 @@ class Agent(abc.ABC):
             )
             .stack()
             .swaplevel(0, 1)
-            .sort_index()
+            .sort_index()  # columns order (r0, r1, ..., speed, throttle, timestep)
         )
         action.name = 'action'
         action.index.names = ['rows', 'idx']
@@ -2322,7 +2323,8 @@ class Agent(abc.ABC):
                     # stripping timestamps from state, (later flatten and convert to tensor)
                     torque_map_line = self.algo.actor_predict(
                         state[['velocity', 'thrust', 'brake']], int(step_count / 1)
-                    )
+                    )  # model input requires fixed order velocity col -> thrust col -> brake col
+                    #  !!! training with samples of the same order!!!
 
                     self.logc.info(
                         f'E{epi_cnt} inference done with reduced action space!',

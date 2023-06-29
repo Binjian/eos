@@ -174,10 +174,10 @@ class DPG(abc.ABC):
     def deposit(
         self,
         timestamp: pd.Timestamp,
-        state: pd.DataFrame,
-        action: pd.DataFrame,
-        reward: pd.DataFrame,
-        nstate: pd.DataFrame,
+        state: pd.Series,
+        action: pd.Series,
+        reward: pd.Series,
+        nstate: pd.Series,
     ):
         """Deposit the experience into the replay buffer."""
         pass

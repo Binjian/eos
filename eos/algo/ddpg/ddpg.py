@@ -593,11 +593,17 @@ class DDPG(DPG):
     def deposit(
         self,
         timestamp: pd.Timestamp,
-        state: pd.DataFrame,
-        action: pd.DataFrame,
-        reward: pd.DataFrame,
-        nstate: pd.DataFrame,
+        state: pd.Series,
+        action: pd.Series,
+        reward: pd.Series,
+        nstate: pd.Series,
     ):
+        """
+        state: pd.Series [brake row -> thrust row  -> timestep row -> velocity row ]
+        action: pd.Series [r0, r1, r2, ... rows -> speed row -> throttle row-> (flash) timestep row ]
+        reward: pd.Series [timestep row -> work row]
+        nstate: like state
+        """
 
         # Create MultiIndex
         ts = pd.Series([timestamp], name='timestamp')
@@ -742,7 +748,9 @@ class DDPG(DPG):
                         idx['state', ['velocity', 'thrust', 'brake']]
                     ].values
                 )
-                action.append(observation.loc[idx['action', ['r0', 'r1', 'r2']]].values)
+                action.append(
+                    observation.loc[idx['action', self.torque_table_row_names]].values
+                )
                 reward.append(observation.loc[idx['reward', ['work']]].values)
                 nstate.append(
                     observation.loc[
