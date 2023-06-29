@@ -613,7 +613,7 @@ class DDPG(DPG):
         )
         observation_list = [timestamp, state, action, reward, nstate]
         observation = pd.concat(observation_list)  # concat Series along MultiIndex,
-        observation.index = multiindex
+        observation.index = multiindex  # each observation is a series for the quadruple (s,a,r,s') with a MultiIndex
         self.observations.append(
             observation
         )  # each observation is a series for the quadruple (s,a,r,s')
@@ -732,7 +732,11 @@ class DDPG(DPG):
             action = []
             reward = []
             nstate = []
-            for observation in observation_samples:
+            for (
+                observation
+            ) in (
+                observation_samples
+            ):  # each observation is a Series, contiguous storage in rows (already flattened!)
                 state.append(
                     observation.loc[
                         idx['state', ['velocity', 'thrust', 'brake']]
@@ -746,12 +750,14 @@ class DDPG(DPG):
                     ].values
                 )
 
+            # convert to tensors by stacking so that the first dimension is batch_size
             states = tf.convert_to_tensor(np.stack(state), dtype=tf.float32)
             actions = tf.convert_to_tensor(np.stack(action), dtype=tf.float32)
             rewards = tf.convert_to_tensor(np.stack(reward), dtype=tf.float32)
             next_states = tf.convert_to_tensor(np.stack(nstate), dtype=tf.float32)
 
-        else:
+        else:  # otherwise sample from pool, ignoring the current ongoing episode to reduce complexity
+            # TODO combine current episode with pool, need evenly sampling pool and list of observations, then combine
             # get sampling range, if not enough data, batch is small
             self.logger.info(
                 f'start sample from pool with size: {self.batch_size}, '

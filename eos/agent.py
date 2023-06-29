@@ -2064,7 +2064,9 @@ class Agent(abc.ABC):
         """
         assemble state df from motionpower df
         order is vital for the model:
-        "velocity, thrust, brake"
+        "timestep, velocity, thrust, brake"
+        contiguous storage in each measurement
+        [col0: timestep, col1: velocity, col2: thrust, col3: brake]
         """
         state = (
             motionpower.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
@@ -2078,6 +2080,13 @@ class Agent(abc.ABC):
         return state
 
     def assemble_reward_ser(self, motionpower: pd.DataFrame) -> pd.DataFrame:
+        """
+        assemble reward df from motionpower df
+        order is vital for the model:
+        "r0, r1, r2, r3, ..., timestep, speed, throttle(map)"
+        contiguous storage in each row
+        [col0: r0, col1: r1, col2: r2, col3: r3, ..., colN: timestep, colN+1: speed, colN+2: throttle(map)]
+        """
 
         pow_t = motionpower.loc[:, ['current', 'voltage']]
         ui_sum = pow_t.prod(axis=1).sum()
