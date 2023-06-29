@@ -2109,20 +2109,19 @@ class Agent(abc.ABC):
         reward.index.names = ['rows', 'idx']
         return reward
 
-    def generate_action_ser(
+    def assemble_action_ser(
         self,
         torque_map_line: tf.Tensor,
         table_start: int,
-        evt_remote_flash: threading.Event,
-    ) -> pd.DataFrame:
-
-        flash_start_ts = pd.to_datetime(datetime.now())
-        with self.tableQ_lock:
-            self.tableQueue.put(torque_map_line)
-            self.logc.info(
-                f'StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}',
-                extra=self.dictLogger,
-            )
+        flash_start_ts: pd.Timestamp,
+        flash_end_ts: pd.Timestamp,
+    ) -> pd.Series:
+        """
+        generate action df from torque_map_line
+        order is vital for the model:
+        contiguous storage in each row, due to sort_index, output:
+        "r0, r1, r2, r3, ..., ,speed, throttle(map),timestep"
+        """
         # assemble_action_df
         row_num = self.truck.action_flashrow
         speed_ser = pd.Series(
@@ -2142,9 +2141,6 @@ class Agent(abc.ABC):
         ).transpose()  # row to columns
         df_torque_map.columns = self.algo.torque_table_row_names  # index: [r0, r1, ...]
 
-        # wait for remote flash to finish
-        evt_remote_flash.wait()
-        flash_end_ts = pd.to_datetime(datetime.now())
         span_each_row = (flash_end_ts - flash_start_ts) / row_num
         flash_timestamps_ser = pd.Series(
             flash_start_ts
@@ -2333,8 +2329,23 @@ class Agent(abc.ABC):
                         extra=self.dictLogger,
                     )
                     # flash the vcu calibration table and assemble action
-                    action = self.generate_action_ser(
-                        torque_map_line, table_start, evt_remote_flash
+                    flash_start_ts = pd.to_datetime(datetime.now())
+                    with self.tableQ_lock:
+                        self.tableQueue.put(torque_map_line)
+                        self.logc.info(
+                            f'StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}',
+                            extra=self.dictLogger,
+                        )
+
+                    # wait for remote flash to finish
+                    evt_remote_flash.wait()
+                    flash_end_ts = pd.to_datetime(datetime.now())
+
+                    action = self.assemble_action_ser(
+                        torque_map_line,
+                        table_start,
+                        flash_start_ts,
+                        flash_end_ts,
                     )
 
                     if step_count > 0:
