@@ -72,10 +72,10 @@ from eos.data_io.config import (
     can_servers_by_name,
     trip_servers_by_name,
     trip_servers_by_host,
-    generate_vcu_calibration,
     drivers_by_id,
     Driver,
-    Truck,
+    TruckInCloud,
+    TruckInField,
 )
 
 from eos.utils import ragged_nparray_list_interp, GracefulKiller
@@ -105,7 +105,6 @@ np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 @dataclass
 class Agent(abc.ABC):
-    cloud: bool = False
     ui: str = 'cloud'
     resume: bool = True
     infer_mode: bool = False
@@ -121,7 +120,8 @@ class Agent(abc.ABC):
     _algo: DPG = None
     data_root: Path = None
     driver: Driver = None
-    truck: Truck = None
+    truck: [TruckInCloud, TruckInField] = None
+    cloud: bool = None  # determined by truck type
 
     def __post_init__(
         self,
@@ -148,6 +148,11 @@ class Agent(abc.ABC):
             # assert self.vehicle in self.trucks_by_id.keys()
             self.truck = trucks_by_id.get(self.vehicle_str)
             assert self.truck is not None, f'No Truck with name {self.vehicle_str}'
+            if type(self.truck) == TruckInCloud:
+                self.cloud = True
+            else:
+                self.cloud = False
+
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
@@ -234,7 +239,8 @@ class Agent(abc.ABC):
         )
 
         self.init_vehicle()
-        self.build_actor_critic()
+        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
+        self.vcu_calib_table_row_start = 0
         self.logc.info(
             f"{{\'header\': \'VCU and GPU Initialization done!\'}}",
             extra=self.dictLogger,
@@ -406,51 +412,33 @@ class Agent(abc.ABC):
             )
 
     def init_vehicle(self):
-        # resume last pedal map / scratch from default table
-
-        # initialize pedal map parameters
-        self.vcu_calib_table_col = len(
-            self.truck.pedal_scale
-        )  # 17 number of pedal steps, x direction
-        self.vcu_calib_table_row = len(
-            self.truck.velocity_scale
-        )  # 14 numnber of velocity steps, y direction
-        self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
-        self.action_budget = self.truck.action_budget  # action_budget 250 Nm
-        self.action_lower = self.truck.action_lowerbound  # 0.8
-        self.action_upper = self.truck.action_upperbound  # 1.0
-        self.action_bias = self.truck.action_bias  # 0.0
-
-        pedal_range = [min(self.truck.pedal_scale), max(self.truck.pedal_scale)]
-        velocity_range = [
-            min(self.truck.velocity_scale),
-            max(self.truck.velocity_scale),
-        ]  # [0, 120.0]
-        # index of the current pedal map is speed in kmph
-        pd_ind = np.linspace(
-            velocity_range[0], velocity_range[1], self.vcu_calib_table_row - 1
-        )
-        self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
-        self.pd_columns = np.array(self.truck.pedal_scale)
-
         if self.resume:
-            self.vcu_calib_table0 = generate_vcu_calibration(
-                self.vcu_calib_table_col,
-                pedal_range,
-                self.vcu_calib_table_row,
-                velocity_range,
-                3,
-                self.data_root,
-            )
+            files = self.data_root.glob('last_table*.csv')
+            if not files:
+                self.logger.info(
+                    f"{{\'header\': \'No last table found, start from default calibration table\'}}",
+                    extra=self.dictLogger,
+                )
+                latest_file = (
+                    self.proj_root / 'eos/data_io/config' / 'vb7_init_table.csv'
+                )
+            else:
+                self.logger.info(
+                    f"{{\'header\': \'Resume last table\'}}", extra=self.dictLogger
+                )
+                latest_file = max(files, key=os.path.getctime)
+
+            self.vcu_calib_table0 = pd.read_csv(latest_file, index_col=0)
+
         else:
-            self.vcu_calib_table0 = generate_vcu_calibration(
-                self.vcu_calib_table_col,
-                pedal_range,
-                self.vcu_calib_table_row,
-                velocity_range,
-                2,
-                self.proj_root.joinpath('eos/config'),
+            self.logger.info(
+                f"{{\'header\': \'Use default calibration table\'}}",
+                extra=self.dictLogger,
             )
+            latest_file = self.proj_root / 'eos/data_io/config' / 'vb7_init_table.csv'
+
+        self.vcu_calib_table0 = pd.read_csv(latest_file, index_col=0)
+
         # pandas deep copy of the default table (while numpy shallow copy is sufficient)
         self.vcu_calib_table1 = self.vcu_calib_table0.copy(deep=True)
         self.logger.info(
@@ -476,62 +464,6 @@ class Agent(abc.ABC):
             )
 
         # TQD_trqTrqSetECO_MAP_v
-
-    def build_actor_critic(self):
-        """Builds the actor-critic network.
-
-        this network learns two functions:
-        1. actor: this takes as input the state of our environment and returns a
-        probability value for each action in its action space.
-        2. critic: this takes as input the state of our environment and returns
-        an estimate of total rewards in the future.
-
-        in our implementation, they share the initial layer.
-
-        Args:
-            self.num_observation (int): Dimension of each state
-            self.num_actions (int): Dimension of each action
-        """
-
-        # create actor-critic network
-        self.num_observations = self.truck.observation_number
-        # self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
-        if self.cloud:
-            self.observation_len = (
-                self.truck.cloud_unit_number * self.truck.cloud_signal_frequency
-            )  # 250 observation tuples as a valid observation for agent, for period of 20ms, this is equal to 5 second
-            # self.observation_len = 250  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
-            self.sample_rate = (
-                1.0 / self.truck.cloud_signal_frequency
-            )  # sample rate of the observation tuples
-            # self.sample_rate = 0.02  # sample rate 20ms of the observation tuples
-        else:
-            self.observation_len = (
-                self.truck.kvaser_observation_number
-            )  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
-            # self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
-            self.sample_rate = (
-                1.0 / self.truck.kvaser_observation_frequency
-            )  # sample rate of the observation tuples
-            # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
-        self.num_states = (
-            self.observation_len * self.num_observations
-        )  # 60 subsequent observations
-        self.vcu_calib_table_row_reduced = (
-            self.truck.action_flashrow
-        )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_actions = (
-            # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
-            self.vcu_calib_table_row_reduced
-            * self.vcu_calib_table_col
-        )  # 4x17= 68
-        # hyperparameters for DRL
-        self.num_hidden = 256
-        self.num_hidden0 = 16
-        self.num_hidden1 = 32
-
-        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
-        self.vcu_calib_table_row_start = 0
 
     # tracer.start()
 
@@ -665,7 +597,7 @@ class Agent(abc.ABC):
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
         vel_cycle_dQ = deque(
-            maxlen=self.observation_len
+            maxlen=self.truck.observation_length
         )  # accumulate 1.5s (one cycle) of velocity values
         with self.hmi_lock:
             self.program_start = True
@@ -802,7 +734,7 @@ class Agent(abc.ABC):
 
                             if (
                                 len(self.get_truck_status_motpow_t)
-                                >= self.observation_len
+                                >= self.truck.observation_length
                             ):
                                 if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                     self.logc.warning(  # the recent 1.5s average velocity
@@ -928,23 +860,27 @@ class Agent(abc.ABC):
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
-                        self.vcu_calib_table_row_reduced,
-                        self.vcu_calib_table_col,
+                        self.truck.torque_row_num_flash,
+                        self.truck.torque_table_col_num,
                     ],
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+                vcu_calib_table_reduced = (
+                    vcu_calib_table_reduced * self.truck.torque_budget
+                )
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    table_start : self.truck.torque_row_num_flash + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
-                    vcu_calib_table0_reduced - self.action_budget
-                )
-                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+                    vcu_calib_table0_reduced - self.truck.torque_budget
+                )  # apply the budget instead of truck.torque_lowerbound
+                vcu_calib_table_max_reduced = (
+                    self.truck.torque_upperbound * vcu_calib_table0_reduced
+                )  # 1.0*
 
                 vcu_calib_table_reduced = tf.clip_by_value(
                     vcu_calib_table_reduced + vcu_calib_table0_reduced,
@@ -955,7 +891,7 @@ class Agent(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced + table_start
+                    table_start : self.truck.torque_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1918,21 +1854,23 @@ class Agent(abc.ABC):
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
-                        self.vcu_calib_table_row_reduced,
-                        self.vcu_calib_table_col,
+                        self.truck.torque_row_num_flash,
+                        self.truck.torque_table_col_num,
                     ],
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+                vcu_calib_table_reduced = (
+                    vcu_calib_table_reduced * self.truck.torque_budget
+                )
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    table_start : self.truck.torque_row_num_flash + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
-                    vcu_calib_table0_reduced - self.action_budget
+                    vcu_calib_table0_reduced - self.truck.torque_budget
                 )
                 vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
 
@@ -1945,7 +1883,7 @@ class Agent(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced + table_start
+                    table_start : self.truck.torque_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1985,7 +1923,7 @@ class Agent(abc.ABC):
                 #     continue
 
                 # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
-                timeout = self.vcu_calib_table_row_reduced + 3
+                timeout = self.truck.torque_row_num_flash + 3
                 logger_flash.info(
                     f"{{\'header\': \'flash starts\', " f"\'timeout\': {timeout}\'}}",
                     extra=self.dictLogger,
@@ -1995,7 +1933,7 @@ class Agent(abc.ABC):
                 with self.remoteClient_lock:
                     (ret_code, ret_str) = self.remotecan_client.send_torque_map(
                         pedalmap=self.vcu_calib_table1.iloc[
-                            table_start : self.vcu_calib_table_row_reduced + table_start
+                            table_start : self.truck.torque_row_num_flash + table_start
                         ],
                         swap=False,
                         timeout=timeout,
@@ -2127,7 +2065,7 @@ class Agent(abc.ABC):
         # assemble_action_df
         row_num = self.truck.action_flashrow
         speed_ser = pd.Series(
-            self.truck.velocity_scale[
+            self.truck.speed_scale[
                 table_start : table_start + self.truck.action_flashrow
             ],
             name='speed',
@@ -2135,7 +2073,7 @@ class Agent(abc.ABC):
         throttle_ser = pd.Series(self.truck.pedal_scale, name='throttle')
         torque_map = tf.reshape(
             torque_map_line,
-            [self.vcu_calib_table_row_reduced, self.vcu_calib_table_col],
+            [self.truck.torque_row_num_flash, self.truck.torque_table_col_num],
         )
         df_torque_map = pd.DataFrame(
             torque_map.to_numpy()

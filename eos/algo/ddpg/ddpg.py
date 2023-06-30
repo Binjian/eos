@@ -10,8 +10,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import re
-from configparser import ConfigParser
 
 from keras import layers
 from pymongoarrow.monkey import patch_all
@@ -19,14 +17,7 @@ from eos.utils import dictLogger, logger
 from ..utils import OUActionNoise
 from eos.data_io.buffer import MongoBuffer, ArrowBuffer
 from ..dpg import DPG
-from eos.data_io import Truck, trucks_by_id, get_db_config
-from eos.data_io.struct import (
-    RecordDoc,
-    StateUnitCodes,
-    Plot,
-    RecordArr,
-    get_filepool_config,
-)
+from ..hyperparams import hyper_param_by_name, HYPER_PARAM
 
 patch_all()
 """
@@ -48,7 +39,7 @@ Description: Implementing DDPG algorithm on the Inverted Pendulum Problem.
 ## Introduction
 
 **Deep Deterministic Policy Gradient (DDPG)** is a model-free off-policy algorithm for
-learning continous actions.
+learning continuous actions.
 
 It combines ideas from DPG (Deterministic Policy Gradient) and DQN (Deep Q-Network).
 It uses Experience Replay and slow-learning target networks from DQN, and it is based on
@@ -139,6 +130,7 @@ class DDPG(DPG):
             - critic network
     """
 
+    _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
     _buffer: Optional[
         MongoBuffer | ArrowBuffer
     ] = None  # cannot have default value, because it precedes _plot in base class DPG
@@ -156,59 +148,63 @@ class DDPG(DPG):
     critic_saved_model_path: Path = None
 
     def __post_init__(self):
-
-        self.logger = logger.getChild('eos').getChild(self.__str__())
+        self.logger = logger.getChild("eos").getChild(self.__str__())
         self.logger.propagate = True
         self.dictLogger = dictLogger
-        self.coll_type = 'RECORD'
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
-
+        self.coll_type = "RECORD"
+        self.hyper_param = hyper_param_by_name[self.__class__.__name__]
         # print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks
         self.actor_model = self.get_actor(
-            self.num_states,
-            self.num_actions,
-            self.hidden_units_ac[0],
-            self.n_layers_ac[0],
-            self.action_bias,
+            self.truck.observation_numel,
+            self.truck.torque_flash_numel,
+            self.hyper_param.HiddenUnitsAction,  # 256
+            self.hyper_param.NLayerActor,  # 2
+            self.hyper_param.ActionBias,  # 0.0
         )
 
         # Initialize networks
         self.target_actor_model = self.get_actor(
-            self.num_states,
-            self.num_actions,
-            self.hidden_units_ac[0],
-            self.n_layers_ac[0],
-            self.action_bias,
+            self.truck.observation_numel,
+            self.truck.torque_flash_numel,
+            self.hyper_param.HiddenUnitsAction,  # 256
+            self.hyper_param.NLayerActor,  # 2
+            self.hyper_param.ActionBias,  # 0.0
         )
 
         self.critic_model = self.get_critic(
-            self.num_states,
-            self.num_actions,
-            self.hidden_units_ac[1],
-            self.hidden_units_ac[2],
-            self.hidden_units_ac[0],
-            self.n_layers_ac[1],
+            self.truck.observation_numel,
+            self.truck.torque_flash_numel,
+            self.hyper_param.HiddenUnitsState0,  # 16
+            self.hyper_param.HiddenUnitsState1,  # 32
+            self.hyper_param.HiddenUnitsOut,  # 256
+            self.hyper_param.NLayerCritic,  # 2
         )
 
         self.target_critic_model = self.get_critic(
-            self.num_states,
-            self.num_actions,
-            self.hidden_units_ac[1],
-            self.hidden_units_ac[2],
-            self.hidden_units_ac[0],
-            self.n_layers_ac[1],
+            self.truck.observation_numel,
+            self.truck.torque_flash_numel,
+            self.hyper_param.HiddenUnitsState0,  # 16
+            self.hyper_param.HiddenUnitsState1,  # 32
+            self.hyper_param.HiddenUnitsOut,  # 256
+            self.hyper_param.NLayerCritic,  # 2
         )
 
-        self.actor_optimizer = tf.keras.optimizers.Adam(self.lr_ac[0])
-        self.critic_optimizer = tf.keras.optimizers.Adam(self.lr_ac[1])
+        self.actor_optimizer = tf.keras.optimizers.Adam(
+            self.hyper_param.ActorLR
+        )  # 0.001
+        self.critic_optimizer = tf.keras.optimizers.Adam(
+            self.hyper_param.CriticLR
+        )  # 0.002
 
         # ou_noise is a row vector of num_actions dimension
         self.ou_noise_std_dev = 0.2
         self.ou_noise = OUActionNoise(
-            mean=np.zeros(self.num_actions),
-            std_deviation=float(self.ou_noise_std_dev) * np.ones(self.num_actions),
+            mean=np.zeros(self.truck.torque_flash_numel),
+            std_deviation=float(self.ou_noise_std_dev)
+            * np.ones(self.truck.torque_flash_numel),
         )
         self.init_checkpoint()
         # super().__post_init__()
@@ -222,10 +218,10 @@ class DDPG(DPG):
     #         self.buffer.save_replay_buffer()
 
     def __repr__(self):
-        return f'DDPG({self.truck.vid}, {self.driver.pid})'
+        return f"DDPG({self.truck.vid}, {self.driver.pid})"
 
     def __str__(self):
-        return 'DDPG'
+        return "DDPG"
 
     def __hash__(self):
         return hash(self.__repr__())
@@ -234,56 +230,56 @@ class DDPG(DPG):
         # add checkpoints manager
         if self.resume:
             checkpoint_actor_dir = Path(self.data_folder).joinpath(
-                'tf_ckpts-'
+                "tf_ckpts-"
                 + self.__str__()
-                + '-'
+                + "-"
                 + self.truck.vid
-                + '-'
+                + "-"
                 + self.driver.pid
-                + '_'
-                + 'actor'
+                + "_"
+                + "actor"
             )
             checkpoint_critic_dir = Path(self.data_folder).joinpath(
-                'tf_ckpts-'
+                "tf_ckpts-"
                 + self.__str__()
-                + '-'
+                + "-"
                 + self.truck.vid
-                + '-'
+                + "-"
                 + self.driver.pid
-                + '_'
-                + 'critic'
+                + "_"
+                + "critic"
             )
         else:
             checkpoint_actor_dir = Path(self.data_folder).joinpath(
-                'tf_ckpts-'
+                "tf_ckpts-"
                 + self.__str__()
-                + '/'
+                + "/"
                 + self.truck.vid
-                + '-'
+                + "-"
                 + self.driver.pid
-                + '_actor'
-                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + "_actor"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
             checkpoint_critic_dir = Path(self.data_folder).joinpath(
-                'tf_ckpts-'
+                "tf_ckpts-"
                 + self.__str__()
-                + '/'
+                + "/"
                 + self.truck.vid
-                + '-'
+                + "-"
                 + self.driver.pid
-                + '_critic'
-                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + "_critic"
+                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
             )
         try:
             os.makedirs(checkpoint_actor_dir)
             self.logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
         except FileExistsError:
-            self.logger.info('Actor folder exists, just resume!', extra=dictLogger)
+            self.logger.info("Actor folder exists, just resume!", extra=dictLogger)
         try:
             os.makedirs(checkpoint_critic_dir)
             self.logger.info("Critic folder doesn't exist. Created!", extra=dictLogger)
         except FileExistsError:
-            self.logger.info('Critic folder exists, just resume!', extra=dictLogger)
+            self.logger.info("Critic folder exists, just resume!", extra=dictLogger)
 
         self.ckpt_actor = tf.train.Checkpoint(
             step=tf.Variable(1),
@@ -297,11 +293,11 @@ class DDPG(DPG):
         self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
         if self.manager_actor.latest_checkpoint:
             self.logger.info(
-                f'Actor Restored from {self.manager_actor.latest_checkpoint}',
+                f"Actor Restored from {self.manager_actor.latest_checkpoint}",
                 extra=dictLogger,
             )
         else:
-            self.logger.info(f'Actor Initializing from scratch', extra=dictLogger)
+            self.logger.info(f"Actor Initializing from scratch", extra=dictLogger)
 
         self.ckpt_critic = tf.train.Checkpoint(
             step=tf.Variable(1),
@@ -315,45 +311,44 @@ class DDPG(DPG):
         self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
         if self.manager_critic.latest_checkpoint:
             self.logger.info(
-                f'Critic Restored from {self.manager_critic.latest_checkpoint}',
+                f"Critic Restored from {self.manager_critic.latest_checkpoint}",
                 extra=dictLogger,
             )
         else:
-            self.logger.info('Critic Initializing from scratch', extra=dictLogger)
+            self.logger.info("Critic Initializing from scratch", extra=dictLogger)
 
         # Making the weights equal initially after checkpoints load
         self.target_actor_model.set_weights(self.actor_model.get_weights())
         self.target_critic_model.set_weights(self.critic_model.get_weights())
 
         self.actor_saved_model_path = Path(self.data_folder).joinpath(
-            'tf_ckpts-'
+            "tf_ckpts-"
             + self.__str__()
-            + '-'
+            + "-"
             + self.truck.vid
-            + '-'
+            + "-"
             + self.driver.pid
-            + '_'
-            + 'actor_saved_model'
+            + "_"
+            + "actor_saved_model"
         )
         self.critic_saved_model_path = Path(self.data_folder).joinpath(
-            'tf_ckpts-'
+            "tf_ckpts-"
             + self.__str__()
-            + '-'
+            + "-"
             + self.truck.vid
-            + '-'
+            + "-"
             + self.driver.pid
-            + '_'
-            + 'critic_saved_model'
+            + "_"
+            + "critic_saved_model"
         )
 
-    def save_as_saved_model(self):  # TODO bugfixing
+    def save_as_saved_model(self):  # TODO bug fixing
         """save the actor and critic networks as saved model"""
 
         tf.saved_model.save(self.actor_model, self.actor_saved_model_path)
         tf.saved_model.save(self.critic_model, self.critic_saved_model_path)
 
     def load_saved_model(self):
-
         # self.actor_model = tf.saved_model.load(self.actor_saved_model_path)
         # self.target_actor_model.clone_weights(self.actor_model)
         # self.critic_model = tf.saved_model.load(self.actor_saved_model_path)
@@ -373,38 +368,38 @@ class DDPG(DPG):
             self.actor_saved_model_path
         )
         tflite_model = converter.convert()
-        with open('actor_model.tflite', 'wb') as f:
+        with open("actor_model.tflite", "wb") as f:
             f.write(tflite_model)
         converter = tf.lite.TFLiteConverter.from_saved_model(
             self.critic_saved_model_path
         )
         tflite_model = converter.convert()
-        with open('critic_model.tflite', 'wb') as f:
+        with open("critic_model.tflite", "wb") as f:
             f.write(tflite_model)
 
         self.model_summary_print(
-            self.actor_model, self.actor_saved_model_path / '/../actor_model_spec.txt'
+            self.actor_model, self.actor_saved_model_path / "/../actor_model_spec.txt"
         )
         self.tflite_analytics_print(
-            self.actor_saved_model_path / '/../actor_model.tflite'
+            self.actor_saved_model_path / "/../actor_model.tflite"
         )
         self.model_summary_print(
             self.critic_model,
-            self.critic_saved_model_path / '/../critic_model_spec.txt',
+            self.critic_saved_model_path / "/../critic_model_spec.txt",
         )
         self.tflite_analytics_print(
-            self.critic_saved_model_path / '/../critic_model.tflite'
+            self.critic_saved_model_path / "/../critic_model.tflite"
         )
 
     @classmethod
     def model_summary_print(cls, mdl: tf.keras.Model, file_path: Path):
-        with file_path.open(mode='w') as f:
+        with file_path.open(mode="w") as f:
             with redirect_stdout(f):
                 mdl.summary()
 
     @classmethod
     def tflite_analytics_print(cls, tflite_file_path: Path):
-        with tflite_file_path.open(mode='w') as f:
+        with tflite_file_path.open(mode="w") as f:
             with redirect_stdout(f):
                 tf.lite.experimental.Analyzer.analyze(tflite_file_path)
 
@@ -415,16 +410,16 @@ class DDPG(DPG):
         self.ckpt_actor.step.assign_add(1)
         self.ckpt_critic.step.assign_add(1)
 
-        if int(self.ckpt_actor.step) % self.ckpt_interval == 0:
+        if int(self.ckpt_actor.step) % self.hyper_param.CkptInterval == 0:
             save_path_actor = self.manager_actor.save()
             self.logger.info(
-                f'Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}',
+                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
                 extra=dictLogger,
             )
-        if int(self.ckpt_critic.step) % self.ckpt_interval == 0:
+        if int(self.ckpt_critic.step) % self.hyper_param.CkptInterval == 0:
             save_path_critic = self.manager_critic.save()
             self.logger.info(
-                f'Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}',
+                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
                 extra=dictLogger,
             )
 
@@ -440,12 +435,12 @@ class DDPG(DPG):
         self.update_target(
             self.target_actor_model.variables,
             self.actor_model.variables,
-            self.tau_ac[0],
+            self.hyper_param.TauActor,
         )
         self.update_target(
             self.target_critic_model.variables,
             self.critic_model.variables,
-            self.tau_ac[1],
+            self.hyper_param.TauCritic,
         )
 
     """
@@ -483,7 +478,7 @@ class DDPG(DPG):
 
         x = layers.Dense(
             num_hidden,
-            activation='relu',
+            activation="relu",
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(inputs)
 
@@ -491,14 +486,14 @@ class DDPG(DPG):
         for i in range(num_layers - 1):
             x = layers.Dense(
                 num_hidden,
-                activation='relu',
+                activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
 
         # output layer
         out = layers.Dense(
             num_actions,
-            activation='tanh',
+            activation="tanh",
             kernel_initializer=last_init,
             bias_initializer=tf.keras.initializers.constant(action_bias),
         )(x)
@@ -525,14 +520,14 @@ class DDPG(DPG):
     ):
         # State as input
         state_input = layers.Input(shape=(num_states,))
-        state_out = layers.Dense(num_hidden0, activation='relu')(state_input)
-        state_out = layers.Dense(num_hidden1, activation='relu')(state_out)
+        state_out = layers.Dense(num_hidden0, activation="relu")(state_input)
+        state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
 
         # Action as input
         action_input = layers.Input(
             shape=(num_actions,)
         )  # action is defined as flattened.
-        action_out = layers.Dense(num_hidden1, activation='relu')(action_input)
+        action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
 
         # Both are passed through separate layer before concatenating
         x = layers.Concatenate()([state_out, action_out])
@@ -541,12 +536,12 @@ class DDPG(DPG):
         for i in range(num_layers - 1):
             x = layers.Dense(
                 num_hidden2,
-                activation='relu',
+                activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
         x = layers.Dense(
             num_hidden2,
-            activation='relu',
+            activation="relu",
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(x)
 
@@ -585,7 +580,7 @@ class DDPG(DPG):
     @tf.function
     def infer_single_sample(self, state_flat: tf.Tensor):
         # logger.info(f"Tracing", extra=dictLogger)
-        print('Tracing infer!')
+        print("Tracing infer!")
         sampled_actions = tf.squeeze(self.actor_model(state_flat))
         # Adding noise to action
         return sampled_actions
@@ -606,9 +601,9 @@ class DDPG(DPG):
         """
 
         # Create MultiIndex
-        ts = pd.Series([timestamp], name='timestamp')
-        ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=['rows', 'idx'])
-        timestamp_index = (ts.name, '', 0)  # triple index (name, row, idx)
+        ts = pd.Series([timestamp], name="timestamp")
+        ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=["rows", "idx"])
+        timestamp_index = (ts.name, "", 0)  # triple index (name, row, idx)
         state_index = [(state.name, *i) for i in state.index]
         reward_index = [(reward.name, *i) for i in reward.index]
         action_index = [(action.name, *i) for i in action.index]
@@ -625,43 +620,43 @@ class DDPG(DPG):
         )  # each observation is a series for the quadruple (s,a,r,s')
 
     def end_episode(self):
-        self.logger.info(f'Episode end at {datetime.now()}', extra=dictLogger)
+        self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
 
         episode = pd.concat(
             self.observations, axis=1
         ).transpose()  # concat along columns and transpose to DataFrame
-        episode.columns.name = ['tuple', 'rows', 'idx']
-        episode.set_index(('timestamp', '', 0), append=False, inplace=True)
-        episode.index.name = 'timestamp'
+        episode.columns.name = ["tuple", "rows", "idx"]
+        episode.set_index(("timestamp", "", 0), append=False, inplace=True)
+        episode.index.name = "timestamp"
         # episode.sort_index(inplace=True)
 
         # convert columns types to float where necessary
-        state_cols_float = [('state', col) for col in ['brake', 'thrust', 'velocity']]
+        state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
         action_cols_float = [
-            ('action', col)
-            for col in [*self.torque_table_row_names, 'speed', 'throttle']
+            ("action", col)
+            for col in [*self.torque_table_row_names, "speed", "throttle"]
         ]
-        reward_cols_float = [('reward', 'work')]
-        nstate_cols_float = [('nstate', col) for col in ['brake', 'thrust', 'velocity']]
+        reward_cols_float = [("reward", "work")]
+        nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
         for col in (
             action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
         ):
             episode[col[0], col[1]] = episode[col[0], col[1]].astype(
-                'float'
+                "float"
             )  # float16 not allowed in parquet
 
         # Create MultiIndex for the episode
-        episode = pd.concat([episode], keys=[self.driver.pid], names=['driver'])
-        episode = pd.concat([episode], keys=[self.truck.vid], names=['vehicle'])
+        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
+        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
         episode = pd.concat(
             [episode],
             keys=[pd.to_datetime(self.episode_start_dt)],
-            names=['episodestart'],
+            names=["episodestart"],
         )
         episode.sort_index(inplace=True)
 
         self.buffer.store(episode)
-        self.logger.info(f'Store episode {self.epi_no}.', extra=dictLogger)
+        self.logger.info(f"Store episode {self.epi_no}.", extra=dictLogger)
         self.epi_no += 1
 
         # self.buffer.close()  # pool in buffer will be closed in finalize()
@@ -671,14 +666,14 @@ class DDPG(DPG):
         # tf.summary.trace_on(graph=True, profiler=True)
         # ignites manual loading of tensorflow library, to guarantee the real-time processing
         # of first data in main thread
-        print('touch gpu in DDPG')
+        print("touch gpu in DDPG")
         init_states = tf.random.normal(
-            (self.num_states,)
+            (self.truck.observation_numel,)
         )  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
 
         _ = self.policy(init_states)
         self.logger.info(
-            f'manual load tf library by calling convert_to_tensor',
+            f"manual load tf library by calling convert_to_tensor",
             extra=dictLogger,
         )
         self.ou_noise.reset()
@@ -687,7 +682,7 @@ class DDPG(DPG):
         if self.buffer.count() != 0:
             if not self.infer_mode:
                 self.logger.info(
-                    f'ddpg warm up training!',
+                    f"ddpg warm up training!",
                     extra=dictLogger,
                 )
 
@@ -695,18 +690,18 @@ class DDPG(DPG):
                 self.update_target(
                     self.target_actor_model.variables,
                     self.actor_model.variables,
-                    self.tau_ac[0],
+                    self.hyper_param.TauActor,  # 0.005
                 )
                 # self.logger.info(f"Updated target actor", extra=self.dictLogger)
                 self.update_target(
                     self.target_critic_model.variables,
                     self.critic_model.variables,
-                    self.tau_ac[1],
+                    self.hyper_param.TauCritic,  # 0.005
                 )
 
                 # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
                 self.logger.info(
-                    f'ddpg warm up training done!',
+                    f"ddpg warm up training done!",
                     extra=dictLogger,
                 )
 
@@ -718,17 +713,19 @@ class DDPG(DPG):
             self.buffer.count() == 0
         ):  # bootstrap for Episode 0 from the current self.observations list
             self.logger.info(
-                f'no data in pool, bootstrap from observation_list, '
-                f'truck: {self.truck.vid}, driver: {self.driver.pid}.',
+                f"no data in pool, bootstrap from observation_list, "
+                f"truck: {self.truck.vid}, driver: {self.driver.pid}.",
                 extra=dictLogger,
             )
             assert (
                 len(self.observations) > 0
-            ), 'no data in temporary buffer self.observations!'
+            ), "no data in temporary buffer self.observations!"
 
             # sample from self.observations
 
-            batch_idx = np.random.choice(len(self.observations), self.batch_size)
+            batch_idx = np.random.choice(
+                len(self.observations), self.hyper_param.BatchSize  # 4
+            )
             observation_samples = [
                 self.observations[i] for i in batch_idx
             ]  # a sampled list of Series
@@ -745,16 +742,16 @@ class DDPG(DPG):
             ):  # each observation is a Series, contiguous storage in rows (already flattened!)
                 state.append(
                     observation.loc[
-                        idx['state', ['velocity', 'thrust', 'brake']]
+                        idx["state", ["velocity", "thrust", "brake"]]
                     ].values
                 )
                 action.append(
-                    observation.loc[idx['action', self.torque_table_row_names]].values
+                    observation.loc[idx["action", self.torque_table_row_names]].values
                 )
-                reward.append(observation.loc[idx['reward', ['work']]].values)
+                reward.append(observation.loc[idx["reward", ["work"]]].values)
                 nstate.append(
                     observation.loc[
-                        idx['nstate', ['velocity', 'thrust', 'brake']]
+                        idx["nstate", ["velocity", "thrust", "brake"]]
                     ].values
                 )
 
@@ -768,8 +765,8 @@ class DDPG(DPG):
             # TODO combine current episode with pool, need evenly sampling pool and list of observations, then combine
             # get sampling range, if not enough data, batch is small
             self.logger.info(
-                f'start sample from pool with size: {self.batch_size}, '
-                f'truck: {self.truck.vid}, driver: {self.driver.pid}.',
+                f"start sample from pool with size: {self.hyper_param.BatchSize}, "
+                f"truck: {self.truck.vid}, driver: {self.driver.pid}.",
                 extra=dictLogger,
             )
 
@@ -809,13 +806,17 @@ class DDPG(DPG):
     ):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
-        print('Tracing update!')
+        print("Tracing update!")
         with tf.GradientTape(watch_accessed_variables=training) as tape:
             target_actions = self.target_actor_model(
                 next_state_batch, training=training
             )
-            y = reward_batch + self.gamma * self.target_critic_model(
-                [next_state_batch, target_actions], training=True
+            y = (
+                reward_batch
+                + self.hyper_param.Gamma  # gamma 0.99
+                * self.target_critic_model(
+                    [next_state_batch, target_actions], training=True
+                )
             )
             # ? need to confirm since replay buffer will take max over the actions of Q function.:with
             # future_rewards = self.target_critic(
@@ -838,7 +839,7 @@ class DDPG(DPG):
                 zip(critic_grad, self.critic_model.trainable_variables)
             )
         else:
-            self.logger.info(f'No critic model update!.', extra=dictLogger)
+            self.logger.info(f"No critic model update!.", extra=dictLogger)
 
         with tf.GradientTape(watch_accessed_variables=training) as tape:
             actions = self.actor_model(state_batch, training=training)
@@ -859,7 +860,7 @@ class DDPG(DPG):
                 zip(actor_grad, self.actor_model.trainable_variables)
             )
         else:
-            self.logger.info(f'No actor model updates!', extra=dictLogger)
+            self.logger.info(f"No actor model updates!", extra=dictLogger)
 
         return critic_loss, actor_loss
 

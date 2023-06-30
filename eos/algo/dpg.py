@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -5,7 +7,14 @@ from typing import Optional
 import pandas as pd
 import re
 
-from eos.data_io.config import Truck, trucks_by_id, get_db_config, Driver, drivers_by_id
+from eos.data_io.config import (
+    TruckInField,
+    TruckInCloud,
+    trucks_by_id,
+    get_db_config,
+    Driver,
+    drivers_by_id,
+)
 from eos.data_io.struct import (
     StateUnitCodes,
     ObservationMeta,
@@ -13,6 +22,7 @@ from eos.data_io.struct import (
     ActionSpecs,
     get_filemeta_config,
 )
+from ..algo.hyperparams import hyper_param_by_name, HYPER_PARAM
 from eos.data_io.buffer import Buffer, MongoBuffer, ArrowBuffer
 
 
@@ -23,32 +33,22 @@ from eos.data_io.buffer import Buffer, MongoBuffer, ArrowBuffer
 class DPG(abc.ABC):
     """Base class for differentiable policy gradient methods."""
 
-    _coll_type: str = 'RECORD'
+    _coll_type: str = "RECORD"
+    _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
+    _truck: [TruckInField | TruckInCloud] = trucks_by_id["VB7"]
+    _driver: Driver = drivers_by_id["zheng-longfei"]
+    _pool_key: str = "mongo_local"  # 'mongo_***'
+    # or 'veos:asdf@localhost:27017' for database access
+    # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
+    _data_folder: str = "./"
+    _infer_mode: bool = False
+    # Following are derived from above
     _buffer: Optional[
         Buffer
     ] = None  # as last of non-default parameters, so that derived class can override with default
-    _data_folder: str = './'
-    _pool_key: str = 'mongo_local'  # 'mongo_***'
-    # or 'veos:asdf@localhost:27017' for database access
-    # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
     _observation_meta: Optional[ObservationMeta] = None
     _episode_start_dt: datetime = None
-    _truck: Truck = trucks_by_id['VB7']
-    _driver: Driver = drivers_by_id['zheng-longfei']
-    _num_states: int = 600
-    _num_actions: int = 68
-    _buffer_capacity: int = 10000
-    _batch_size: int = 4
-    _hidden_units_ac: tuple = (256, 16, 32)
-    _action_bias: float = 0.0
-    _n_layers_ac: tuple = (2, 2)
-    _padding_value: float = 0
-    _gamma: float = 0.99
-    _tau_ac: tuple = (0.005, 0.005)
-    _lr_ac: tuple = (0.001, 0.002)
-    _ckpt_interval: int = 5
     _resume: bool = True
-    _infer_mode: bool = False
     _observations: list[pd.DataFrame] = field(default_factory=list[pd.DataFrame])
     _torque_table_row_names: list[str] = field(default_factory=list[str])
     _epi_no: int = 0
@@ -72,39 +72,39 @@ class DPG(abc.ABC):
         self.observation_meta = ObservationMeta(
             state_specs=StateSpecs(
                 state_unit_codes=StateUnitCodes(
-                    velocity_unit_code='kph',
-                    thrust_unit_code='pct',
-                    brake_unit_code='pct',
+                    velocity_unit_code="kph",
+                    thrust_unit_code="pct",
+                    brake_unit_code="pct",
                 ),
                 unit_number=self.truck.cloud_unit_number,  # 4
                 unit_duration=self.truck.cloud_unit_duration,  # 1s
                 frequency=self.truck.cloud_signal_frequency,  # 50 hz
             ),
             action_specs=ActionSpecs(
-                action_unit_code='nm',
+                action_unit_code="nm",
                 action_row_number=self.truck.action_flashrow,
                 action_column_number=len(self.truck.pedal_scale),
             ),
             reward_specs={
-                'reward_unit': 'wh',
+                "reward_unit": "wh",
             },
             site=self.truck.site,
         )
 
         (
-            self.num_states,
-            self.num_actions,
+            self.truck.observation_numel,
+            self.truck.torque_flash_numel,
         ) = self.observation_meta.get_number_of_states_actions()
 
         self.torque_table_row_names = (
             self.observation_meta.get_torque_table_row_names()
         )  # part of the action MultiIndex
         login_pattern = re.compile(
-            r'^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}'
+            r"^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}"
         )
-        recipe_pattern = re.compile(r'^[A-Za-z]\w*\.ini$')
+        recipe_pattern = re.compile(r"^[A-Za-z]\w*\.ini$")
         # if pool_key is an url or a mongodb name
-        if 'mongo' in self.pool_key.lower() or login_pattern.match(self.pool_key):
+        if "mongo" in self.pool_key.lower() or login_pattern.match(self.pool_key):
             db_config = get_db_config(self.pool_key)
             self.buffer = MongoBuffer(  # choose item type: Record/Episode
                 db_config=db_config,
@@ -132,14 +132,14 @@ class DPG(abc.ABC):
             )
         else:
             raise ValueError(
-                f'pool_key {self.pool_key} is not a valid mongodb login string nor an ini filename.'
+                f"pool_key {self.pool_key} is not a valid mongodb login string nor an ini filename."
             )
 
     def __repr__(self):
-        return f'DPG({self.truck.vid}, {self.driver.pid})'
+        return f"DPG({self.truck.vid}, {self.driver.pid})"
 
     def __str__(self):
-        return 'DPG'
+        return "DPG"
 
     def __hash__(self):
         return hash(self.__repr__())
@@ -226,7 +226,7 @@ class DPG(abc.ABC):
 
     @pool_key.setter
     def pool_key(self, value: str):
-        raise AttributeError('pool_key is read-only')
+        raise AttributeError("pool_key is read-only")
 
     @property
     def truck(self):
@@ -234,7 +234,7 @@ class DPG(abc.ABC):
 
     @truck.setter
     def truck(self, value):
-        raise AttributeError('truck is read-only')
+        raise AttributeError("truck is read-only")
 
     @property
     def driver(self):
@@ -242,95 +242,7 @@ class DPG(abc.ABC):
 
     @driver.setter
     def driver(self, value):
-        raise AttributeError('driver is read-only')
-
-    @property
-    def num_states(self):
-        return self._num_states
-
-    @num_states.setter
-    def num_states(self, value):
-        raise AttributeError('num_states is read-only')
-
-    @property
-    def num_actions(self):
-        return self._num_actions
-
-    @num_actions.setter
-    def num_actions(self, value):
-        raise AttributeError('num_actions is read-only')
-
-    @property
-    def buffer_capacity(self):
-        return self._buffer_capacity
-
-    @buffer_capacity.setter
-    def buffer_capacity(self, value):
-        raise AttributeError('seq_len is read-only')
-
-    @property
-    def batch_size(self):
-        return self._batch_size
-
-    @batch_size.setter
-    def batch_size(self, value):
-        raise AttributeError('batch_size is read-only')
-
-    @property
-    def hidden_units_ac(self):
-        return self._hidden_units_ac
-
-    @hidden_units_ac.setter
-    def hidden_units_ac(self, value):
-        raise AttributeError('hidden_units_ac is read-only')
-
-    @property
-    def action_bias(self):
-        return self._action_bias
-
-    @action_bias.setter
-    def action_bias(self, value):
-        raise AttributeError('action_bias is read-only')
-
-    @property
-    def n_layers_ac(self):
-        return self._n_layers_ac
-
-    @n_layers_ac.setter
-    def n_layers_ac(self, value):
-        raise AttributeError('n_layers_ac is read-only')
-
-    @property
-    def padding_value(self):
-        return self._padding_value
-
-    @padding_value.setter
-    def padding_value(self, value):
-        raise AttributeError('padding_value is read-only')
-
-    @property
-    def gamma(self):
-        return self._gamma
-
-    @gamma.setter
-    def gamma(self, value):
-        raise AttributeError('gamma is read-only')
-
-    @property
-    def tau_ac(self):
-        return self._tau_ac
-
-    @tau_ac.setter
-    def tau_ac(self, value):
-        raise AttributeError('tau_ac is read-only')
-
-    @property
-    def lr_ac(self):
-        return self._lr_ac
-
-    @lr_ac.setter
-    def lr_ac(self, value):
-        raise AttributeError('lr_ac is read-only')
+        raise AttributeError("driver is read-only")
 
     @property
     def data_folder(self) -> str:
@@ -338,15 +250,7 @@ class DPG(abc.ABC):
 
     @data_folder.setter
     def data_folder(self, value: str):
-        raise AttributeError('datafolder is read-only')
-
-    @property
-    def ckpt_interval(self):
-        return self._ckpt_interval
-
-    @ckpt_interval.setter
-    def ckpt_interval(self, value):
-        raise AttributeError('ckpt_interval is read-only')
+        raise AttributeError("datafolder is read-only")
 
     @property
     def resume(self):
@@ -354,7 +258,7 @@ class DPG(abc.ABC):
 
     @resume.setter
     def resume(self, value):
-        raise AttributeError('resume is read-only')
+        raise AttributeError("resume is read-only")
 
     @property
     def infer_mode(self):
@@ -362,7 +266,7 @@ class DPG(abc.ABC):
 
     @infer_mode.setter
     def infer_mode(self, value):
-        raise AttributeError('infer_mode is read-only')
+        raise AttributeError("infer_mode is read-only")
 
     @property
     def episode_start_dt(self) -> datetime:
@@ -419,3 +323,11 @@ class DPG(abc.ABC):
     @torque_table_row_names.setter
     def torque_table_row_names(self, value: list[str]):
         self._torque_table_row_names = value
+
+    @property
+    def hyper_param(self) -> HYPER_PARAM:
+        return self._hyper_param
+
+    @hyper_param.setter
+    def hyper_param(self, value: HYPER_PARAM):
+        self._hyper_param = value

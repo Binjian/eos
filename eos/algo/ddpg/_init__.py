@@ -1,3 +1,3 @@
 from .ddpg import DDPG
 
-__all__ = ['DDPG']
+__all__ = ["DDPG"]
