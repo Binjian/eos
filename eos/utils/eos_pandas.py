@@ -26,7 +26,6 @@ def decode_mongo_documents(
     df: pd.DataFrame,
     torque_table_row_names: list[str],
 ) -> tuple[list[pd.DataFrame], list[pd.DataFrame], list[pd.Series], list[pd.DataFrame]]:
-
     """
     decoding the batch observations from mongodb nested dicts to pandas dataframe
     TODO need to check whether sort_index is necessary
@@ -127,3 +126,36 @@ def decode_mongo_documents(
         df_nstates.append(df_nstate)
 
     return df_states, df_actions, ser_rewards, df_nstates
+
+
+def decode_dataframe_from_parquet(df: pd.DataFrame):
+    """
+    decode the dataframe from parquet with flat column indices to MultiIndexed DataFrame
+    """
+
+    multi_tpl = [tuple(col.split('_')) for col in df.columns]
+    multi_col = pd.MultiIndex.from_tuples(multi_tpl)
+    i1 = multi_col.get_level_values(0)
+    i1 = [
+        '' if str(idx) in (str(pd.NA), 'nan', '') else idx for idx in i1
+    ]  # convert index of level 2 type to int and '' if NA
+    i2 = multi_col.get_level_values(
+        1
+    )  # must be null string instead of the default pd.NA or np.nan
+    i2 = [
+        '' if str(idx) in (str(pd.NA), 'nan', '') else idx for idx in i2
+    ]  # convert index of level 2 type to int and '' if NA
+    i3 = multi_col.get_level_values(
+        2
+    )  # must be null string instead of the default pd.NA or np.nan
+    i3 = [
+        '' if str(idx) in (str(pd.NA), 'nan', '') else int(idx) for idx in i3
+    ]  # convert index of level 2 type to int and '' if NA
+
+    multi_col = pd.MultiIndex.from_arrays([i1, i2, i3])
+    multi_col.names = ['tuple', 'rows', 'idx']
+    df.columns = multi_col
+
+    df = df.set_index(['vehicle', 'driver', 'episodestart', df.index])
+
+    return df

@@ -105,10 +105,11 @@ class DPG(abc.ABC):
         recipe_pattern = re.compile(r"^[A-Za-z]\w*\.ini$")
         # if pool_key is an url or a mongodb name
         if "mongo" in self.pool_key.lower() or login_pattern.match(self.pool_key):
+            # TODO coll_type needs to be passed in for differentiantion between RECORD and EPISODE
             db_config = get_db_config(self.pool_key)
             self.buffer = MongoBuffer(  # choose item type: Record/Episode
                 db_config=db_config,
-                batch_size=self.batch_size,
+                batch_size=self.hyper_param.BatchSize,
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
@@ -121,10 +122,11 @@ class DPG(abc.ABC):
                 data_folder=self.data_folder,
                 config_file=self.pool_key,
                 meta=self.observation_meta,
+                coll_type=self.coll_type,
             )
             self.buffer = ArrowBuffer(
                 recipe=recipe,
-                batch_size=self.batch_size,
+                batch_size=self.hyper_param.BatchSize,
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,

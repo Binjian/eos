@@ -738,7 +738,7 @@ class Agent(abc.ABC):
                             ):
                                 if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                     self.logc.warning(  # the recent 1.5s average velocity
-                                        f'cycle deque is inconsistent!',
+                                        f"{{\'header\': \'cycle deque is inconsistent!\'}}",
                                         extra=self.dictLogger,
                                     )
 
@@ -768,7 +768,7 @@ class Agent(abc.ABC):
                                 # get the row of the table
 
                                 logger_kvaser_get.info(
-                                    f"{{\'header\': \'Cycle velocity\'}}"
+                                    f"{{\'header\': \'Cycle velocity\', "
                                     f"\'aver\': {vel_aver:.2f}, "
                                     f"\'min\': {vel_min:.2f}, "
                                     f"\'max\': {vel_max:.2f}, "

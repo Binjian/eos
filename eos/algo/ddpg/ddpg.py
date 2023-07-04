@@ -624,7 +624,7 @@ class DDPG(DPG):
 
         episode = pd.concat(
             self.observations, axis=1
-        ).transpose()  # concat along columns and transpose to DataFrame
+        ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
         episode.columns.name = ["tuple", "rows", "idx"]
         episode.set_index(("timestamp", "", 0), append=False, inplace=True)
         episode.index.name = "timestamp"
@@ -645,15 +645,15 @@ class DDPG(DPG):
                 "float"
             )  # float16 not allowed in parquet
 
-        # Create MultiIndex for the episode
-        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
-        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
+        # Create MultiIndex for the episode, in the order 'episodestart', 'vehicle', 'driver'
         episode = pd.concat(
             [episode],
             keys=[pd.to_datetime(self.episode_start_dt)],
             names=["episodestart"],
         )
-        episode.sort_index(inplace=True)
+        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
+        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
+        episode.sort_index(inplace=True)  # sorting in the time order of timestamps
 
         self.buffer.store(episode)
         self.logger.info(f"Store episode {self.epi_no}.", extra=dictLogger)
@@ -770,7 +770,12 @@ class DDPG(DPG):
                 extra=dictLogger,
             )
 
-            states, actions, rewards, nstates = self.buffer.sample()
+            (
+                states,
+                actions,
+                rewards,
+                nstates,
+            ) = self.buffer.sample()  # for both mongo and arrow pool
 
             states = tf.convert_to_tensor(states, dtype=tf.float32)
             actions = tf.convert_to_tensor(actions, dtype=tf.float32)
