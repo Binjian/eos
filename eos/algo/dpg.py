@@ -12,6 +12,7 @@ from eos.data_io.config import (
     TruckInCloud,
     trucks_by_id,
     get_db_config,
+    RE_DBKEY,
     Driver,
     drivers_by_id,
 )
@@ -21,6 +22,7 @@ from eos.data_io.struct import (
     StateSpecs,
     ActionSpecs,
     get_filemeta_config,
+    RE_RECIPEKEY,
 )
 from ..algo.hyperparams import hyper_param_by_name, HYPER_PARAM
 from eos.data_io.buffer import Buffer, MongoBuffer, ArrowBuffer
@@ -99,10 +101,8 @@ class DPG(abc.ABC):
         self.torque_table_row_names = (
             self.observation_meta.get_torque_table_row_names()
         )  # part of the action MultiIndex
-        login_pattern = re.compile(
-            r"^[A-Za-z]\w*:\w+@\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{1,5}"
-        )
-        recipe_pattern = re.compile(r"^[A-Za-z]\w*\.ini$")
+        login_pattern = re.compile(RE_DBKEY)
+        recipe_pattern = re.compile(RE_RECIPEKEY)
         # if pool_key is an url or a mongodb name
         if "mongo" in self.pool_key.lower() or login_pattern.match(self.pool_key):
             # TODO coll_type needs to be passed in for differentiantion between RECORD and EPISODE

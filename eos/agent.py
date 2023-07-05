@@ -68,12 +68,14 @@ from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.data_io.config import (
     trucks_by_id,
     trucks_by_vin,
+    RE_VIN,
     can_servers_by_host,
     can_servers_by_name,
     trip_servers_by_name,
     trip_servers_by_host,
     drivers_by_id,
     Driver,
+    RE_DRIVER,
     TruckInCloud,
     TruckInField,
 )
@@ -137,7 +139,7 @@ class Agent(abc.ABC):
         print(f"driver: {self.driver_str}")
 
         # Regex for VIN: HMZABAAH\wMF\d{6}
-        p = re.compile(r'^HMZABAAH\wMF\d{6}$')
+        p = re.compile(RE_VIN)
         if p.match(self.vehicle_str):
             # validate truck id
             # assert self.vehicle in self.trucks_by_vin.keys()
@@ -157,7 +159,7 @@ class Agent(abc.ABC):
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
         # Regex for driver: ^[a-z]{1,10}[-,_][a-z]{1,10}(\d?){1,2}$
-        p = re.compile(r"^[A-Za-z]{1,10}[-_.][A-Za-z]{1,10}(\d?){1,5}$")
+        p = re.compile(RE_DRIVER)
         # validate driver id
         assert p.match(
             self.driver_str
