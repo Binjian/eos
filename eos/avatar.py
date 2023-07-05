@@ -106,7 +106,8 @@ np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 @dataclass
-class Agent(abc.ABC):
+class Avatar(abc.ABC):
+    cloud: bool = None  # determined by truck type
     ui: str = 'cloud'
     resume: bool = True
     infer_mode: bool = False
@@ -116,14 +117,13 @@ class Agent(abc.ABC):
     driver_str: str = 'zheng-longfei'
     remotecan_srv: str = 'can_intra'
     web_srv: str = 'rocket_intra'
-    mongo_srv: str = 'mongo_local'
+    pool_key: str = 'mongo_local'
     proj_root: Path = Path('.')
     logger: logging.Logger = None
-    _algo: DPG = None
     data_root: Path = None
     driver: Driver = None
     truck: [TruckInCloud, TruckInField] = None
-    cloud: bool = None  # determined by truck type
+    _agent: DPG = None  # set by derived Avartar like AvatarDDPG
 
     def __post_init__(
         self,
@@ -254,12 +254,12 @@ class Agent(abc.ABC):
         )
 
     @property
-    def algo(self) -> DPG:
-        return self._algo
+    def agent(self) -> DPG:
+        return self._agent
 
-    @algo.setter
-    def algo(self, algo: DPG) -> None:
-        self._algo = algo
+    @agent.setter
+    def agent(self, agent: DPG) -> None:
+        self._agent = agent
 
     def init_cloud(self):
         os.environ['http_proxy'] = ''
@@ -322,7 +322,7 @@ class Agent(abc.ABC):
 
         logfilename = self.logroot.joinpath(
             'eos-rt-'
-            + str(self.algo)
+            + str(self.agent)
             + '-'
             + self.truck.vid
             + '-'
@@ -393,7 +393,7 @@ class Agent(abc.ABC):
         current_time = datetime.now().strftime('%Y%m%d-%H%M%S')
         self.train_log_dir = self.data_root.joinpath(
             'tf_logs-'
-            + str(self.algo)
+            + str(self.agent)
             + self.truck.vid
             + '/gradient_tape/'
             + current_time
@@ -899,7 +899,7 @@ class Agent(abc.ABC):
                 if args.record_table:
                     curr_table_store_path = self.tableroot.joinpath(
                         'instant_table_'
-                        + str(self.algo)
+                        + str(self.agent)
                         + '-'
                         + self.truck.vid
                         + '-'
@@ -945,7 +945,7 @@ class Agent(abc.ABC):
         last_table_store_path = (
             self.data_root.joinpath(  # there's no slash in the end of the string
                 'last_table_'
-                + str(self.algo)
+                + str(self.agent)
                 + '-'
                 + self.truck.vid
                 + '-'
@@ -1891,7 +1891,7 @@ class Agent(abc.ABC):
                 if args.record_table:
                     curr_table_store_path = self.tableroot.joinpath(
                         'instant_table_'
-                        + str(self.algo)
+                        + str(self.agent)
                         + '-'
                         + self.truck.vid
                         + '-'
@@ -1983,7 +1983,7 @@ class Agent(abc.ABC):
         last_table_store_path = (
             self.data_root.joinpath(  # there's no slash in the end of the string
                 'last_table_'
-                + str(self.algo)
+                + str(self.agent)
                 + '-'
                 + self.truck.vid
                 + '-'
@@ -2080,7 +2080,7 @@ class Agent(abc.ABC):
         df_torque_map = pd.DataFrame(
             torque_map.to_numpy()
         ).transpose()  # row to columns
-        df_torque_map.columns = self.algo.torque_table_row_names  # index: [r0, r1, ...]
+        df_torque_map.columns = self.agent.torque_table_row_names  # index: [r0, r1, ...]
 
         span_each_row = (flash_end_ts - flash_start_ts) / row_num
         flash_timestamps_ser = pd.Series(
@@ -2175,12 +2175,12 @@ class Agent(abc.ABC):
 
             self.logc.info('----------------------', extra=self.dictLogger)
             self.logc.info(
-                f'E{epi_cnt} starts!',
+                f"{{\'header\': \'episosde starts!\', " f"\'episode\': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
 
             # mongodb default to UTC time
-            self.algo.start_episode(datetime.now())
+            self.agent.start_episode(datetime.now())
 
             tf.debugging.set_log_device_placement(True)
             with tf.device('/GPU:0'):
@@ -2209,7 +2209,7 @@ class Agent(abc.ABC):
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
-                            f'Residue in Queue is a sign of disordered sequence, interrupted!'
+                            f"{{\'header\': \'Residue in Queue is a sign of disordered sequence, interrupted!\'}}"
                         )
                         done = (
                             False  # this local done is true done with data exploitation
@@ -2229,13 +2229,16 @@ class Agent(abc.ABC):
                             )
                     except queue.Empty:
                         self.logc.info(
-                            f'E{epi_cnt} No data in the Queue!!!',
+                            f"{{\'header\': \'No data in the Queue!!!\', "
+                            f"\'episode\': {epi_cnt}}}",
                             extra=self.dictLogger,
                         )
                         continue
 
                     self.logc.info(
-                        f'E{epi_cnt} start step {step_count}',
+                        f"{{\'header\': \'start\', "
+                        f"\'step\': {step_count}, "
+                        f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )  # env.step(action) action is flash the vcu calibration table
 
@@ -2257,17 +2260,19 @@ class Agent(abc.ABC):
                     episode_reward += work
 
                     self.logc.info(
-                        f'E{epi_cnt} assembling state and reward!',
+                        f"{{\'header\': \'assembling state and reward!\', "
+                        f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
                     # stripping timestamps from state, (later flatten and convert to tensor)
-                    torque_map_line = self.algo.actor_predict(
+                    torque_map_line = self.agent.actor_predict(
                         state[['velocity', 'thrust', 'brake']], int(step_count / 1)
                     )  # model input requires fixed order velocity col -> thrust col -> brake col
                     #  !!! training with samples of the same order!!!
 
                     self.logc.info(
-                        f'E{epi_cnt} inference done with reduced action space!',
+                        f"{{\'header\': \'inference done with reduced action space!\', "
+                        f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
                     # flash the vcu calibration table and assemble action
@@ -2275,7 +2280,9 @@ class Agent(abc.ABC):
                     with self.tableQ_lock:
                         self.tableQueue.put(torque_map_line)
                         self.logc.info(
-                            f'StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}',
+                            f"{{\'header\': \'Action Push table\', "
+                            f"\'StartIndex\': {table_start}, "
+                            f"\'qsize\': {self.tableQueue.qsize()}}}",
                             extra=self.dictLogger,
                         )
 
@@ -2291,7 +2298,7 @@ class Agent(abc.ABC):
                     )
 
                     if step_count > 0:
-                        self.algo.deposit(
+                        self.agent.deposit(
                             prev_timestamp,
                             prev_state,
                             prev_action,
@@ -2305,7 +2312,9 @@ class Agent(abc.ABC):
 
                     # TODO add speed sum as positive reward
                     self.logc.info(
-                        f'E{epi_cnt} Step done: {step_count}',
+                        f"{{\'header\': \'Step done\',"
+                        f"\'step\': {step_count}, "
+                        f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
 
@@ -2320,45 +2329,49 @@ class Agent(abc.ABC):
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 self.logc.info(
-                    f'E{epi_cnt} interrupted, waits for next episode to kick off!',
+                    f"{{\'header\': \'interrupted, waits for next episode to kick off!\' "
+                    f"\'episode\': {epi_cnt}}}",
                     extra=self.dictLogger,
                 )
                 # send ready signal to trip server
                 if self.ui == 'mobile':
                     ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                     self.logc.info(
-                        f'Sending ready signal to trip server:'
-                        f'status={ret.status};'
-                        f'msg-id={ret.msg_id};'
-                        f'offset={ret.offset}.',
+                        f"{{\'header\': \'Sending ready signal to trip server\', "
+                        f"\'status\': \'{ret.status}\', "
+                        f"\'msg-id\': \'{ret.msg_id}\', "
+                        f"\'offset\': \'{ret.offset}\'}}",
                         extra=self.dictLogger,
                     )
                 continue  # otherwise assuming the history is valid and back propagate
 
-            self.algo.end_episode()  # deposit history
+            self.agent.end_episode()  # deposit history
 
             self.logc.info(
-                f'E{epi_cnt} Experience Collection ends!',
+                f"{{\'header\': \'Experience collection ends!\', "
+                f"\'episode\': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
 
             critic_loss = 0
             actor_loss = 0
             if self.infer_mode:
-                (critic_loss, actor_loss) = self.algo.get_losses()
+                (critic_loss, actor_loss) = self.agent.get_losses()
                 # FIXME bugs in maximal sequence length for ungraceful testing
                 # self.logc.info("Nothing to be done for rdgp!")
-                self.logc.info('No Learning, just calculating loss')
+                self.logc.info(
+                    "{{\'header\': \'No Learning, just calculating loss.\'}}"
+                )
             else:
-                self.logc.info('Learning and updating 6 times!')
+                self.logc.info("{{\'header\': \'Learning and updating 6 times!\'}}")
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    if self.algo.buffer.count() > 0:
-                        (critic_loss, actor_loss) = self.algo.train()
-                        self.algo.soft_update_target()
+                    if self.agent.buffer.count() > 0:
+                        (critic_loss, actor_loss) = self.agent.train()
+                        self.agent.soft_update_target()
                     else:
                         self.logc.info(
-                            f'Buffer empty, no learning!',
+                            f"{{\'header\': \'Buffer empty, no learning!\'}}",
                             extra=self.dictLogger,
                         )
                         self.logc.info(
@@ -2366,10 +2379,13 @@ class Agent(abc.ABC):
                         )
                         break
                 # Checkpoint manager save model
-                self.algo.save_ckpt()
+                self.agent.save_ckpt()
 
             self.logc.info(
-                f'E{epi_cnt}BP 6 times critic loss: {critic_loss}; actor loss: {actor_loss}',
+                f"{{\'header\': \'losses after 6 times BP\', "
+                f"\'episode\': {epi_cnt}, "
+                f"\'critic loss\': {critic_loss}, "
+                f"\'actor loss\': {actor_loss}}}",
                 extra=self.dictLogger,
             )
 
@@ -2403,21 +2419,19 @@ class Agent(abc.ABC):
             plt.close(fig)
 
             self.logc.info(
-                f'E{epi_cnt} Episode Reward: {episode_reward}',
+                f"{{\'episode\': {epi_cnt}, " f"\'reward\': {episode_reward}}}",
                 extra=self.dictLogger,
             )
 
-            self.logc.info(
-                extra=self.dictLogger,
-            )
-            self.logc.info('----------------------', extra=self.dictLogger)
+            self.logc.info("----------------------", extra=self.dictLogger)
             if epi_cnt % 10 == 0:
-                self.logc.info('++++++++++++++++++++++++', extra=self.dictLogger)
+                self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
                 self.logc.info(
-                    f'Running reward: {running_reward:.2f} at E{epi_cnt}',
+                    f"{{\'header\': \'Running reward\': {running_reward:.2f}, "
+                    f"\'episode\': \'{epi_cnt}\'}}",
                     extra=self.dictLogger,
                 )
-                self.logc.info('++++++++++++++++++++++++', extra=self.dictLogger)
+                self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
             # send ready signal to trip server
             if self.ui == 'mobile':
@@ -2442,7 +2456,7 @@ class Agent(abc.ABC):
         self.thr_flash.join()
         self.thr_countdown.join()
 
-        self.logc.info(f'main dies!!!!', extra=self.dictLogger)
+        self.logc.info(f"{{\'header\': \'main dies!!!!\'}}", extra=self.dictLogger)
 
 
 if __name__ == '__main__':
@@ -2545,8 +2559,9 @@ if __name__ == '__main__':
 
     # set up data folder (logging, checkpoint, table)
 
+    assert args.agent in ['ddpg', 'rdpg'], 'agent must be either ddpg or rdpg'
     try:
-        app = Agent(
+        app = Avatar(
             args.agent,
             args.cloud,
             args.ui,

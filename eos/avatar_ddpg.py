@@ -1,26 +1,30 @@
+import sys
 from dataclasses import dataclass
-import argparse, sys
-from agent import Agent
-from algo.rdpg import RDPG
-from algo.hyperparams import hyper_param_by_name, HYPER_PARAM
-from eos.utils import dictLogger, logger
+import argparse
+
 from eos import projroot
+from eos.utils import dictLogger, logger
+
+from avatar import Avatar
+from algo.ddpg.ddpg import DDPG
+from algo.hyperparams import hyper_param_by_name, HYPER_PARAM
 
 
 @dataclass
-class AgentRDPG(Agent):
-    hyper_param: HYPER_PARAM = hyper_param_by_name('RDPG')
+class AvatarDDPG(Avatar):
+    hyper_param: HYPER_PARAM = hyper_param_by_name('DDPG')
 
-    def __post_init__(self):
-        self.algo = RDPG(
-            _coll_type='EPISODE',
+    def __post__init__(self):
+        self.agent = DDPG(
+            _coll_type='RECORD',
+            _hyper_param=self.hyper_param,
             _truck=self.truck,
             _driver=self.driver,
-            _pool_key=self.mongo_srv,
+            _pool_key=self.pool_key,
             _data_folder=str(self.data_root),
-            _hyper_param=self.hyper_param,
             _infer_mode=self.infer_mode,
         )
+
         super().__post_init__()
 
 
@@ -115,35 +119,48 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '-o',
-        '--mongodb',
+        '--pool_key',
         type=str,
         default='mongo_local',
-        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local; if specified as empty string '', use local npy file",
+        help="url for mongodb server in format usr:password@host:port, "
+        "e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, "
+        "or simply name with synced default config, e.g. mongo_cluster, mongo_local; "
+        "if specified as empty string '', "
+        "or \\PATH_TO\\arrow.ini, use arrow pool either in the cluster or local",
     )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
 
+    assert args.agent == 'ddpg', 'Only DDPG is supported in this module'
     try:
-        app = AgentRDPG(
+        avatar = AvatarDDPG(
             cloud=args.cloud,
             ui=args.ui,
             resume=args.resume,
-            infer=args.infer,
+            infer_mode=args.infer,
             record=args.record_table,
             path=args.path,
-            vehicle=args.vehicle,
-            driver=args.driver,
+            vehicle_str=args.vehicle,
+            driver_str=args.driver,
             remotecan_srv=args.remotecan,
             web_srv=args.web,
-            mongo_srv=args.mongodb,
+            pool_key=args.pool_key,
             proj_root=projroot,
             logger=logger,
         )
     except TypeError as e:
-        logger.error(f'Project Exeception TypeError: {e}', extra=dictLogger)
+        logger.error(
+            f"{{\'header\': \'Project Exeception TypeError\', "
+            f"\'exception\': \'{e}\'}}",
+            extra=dictLogger,
+        )
         sys.exit(1)
     except Exception as e:
-        logger.error(e, extra=dictLogger)
+        logger.error(
+            f"{{\'header\': \main Exeception\', " f"\'exception\': \'{e}\'}}",
+            extra=dictLogger,
+        )
         sys.exit(1)
-    app.run()
+
+    avatar.run()
