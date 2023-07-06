@@ -5,6 +5,7 @@ from .numerics import ragged_nparray_list_interp
 from .gracefulkiller import GracefulKiller
 from .eos_pandas import (
     df_to_nested_dict,
+    eos_df_to_nested_dict,
     decode_mongo_documents,
     decode_dataframe_from_parquet,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "WriteOnlyError",
     "GracefulKiller",
     "df_to_nested_dict",
+    "eos_df_to_nested_dict",
     "decode_mongo_documents",
     "decode_dataframe_from_parquet",
 ]

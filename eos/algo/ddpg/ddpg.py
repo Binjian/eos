@@ -272,14 +272,26 @@ class DDPG(DPG):
             )
         try:
             os.makedirs(checkpoint_actor_dir)
-            self.logger.info("Actor folder doesn't exist. Created!", extra=dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Actor folder doesn't exist. Created!\'}}",
+                extra=dictLogger,
+            )
         except FileExistsError:
-            self.logger.info("Actor folder exists, just resume!", extra=dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Actor folder exists, just resume!\'}}",
+                extra=dictLogger,
+            )
         try:
             os.makedirs(checkpoint_critic_dir)
-            self.logger.info("Critic folder doesn't exist. Created!", extra=dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Critic folder doesn't exist. Created!\'}}",
+                extra=dictLogger,
+            )
         except FileExistsError:
-            self.logger.info("Critic folder exists, just resume!", extra=dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Critic folder exists, just resume!\'}}",
+                extra=dictLogger,
+            )
 
         self.ckpt_actor = tf.train.Checkpoint(
             step=tf.Variable(1),
@@ -293,11 +305,14 @@ class DDPG(DPG):
         self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
         if self.manager_actor.latest_checkpoint:
             self.logger.info(
-                f"Actor Restored from {self.manager_actor.latest_checkpoint}",
+                f"{{\'header\': \'Actor Restored\', "
+                f"\'actor ckpt path\': \'{self.manager_actor.latest_checkpoint}\'}}",
                 extra=dictLogger,
             )
         else:
-            self.logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Actor Initializing from scratch\'}}", extra=dictLogger
+            )
 
         self.ckpt_critic = tf.train.Checkpoint(
             step=tf.Variable(1),
@@ -311,11 +326,14 @@ class DDPG(DPG):
         self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
         if self.manager_critic.latest_checkpoint:
             self.logger.info(
-                f"Critic Restored from {self.manager_critic.latest_checkpoint}",
+                f"{{\'header\': \'Critic Restored\', "
+                f"\'critic ckpt path\': \'{self.manager_critic.latest_checkpoint}\'}}",
                 extra=dictLogger,
             )
         else:
-            self.logger.info("Critic Initializing from scratch", extra=dictLogger)
+            self.logger.info(
+                "{{\'header\': \'Critic Initializing from scratch", extra=dictLogger
+            )
 
         # Making the weights equal initially after checkpoints load
         self.target_actor_model.set_weights(self.actor_model.get_weights())
@@ -559,17 +577,19 @@ class DDPG(DPG):
     """
 
     # action outputs and noise object are all row vectors of length 21*17 (r*c), output numpy array
-    def policy(self, state: pd.DataFrame):
+    def policy(self, state: pd.Series):
         # We make sure action is within bounds
         # legal_action = np.clip(sampled_actions, action_lower, action_upper)
         # get flat interleaved (not column-wise stacked) tensor from dataframe
-        state_flat = tf.convert_to_tensor(state.to_numpy().flatten())
+        state_flat = tf.convert_to_tensor(
+            state.values
+        )  # pd.Series values already flattened.
         states = tf.expand_dims(state_flat, 0)  # motion states is 30*3 matrix
         sampled_actions = self.infer_single_sample(states)
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
-    def actor_predict(self, state: pd.DataFrame, t: int):
+    def actor_predict(self, state: pd.Series, t: int):
         """
         `actor_predict()` returns an action sampled from our Actor network without noise.
         add optional t just to have uniform interface with rdpg
@@ -584,83 +604,6 @@ class DDPG(DPG):
         sampled_actions = tf.squeeze(self.actor_model(state_flat))
         # Adding noise to action
         return sampled_actions
-
-    def deposit(
-        self,
-        timestamp: pd.Timestamp,
-        state: pd.Series,
-        action: pd.Series,
-        reward: pd.Series,
-        nstate: pd.Series,
-    ):
-        """
-        state: pd.Series [brake row -> thrust row  -> timestep row -> velocity row ]
-        action: pd.Series [r0, r1, r2, ... rows -> speed row -> throttle row-> (flash) timestep row ]
-        reward: pd.Series [timestep row -> work row]
-        nstate: like state
-        """
-
-        # Create MultiIndex
-        ts = pd.Series([timestamp], name="timestamp")
-        ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=["rows", "idx"])
-        timestamp_index = (ts.name, "", 0)  # triple index (name, row, idx)
-        state_index = [(state.name, *i) for i in state.index]
-        reward_index = [(reward.name, *i) for i in reward.index]
-        action_index = [(action.name, *i) for i in action.index]
-        nstate_index = [(nstate.name, *i) for i in nstate.index]
-
-        multiindex = pd.MultiIndex.from_tuples(
-            [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
-        )
-        observation_list = [timestamp, state, action, reward, nstate]
-        observation = pd.concat(observation_list)  # concat Series along MultiIndex,
-        observation.index = multiindex  # each observation is a series for the quadruple (s,a,r,s') with a MultiIndex
-        self.observations.append(
-            observation
-        )  # each observation is a series for the quadruple (s,a,r,s')
-
-    def end_episode(self):
-        self.logger.info(f"Episode end at {datetime.now()}", extra=dictLogger)
-
-        episode = pd.concat(
-            self.observations, axis=1
-        ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
-        episode.columns.name = ["tuple", "rows", "idx"]
-        episode.set_index(("timestamp", "", 0), append=False, inplace=True)
-        episode.index.name = "timestamp"
-        # episode.sort_index(inplace=True)
-
-        # convert columns types to float where necessary
-        state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
-        action_cols_float = [
-            ("action", col)
-            for col in [*self.torque_table_row_names, "speed", "throttle"]
-        ]
-        reward_cols_float = [("reward", "work")]
-        nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
-        for col in (
-            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
-        ):
-            episode[col[0], col[1]] = episode[col[0], col[1]].astype(
-                "float"
-            )  # float16 not allowed in parquet
-
-        # Create MultiIndex for the episode, in the order 'episodestart', 'vehicle', 'driver'
-        episode = pd.concat(
-            [episode],
-            keys=[pd.to_datetime(self.episode_start_dt)],
-            names=["episodestart"],
-        )
-        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
-        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
-        episode.sort_index(inplace=True)  # sorting in the time order of timestamps
-
-        self.buffer.store(episode)
-        self.logger.info(f"Store episode {self.epi_no}.", extra=dictLogger)
-        self.epi_no += 1
-
-        # self.buffer.close()  # pool in buffer will be closed in finalize()
-        # fill in other necessary action for end of episode
 
     def touch_gpu(self):
         # tf.summary.trace_on(graph=True, profiler=True)

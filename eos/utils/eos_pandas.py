@@ -18,8 +18,31 @@ def df_to_nested_dict(df_multi_indexed_col: pd.DataFrame) -> dict:
     """
     Convert a dataframe with multi-indexed columns to a nested dictionary
     """
-    d = df_multi_indexed_col.to_dict('index')
+    d = df_multi_indexed_col.to_dict(
+        'index'
+    )  # for multi-indexed dataframe, the index in the first level of the dictionary is still a tuple!
     return {k: nest(v) for k, v in d.items()}
+
+
+def eos_df_to_nested_dict(episode: pd.DataFrame) -> dict:
+    """
+    Convert a eos dataframe with multi-indexed columns to a nested dictionary
+    Remove all the levels of the multi-indexed columns except for 'timestamp'
+    Keep only the timestamp as the single key for the nested dictionary
+    """
+    dict_nested = df_to_nested_dict(
+        episode
+    )  # for multi-indexed dataframe, the index in the first level of the dictionary is still a tuple!
+    indices_dict = [
+        {episode.index.names[i]: level for i, level in enumerate(levels)}
+        for levels in episode.index
+    ]  # all elements in the array should have the same vehicle, driver, episodestart
+    single_key_dict = {
+        idx['timestamp']: dict_nested[key]
+        for idx, key in zip(indices_dict, dict_nested)
+    }
+
+    return single_key_dict
 
 
 def decode_mongo_documents(

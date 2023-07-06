@@ -60,7 +60,7 @@ class RDPG(DPG):
     critic_net: CriticNet = None
     target_actor_net: ActorNet = None
     target_critic_net: CriticNet = None
-    obs_t: list = None
+    state_t: list = None
     R: list = None
     h_t: list = None
     buffer_count: int = 0
@@ -85,26 +85,6 @@ class RDPG(DPG):
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "EPISODE"
         self.hyper_param = hyper_param_by_name(self.__class__.__name__)
-
-        self.resume: bool = True
-        self.infer_mode: bool = False
-        db_config = get_db_config(self.pool_key)
-        # db_config._replace(type="EPISODE")  # update the db_config type to record
-        self.buffer = DBBuffer[EpisodeDoc](
-            db_config=db_config,
-            truck=self.truck,
-            driver=self.driver,
-            batch_size=self.hyper_param.BatchSize,
-        )
-
-        # else:  # elif self.db_server is '':
-        #     # Instead of list of tuples as the exp.replay concept go
-        #     # We use different np.arrays for each tuple element
-        #     self.file_replay = self.data_folder + '/replay_buffer.npy'
-        #     # Its tells us num of times record() was called.
-        #     self.load_replay_buffer()
-        #     self.buffer_counter = len(self.R)
-        #     self._buffer_capacity = self.buffer_capacity
 
         # actor network (w/ target network)
         self.init_checkpoint()
@@ -261,7 +241,7 @@ class RDPG(DPG):
                 extra=self.dictLogger,
             )
 
-    def actor_predict(self, obs, t):
+    def actor_predict(self, state: pd.Series, t: int):
         """
         evaluate the actors given a single observations.
         batchsize is 1.
@@ -271,20 +251,22 @@ class RDPG(DPG):
             # initialize with padding values
             # todo: replace the static self._seq_len with the actual length of the sequence
             # todo: monitor the length of the sequence so far
-            self.obs_t = [obs]
+            self.state_t = [
+                state.values
+            ]  # pd.Series values are already in a flattened np array
         else:
-            self.obs_t.append(obs)
+            self.state_t.append(state.values)
 
-        # self.obs_t = np.ones((1, t + 1, self._num_states))
-        # self.obs_t[0, 0, :] = obs
+        # self.state_t = np.ones((1, t + 1, self._num_states))
+        # self.state_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
         input_array = tf.convert_to_tensor(
-            np.expand_dims(np.array(self.obs_t), axis=0), dtype=tf.float32
+            np.expand_dims(np.vstack(self.state_t)), dtype=tf.float32
         )
         self.logger.info(
             f"input_array.shape: {input_array.shape}", extra=self.dictLogger
         )
-        # action = self.actor_net.predict(input_arra)
+        # action = self.actor_net.predict(input_array)
         action = self.actor_predict_step(input_array)
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
         return action
@@ -302,107 +284,50 @@ class RDPG(DPG):
         action = self.actor_net.predict(obs)
         return action
 
-    def deposit(
-        self,
-        prev_ts: pd.Timestamp,
-        prev_o_t: pd.Series,
-        prev_a_t: pd.Series,
-        prev_table_start: int,
-        cycle_reward: float,
-        o_t: pd.DataFrame,
-    ):
-        """deposit the experience into the replay buffer.
-        the following are not used for rdpg,
-        just to have a uniform interface with ddpg
-        prev_ts: timestamp of the previous state
-        o_t: current state
-        """
-        _ = o_t
-        if not self.h_t:  # first even step has $r_0$
-            self.h_t = [
-                {
-                    "timestamp": prev_ts,
-                    "state": prev_o_t.numpy().tolist(),
-                    "action": prev_a_t.numpy().tolist(),
-                    "action_start_row": prev_table_start,
-                    "reward": cycle_reward,
-                }
-            ]
-        else:
-            self.h_t.append(
-                {
-                    "timestamp": prev_ts,
-                    "state": prev_o_t.numpy().tolist(),
-                    "action": prev_a_t.numpy().tolist(),
-                    "action_start_row": prev_table_start,
-                    "reward": cycle_reward,  # unpack list to single value
-                }
-            )
-
-        self.logger.info(
-            f"prev_o_t shape: {prev_o_t.shape},prev_a_t shape: {prev_a_t.shape}.",
-            extra=self.dictLogger,
-        )
-        # else:  # local buffer needs array
-        #     if not self.h_t:  # first even step has $r_0$
-        #         self.h_t = [np.hstack([prev_o_t, prev_a_t, cycle_reward])]
-        #     else:
-        #         self.h_t.append(np.hstack([prev_o_t, prev_a_t, cycle_reward]))
-        #
-        #     self.logger.info(
-        #         f'prev_o_t.shape: {prev_o_t.shape}, prev_a_t.shape: {prev_a_t.shape}, '
-        #         f'cycle_reward: {cycle_reward.shape}, self.h_t shape: {len(self.h_t)}x{self.h_t[-1].shape}.',
-        #         extra=dictLogger,
-        #     )
-
-    def end_episode(self):
-        """deposit the experience into the replay buffer."""
-        self.deposit_history()
-        self.logger.info(f"episode end at {datetime.now()}", extra=self.dictLogger)
-
-    def deposit_history(self) -> None:
-        """deposit the episode history into the agent replay buffer."""
-        if self.h_t:
-            episode: EpisodeDoc = {
-                "start": self.episode_start_dt,  # start of the episode
-                "plot": self.plot,
-                "history": self.h_t,
-            }
-            self.store_episode(episode)
-            self.logger.info(
-                f"add episode history to db replay buffer!",
-                extra=self.dictLogger,
-            )
-        else:
-            self.logger.info(
-                f"episode done but history is empty or no observation received!",
-                extra=self.dictLogger,
-            )
-
-        # else:
-        #     self.add_to_replay_buffer(self.h_t)
-        #     self.logger.info(
-        #         f'add episode history to npy replay buffer!',
-        #         extra=self.dictLogger,
-        #     )
-
-    def store_episode(self, episode):
-        """add an episode to database
-
-        db buffer is lists of lists
-        """
-
-        self.logger.info("start deposit an episode", extra=self.dictLogger)
-        result = self.buffer.store(episode)
-        self.logger.info("episode inserted.", extra=self.dictLogger)
-        assert result.acknowledged is True, "deposit result not acknowledged"
-        self.buffer_count = self.buffer.count()
-        self.logger.info(f"pool has {self.buffer_count} records", extra=self.dictLogger)
-        epi_inserted = self.buffer.find(result.inserted_id)
-        self.logger.info("episode found.", extra=self.dictLogger)
-        assert epi_inserted["timestamp"] == episode["timestamp"], "timestamp mismatch"
-        assert epi_inserted["plot"] == episode["plot"], "plot mismatch"
-        assert epi_inserted["history"] == episode["history"], "history mismatch"
+    #
+    # def deposit_history(self) -> None:
+    #     """deposit the episode history into the agent replay buffer."""
+    #     if self.h_t:
+    #         episode: EpisodeDoc = {
+    #             "start": self.episode_start_dt,  # start of the episode
+    #             "plot": self.plot,
+    #             "history": self.h_t,
+    #         }
+    #         self.store_episode(episode)
+    #         self.logger.info(
+    #             f"add episode history to db replay buffer!",
+    #             extra=self.dictLogger,
+    #         )
+    #     else:
+    #         self.logger.info(
+    #             f"episode done but history is empty or no observation received!",
+    #             extra=self.dictLogger,
+    #         )
+    #
+    #     # else:
+    #     #     self.add_to_replay_buffer(self.h_t)
+    #     #     self.logger.info(
+    #     #         f'add episode history to npy replay buffer!',
+    #     #         extra=self.dictLogger,
+    #     #     )
+    #
+    # def store_episode(self, episode):
+    #     """add an episode to database
+    #
+    #     db buffer is lists of lists
+    #     """
+    #
+    #     self.logger.info("start deposit an episode", extra=self.dictLogger)
+    #     result = self.buffer.store(episode)
+    #     self.logger.info("episode inserted.", extra=self.dictLogger)
+    #     assert result.acknowledged is True, "deposit result not acknowledged"
+    #     self.buffer_count = self.buffer.count()
+    #     self.logger.info(f"pool has {self.buffer_count} records", extra=self.dictLogger)
+    #     epi_inserted = self.buffer.find(result.inserted_id)
+    #     self.logger.info("episode found.", extra=self.dictLogger)
+    #     assert epi_inserted["timestamp"] == episode["timestamp"], "timestamp mismatch"
+    #     assert epi_inserted["plot"] == episode["plot"], "plot mismatch"
+    #     assert epi_inserted["history"] == episode["history"], "history mismatch"
 
     # def add_to_replay_buffer(self, h_t):
     #     """add the current h_t to the replay buffer.

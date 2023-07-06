@@ -2080,7 +2080,9 @@ class Avatar(abc.ABC):
         df_torque_map = pd.DataFrame(
             torque_map.to_numpy()
         ).transpose()  # row to columns
-        df_torque_map.columns = self.agent.torque_table_row_names  # index: [r0, r1, ...]
+        df_torque_map.columns = (
+            self.agent.torque_table_row_names
+        )  # index: [r0, r1, ...]
 
         span_each_row = (flash_end_ts - flash_start_ts) / row_num
         flash_timestamps_ser = pd.Series(
@@ -2347,9 +2349,9 @@ class Avatar(abc.ABC):
 
             self.agent.end_episode()  # deposit history
 
-            self.logc.info(
-                f"{{\'header\': \'Experience collection ends!\', "
-                f"\'episode\': {epi_cnt}}}",
+            self.logger.info(
+                f"{{\'header\': \'Episode end.\', " f"\'episode\': {epi_cnt}, ",
+                f"\'timestamp\': {datetime.now()}}}",
                 extra=self.dictLogger,
             )
 

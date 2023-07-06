@@ -35,7 +35,9 @@ from eos.data_io.buffer import Buffer, MongoBuffer, ArrowBuffer
 class DPG(abc.ABC):
     """Base class for differentiable policy gradient methods."""
 
-    _coll_type: str = "RECORD"
+    _coll_type: str = (
+        "RECORD"  # or 'EPISODE', used for create different buffer and pool
+    )
     _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
     _truck: [TruckInField | TruckInCloud] = trucks_by_id["VB7"]
     _driver: Driver = drivers_by_id["zheng-longfei"]
@@ -106,7 +108,7 @@ class DPG(abc.ABC):
         # if pool_key is an url or a mongodb name
         if "mongo" in self.pool_key.lower() or login_pattern.match(self.pool_key):
             # TODO coll_type needs to be passed in for differentiantion between RECORD and EPISODE
-            db_config = get_db_config(self.pool_key)
+            db_config = get_db_config(self.pool_key, self.coll_type)
             self.buffer = MongoBuffer(  # choose item type: Record/Episode
                 db_config=db_config,
                 batch_size=self.hyper_param.BatchSize,
@@ -157,7 +159,7 @@ class DPG(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def actor_predict(self, state: pd.DataFrame, t: int):
+    def actor_predict(self, state: pd.Series, t: int):
         """
         Evaluate the actors given a single observations.
         batch_size is 1.
@@ -172,7 +174,7 @@ class DPG(abc.ABC):
 
         self.observations = []
 
-    @abc.abstractmethod
+    # @abc.abstractmethod
     def deposit(
         self,
         timestamp: pd.Timestamp,
@@ -181,14 +183,80 @@ class DPG(abc.ABC):
         reward: pd.Series,
         nstate: pd.Series,
     ):
-        """Deposit the experience into the replay buffer."""
-        pass
+        """
+        Deposit the experience into the replay buffer.
+        state: pd.Series [brake row -> thrust row  -> timestep row -> velocity row ]
+        action: pd.Series [r0, r1, r2, ... rows -> speed row -> throttle row-> (flash) timestep row ]
+        reward: pd.Series [timestep row -> work row]
+        nstate: like state
+        """
 
-    @abc.abstractmethod
+        # Create MultiIndex
+        ts = pd.Series([timestamp], name="timestamp")
+        ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=["rows", "idx"])
+        timestamp_index = (ts.name, "", 0)  # triple index (name, row, idx)
+        state_index = [(state.name, *i) for i in state.index]
+        reward_index = [(reward.name, *i) for i in reward.index]
+        action_index = [(action.name, *i) for i in action.index]
+        nstate_index = [(nstate.name, *i) for i in nstate.index]
+
+        multiindex = pd.MultiIndex.from_tuples(
+            [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
+        )
+        observation_list = [timestamp, state, action, reward, nstate]
+        observation = pd.concat(observation_list)  # concat Series along MultiIndex,
+        observation.index = multiindex  # each observation is a series for the quadruple (s,a,r,s') with a MultiIndex
+        self.observations.append(
+            observation
+        )  # each observation is a series for the quadruple (s,a,r,s')
+
+    # @abc.abstractmethod
     def end_episode(self):
-        """Deposit the whole episode of experience into the replay buffer for RDPG.
-        Noting to do for DDPG"""
-        pass
+        """
+        Deposit the whole episode of experience into the replay buffer for DPG.
+        """
+        self.deposit_episode()
+        self.epi_no += 1
+
+    def deposit_episode(self):
+        """
+        Deposit the whole episode of experience into the replay buffer for DPG.
+        """
+
+        episode = pd.concat(
+            self.observations, axis=1
+        ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
+        episode.columns.name = ["tuple", "rows", "idx"]
+        episode.set_index(("timestamp", "", 0), append=False, inplace=True)
+        episode.index.name = "timestamp"
+        # episode.sort_index(inplace=True)
+
+        # convert columns types to float where necessary
+        state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
+        action_cols_float = [
+            ("action", col)
+            for col in [*self.torque_table_row_names, "speed", "throttle"]
+        ]
+        reward_cols_float = [("reward", "work")]
+        nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
+        for col in (
+            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
+        ):
+            episode[col[0], col[1]] = episode[col[0], col[1]].astype(
+                "float"
+            )  # float16 not allowed in parquet
+
+        # Create MultiIndex for the episode, in the order 'episodestart', 'vehicle', 'driver'
+        episode = pd.concat(
+            [episode],
+            keys=[pd.to_datetime(self.episode_start_dt)],
+            names=["episodestart"],
+        )
+        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
+        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
+        episode.sort_index(inplace=True)  # sorting in the time order of timestamps
+
+        self.buffer.store(episode)
 
     @abc.abstractmethod
     def train(self):
