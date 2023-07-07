@@ -1,6 +1,5 @@
 # system imports
 import os
-from datetime import datetime
 from dataclasses import dataclass
 import logging
 
@@ -10,13 +9,12 @@ import pandas as pd
 import tensorflow as tf
 
 # from pymongoarrow.api import schema
-from tensorflow.keras.utils import pad_sequences  # type: ignore
+from keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos.utils import dictLogger, logger
 from eos.data_io.struct import EpisodeDoc, Plot
-from eos.data_io.config import TruckInCloud, TruckInField, trucks_by_id, get_db_config
 from ..dpg import DPG  # type: ignore
 from ..hyperparams import hyper_param_by_name, HYPER_PARAM
 
@@ -284,328 +282,6 @@ class RDPG(DPG):
         action = self.actor_net.predict(obs)
         return action
 
-    #
-    # def deposit_history(self) -> None:
-    #     """deposit the episode history into the agent replay buffer."""
-    #     if self.h_t:
-    #         episode: EpisodeDoc = {
-    #             "start": self.episode_start_dt,  # start of the episode
-    #             "plot": self.plot,
-    #             "history": self.h_t,
-    #         }
-    #         self.store_episode(episode)
-    #         self.logger.info(
-    #             f"add episode history to db replay buffer!",
-    #             extra=self.dictLogger,
-    #         )
-    #     else:
-    #         self.logger.info(
-    #             f"episode done but history is empty or no observation received!",
-    #             extra=self.dictLogger,
-    #         )
-    #
-    #     # else:
-    #     #     self.add_to_replay_buffer(self.h_t)
-    #     #     self.logger.info(
-    #     #         f'add episode history to npy replay buffer!',
-    #     #         extra=self.dictLogger,
-    #     #     )
-    #
-    # def store_episode(self, episode):
-    #     """add an episode to database
-    #
-    #     db buffer is lists of lists
-    #     """
-    #
-    #     self.logger.info("start deposit an episode", extra=self.dictLogger)
-    #     result = self.buffer.store(episode)
-    #     self.logger.info("episode inserted.", extra=self.dictLogger)
-    #     assert result.acknowledged is True, "deposit result not acknowledged"
-    #     self.buffer_count = self.buffer.count()
-    #     self.logger.info(f"pool has {self.buffer_count} records", extra=self.dictLogger)
-    #     epi_inserted = self.buffer.find(result.inserted_id)
-    #     self.logger.info("episode found.", extra=self.dictLogger)
-    #     assert epi_inserted["timestamp"] == episode["timestamp"], "timestamp mismatch"
-    #     assert epi_inserted["plot"] == episode["plot"], "plot mismatch"
-    #     assert epi_inserted["history"] == episode["history"], "history mismatch"
-
-    # def add_to_replay_buffer(self, h_t):
-    #     """add the current h_t to the replay buffer.
-    #
-    #     replay buffer is list of 2d numpy arrays
-    #     args:
-    #         h_t (np.array): the current h_t, could be variable length
-    #                         a two-dimensional array of shape (t, 3) with t the number of steps/rows
-    #     """
-    #     # logger.info(
-    #     #     f"h_t list shape: {len(h_t)}x{h_t[-1].shape}.",
-    #     #     extra=self.dictLogger
-    #     # )
-    #     np_h_t = np.array(h_t)
-    #     self.logger.info(
-    #         f'h_t np array shape: {np_h_t.shape}.', extra=self.dictLogger
-    #     )
-    #     self.R.append(np_h_t)
-    #     if len(self.R) > self._buffer_capacity:
-    #         self.R.pop(0)
-    #     self.logger.info(
-    #         f'memory length: {len(self.R)}', extra=self.dictLogger
-    #     )
-
-    def sample_minibatch(self):
-        """sample a mini batch from the database.
-
-        db buffer is lists of lists
-        """
-        self.logger.info(
-            "start sampling a mini batch from the database.",
-            extra=self.dictLogger,
-        )
-
-        self.buffer_count = self.buffer.count()
-        assert self.buffer_count > 0, "pool is empty!"
-        batch = self.buffer.sample()
-        assert (
-            len(batch) == self.hyper_param.BatchSize  # 4
-        ), f"sampled batch size {len(batch)} not match sample size {self.hyper_param.BatchSize}"
-        self.logger.info(
-            f"{self.hyper_param.BatchSize} episodes sampled from {self.buffer_count}.",
-            extra=self.dictLogger,
-        )
-
-        # get dimension of the history
-        num_obs = len(batch[0]["plot"]["state_specs"]["state_unit_codes"])
-        unit_number = batch[0]["plot"]["state_specs"]["unit_number"]
-        unit_duration = batch[0]["plot"]["state_specs"]["unit_duration"]
-        frequency = batch[0]["plot"]["state_specs"]["frequency"]
-        states_length = unit_number * unit_duration * frequency * num_obs
-        action_row_number = batch[0]["plot"]["action_specs"]["action_row_number"]
-        action_column_number = batch[0]["plot"]["action_specs"]["action_column_number"]
-
-        assert (
-            self.truck.observation_numel == states_length
-        ), f"num_states {self.truck.observation_numel} doesn't match config {states_length}"
-        # (3s*50)*3(obs_num))=450
-        assert (
-            self.truck.torque_flash_numel == action_row_number * action_column_number
-        ), f"num_actions {self.truck.torque_flash_numel} doesn't match config {action_row_number} * {action_column_number}"
-        # (3s*50)*3(obs_num))=450
-
-        # decode and padding rewards, states and actions
-        # decode reward series
-        r_n_t = [
-            [history["reward"] for history in episode["history"]] for episode in batch
-        ]  # list of lists
-        np_r_n_t = pad_sequences(
-            r_n_t,
-            padding="post",
-            dtype="float32",
-            value=self.hyper_param.PaddingValue,  # -10000
-        )
-
-        # for alignment with critic output with extra feature dimension
-        r_n_t = tf.convert_to_tensor(np.expand_dims(np_r_n_t, axis=2), dtype=tf.float32)
-        self.logger.info(f"r_n_t.shape: {r_n_t.shape}")
-        # self.logger.info("done decoding reward.", extra=self.dictLogger)
-
-        #  history['states'] for history in episdoe["history"] is the time sequence of states
-        o_n_l0 = [[obs["state"] for obs in episode["history"]] for episode in batch]
-
-        # state in o_n_l0 is the time sequence of states [o1, o2, o3, ..., o7]
-        # o1=[v0, t0, b0, v1, t1, b1, ...] (4x50x3=600)
-        # state has n steps (for example 7)
-        # each step has dimension of num_states(600)
-        # [step[i] for step in state] is the time sequence of the i-th feature
-        o_n_l1 = [
-            [[step[i] for step in state] for state in o_n_l0]
-            for i in np.arange(self.truck.observation_numel)
-        ]  # list (num_states) of lists (batch_size) of lists with variable observation length
-
-        try:
-            o_n_t = np.array(
-                [
-                    pad_sequences(
-                        o_n_l1i,
-                        padding="post",
-                        dtype="float32",
-                        value=self.hyper_param.PaddingValue,  # -10000
-                    )  # return numpy array
-                    for o_n_l1i in o_n_l1
-                ]  # return numpy array list
-            )  # return numpy array list of size (num_states, batch_size, max(len(o_n_l1i))),
-            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
-            # otherwise observation is ragged, throw exception
-            o_n_t = tf.transpose(
-                o_n_t, perm=[1, 2, 0]
-            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
-            o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
-        except Exception as X:
-            assert False, f"ragged observation state o_n_l1; Exception: {X}!"
-
-        self.logger.info(f"o_n_t.shape: {o_n_t.shape}")
-
-        # decode starting row series, not used for now
-        a_n_start_t = [
-            [history["action_start_row"] for history in episode["history"]]
-            for episode in batch
-        ]
-        _ = pad_sequences(
-            a_n_start_t,
-            padding="post",
-            dtype="float32",
-            value=self.hyper_param.PaddingValue,  # -10000
-        )  # a_n_start_t1
-        self.logger.info("done decoding starting row.", extra=self.dictLogger)
-
-        # decode action series, not used for now
-        a_n_l0 = [[obs["action"] for obs in episode["history"]] for episode in batch]
-        a_n_l1 = [
-            [[step["action"][i] for step in act] for act in a_n_l0]
-            for i in np.arange(self.truck.torque_flash_numel)
-        ]  # list (num_actions) of lists (batch_size) of lists with variable observation length
-
-        try:
-            a_n_t = np.array(
-                [
-                    pad_sequences(
-                        a_n_l1i,
-                        padding="post",
-                        dtype="float32",
-                        value=self.hyper_param.PaddingValue,  # -10000
-                    )  # return numpy array
-                    for a_n_l1i in a_n_l1
-                ]  # return numpy array list
-            )  # return numpy array list of size (num_states, batch_size, max(len(o_n_l1i))),
-            # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
-            # otherwise observation is ragged, throw exception
-            a_n_t = tf.transpose(
-                a_n_t, perm=[1, 2, 0]
-            )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
-            a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
-        except Exception as X:
-            assert False, f"ragged action state a_n_l1; Exeception: {X}!"
-
-        self.logger.info(f"a_n_t.shape: {a_n_t.shape}")
-
-        return o_n_t, a_n_t, r_n_t
-
-    # def sample_mini_batch_from_buffer(self, batch_size):
-    #     """sample a mini batch from the replay buffer. add post padding for masking
-    #
-    #     replay buffer is list of 2d numpy arrays
-    #     args attributes:
-    #         self.R (list): the replay buffer,
-    #         contains lists of variable lengths of (o_t, a_t, r_t) tuples.
-    #
-    #     returns attributes:
-    #         self.o_n_t: a batch of full padded observation sequence (np.array)
-    #         self.a_n_t: a batch of full padded action sequence (np.array)
-    #         self.r_n_t: a batch of full padded reward sequence(np.array)
-    #         next state observation is
-    #     """
-    #     # sample random indexes
-    #     record_range = min(len(self.R), self._buffer_capacity)
-    #     self.logger.info(f'record_range: {record_range}', extra=dictLogger)
-    #     indexes = np.random.choice(record_range, batch_size)
-    #     self.logger.info(f'indexes: {indexes}', extra=dictLogger)
-    #     # logger.info(f"r indices type: {type(indexes)}:{indexes}")
-    #     # mini-batch for reward, observation and action
-    #     # with keras padding automatically expands every sequence to the maximal length by pad_sequences
-    #
-    #     # logger.info(f"self.R[0][:,-1]: {self.R[0][:,-1]}", extra=dictLogger)
-    #     r_n_t = [self.R[i][:, -1] for i in indexes]  # list of arrays
-    #
-    #     # logger.info(f"r_n_t.shape: {len(r_n_t)}x{len(r_n_t[-1])}")
-    #     np_r_n_t = pad_sequences(
-    #         r_n_t,
-    #         padding='post',
-    #         dtype='float32',
-    #         value=self._padding_value,  # impossible value for wh value; 0 would be a possible value
-    #     )  # return numpy array of shape ( batch_size, max(len(r_n_t)))
-    #     # it works for list of arrays! not necessary the following
-    #     # r_n_t = [(self.R[i][:, -1]).tolist() for i in indexes]  # list of arrays
-    #
-    #     # for alignment with critic output with extra feature dimension
-    #     self.r_n_t = tf.convert_to_tensor(
-    #         np.expand_dims(np_r_n_t, axis=2), dtype=tf.float32
-    #     )
-    #     # logger.info(f"r_n_t.shape: {self.r_n_t.shape}")
-    #
-    #     o_n_l0 = [
-    #         self.R[i][:, 0 : self.truck.observation_numel] for i in indexes
-    #     ]  # list of np.array with variable observation length
-    #     # o_n_l1 = [
-    #     #     o_n_l0[i].tolist() for i in np.arange(self._batch_size)
-    #     # ]  # list (batch_size) of list (num_states) of np.array with variable observation length
-    #
-    #     # state[:,i].tolist() is the time sequence of the i-th observation (dimension time)
-    #     # [state[:,i].tolist() for state in o_n_l0] is the list of time sequences of a single batch (dimension batch)
-    #     # o_n_l1 is the final ragged list (different time steps) of different observations (dimension observation)
-    #     o_n_l1 = [
-    #         [state[:, i].tolist() for state in o_n_l0]
-    #         for i in np.arange(self.truck.observation_numel)
-    #     ]  # list (num_states) of lists (batch_size) of lists with variable observation length
-    #
-    #     try:
-    #         o_n_t = np.array(
-    #             [
-    #                 pad_sequences(
-    #                     o_n_l1i,
-    #                     padding='post',
-    #                     dtype='float32',
-    #                     value=self._padding_value,
-    #                 )  # return numpy array
-    #                 for o_n_l1i in o_n_l1
-    #             ]  # return numpy array list
-    #         )  # return numpy array list of size (num_states, batch_size, max(len(o_n_l1i))),
-    #         # max(len(o_n_l1i)) is the longest sequence in the batch, should be the same for all observations
-    #         # otherwise observation is ragged, throw exception
-    #         o_n_t = tf.transpose(
-    #             o_n_t, perm=[1, 2, 0]
-    #         )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), num_states)
-    #         self.o_n_t = tf.convert_to_tensor(o_n_t, dtype=tf.float32)
-    #     except Exception as X:
-    #         self.logger.error(
-    #             f'ragged observation state o_n_l1; Exception: {X}!',
-    #             extra=dictLogger,
-    #         )
-    #     # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
-    #
-    #     a_n_l0 = [
-    #         self.R[i][:, self.truck.observation_numel : self.truck.observation_numel + self.truck.torque_flash_numel]
-    #         for i in indexes
-    #     ]  # list of np.array with variable action length
-    #     # a_n_l1 = [
-    #     #     a_n_l0[i].tolist() for i in np.arange(self._batch_size)
-    #     # ]  # list (batch_size) of list (num_actions) of np.array with variable action length
-    #     a_n_l1 = [
-    #         [act[:, i].tolist() for act in a_n_l0]
-    #         for i in np.arange(self.truck.torque_flash_numel)
-    #     ]  # list (num_actions) of lists (batch_size) of lists with variable observation length
-    #
-    #     try:
-    #         a_n_t = np.array(
-    #             [
-    #                 pad_sequences(
-    #                     a_n_l1i,
-    #                     padding='post',
-    #                     dtype='float32',
-    #                     value=self._padding_value,
-    #                 )  # return numpy array
-    #                 for a_n_l1i in a_n_l1
-    #             ]  # return numpy array list
-    #         )
-    #         a_n_t = tf.transpose(
-    #             a_n_t, perm=[1, 2, 0]
-    #         )  # return numpy array list of size (batch_size,max(len(a_n_l1i)), num_actions)
-    #         self.a_n_t = tf.convert_to_tensor(a_n_t, dtype=tf.float32)
-    #     except Exception as X:
-    #         self.logger.error(
-    #             f'ragged action state a_n_l1; Exception: {X}!',
-    #             extra=dictLogger,
-    #         )
-    #     # logger.info(f"a_n_t.shape: {self.a_n_t.shape}")
-
     def train(self):
         """
         train the actor and critic moving network.
@@ -614,16 +290,14 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        o_n_t, a_n_t, r_n_t = self.sample_minibatch()
-        # else:
-        #     self.sample_mini_batch_from_buffer(self.batch_size)
-        actor_loss, critic_loss = self.train_step(o_n_t, a_n_t, r_n_t)
+        s_n_t, a_n_t, r_n_t, _ = self.buffer.sample()  # ignore next state for now
+        actor_loss, critic_loss = self.train_step(s_n_t, a_n_t, r_n_t)
         return actor_loss, critic_loss
 
     # @tf.function(input_signature=[tf.tensorspec(shape=[none,none,1], dtype=tf.float32),
     #                               tf.tensorspec(shape=[none,none,90], dtype=tf.float32),
     #                               tf.tensorspec(shape=[none,none,85], dtype=tf.float32)])
-    def train_step(self, o_n_t, a_n_t, r_n_t):
+    def train_step(self, s_n_t, a_n_t, r_n_t):
         # train critic using bptt
         print("tracing train_step!")
         self.logger.info(f"start train_step with tracing")
@@ -631,13 +305,13 @@ class RDPG(DPG):
         with tf.GradientTape() as tape:
             # actions at h_t+1
             self.logger.info(f"start evaluate_actions")
-            t_a_ht1 = self.target_actor_net.evaluate_actions(o_n_t)
+            t_a_ht1 = self.target_actor_net.evaluate_actions(s_n_t)
 
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             self.logger.info(f"start critic evaluate_q")
-            t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
+            t_q_ht1 = self.target_critic_net.evaluate_q(s_n_t, t_a_ht1)
             self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
 
             # compute the target action value at h_t for the current batch
@@ -658,7 +332,7 @@ class RDPG(DPG):
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
-                y_n_t - self.critic_net.evaluate_q(o_n_t, a_n_t)
+                y_n_t - self.critic_net.evaluate_q(s_n_t, a_n_t)
             )
         critic_grad = tape.gradient(
             critic_loss, self.critic_net.eager_model.trainable_variables
@@ -671,12 +345,12 @@ class RDPG(DPG):
         # train actor using bptt
         with tf.GradientTape() as tape:
             self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
-            a_ht = self.actor_net.evaluate_actions(o_n_t)
+            a_ht = self.actor_net.evaluate_actions(s_n_t)
             self.logger.info(
                 f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
                 extra=dictLogger,
             )
-            q_ht = self.critic_net.evaluate_q(o_n_t, a_ht)
+            q_ht = self.critic_net.evaluate_q(s_n_t, a_ht)
             self.logger.info(
                 f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
                 extra=dictLogger,
@@ -718,16 +392,14 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        o_n_t, a_n_t, r_n_t = self.sample_minibatch()
-        # else:
-        #     self.sample_mini_batch_from_buffer(batch_size=self.batch_size)
+        s_n_t, a_n_t, r_n_t, _ = self.buffer.sample()  # ignore the next state
 
         # get critic loss
         # actions at h_t+1
-        t_a_ht1 = self.target_actor_net.evaluate_actions(o_n_t)
+        t_a_ht1 = self.target_actor_net.evaluate_actions(s_n_t)
 
         # state action value at h_t+1
-        t_q_ht1 = self.target_critic_net.evaluate_q(o_n_t, t_a_ht1)
+        t_q_ht1 = self.target_critic_net.evaluate_q(s_n_t, t_a_ht1)
 
         # compute the target action value at h_t for the current batch
         # using fancy indexing
@@ -740,12 +412,12 @@ class RDPG(DPG):
 
         # scalar value, average over the batch, time steps
         critic_loss = tf.math.reduce_mean(
-            y_n_t - self.critic_net.evaluate_q(o_n_t, a_n_t)
+            y_n_t - self.critic_net.evaluate_q(s_n_t, a_n_t)
         )
 
         # get  actor loss
-        a_ht = self.actor_net.evaluate_actions(o_n_t)
-        q_ht = self.critic_net.evaluate_q(o_n_t, a_ht)
+        a_ht = self.actor_net.evaluate_actions(s_n_t)
+        q_ht = self.critic_net.evaluate_q(s_n_t, a_ht)
 
         # -1 because we want to maximize the q_ht
         # scalar value, average over the batch and time steps
@@ -764,28 +436,3 @@ class RDPG(DPG):
     def save_ckpt(self):
         self.actor_net.save_ckpt()
         self.critic_net.save_ckpt()
-
-    # def save_replay_buffer(self):
-    #     replay_buffer_npy = np.array(self.R)
-    #     np.save(self.file_replay, replay_buffer_npy)
-    #     self.logger.info(
-    #         f'saved replay buffer with size : {len(self.R)}',
-    #         extra=dictLogger,
-    #     )
-    #
-    # def load_replay_buffer(self):
-    #     try:
-    #         replay_buffer_npy = np.load(self.file_replay)
-    #         # self.R = replay_buffer_npy.tolist()
-    #         # reload into memory as a list of np arrays for sampling
-    #         self.R = [
-    #             replay_buffer_npy[i, :, :]
-    #             for i in np.arange(replay_buffer_npy.shape[0])
-    #         ]
-    #         self.logger.info(
-    #             f'loaded last buffer with size: {len(self.R)}, element[0] size: {self.R[0].shape}.',
-    #             extra=dictLogger,
-    #         )
-    #     except IOError:
-    #         self.logger.info('blank experience', extra=dictLogger)
-    #         self.R = []
