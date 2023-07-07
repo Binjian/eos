@@ -792,7 +792,7 @@ class Avatar(abc.ABC):
                                     ],
                                 )
                                 # df_motion_power.set_index('timestamp', inplace=True)
-                                df_motion_power.columns.name = 'tuple'
+                                df_motion_power.columns.name = 'qtuple'
 
                                 with self.captureQ_lock:
                                     self.motionpowerQueue.put(df_motion_power)
@@ -1203,7 +1203,7 @@ class Avatar(abc.ABC):
                                         'voltage': voltage.flatten(),
                                     },
                                 )
-                                df_motion_power.columns.name = 'tuple'
+                                df_motion_power.columns.name = 'qtuple'
                                 # df_motion_power.set_index('timestamp', inplace=True)
                                 # motion_power = np.c_[
                                 #     timestamps.reshape(-1, 1),  # 200

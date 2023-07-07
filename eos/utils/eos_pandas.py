@@ -86,7 +86,7 @@ def decode_mongo_documents(
             'vehicle',
             'driver',
             'timestamp',
-            'tuple',
+            'qtuple',
             'rows',
             'idx',
         ]
@@ -123,7 +123,7 @@ def decode_mongo_documents(
                 'vehicle',
                 'driver',
                 'timestamp',
-                'tuple',
+                'qtuple',
                 'rows',
                 'speed',
                 'timestep',
@@ -176,7 +176,7 @@ def decode_dataframe_from_parquet(df: pd.DataFrame):
     ]  # convert index of level 2 type to int and '' if NA
 
     multi_col = pd.MultiIndex.from_arrays([i1, i2, i3])
-    multi_col.names = ['tuple', 'rows', 'idx']
+    multi_col.names = ['qtuple', 'rows', 'idx']
     df.columns = multi_col
 
     df = df.set_index(['vehicle', 'driver', 'episodestart', df.index])
