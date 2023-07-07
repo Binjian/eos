@@ -14,11 +14,11 @@ class AvatarRDPG(Avatar):
     def __post_init__(self):
         self.agent = RDPG(
             _coll_type='EPISODE',
+            _hyper_param=self.hyper_param,
             _truck=self.truck,
             _driver=self.driver,
             _pool_key=self.pool_key,
             _data_folder=str(self.data_root),
-            _hyper_param=self.hyper_param,
             _infer_mode=self.infer_mode,
         )
         super().__post_init__()

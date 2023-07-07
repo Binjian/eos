@@ -8,20 +8,19 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-# from pymongoarrow.api import schema
 from keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos.utils import dictLogger, logger
-from eos.data_io.struct import EpisodeDoc, Plot
+from eos.data_io.struct import EpisodeDoc
 from ..dpg import DPG  # type: ignore
 from ..hyperparams import hyper_param_by_name, HYPER_PARAM
 
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
-from eos.data_io.buffer import DBBuffer, ArrowBuffer  # type: ignore
+from eos.data_io.buffer import MongoBuffer, ArrowBuffer  # type: ignore
 
 patch_all()
 
@@ -51,8 +50,6 @@ class RDPG(DPG):
             - critic network
     """
 
-    _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
-    _buffer: DBBuffer[EpisodeDoc] = None  # must have default value
     logger: logging.Logger = None
     actor_net: ActorNet = None
     critic_net: CriticNet = None

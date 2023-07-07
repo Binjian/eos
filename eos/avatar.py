@@ -879,9 +879,9 @@ class Avatar(abc.ABC):
                 ]
                 vcu_calib_table_min_reduced = (
                     vcu_calib_table0_reduced - self.truck.torque_budget
-                )  # apply the budget instead of truck.torque_lowerbound
+                )  # apply the budget instead of truck.torque_lower_bound
                 vcu_calib_table_max_reduced = (
-                    self.truck.torque_upperbound * vcu_calib_table0_reduced
+                    self.truck.torque_upper_bound * vcu_calib_table0_reduced
                 )  # 1.0*
 
                 vcu_calib_table_reduced = tf.clip_by_value(
@@ -1874,7 +1874,9 @@ class Avatar(abc.ABC):
                 vcu_calib_table_min_reduced = (
                     vcu_calib_table0_reduced - self.truck.torque_budget
                 )
-                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+                vcu_calib_table_max_reduced = (
+                    self.truck.torque_upper_bound * vcu_calib_table0_reduced
+                )
 
                 vcu_calib_table_reduced = tf.clip_by_value(
                     vcu_calib_table_reduced + vcu_calib_table0_reduced,
@@ -2033,7 +2035,7 @@ class Avatar(abc.ABC):
         pow_t = motionpower.loc[:, ['current', 'voltage']]
         ui_sum = pow_t.prod(axis=1).sum()
         wh = (
-            ui_sum / 3600.0 * self.sample_rate
+            ui_sum / 3600.0 / self.truck.observation_sampling_rate
         )  # rate 0.05 for kvaser, 0.02 remote # negative wh
         self.logc.info(
             f'wh: {wh}',

@@ -34,7 +34,8 @@ if __name__ == '__main__':
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds'
+        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS '
+        'with coast-down activated and expected velocity in 3 seconds'
     )
     parser.add_argument(
         '-a',
@@ -57,7 +58,7 @@ if __name__ == '__main__':
         '--ui',
         type=str,
         default='cloud',
-        help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
+        help="User Interface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
 
     parser.add_argument(
@@ -87,7 +88,7 @@ if __name__ == '__main__':
         '--path',
         type=str,
         default='.',
-        help='relative path to be saved, for create subfolder for different drivers',
+        help='relative path to be saved, for create sub folder for different drivers',
     )
     parser.add_argument(
         '-v',
@@ -151,14 +152,14 @@ if __name__ == '__main__':
         )
     except TypeError as e:
         logger.error(
-            f"{{\'header\': \'Project Exeception TypeError\', "
+            f"{{\'header\': \'Project Exception TypeError\', "
             f"\'exception\': \'{e}\'}}",
             extra=dictLogger,
         )
         sys.exit(1)
     except Exception as e:
         logger.error(
-            f"{{\'header\': \main Exeception\', " f"\'exception\': \'{e}\'}}",
+            f"{{\'header\': \'main Exception\', " f"\'exception\': \'{e}\'}}",
             extra=dictLogger,
         )
         sys.exit(1)
