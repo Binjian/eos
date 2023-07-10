@@ -25,7 +25,7 @@ from eos.data_io.struct import (
     RE_RECIPEKEY,
 )
 from ..algo.hyperparams import hyper_param_by_name, HYPER_PARAM
-from eos.data_io.buffer import Buffer, MongoBuffer, ArrowBuffer
+from eos.data_io.buffer import Buffer, MongoBuffer, DaskBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -126,7 +126,7 @@ class DPG(abc.ABC):
                 meta=self.observation_meta,
                 coll_type=self.coll_type,
             )
-            self.buffer = ArrowBuffer(
+            self.buffer = DaskBuffer(
                 recipe=recipe,
                 batch_size=self.hyper_param.BatchSize,
                 driver=self.driver,

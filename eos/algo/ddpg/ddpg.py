@@ -15,7 +15,7 @@ from keras import layers
 from pymongoarrow.monkey import patch_all
 from eos.utils import dictLogger, logger
 from ..utils import OUActionNoise
-from eos.data_io.buffer import MongoBuffer, ArrowBuffer
+from eos.data_io.buffer import MongoBuffer, DaskBuffer
 from ..dpg import DPG
 from ..hyperparams import hyper_param_by_name, HYPER_PARAM
 
@@ -132,7 +132,7 @@ class DDPG(DPG):
 
     _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
     _buffer: Optional[
-        MongoBuffer | ArrowBuffer
+        MongoBuffer | DaskBuffer
     ] = None  # cannot have default value, because it precedes _plot in base class DPG
     logger: logging.Logger = None
     _episode_start_dt: datetime = None

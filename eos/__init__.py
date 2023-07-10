@@ -8,7 +8,7 @@ from .data_io.pool import (
     Pool,
     DBPool,
     RecordNumpyArrayPool,
-    ArrowPool,
+    DaskPool,
     MongoPool,
     EpisodeFilePool,
 )
@@ -34,7 +34,7 @@ __all__ = [
     Pool,
     DBPool,
     RecordNumpyArrayPool,
-    ArrowPool,
+    DaskPool,
     MongoPool,
     EpisodeFilePool,
     RemoteCan,

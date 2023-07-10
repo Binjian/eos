@@ -62,13 +62,13 @@ def decode_mongo_documents(
                     meta['vehicle'],
                     meta['driver'],
                     meta['timestamp'],
-                    key1,
-                    key2,
-                    key3,
+                    qtuple,
+                    rows,
+                    idx,
                 ): value
-                for key1, obs1 in obs.items()
-                for key2, obs2 in obs1.items()
-                for key3, value in obs2.items()
+                for qtuple, obs1 in obs.items()
+                for rows, obs2 in obs1.items()
+                for idx, value in obs2.items()
             }
             for meta, obs in zip(df['meta'], df['observation'])
         ]

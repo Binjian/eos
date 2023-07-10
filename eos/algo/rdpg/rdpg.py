@@ -20,7 +20,7 @@ from ..hyperparams import hyper_param_by_name, HYPER_PARAM
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
-from eos.data_io.buffer import MongoBuffer, ArrowBuffer  # type: ignore
+from eos.data_io.buffer import MongoBuffer, DaskBuffer  # type: ignore
 
 patch_all()
 
