@@ -45,6 +45,62 @@ def eos_df_to_nested_dict(episode: pd.DataFrame) -> dict:
     return single_key_dict
 
 
+def ep_nest(d: dict) -> dict:
+    """
+    Convert a flat dictionary with tuple key to a nested dictionary
+    """
+    result = {}
+    for key, value in d.items():
+        target = result
+        for k in key[:-2]:
+            target = target.setdefault(k, {})
+        if key[-2] not in target:
+            target[key[-2]] = []
+
+        if isinstance(value,pd.Timestamp):
+            value = value.timestamp()*1e6 # convert to microsecond long integer
+        target[key[-2]].append(value)
+
+    return result
+
+
+def df_to_ep_nested_dict(df_multi_indexed_col: pd.DataFrame) -> dict:
+    """
+    Convert a dataframe with multi-indexed columns to a nested dictionary
+    """
+    d = df_multi_indexed_col.to_dict(
+        'index'
+    )  # for multi-indexed dataframe, the index in the first level of the dictionary is still a tuple!
+    return {k: ep_nest(v) for k, v in d.items()}
+
+
+def eos_df_to_ep_nested_dict(episode: pd.DataFrame) -> dict:
+    """
+    Convert a eos dataframe with multi-indexed columns to a nested dictionary
+    Remove all the levels of the multi-indexed columns except for 'timestamp'
+    Keep only the timestamp as the single key for the nested dictionary
+    ! Convert Timestamp to millisecond long integer!! for compliance to the  avro storage format
+    as flat as possible
+    PEP20: flat is better than nested!
+    """
+    dict_nested = df_to_ep_nested_dict(
+        episode
+    )  # for multi-indexed dataframe, the index in the first level of the dictionary is still a tuple!
+    indices_dict = [
+        {episode.index.names[i]: level for i, level in enumerate(levels)}
+        for levels in episode.index
+    ]  # all elements in the array should have the same vehicle, driver, episodestart
+    array_of_dict = [
+        {
+            'timestamp': idx['timestamp'].timestamp() * 1e6,  # convert to microsecond long integer
+            **dict_nested[key],  # merge the nested dict with the timestamp, as flat as possible
+        }
+        for (idx, key) in zip(indices_dict, dict_nested)
+    ]
+
+    return array_of_dict
+
+
 def decode_mongo_documents(
     df: pd.DataFrame,
     torque_table_row_names: list[str],

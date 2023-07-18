@@ -163,5 +163,11 @@ if __name__ == '__main__':
             extra=dictLogger,
         )
         sys.exit(1)
+    finally:
+        logger.info(
+            f"{{\'header\': \'main finally\', "
+            f"\'message\': \'AvatarDDPG created\'}}",
+            extra=dictLogger,
+        )
 
     avatar.run()

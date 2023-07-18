@@ -41,6 +41,7 @@ dependencies:
   - reportlab
   - pymongo
   - pyarrow
+  - fastavro
   - pymongoarrow
   - dask
   - gitpython
