@@ -389,7 +389,7 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        s_n_t, a_n_t, r_n_t, _ = self.buffer.sample()  # ignore the next state
+        s_n_t, a_n_t, r_n_t, _ = self.buffer.sample  # ignore the next state
 
         # get critic loss
         # actions at h_t+1

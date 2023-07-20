@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
+from typing import Optional, Union
 
 import argparse
 import json
@@ -55,12 +56,12 @@ import pandas as pd
 # visualization import
 import tensorflow as tf
 from git import Repo
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import jsonlogger  # type: ignore
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
-from rocketmq.client import Message, Producer
+from rocketmq.client import Message, Producer  # type: ignore
 
 from eos import projroot
 from eos.utils import dictLogger, logger
@@ -80,9 +81,10 @@ from eos.data_io.config import (
     TruckInField,
 )
 
+from eos.comm import RemoteCan, ClearablePullConsumer, kvaser_send_float_array
 from eos.utils import ragged_nparray_list_interp, GracefulKiller
 from eos.visualization import plot_3d_figure, plot_to_image
-from eos import DPG
+from .algo import DPG
 
 # from bson import ObjectId
 
@@ -102,12 +104,11 @@ from eos import DPG
 
 # system warnings and numpy warnings handling
 warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
-np.warnings.filterwarnings('ignore', category=DeprecationWarning)
+# np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 @dataclass
 class Avatar(abc.ABC):
-    cloud: bool = None  # determined by truck type
     ui: str = 'cloud'
     resume: bool = True
     infer_mode: bool = False
@@ -119,11 +120,12 @@ class Avatar(abc.ABC):
     web_srv: str = 'rocket_intra'
     pool_key: str = 'mongo_local'
     proj_root: Path = Path('.')
-    logger: logging.Logger = None
-    data_root: Path = None
-    driver: Driver = None
-    truck: [TruckInCloud, TruckInField] = None
-    _agent: DPG = None  # set by derived Avartar like AvatarDDPG
+    logger: Optional[logging.Logger] = None
+    data_root: Optional[Path] = None
+    driver: Optional[Driver] = None
+    truck: Optional[TruckInCloud | TruckInField] = None
+    cloud: Optional[bool] = None  # determined by truck type
+    _agent: Optional[DPG] = None  # set by derived Avartar like AvatarDDPG
 
     def __post_init__(
         self,
@@ -254,7 +256,7 @@ class Avatar(abc.ABC):
         )
 
     @property
-    def agent(self) -> DPG:
+    def agent(self) -> Union[DPG | None]:
         return self._agent
 
     @agent.setter
@@ -893,7 +895,7 @@ class Avatar(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.truck.torque_row_num_flash + table_start
+                    table_start : self.truck.torque_table_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1117,7 +1119,7 @@ class Avatar(abc.ABC):
                                     extra=self.dictLogger,
                                 )
                                 # timestamp processing
-                                timestamps = []
+                                timestamps_list = []
                                 separators = '--T::.'  # adaption separators of the raw intest string
                                 start_century = '20'
                                 for ts in value['timestamps']:
@@ -1129,12 +1131,12 @@ class Avatar(abc.ABC):
                                     for i, sep in enumerate(separators):
                                         ts_iso = ts_iso + ts_substrings[i] + sep
                                     ts_iso = ts_iso + ts_substrings[-1]
-                                    timestamps.append(
+                                    timestamps_list.append(
                                         ts_iso
                                     )  # string of timestamps in iso format, UTC-0
                                 timestamps_units = list(
                                     (
-                                        np.array(timestamps).astype(
+                                        np.array(timestamps_list).astype(
                                             'datetime64[ms]'
                                         )  # convert to milliseconds
                                         - np.timedelta64(
@@ -1150,12 +1152,12 @@ class Avatar(abc.ABC):
                                     )
                                 # upsample gears from 2Hz to 50Hz
                                 sampling_interval = 1.0 / signal_freq * 1000  # in ms
-                                timestamps = [
+                                timestamps_list = [
                                     i + j * sampling_interval
                                     for i in timestamps_units
                                     for j in np.arange(unit_ob_num)
                                 ]
-                                timestamps = np.array(timestamps).reshape(
+                                timestamps = np.array(timestamps_list).reshape(
                                     (self.truck.cloud_unit_number, -1)
                                 )  # final format is a list of integers as timestamps in ms
                                 current = ragged_nparray_list_interp(

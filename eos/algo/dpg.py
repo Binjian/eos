@@ -80,6 +80,7 @@ class DPG(abc.ABC):
                     thrust_unit_code="pct",
                     brake_unit_code="pct",
                 ),
+                state_number=3,  # velocity, thrust, and brake
                 unit_number=self.truck.cloud_unit_number,  # 4
                 unit_duration=self.truck.cloud_unit_duration,  # 1s
                 frequency=self.truck.cloud_signal_frequency,  # 50 hz

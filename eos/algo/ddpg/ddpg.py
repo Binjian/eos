@@ -718,7 +718,7 @@ class DDPG(DPG):
                 actions,
                 rewards,
                 nstates,
-            ) = self.buffer.sample()  # for both mongo and arrow pool
+            ) = self.buffer.sample  # for both mongo and arrow pool
 
             states = tf.convert_to_tensor(states, dtype=tf.float32)
             actions = tf.convert_to_tensor(actions, dtype=tf.float32)
