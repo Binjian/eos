@@ -169,7 +169,8 @@ def decode_mongo_documents(
     list[pd.DataFrame], list[pd.DataFrame], list[pd.DataFrame], list[pd.DataFrame]
 ]:
     """
-    decoding the batch observations from mongodb nested dicts to pandas dataframe
+    decoding the batch RECORD observations from mongodb nested dicts to pandas dataframe
+    (EPISODE doesn't need decoding, it is already a dataframe)
     TODO need to check whether sort_index is necessary
     """
 
