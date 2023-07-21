@@ -1,16 +1,18 @@
 # third-party imports
-import keras.initializers as initializers
+from keras import initializers
 import numpy as np
 import tensorflow as tf
 from keras import layers
 
-# local imports
-from eos import dictLogger, logger
+from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
 
+# local imports
+from ..utils.ou_noise import OUActionNoise
 
-class CriticNet:
-    """Critic network for the RDPG algorithm."""
+
+class ActorNet:
+    """Actor network for the RDPG algorithm."""
 
     def __init__(
         self,
@@ -24,36 +26,35 @@ class CriticNet:
         ckpt_dir,
         ckpt_interval,
     ):
-        """Initialize the critic network.
+        """Initialize the actor network.
 
-                restore checkpoint from the provided directory if it exists,
-                initialize otherwise.
-                Args:
-                    state_dim (int): Dimension of the state space.
-                    action_dim (int): Dimension of the action space.
-                    hidden_dim (int): Dimension of the hidden layer.
-                    lr (float): Learning rate for the network.
-                    ckpt_dir (str): Directory to restore the checkpoint from.
-        i"""
+        restore checkpoint from the provided directory if it exists,
+        initialize otherwise.
+        Args:
+            state_dim (int): Dimension of the state space.
+            action_dim (int): Dimension of the action space.
+            hidden_dim (int): Dimension of the hidden layer.
+            lr (float): Learning rate for the network.
+            ckpt_dir (str): Directory to restore the checkpoint from.
+        """
 
         self._state_dim = state_dim
         self._action_dim = action_dim
         self._hidden_dim = hidden_dim
-        self._n_layers = n_layers
         self._lr = lr
-        self._tau = tau
         self._padding_value = padding_value
+        self._n_layers = n_layers
+        self._tau = tau
 
-        inputs_state = layers.Input(shape=(None, state_dim))
-        inputs_action = layers.Input(shape=(None, action_dim))
-        # concatenate state and action along the feature dimension
-        # both state and action are from padded minibatch, only for training
-        inputs_state_action = layers.Concatenate(axis=-1)([inputs_state, inputs_action])
+        inputs = layers.Input(shape=(None, state_dim))
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = layers.Masking(mask_value=self.padding_value)(
-            inputs_state_action
+        x = layers.Masking(mask_value=padding_value)(
+            inputs
         )  # input (observation) padded with -10000.0
+
+        # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
+        # x = layers.Rescale(inputs, 1.0)
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
@@ -63,15 +64,23 @@ class CriticNet:
             hidden_dim, return_sequences=False, return_state=False
         )(x)
 
-        critic_output = layers.Dense(1, activation=None)(lstm_output)
+        # rescale the output of the lstm layer to (-1, 1)
+        action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
 
-        self.eager_model = tf.keras.Model(
-            inputs=[inputs_state, inputs_action], outputs=critic_output
-        )
+        self.eager_model = tf.keras.Model(inputs, action_output)
+        # no need to evaluate the last action separately
+        # just run the model inference and get the last action
+        # self.action_last = action_outputs[:, -1, :]
 
         self.eager_model.summary()
         # self.graph_model = tf.function(self.eager_model)
         self.optimizer = tf.keras.optimizers.Adam(lr)
+
+        self._std_dev = 0.2
+        self.ou_noise = OUActionNoise(
+            mean=np.zeros(action_dim),
+            std_deviation=float(self._std_dev) * np.ones(action_dim),
+        )
 
         # restore the checkpoint if it exists
         self.ckpt_dir = ckpt_dir
@@ -89,19 +98,20 @@ class CriticNet:
                 extra=dictLogger,
             )
         else:
-            logger.info(f"Critic Initializing from scratch", extra=dictLogger)
+            logger.info(f"Actor Initializing from scratch", extra=dictLogger)
 
     def clone_weights(self, moving_net):
-        """Clone weights from a model to another model."""
+        """Clone weights from a model to another model. only for target critic"""
         self.eager_model.set_weights(moving_net.eager_model.get_weights())
 
     def soft_update(self, moving_net):
-        """Update the target critic weights."""
+        """Update the target critic weights. only for target critic."""
         self.eager_model.set_weights(
             [
-                self.tau * w + (1 - self.tau) * w_t
+                self._tau * w + (1 - self._tau) * w_t
                 for w, w_t in zip(
-                    moving_net.eager_model.get_weights(), self.eager_model.get_weights()
+                    moving_net.eager_model.get_weights(),
+                    self.eager_model.get_weights(),
                 )
             ]
         )
@@ -115,23 +125,57 @@ class CriticNet:
                 extra=dictLogger,
             )
 
-    @tf.function(
-        input_signature=[
-            tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32),
-            tf.TensorSpec(shape=[None, None, 68], dtype=tf.float32),
-        ]
-    )
-    def evaluate_q(self, state, action):
-        """Evaluate the action value given the state and action
+    def reset_noise(self):
+        self.ou_noise.reset()
+
+    # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
+    def predict(self, state):
+        """Predict the action given the state.
         Args:
-            state (np.array): State in a minibatch
-            action (np.array): Action in a minibatch
+            state (np.array): State, Batch dimension needs to be one.
+
+        Returns:
+            np.array: Action
+        """
+        # logc("ActorNet.predict")
+
+        # get the last step action and squeeze the batch dimension
+        action = self.predict_step(state)
+        sampled_action = action + self.ou_noise()  # noise object is a row vector
+        # logc("ActorNet.predict")
+        return sampled_action
+
+    @tf.function(
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+    )
+    def predict_step(self, state):
+        """Predict the action given the state.
+        Args:
+            state (np.array): State, Batch dimension needs to be one.
+
+        Returns:
+            np.array: Action
+        """
+        # logc("ActorNet.predict")
+        action_seq = self.eager_model(state)
+
+        # get the last step action and squeeze the batch dimension
+        last_action = tf.squeeze(action_seq[:, -1, :])
+        return last_action
+
+    @tf.function(
+        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+    )
+    def evaluate_actions(self, state):
+        """Evaluate the action given the state.
+        Args:
+            state (np.array): State, in a minibatch
 
         Returns:
             np.array: Q-value
         """
         # logc("ActorNet.evaluate_actions")
-        return self.eager_model([state, action])
+        return self.eager_model(state)
 
     @property
     def state_dim(self):

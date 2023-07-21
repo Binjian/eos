@@ -6,34 +6,34 @@ import time
 
 # resumption settings
 parser = argparse.ArgumentParser(
-    "DDPG with reduced observations (no expected velocity) Suite"
+    'DDPG with reduced observations (no expected velocity) Suite'
 )
 parser.add_argument(
-    "-r",
-    "--resume",
-    help="resume the last training with restored model, checkpoint and pedal map",
-    action="store_true",
+    '-r',
+    '--resume',
+    help='resume the last training with restored model, checkpoint and pedal map',
+    action='store_true',
 )
 parser.add_argument(
-    "-t",
-    "--record_table",
-    help="record action table during training",
-    action="store_true",
+    '-t',
+    '--record_table',
+    help='record action table during training',
+    action='store_true',
 )
 parser.add_argument(
-    "-p",
-    "--path",
+    '-p',
+    '--path',
     type=str,
-    help="relative path to be saved, for create subfolder for different drivers",
+    help='relative path to be saved, for create subfolder for different drivers',
 )
 args = parser.parse_args()
 
 # --cloud -t -p testremote -r
 udpfileName = (
     os.getcwd()
-    + "/../../data/udp-pcap/realtime_rdpg-"
-    + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    + ".pcap"
+    + '/../../data/udp-pcap/realtime_rdpg-'
+    + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    + '.pcap'
 )
 portNum = 8002  # port number
 pid = os.fork()
@@ -41,31 +41,40 @@ if pid == 0:  # copy process
     time.sleep(1)
     if args.resume:
         os.execlp(
-            "python",
-            "python",
-            "../realtime_train_infer_rdpg.py",
-            "--resume",
-            "--cloud",
-            "--web",
-            "--path",
+            'python',
+            'python',
+            '../realtime_train_infer_rdpg.py',
+            '--resume',
+            '--cloud',
+            '--web',
+            '--path',
             args.path,
-            "--record_table",
+            '--record_table',
         )  #  run Simulation
 
     else:
         os.execlp(
-            "python",
-            "python",
-            "../realtime_train_infer_rdpg.py",
-            "--cloud",
-            "--web",
-            "--path",
+            'python',
+            'python',
+            '../realtime_train_infer_rdpg.py',
+            '--cloud',
+            '--web',
+            '--path',
             args.path,
-            "--record_table",
+            '--record_table',
         )  #  run Simulation
 else:
     p = subprocess.Popen(
-        ["tcpdump", "udp", "-w", udpfileName, "-i", "lo", "port", str(portNum)],
+        [
+            'tcpdump',
+            'udp',
+            '-w',
+            udpfileName,
+            '-i',
+            'lo',
+            'port',
+            str(portNum),
+        ],
         stdout=subprocess.PIPE,
     )
     # output p status

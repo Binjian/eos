@@ -1,27 +1,27 @@
 """
-Title: realtime_train_infer_rdpg
+Title: agent
 Author: [Binjian Xin](https://www.newrizon.com)
-Date created: 2022/05/16
-Last modified: 2022/05/16
-Description: Implement realtime RDPG algorithm for training and inference
-"""
-
-"""
+Date created: 2022/12/14
+Last modified: 2022/12/14
+Description: Implement realtime reinforcement learning algorithm for training and inference
+convergence of ddpg and rdpg agent
 ## Introduction
 
-This script shows an implementation of RDPG method on l045a truck real environment.
+This script shows an implementation of rl agent on EC1 truck real environment.
 
-### Deep Deterministic Policy Gradient (RDPG) 
-
-### Gym-Carla env 
 
 An Ego Vehicle drives through a fixed track and collect loss (negative reward) defined
-as energy consumption 
+as energy consumption
 
 ### References
 
-
+- [DDPG ](https://keras.io/examples/rl/ddpg_pendulum/)
 """
+from __future__ import annotations
+
+import abc
+from dataclasses import dataclass
+from typing import Optional, Union
 
 import argparse
 import json
@@ -35,11 +35,11 @@ import os
 import queue
 import socket
 import sys
-import subprocess
 import threading
 import time
 import warnings
 import re
+from functools import reduce
 
 # third party imports
 from collections import deque
@@ -50,34 +50,41 @@ from threading import Lock, Thread
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 # tf.debugging.set_log_device_placement(True)
 # visualization import
 import tensorflow as tf
 from git import Repo
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger import jsonlogger  # type: ignore
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 from tensorflow.python.client import device_lib
-from rocketmq.client import Message, Producer
+from rocketmq.client import Message, Producer  # type: ignore
 
-from eos import dictLogger, logger, projroot
-from eos.agent import RDPG
+from eos import projroot
+from eos.utils import dictLogger, logger
 from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
-from eos.config import (
-    PEDAL_SCALES,
-    trucks_by_name,
+from eos.data_io.config import (
+    trucks_by_id,
     trucks_by_vin,
-    Truck,
+    RE_VIN,
     can_servers_by_host,
     can_servers_by_name,
     trip_servers_by_name,
     trip_servers_by_host,
-    generate_vcu_calibration,
+    drivers_by_id,
+    Driver,
+    RE_DRIVER,
+    TruckInCloud,
+    TruckInField,
 )
+
+from eos.comm import RemoteCan, ClearablePullConsumer, kvaser_send_float_array
 from eos.utils import ragged_nparray_list_interp, GracefulKiller
 from eos.visualization import plot_3d_figure, plot_to_image
+from .algo import DPG
 
 # from bson import ObjectId
 
@@ -96,81 +103,91 @@ from eos.visualization import plot_3d_figure, plot_to_image
 # send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # system warnings and numpy warnings handling
-warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
-np.warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
+# np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
-class RealtimeRDPG(object):
-    def __init__(
+@dataclass
+class Avatar(abc.ABC):
+    ui: str = 'cloud'
+    resume: bool = True
+    infer_mode: bool = False
+    record: bool = True
+    path: str = '.'
+    vehicle_str: str = 'HMZABAAH7MF011058'  # "VB7",
+    driver_str: str = 'zheng-longfei'
+    remotecan_srv: str = 'can_intra'
+    web_srv: str = 'rocket_intra'
+    pool_key: str = 'mongo_local'
+    proj_root: Path = Path('.')
+    logger: Optional[logging.Logger] = None
+    data_root: Optional[Path] = None
+    driver: Optional[Driver] = None
+    truck: Optional[TruckInCloud | TruckInField] = None
+    cloud: Optional[bool] = None  # determined by truck type
+    _agent: Optional[DPG] = None  # set by derived Avartar like AvatarDDPG
+
+    def __post_init__(
         self,
-        cloud=True,
-        ui="cloud",
-        resume=True,
-        infer_mode=False,
-        record=True,
-        path=".",
-        vehicle="HMZABAAH7MF011058",  # "VB7",
-        driver="Longfei.Zheng",
-        remotecan_srv="can_intra",
-        web_srv="rocket_intra",
-        mongo_srv="mongo_local",
-        proj_root=Path("."),
-        vlogger=None,
     ):
-        self.cloud = cloud
-        self.ui = ui
-        self.trucks_by_name = trucks_by_name
-        self.trucks_by_vin = trucks_by_vin
-        self.vehicle = vehicle  # two possible values: "HMZABAAH7MF011058" or "VB7"
-        self.remotecan_srv = remotecan_srv
-        self.web_srv = web_srv
-        self.mongo_srv = mongo_srv
-        assert type(vehicle) == str, "vehicle must be a string"
+        self.repo = Repo(self.proj_root)
+        # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
+        print(
+            f"project root: {self.proj_root}, git head: {str(self.repo.head.commit)[:7]}, "
+            f"author: {self.repo.head.commit.author}, "
+            f"git message: {self.repo.head.commit.message}"
+        )
+        print(f"vehicle: {self.vehicle_str}")
+        print(f"driver: {self.driver_str}")
 
         # Regex for VIN: HMZABAAH\wMF\d{6}
-        p = re.compile(r"^HMZABAAH\wMF\d{6}$")
-        if p.match(vehicle):
+        p = re.compile(RE_VIN)
+        if p.match(self.vehicle_str):
             # validate truck id
             # assert self.vehicle in self.trucks_by_vin.keys()
-            self.truck = self.trucks_by_vin.get(self.vehicle)
-            assert self.truck is not None, f"No Truck with VIN {self.vehicle}"
-            self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
+            self.truck = trucks_by_vin.get(self.vehicle_str)
+            assert self.truck is not None, f'No Truck with VIN {self.vehicle_str}'
         else:
             # validate truck id
-            # assert self.vehicle in self.trucks_by_name.keys()
-            self.truck = self.trucks_by_name.get(self.vehicle)
-            assert self.truck is not None, f"No Truck with name {self.vehicle}"
-            self.truck_name = self.truck.TruckName  # 0: VB7, 1: VB6
-        self.driver = driver
-        self.projroot = proj_root
-        self.logger = vlogger
+            # assert self.vehicle in self.trucks_by_id.keys()
+            self.truck = trucks_by_id.get(self.vehicle_str)
+            assert self.truck is not None, f'No Truck with name {self.vehicle_str}'
+            if type(self.truck) == TruckInCloud:
+                self.cloud = True
+            else:
+                self.cloud = False
+
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
-        self.resume = resume
-        self.infer_mode = infer_mode
-        self.record = record
-        self.path = path
 
-        self.repo = Repo(self.projroot)
-        # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
-
-        if resume:
-            self.dataroot = projroot.joinpath(
-                "data/" + self.truck.VIN + "−" + self.driver
+        # Regex for driver: ^[a-z]{1,10}[-,_][a-z]{1,10}(\d?){1,2}$
+        p = re.compile(RE_DRIVER)
+        # validate driver id
+        assert p.match(
+            self.driver_str
+        ), "Driver name must be in format: String1[-,_,.]String2"
+        self.driver = drivers_by_id.get(self.driver_str)
+        assert self.driver is not None, f"Driver with ID {self.driver_str} not found!"
+        if self.resume:
+            self.data_root = projroot.joinpath(
+                'data/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
         else:
-            self.dataroot = projroot.joinpath(
-                "data/scratch/" + self.truck.VIN + "−" + self.driver
+            self.data_root = projroot.joinpath(
+                'data/scratch/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
 
         self.set_logger()
-        self.logc.info(f"Start Logging", extra=self.dictLogger)
+        self.logc.info(f"{{\'header\': \'Start Logging\'}}", extra=self.dictLogger)
         self.logc.info(
-            f"project root: {self.projroot}, git head: {str(self.repo.head.commit)[:7]}, author: {self.repo.head.commit.author}, git message: {self.repo.head.commit.message}",
+            f"{{\'project_root\': \'{self.proj_root}\', "
+            f"\'git_head\': {str(self.repo.head.commit)[:7]}, "
+            f"\'author\': \'{self.repo.head.commit.author}\', "
+            f"\'git_message\': \'{self.repo.head.commit.message}\'}}",
             extra=self.dictLogger,
         )
-        self.logc.info(f"vehicle: {self.vehicle}", extra=self.dictLogger)
-        self.logc.info(f"driver: {self.driver}", extra=self.dictLogger)
+        self.logc.info(f"{{\'vehicle\': \'{self.truck.vid}\'}}", extra=self.dictLogger)
+        self.logc.info(f"{{\'driver\': \'{self.driver.pid}\'}}", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
@@ -180,18 +197,24 @@ class RealtimeRDPG(object):
             # reset proxy (internal site force no proxy)
             self.init_cloud()
             assert self.ui in [
-                "cloud",
-                "local",
-                "mobile",
-            ], f"ui must be cloud, local or mobile, not {self.ui}"
-            if self.ui == "mobile":
-                self.logger.info(f"Use phone UI", extra=self.dictLogger)
+                'cloud',
+                'local',
+                'mobile',
+            ], f'ui must be cloud, local or mobile, not {self.ui}'
+            if self.ui == 'mobile':
+                self.logger.info(
+                    f"{{\'header\': \'Use phone UI\'}}", extra=self.dictLogger
+                )
                 self.get_truck_status = self.remote_webhmi_state_machine
-            elif self.ui == "local":
-                self.logger.info(f"Use local UI", extra=self.dictLogger)
+            elif self.ui == 'local':
+                self.logger.info(
+                    f"{{\'header\': \'Use local UI\'}}", extra=self.dictLogger
+                )
                 self.get_truck_status = self.remote_hmi_state_machine
-            elif self.ui == "cloud":
-                self.logger.info(f"Use cloud UI", extra=self.dictLogger)
+            elif self.ui == 'cloud':
+                self.logger.info(
+                    f"{{\'header\': \'Use cloud UI\'}}", extra=self.dictLogger
+                )
                 self.get_truck_status = self.remote_cloudhmi_state_machine
             else:
                 raise ValueError("Unknown HMI type")
@@ -201,104 +224,137 @@ class RealtimeRDPG(object):
             self.flash_vcu = self.kvaser_flash_vcu
 
         self.logc.info(
-            f"Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}"
+            f"{{\'header\': \'Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}\'}}"
         )
-        gpus = tf.config.experimental.list_physical_devices(device_type="GPU")
+        gpus = tf.config.experimental.list_physical_devices(device_type='GPU')
         tf.config.experimental.set_memory_growth(gpus[0], True)
+        self.logc.info(f'Tensorflow version: {tf.__version__}')
+        tf_sys_details = tf.sysconfig.get_build_info()
+        self.logc.info(f"{{\'header\': \'Tensorflow build info: {tf_sys_details}\'}}")
 
         self.set_data_path()
-        tf.keras.backend.set_floatx("float32")
+        tf.keras.backend.set_floatx('float32')
         self.logc.info(
-            f"tensorflow device lib:\n{device_lib.list_local_devices()}\n",
+            f"{{\'header\': \'tensorflow device lib:\n{device_lib.list_local_devices()}\'}}",
             extra=self.dictLogger,
         )
-        self.logc.info(f"Tensorflow Imported!", extra=self.dictLogger)
-
-        self.init_vehicle()
-        self.build_actor_critic()
-        self.logc.info(f"VCU and GPU Initialization done!", extra=self.dictLogger)
-        self.init_threads_data()
-        self.logc.info(f"Thread data Initialization done!", extra=self.dictLogger)
-
-    def init_cloud(self):
-        os.environ["http_proxy"] = ""
-        self.can_server = can_servers_by_name.get(self.remotecan_srv)
-        if self.can_server is None:
-            self.can_server = can_servers_by_host.get(self.remotecan_srv.split(":")[0])
-            assert (
-                self.can_server is not None
-            ), f"No such remotecan host {self.remotecan_srv} found!"
-            assert (
-                self.remotecan_srv.split(":")[1] == self.can_server.Port
-            ), f"Port mismatch for remotecan host {self.remotecan_srv}!"
-        self.logc.info(f"CAN Server found: {self.remotecan_srv}", extra=self.dictLogger)
-
-        self.remotecan_client = RemoteCan(
-            truckname=self.truck.TruckName,
-            url="http://" + self.can_server.Host + ":" + self.can_server.Port + "/",
+        self.logc.info(
+            f"{{\'header\': \'Tensorflow Imported!\'}}", extra=self.dictLogger
         )
 
-        if self.ui == "mobile":
+        self.init_vehicle()
+        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
+        self.vcu_calib_table_row_start = 0
+        self.logc.info(
+            f"{{\'header\': \'VCU and GPU Initialization done!\'}}",
+            extra=self.dictLogger,
+        )
+        self.init_threads_data()
+        self.logc.info(
+            f"{{\'header\': \'Thread data Initialization done!\'}}",
+            extra=self.dictLogger,
+        )
+
+    @property
+    def agent(self) -> Union[DPG | None]:
+        return self._agent
+
+    @agent.setter
+    def agent(self, agent: DPG) -> None:
+        self._agent = agent
+
+    def init_cloud(self):
+        os.environ['http_proxy'] = ''
+        self.can_server = can_servers_by_name.get(self.remotecan_srv)
+        if self.can_server is None:
+            self.can_server = can_servers_by_host.get(self.remotecan_srv.split(':')[0])
+            assert (
+                self.can_server is not None
+            ), f'No such remotecan host {self.remotecan_srv} found!'
+            assert (
+                self.remotecan_srv.split(':')[1] == self.can_server.Port
+            ), f'Port mismatch for remotecan host {self.remotecan_srv}!'
+        self.logc.info(f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger)
+
+        self.remotecan_client = RemoteCan(
+            truckname=self.truck.vid,
+            url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
+        )
+
+        if self.ui == 'mobile':
             self.trip_server = trip_servers_by_name.get(self.web_srv)
             if self.trip_server is None:
-                self.trip_server = trip_servers_by_host.get(self.web_srv.split(":")[0])
+                self.trip_server = trip_servers_by_host.get(self.web_srv.split(':')[0])
                 assert (
                     self.trip_server is not None
-                ), f"No such trip server {self.web_srv} found!"
+                ), f'No such trip server {self.web_srv} found!'
                 assert (
-                    self.web_srv.split(":")[1] == self.trip_server.Port
-                ), f"Port mismatch for trip host {self.web_srv}!"
+                    self.web_srv.split(':')[1] == self.trip_server.Port
+                ), f'Port mismatch for trip host {self.web_srv}!'
             self.logger.info(
-                f"Trip Server found: {self.trip_server}", extra=self.dictLogger
+                f'Trip Server found: {self.trip_server}', extra=self.dictLogger
             )
 
             # Create RocketMQ consumer
-            self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
+            self.rmq_consumer = ClearablePullConsumer('CID_EPI_ROCKET')
             self.rmq_consumer.set_namesrv_addr(
-                self.trip_server.Host + ":" + self.trip_server.Port
+                self.trip_server.Host + ':' + self.trip_server.Port
             )
 
             # Create RocketMQ producer
-            self.rmq_message_ready = Message("update_ready_state")
-            self.rmq_message_ready.set_keys("what is keys mean")
-            self.rmq_message_ready.set_tags("tags ------")
+            self.rmq_message_ready = Message('update_ready_state')
+            self.rmq_message_ready.set_keys('what is keys mean')
+            self.rmq_message_ready.set_tags('tags ------')
             self.rmq_message_ready.set_body(
-                json.dumps({"vin": self.truck.VIN, "is_ready": True})
+                json.dumps({'vin': self.truck.vin, 'is_ready': True})
             )
             # self.rmq_message_ready.set_keys('trip_server')
             # self.rmq_message_ready.set_tags('tags')
-            self.rmq_producer = Producer("PID-EPI_ROCKET")
+            self.rmq_producer = Producer('PID-EPI_ROCKET')
             self.rmq_producer.set_namesrv_addr(
-                self.trip_server.Host + ":" + self.trip_server.Port
+                self.trip_server.Host + ':' + self.trip_server.Port
             )
 
     def set_logger(self):
-        self.logroot = self.dataroot.joinpath("py_logs")
+        self.logroot = self.data_root.joinpath('py_logs')
         try:
             os.makedirs(self.logroot)
         except FileExistsError:
-            print("User folder exists, just resume!")
+            print('User folder exists, just resume!')
 
         logfilename = self.logroot.joinpath(
-            "eos-rt-rdpg-"
-            + self.truck.TruckName
-            + datetime.now().isoformat().replace(":", "-")
-            + ".log"
+            'eos-rt-'
+            + str(self.agent)
+            + '-'
+            + self.truck.vid
+            + '-'
+            + self.driver.pid
+            + '-'
+            + datetime.now().isoformat().replace(':', '-')
+            + '.log'
         )
-        formatter = logging.basicConfig(
-            format="%(created)f-%(asctime)s.%(msecs)03d-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s",
-            datefmt="%Y-%m-%dT%H:%M:%S.%f",
+        fmt = '%(created)f-%(asctime)s.%(msecs)03d-%(name)s-'
+        '%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s'
+        formatter = logging.Formatter(fmt)
+        logging.basicConfig(
+            format=fmt,
+            datefmt='%Y-%m-%dT%H:%M:%S.%f',
+        )
+        logging.basicConfig(
+            format=fmt,
+            datefmt='%Y-%m-%dT%H:%M:%S.%f',
         )
         json_file_formatter = jsonlogger.JsonFormatter(
-            "%(created)f %(asctime)s %(name)s %(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
+            '%(created)f %(asctime)s %(name)s '
+            '%(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s'
         )
 
         fh = logging.FileHandler(logfilename)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(json_file_formatter)
         # strfilename = PurePosixPath(logfilename).stem + ".json"
-        strfilename = self.logroot.joinpath(PurePosixPath(logfilename).stem + ".json")
-        strh = logging.FileHandler(strfilename, mode="a")
+        strfilename = self.logroot.joinpath(PurePosixPath(logfilename).stem + '.json')
+        strh = logging.FileHandler(strfilename, mode='a')
         strh.setLevel(logging.DEBUG)
         strh.setFormatter(json_file_formatter)
 
@@ -306,7 +362,7 @@ class RealtimeRDPG(object):
         ch.setLevel(logging.DEBUG)
         ch.setFormatter(formatter)
         #  Cutelog socket
-        skh = SocketHandler("127.0.0.1", 19996)
+        skh = SocketHandler('127.0.0.1', 19996)
         skh.setFormatter(formatter)
 
         self.logger.addHandler(fh)
@@ -318,7 +374,7 @@ class RealtimeRDPG(object):
         # self.dictLogger = {'funcName': '__self__.__func__.__name__'}
         # self.dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
 
-        self.logc = logger.getChild("main")  # main thread control flow
+        self.logc = logger.getChild('main')  # main thread control flow
         self.logc.propagate = True
         # self.logd = logger.getChild("data flow")
         # self.logd.propagate = True
@@ -328,17 +384,22 @@ class RealtimeRDPG(object):
         self.tflog.addHandler(skh)
         self.tflog.addHandler(strh)
 
-        self.tableroot = self.dataroot.joinpath("tables")
+        self.tableroot = self.data_root.joinpath('tables')
         try:
             os.makedirs(self.tableroot)
         except FileExistsError:
-            print("Table folder exists, just resume!")
+            print('Table folder exists, just resume!')
 
     def set_data_path(self):
         # Create folder for ckpts loggings.
-        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.train_log_dir = self.dataroot.joinpath(
-            "tf_logs-vb/rdpg/gradient_tape/" + current_time + "/train"
+        current_time = datetime.now().strftime('%Y%m%d-%H%M%S')
+        self.train_log_dir = self.data_root.joinpath(
+            'tf_logs-'
+            + str(self.agent)
+            + self.truck.vid
+            + '/gradient_tape/'
+            + current_time
+            + '/train'
         )
         self.train_summary_writer = tf.summary.create_file_writer(
             str(self.train_log_dir)
@@ -346,171 +407,67 @@ class RealtimeRDPG(object):
         # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         if self.resume:
-            self.logger.info(f"Resume last training", extra=self.dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Resume last training\'}}", extra=self.dictLogger
+            )
         else:
-            self.logger.info(f"Start from scratch", extra=self.dictLogger)
+            self.logger.info(
+                f"{{\'header\': \'Start from scratch\'}}", extra=self.dictLogger
+            )
 
     def init_vehicle(self):
-        # resume last pedal map / scratch from default table
-
-        # initialize pedal map parameters
-        self.vcu_calib_table_col = (
-            self.truck.PedalScale
-        )  #  17 number of pedal steps, x direction
-        self.vcu_calib_table_row = (
-            self.truck.VelocityScale
-        )  #  14 numnber of velocity steps, y direction
-        self.vcu_calib_table_size = self.vcu_calib_table_row * self.vcu_calib_table_col
-        self.action_budget = self.truck.ActionBudget  # action_budget 250 Nm
-        self.action_lower = self.truck.ActionLowerBound  # 0.8
-        self.action_upper = self.truck.ActionUpperBound  # 1.0
-        self.action_bias = self.truck.ActionBias  # 0.0
-
-        # index of the current pedal map is speed in kmph
-        pd_ind = np.linspace(0, 120, self.vcu_calib_table_row - 1)
-        self.pd_index = np.insert(pd_ind, 1, 7)  # insert 7 kmph
-        self.pd_columns = np.array(PEDAL_SCALES)
-
-        self.pedal_range = self.truck.PedalRange  # [0, 1.0]
-        self.velocity_range = self.truck.VelocityRange  # [0, 120.0]
-
         if self.resume:
-            self.vcu_calib_table0 = generate_vcu_calibration(
-                self.vcu_calib_table_col,
-                self.pedal_range,
-                self.vcu_calib_table_row,
-                self.velocity_range,
-                3,
-                self.dataroot,
-            )
+            files = self.data_root.glob('last_table*.csv')
+            if not files:
+                self.logger.info(
+                    f"{{\'header\': \'No last table found, start from default calibration table\'}}",
+                    extra=self.dictLogger,
+                )
+                latest_file = (
+                    self.proj_root / 'eos/data_io/config' / 'vb7_init_table.csv'
+                )
+            else:
+                self.logger.info(
+                    f"{{\'header\': \'Resume last table\'}}", extra=self.dictLogger
+                )
+                latest_file = max(files, key=os.path.getctime)
+
+            self.vcu_calib_table0 = pd.read_csv(latest_file, index_col=0)
+
         else:
-            self.vcu_calib_table0 = generate_vcu_calibration(
-                self.vcu_calib_table_col,
-                self.pedal_range,
-                self.vcu_calib_table_row,
-                self.velocity_range,
-                2,
-                self.projroot.joinpath("eos/config"),
+            self.logger.info(
+                f"{{\'header\': \'Use default calibration table\'}}",
+                extra=self.dictLogger,
             )
+            latest_file = self.proj_root / 'eos/data_io/config' / 'vb7_init_table.csv'
+
+        self.vcu_calib_table0 = pd.read_csv(latest_file, index_col=0)
+
         # pandas deep copy of the default table (while numpy shallow copy is sufficient)
         self.vcu_calib_table1 = self.vcu_calib_table0.copy(deep=True)
-        self.logger.info(f"Start flash initial table", extra=self.dictLogger)
+        self.logger.info(
+            f"{{\'header\': \'Start flash initial table\'}}", extra=self.dictLogger
+        )
         # time.sleep(1.0)
         if self.cloud:
-            returncode, ret_str = self.remotecan_client.send_torque_map(
+            ret_code, ret_str = self.remotecan_client.send_torque_map(
                 pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
             self.logger.info(
-                f"Done flash initial table. returncode: {returncode}, ret_str: {ret_str}",
+                f"{{\'header\': \'Done flash initial table.\',"
+                f"\'ret_code\': {ret_code}\', "
+                f"\'ret_str\': {ret_str}\'}}",
                 extra=self.dictLogger,
             )
         else:
-            returncode = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
+            ret_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
             self.logger.info(
-                f"Done flash initial table. returncode: {returncode}",
+                f"{{\'header\': \'Done flash initial table\', "
+                f"\'ret_code\': {ret_code}\'}}",
                 extra=self.dictLogger,
             )
 
         # TQD_trqTrqSetECO_MAP_v
-
-    def build_actor_critic(self):
-        """Builds the actor-critic network.
-
-        this network learns two functions:
-        1. actor: this takes as input the state of our environment and returns a
-        probability value for each action in its action space.
-        2. critic: this takes as input the state of our environment and returns
-        an estimate of total rewards in the future.
-
-        in our implementation, they share the initial layer.
-
-        Args:
-            self.num_observation (int): Dimension of each state
-            self.num_actions (int): Dimension of each action
-        """
-
-        # create actor-critic network
-        self.num_observations = self.truck.ObservationNumber
-        # self.num_observations = 3  # observed are velocity, throttle, brake percentage; !! acceleration not available in l045a
-        if self.cloud:
-            self.observation_len = (
-                self.truck.CloudUnitNumber * self.truck.CloudSignalFrequency
-            )  # 250 observation tuples as a valid observation for agent, for period of 20ms, this is equal to 5 second
-            # self.observation_len = 250  # 50 observation tuples as a valid observation for agent, for period of 40ms, this is equal to 2 second
-            self.sample_rate = (
-                1.0 / self.truck.CloudSignalFrequency
-            )  # sample rate of the observation tuples
-            # self.sample_rate = 0.02  # sample rate 20ms of the observation tuples
-        else:
-            self.observation_len = (
-                self.truck.KvaserObservationNumber
-            )  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
-            # self.observation_len = 30  # 30 observation pairs as a valid observation for agent, for period of 50ms, this is equal to 1.5 second
-            self.sample_rate = (
-                1.0 / self.truck.KvaserObservationFrequency
-            )  # sample rate of the observation tuples
-            # self.sample_rate = 0.05  # sample rate 50ms of the observation tuples
-        self.state_len = self.observation_len * self.num_observations
-        self.num_inputs = (
-            self.num_observations * self.observation_len
-        )  # 60 subsequent observations
-        self.num_actions = self.vcu_calib_table_size  # 17*14 = 238
-        self.vcu_calib_table_row_reduced = (
-            self.truck.ActionFlashRow
-        )  ## 0:5 adaptive rows correspond to low speed from  0~20, 7~25, 10~30, 15~35, etc  kmh  # overall action space is the whole table
-        self.num_reduced_actions = (  # 0:4 adaptive rows correspond to low speed from  0~20, 7~30, 10~40, 20~50, etc  kmh  # overall action space is the whole table
-            self.vcu_calib_table_row_reduced * self.vcu_calib_table_col
-        )  # 4x17= 68
-        # hyperparameters for DRL
-        self.num_hidden = 256
-        self.num_hidden0 = 16
-        self.num_hidden1 = 32
-
-        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
-        self.vcu_calib_table_row_start = 0
-
-        # Learning rate for actor-critic models
-        self.critic_lr = 0.002
-        self.actor_lr = 0.001
-        # Discount factor for future rewards
-        self.gamma = 0.99
-        # Used to update target networks
-        self.tauAC = (0.001, 0.001)
-        self.lrAC = (0.001, 0.002)
-        self.seq_len = 8  # TODO  7 maximum sequence length
-        self.buffer_capacity = 300000
-        self.batch_size = 4
-        # number of hidden units in the actor and critic networks
-        self.hidden_unitsAC = (256, 256)
-        # number of layer in the actor-critic network
-        self.n_layerAC = (2, 2)
-        # padding value for the input, impossible value for observation, action or reward
-        self.padding_value = -10000
-        self.ckpt_interval = 5
-
-        self.h_t = []
-        # Initialize networks
-        self.rdpg = RDPG(
-            self.truck,
-            self.driver,
-            self.num_observations,
-            self.observation_len,
-            self.seq_len,
-            self.num_reduced_actions,
-            buffer_capacity=self.buffer_capacity,
-            batch_size=self.batch_size,
-            hidden_unitsAC=self.hidden_unitsAC,
-            n_layersAC=self.n_layerAC,
-            padding_value=self.padding_value,
-            gamma=self.gamma,
-            tauAC=self.tauAC,
-            lrAC=self.lrAC,
-            datafolder=str(self.dataroot),
-            ckpt_interval=self.ckpt_interval,
-            cloud=self.cloud,
-            db_server=self.mongo_srv,
-            infer_mode=self.infer_mode,
-        )
 
     # tracer.start()
 
@@ -539,12 +496,12 @@ class RealtimeRDPG(object):
         self.step_count = 0
         if self.cloud:
             self.epi_countdown_time = (
-                self.truck.CloudUnitNumber
-                * self.truck.CloudUnitDuration  # extend capture time after valid episode temrination
+                self.truck.cloud_unit_number
+                * self.truck.cloud_unit_duration  # extend capture time after valid episode temrination
             )
         else:
             self.epi_countdown_time = (
-                self.truck.KvaserCountdownTime  # extend capture time after valid episode temrination (3s)
+                self.truck.kvaser_countdown  # extend capture time after valid episode temrination (3s)
             )
 
         # use timer object
@@ -555,7 +512,7 @@ class RealtimeRDPG(object):
         self.get_truck_status_start = False
         self.epi_countdown = False
         self.get_truck_status_motpow_t = []
-        self.get_truck_status_myHost = "127.0.0.1"
+        self.get_truck_status_myHost = '127.0.0.1'
         self.get_truck_status_myPort = 8002
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
@@ -565,8 +522,7 @@ class RealtimeRDPG(object):
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
     ):
-
-        logger_countdown = self.logger.getChild("countdown")
+        logger_countdown = self.logger.getChild('countdown')
         logger_countdown.propagate = True
         th_exit = False
         while not th_exit:
@@ -575,14 +531,18 @@ class RealtimeRDPG(object):
                     th_exit = True
                     continue
 
-            logger_countdown.info(f"wait for countdown", extra=self.dictLogger)
+            logger_countdown.info(
+                f"{{\'header\': \'wait for countdown\'}}", extra=self.dictLogger
+            )
             evt_epi_done.wait()
             with self.done_env_lock:
                 evt_epi_done.clear()
             # if episode is done, sleep for the extension time
             time.sleep(self.epi_countdown_time)
             # cancel wait as soon as waking up
-            logger_countdown.info(f"finish countdown", extra=self.dictLogger)
+            logger_countdown.info(
+                f"{{\'header\': \'finish countdown\'}}", extra=self.dictLogger
+            )
 
             with self.hmi_lock:
                 self.episode_count += 1  # valid round increments
@@ -603,13 +563,15 @@ class RealtimeRDPG(object):
             with self.flash_env_lock:
                 evt_remote_flash.set()
             logger_countdown.info(
-                f"Episode done! free remote_flash and remote_get!",
+                f"{{\'header\': \'Episode done! free remote_flash and remote_get!\'}}",
                 extra=self.dictLogger,
             )
             if self.cloud is False:
                 self.vel_hist_dQ.clear()
             # raise Exception("reset capture to stop")
-        logger_countdown.info(f"Coutndown dies!!!", extra=self.dictLogger)
+        logger_countdown.info(
+            f"{{\'header\': \'Coutndown dies!!!\'}}", extra=self.dictLogger
+        )
 
     def kvaser_get_truck_status(
         self,
@@ -625,27 +587,30 @@ class RealtimeRDPG(object):
         """
 
         th_exit = False
-        logger_kvaser_get = self.logger.getChild("kvaser_get")
+        logger_kvaser_get = self.logger.getChild('kvaser_get')
         logger_kvaser_get.propagate = True
 
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        logger_kvaser_get.info(f"Socket Initialization Done!", extra=self.dictLogger)
+        logger_kvaser_get.info(
+            f"{{\'header\': \'Socket Initialization Done!\'}}", extra=self.dictLogger
+        )
 
         self.vel_hist_dQ = deque(maxlen=20)  # accumulate 1s of velocity values
         # vel_cycle_dQ = deque(maxlen=30)  # accumulate 1.5s (one cycle) of velocity values
         vel_cycle_dQ = deque(
-            maxlen=self.observation_len
+            maxlen=self.truck.observation_length
         )  # accumulate 1.5s (one cycle) of velocity values
+        with self.hmi_lock:
+            self.program_start = True
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_kvaser_get.info(
-                        "%s",
-                        "Capture thread exit due to processing request!!!",
+                        f"{{\'header\': \'Capture thread exit due to processing request!!!\'}}",
                         extra=self.dictLogger,
                     )
                     th_exit = True
@@ -657,17 +622,19 @@ class RealtimeRDPG(object):
             # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
                 logger_kvaser_get.critical(
-                    f"udp sending wrong data type!", extra=self.dictLogger
+                    f"{{\'header\': \'udp sending wrong data type!\'}}",
+                    extra=self.dictLogger,
                 )
-                raise TypeError("udp sending wrong data type!")
+                raise TypeError('udp sending wrong data type!')
 
             for key, value in pop_data.items():
-                if key == "status":  # state machine chores
+                if key == 'status':  # state machine chores
                     # print(candata)
-                    if value == "begin":
+                    if value == 'begin':
                         self.get_truck_status_start = True
                         logger_kvaser_get.info(
-                            "%s", "Episode will start!!!", extra=self.dictLogger
+                            f"{{\'header\': \'Episode will start!!!\'}}",
+                            extra=self.dictLogger,
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
@@ -679,7 +646,8 @@ class RealtimeRDPG(object):
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
-                    elif value == "end_valid":
+
+                    elif value == 'end_valid':
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
                         self.get_truck_status_start = (
@@ -689,15 +657,18 @@ class RealtimeRDPG(object):
                         # set flag for countdown thread
                         with self.done_env_lock:
                             evt_epi_done.set()
-                        logger_kvaser_get.info(f"Episode end starts countdown!")
+                        logger_kvaser_get.info(
+                            f"{{\'header\': \'Episode end starts countdown!\'}}"
+                        )
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
-                    elif value == "end_invalid":
+                    elif value == 'end_invalid':
                         self.get_truck_status_start = False
                         logger_kvaser_get.info(
-                            f"Episode is interrupted!!!", extra=self.dictLogger
+                            f"{{\'header\': \'Episode is interrupted!!!\'}}",
+                            extra=self.dictLogger,
                         )
                         self.get_truck_status_motpow_t = []
                         self.vel_hist_dQ.clear()
@@ -717,7 +688,7 @@ class RealtimeRDPG(object):
                             self.episode_done = False
                             self.episode_end = True
                             self.episode_count += 1  # invalid round increments
-                    elif value == "exit":
+                    elif value == 'exit':
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
                         self.vel_hist_dQ.clear()
@@ -737,20 +708,21 @@ class RealtimeRDPG(object):
                             evt_epi_done.set()
                         break
                         # time.sleep(0.1)
-                elif key == "data":
+                elif key == 'data':
                     # self.logger.info('Data received before Capture starting!!!', extra=self.dictLogger)
                     # self.logger.info(f'ts:{value["timestamp"]}vel:{value["velocity"]}ped:{value["pedal"]}', extra=self.dictLogger)
                     # DONE add logic for episode valid and invalid
                     try:
                         if self.get_truck_status_start:  # starts episode
-
-                            velocity = float(value["velocity"])
-                            pedal = float(value["pedal"])
-                            brake = float(value["brake_pressure"])
-                            current = float(value["A"])
-                            voltage = float(value["V"])
+                            ts = datetime.now().timestamp()
+                            velocity = float(value['velocity'])
+                            pedal = float(value['pedal'])
+                            brake = float(value['brake_pressure'])
+                            current = float(value['A'])
+                            voltage = float(value['V'])
 
                             motion_power = [
+                                ts,
                                 velocity,
                                 pedal,
                                 brake,
@@ -766,11 +738,11 @@ class RealtimeRDPG(object):
 
                             if (
                                 len(self.get_truck_status_motpow_t)
-                                >= self.observation_len
+                                >= self.truck.observation_length
                             ):
                                 if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                     self.logc.warning(  # the recent 1.5s average velocity
-                                        f"cycle deque is inconsistent!",
+                                        f"{{\'header\': \'cycle deque is inconsistent!\'}}",
                                         extra=self.dictLogger,
                                     )
 
@@ -793,55 +765,85 @@ class RealtimeRDPG(object):
                                     )
                                 else:
                                     logger_kvaser_get.warning(
-                                        f"cycle higher than 120km/h!",
+                                        f"{{\'header\': \'cycle higher than 120km/h!\'}}",
                                         extra=self.dictLogger,
                                     )
                                     self.vcu_calib_table_row_start = 16
                                 # get the row of the table
 
                                 logger_kvaser_get.info(
-                                    f"Cycle velocity: Aver{vel_aver:.2f},Min{vel_min:.2f},Max{vel_max:.2f},StartIndex{self.vcu_calib_table_row_start}!",
+                                    f"{{\'header\': \'Cycle velocity\', "
+                                    f"\'aver\': {vel_aver:.2f}, "
+                                    f"\'min\': {vel_min:.2f}, "
+                                    f"\'max\': {vel_max:.2f}, "
+                                    f"\'start_index\': {self.vcu_calib_table_row_start}\'}}",
                                     extra=self.dictLogger,
                                 )
                                 # self.logc.info(
                                 #     f"Producer Queue has {motionpowerQueue.qsize()}!", extra=self.dictLogger,
                                 # )
+                                df_motion_power = pd.DataFrame(
+                                    self.get_truck_status_motpow_t,
+                                    columns=[
+                                        'timestep',
+                                        'velocity',
+                                        'thrust',
+                                        'brake',
+                                        'current',
+                                        'voltage',
+                                    ],
+                                )
+                                # df_motion_power.set_index('timestamp', inplace=True)
+                                df_motion_power.columns.name = 'qtuple'
 
                                 with self.captureQ_lock:
-                                    self.motionpowerQueue.put(
-                                        self.get_truck_status_motpow_t
+                                    self.motionpowerQueue.put(df_motion_power)
+                                    motionpowerQueue_size = (
+                                        self.motionpowerQueue.qsize()
                                     )
+                                logger_kvaser_get.info(
+                                    f"{{\'header\': \'motionpowerQueue size: {motionpowerQueue_size}\'}}",
+                                    extra=self.dictLogger,
+                                )
                                 self.get_truck_status_motpow_t = []
-                    except Exception as X:
+                    except Exception as e:
                         logger_kvaser_get.info(
-                            X,  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                            f"{{\'header\': \'kvaser get signal error\',"
+                            f"\'exception\': \'{e}\'}}",  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                             extra=self.dictLogger,
                         )
                         break
                 else:
                     logger_kvaser_get.warning(
-                        f"udp sending message with key: {key}; value: {value}!!!"
+                        f"{{\'header\': \'udp sending message with key: {key}; value: {value}\'}}"
                     )
 
                     break
 
-        logger_kvaser_get.info(f"get_truck_status dies!!!", extra=self.dictLogger)
+        logger_kvaser_get.info(
+            f"{{\'header\': \'get_truck_status dies!!!\'}}", extra=self.dictLogger
+        )
 
         s.close()
 
     # this is the calibration table consumer for flashing
     # @eye
     def kvaser_flash_vcu(self, evt_remote_flash: threading.Event):
-
         flash_count = 0
         th_exit = False
 
-        logger_flash = self.logger.getChild("kvaser_flash")
+        logger_flash = self.logger.getChild('kvaser_flash')
         logger_flash.propagate = True
 
-        logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
+        logger_flash.info(
+            f"{{\'header\': \'Initialization Done!\'}}", extra=self.dictLogger
+        )
         while not th_exit:
             # time.sleep(0.1)
+            with self.hmi_lock:
+                program_start = self.program_start
+            if program_start is False:
+                continue
             with self.hmi_lock:
                 table_start = self.vcu_calib_table_row_start
                 epi_cnt = self.episode_count
@@ -859,27 +861,30 @@ class RealtimeRDPG(object):
             except queue.Empty:
                 pass
             else:
-
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
-                        self.vcu_calib_table_row_reduced,
-                        self.vcu_calib_table_col,
+                        self.truck.torque_row_num_flash,
+                        self.truck.torque_table_col_num,
                     ],
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+                vcu_calib_table_reduced = (
+                    vcu_calib_table_reduced * self.truck.torque_budget
+                )
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    table_start : self.truck.torque_row_num_flash + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
-                    vcu_calib_table0_reduced - self.action_budget
-                )
-                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+                    vcu_calib_table0_reduced - self.truck.torque_budget
+                )  # apply the budget instead of truck.torque_lower_bound
+                vcu_calib_table_max_reduced = (
+                    self.truck.torque_upper_bound * vcu_calib_table0_reduced
+                )  # 1.0*
 
                 vcu_calib_table_reduced = tf.clip_by_value(
                     vcu_calib_table_reduced + vcu_calib_table0_reduced,
@@ -890,63 +895,81 @@ class RealtimeRDPG(object):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced + table_start
+                    table_start : self.truck.torque_table_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
                     curr_table_store_path = self.tableroot.joinpath(
-                        "instant_table_rdpg-vb-"
-                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                        + "e-"
+                        'instant_table_'
+                        + str(self.agent)
+                        + '-'
+                        + self.truck.vid
+                        + '-'
+                        + self.driver.pid
+                        + '-'
+                        + datetime.now().strftime('%y-%m-%d-%h-%m-%s-')
+                        + 'e-'
                         + str(epi_cnt)
-                        + "-"
+                        + '-'
                         + str(step_count)
-                        + ".csv"
+                        + '.csv'
                     )
-                    with open(curr_table_store_path, "wb") as f:
+                    with open(curr_table_store_path, 'wb') as f:
                         self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
                     logger_flash.info(
-                        f"E{epi_cnt} done with record instant table: {step_count}",
+                        f"{{\'header\': \'E{epi_cnt} done with record instant table: {step_count}\'}}",
                         extra=self.dictLogger,
                     )
 
-                logger_flash.info(f"flash starts", extra=self.dictLogger)
-                returncode = kvaser_send_float_array(
-                    self.vcu_calib_table1, sw_diff=True
+                logger_flash.info(
+                    f"{{\'header\': \'flash starts\'}}", extra=self.dictLogger
                 )
+                ret_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=True)
                 # time.sleep(1.0)
 
-                if returncode != 0:
+                if ret_code != 0:
                     logger_flash.error(
-                        f"kvaser_send_float_array failed: {returncode}",
+                        f"{{\'header\': \'kvaser_send_float_array failed: {ret_code}\'}}",
                         extra=self.dictLogger,
                     )
                 else:
                     logger_flash.info(
-                        f"flash done, count:{flash_count}", extra=self.dictLogger
+                        f"{{\'header\': \'flash done, count:{flash_count}\'}}",
+                        extra=self.dictLogger,
                     )
                     flash_count += 1
                 # watch(flash_count)
 
-        logger_flash.info(f"Save the last table!!!!", extra=self.dictLogger)
+        logger_flash.info(
+            f"{{\'header\': \'Save the last table!!!!\'}}", extra=self.dictLogger
+        )
         last_table_store_path = (
-            self.dataroot.joinpath(  #  there's no slash in the end of the string
-                "last_table_ddpg-"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-                + ".csv"
+            self.data_root.joinpath(  # there's no slash in the end of the string
+                'last_table_'
+                + str(self.agent)
+                + '-'
+                + self.truck.vid
+                + '-'
+                + self.driver.pid
+                + '-'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + '.csv'
             )
         )
-        with open(last_table_store_path, "wb") as f:
+        with open(last_table_store_path, 'wb') as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
-        logger_flash.info(f"flash_vcu dies!!!", extra=self.dictLogger)
+        logger_flash.info(
+            f"{{\'header\': \'flash_vcu dies!!!\'}}", extra=self.dictLogger
+        )
 
     def remote_get_handler(
-        self, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+        self,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
     ):
-
         th_exit = False
-        logger_remote_get = self.logger.getChild("remote_get")
+        logger_remote_get = self.logger.getChild('remote_get')
         logger_remote_get.propagate = True
 
         while not th_exit:
@@ -957,7 +980,7 @@ class RealtimeRDPG(object):
                 episode_end = self.episode_end
             if episode_end is True:
                 logger_remote_get.info(
-                    f"Episode ends and wait for evt_remote_get!",
+                    f"{{\'header\': \'Episode ends and wait for evt_remote_get!\'}}",
                     extra=self.dictLogger,
                 )
                 with self.get_env_lock:
@@ -965,7 +988,8 @@ class RealtimeRDPG(object):
                 # continue
 
             logger_remote_get.info(
-                f"wait for remote get trigger", extra=self.dictLogger
+                f"{{\'header\': \'wait for remote get trigger\'}}",
+                extra=self.dictLogger,
             )
             evt_remote_get.wait()
 
@@ -976,7 +1000,7 @@ class RealtimeRDPG(object):
 
             if episode_end is True:
                 logger_remote_get.info(
-                    f"Episode ends after evt_remote_get without get_signals!",
+                    f"{{\'header\': \'Episode ends after evt_remote_get without get_signals!\'}}",
                     extra=self.dictLogger,
                 )
                 with self.get_env_lock:
@@ -985,29 +1009,37 @@ class RealtimeRDPG(object):
 
             # if episode is done, sleep for the extension time
             # cancel wait as soon as waking up
-            timeout = self.truck.CloudUnitNumber + 7
+            timeout = self.truck.cloud_unit_number + 7
             logger_remote_get.info(
-                f"Wake up to fetch remote data, duration={self.truck.CloudUnitNumber}s timeout={timeout}s",
+                f"{{\'header\': \'Wake up to fetch remote data\', "
+                f"\'duration\': {self.truck.cloud_unit_number}, "
+                f"\'timeout\': {timeout}}}",
                 extra=self.dictLogger,
             )
             with self.remoteClient_lock:
-                (signal_success, remotecan_data,) = self.remotecan_client.get_signals(
-                    duration=self.truck.CloudUnitNumber, timeout=timeout
+                (ret_code, ret_msg) = self.remotecan_client.get_signals(
+                    duration=self.truck.cloud_unit_number, timeout=timeout
                 )  # timeout is 1 second longer than duration
-                if signal_success != 0:  # in case of failure, ping server
+                if ret_code != 0:  # in case of failure, ping server
                     logger_remote_get.warning(
-                        f"RemoteCAN failure! return state={signal_success}s, return_code={remotecan_data}",
+                        f"{{\'header\': \'RemoteCAN failure!\',"
+                        f"\'ret_code\': {ret_code}, "
+                        f"\'ret_msg\'={ret_msg}\'}}",
                         extra=self.dictLogger,
                     )
 
-                    response = os.system("ping -c 1 " + self.can_server.Host)
+                    response = os.system('ping -c 1 ' + self.can_server.Host)
                     if response == 0:
                         logger_remote_get.info(
-                            f"{self.can_server.Host} is up!", extra=self.dictLogger
+                            f"{{\'header\': \'host is up\', "
+                            f"\'host\': \'{self.can_server.Host}\'}}",
+                            extra=self.dictLogger,
                         )
                     else:
                         logger_remote_get.info(
-                            f"{self.can_server.Host} is down!", extra=self.dictLogger
+                            f"{{\'header\': \'host is down\', "
+                            f"\'host\': \'{self.can_server.Host}\'}}",
+                            extra=self.dictLogger,
                         )
                     # ping test
                     # try:
@@ -1047,27 +1079,26 @@ class RealtimeRDPG(object):
                     #         extra=self.dictLogger,
                     #     )
 
-            if not isinstance(remotecan_data, dict):
+            if not isinstance(ret_msg, dict):
                 logger_remote_get.critical(
-                    f"udp sending wrong data type!",
+                    f"{{\'header\': \'udp sending wrong data type!\'}}",
                     extra=self.dictLogger,
                 )
-                raise TypeError("udp sending wrong data type!")
+                raise TypeError('udp sending wrong data type!')
             else:
                 logger_remote_get.info(
-                    f"Get remote data, signal_success={signal_success}!",
+                    f"{{\'header\': \'Get remote data, signal_success={ret_code}!\'}}",
                     extra=self.dictLogger,
                 )
 
             try:
-                if signal_success == 0:
-
+                if ret_code == 0:
                     with self.hmi_lock:
                         th_exit = self.program_exit
                         episode_end = self.episode_end
                     if episode_end is True:
                         logger_remote_get.info(
-                            f"Episode ends, not waiting for evt_remote_flash and continue!",
+                            f"{{\'header\': \'Episode ends, not waiting for evt_remote_flash and continue!\'}}",
                             extra=self.dictLogger,
                         )
                         with self.get_env_lock:
@@ -1075,23 +1106,23 @@ class RealtimeRDPG(object):
                         continue
 
                     try:
-                        signal_freq = self.truck.CloudSignalFrequency
-                        gear_freq = self.truck.CloudGearFrequency
-                        unit_duration = self.truck.CloudUnitDuration
+                        signal_freq = self.truck.cloud_signal_frequency
+                        gear_freq = self.truck.cloud_gear_frequency
+                        unit_duration = self.truck.cloud_unit_duration
                         unit_ob_num = unit_duration * signal_freq
                         unit_gear_num = unit_duration * gear_freq
-                        unit_num = self.truck.CloudUnitNumber
-                        for key, value in remotecan_data.items():
-                            if key == "result":
+                        unit_num = self.truck.cloud_unit_number
+                        for key, value in ret_msg.items():
+                            if key == 'result':
                                 logger_remote_get.info(
-                                    "convert observation state to array.",
+                                    "{{\'header\': \'convert observation state to array.\'}}",
                                     extra=self.dictLogger,
                                 )
                                 # timestamp processing
-                                timestamps = []
-                                separators = "--T::."  # adaption separators of the raw intest string
-                                start_century = "20"
-                                for ts in value["timestamps"]:
+                                timestamps_list = []
+                                separators = '--T::.'  # adaption separators of the raw intest string
+                                start_century = '20'
+                                for ts in value['timestamps']:
                                     # create standard iso string datetime format
                                     ts_substrings = [
                                         ts[i : i + 2] for i in range(0, len(ts), 2)
@@ -1100,68 +1131,91 @@ class RealtimeRDPG(object):
                                     for i, sep in enumerate(separators):
                                         ts_iso = ts_iso + ts_substrings[i] + sep
                                     ts_iso = ts_iso + ts_substrings[-1]
-                                    timestamps.append(ts_iso)
-                                timestamps_units = (
-                                    np.array(timestamps).astype("datetime64[ms]")
-                                    - np.timedelta64(8, "h")
-                                ).astype(  # convert to UTC+8
-                                    "int"
-                                )  # convert to int
+                                    timestamps_list.append(
+                                        ts_iso
+                                    )  # string of timestamps in iso format, UTC-0
+                                timestamps_units = list(
+                                    (
+                                        np.array(timestamps_list).astype(
+                                            'datetime64[ms]'
+                                        )  # convert to milliseconds
+                                        - np.timedelta64(
+                                            8, 'h'
+                                        )  # to np.datetime64 (in local time UTC-8)
+                                    ).astype(  # convert to UTC+8  TODO using pytz.timezone for conversion
+                                        'int'
+                                    )  # convert to int, time unit is millisecond
+                                )  # convert to list of int
                                 if len(timestamps_units) != unit_num:
                                     raise ValueError(
-                                        f"timestamps_units length is {len(timestamps_units)}, not {unit_num}"
+                                        f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
                                     )
                                 # upsample gears from 2Hz to 50Hz
-                                timestamps_seconds = list(timestamps_units)  # in ms
                                 sampling_interval = 1.0 / signal_freq * 1000  # in ms
-                                timestamps = [
+                                timestamps_list = [
                                     i + j * sampling_interval
-                                    for i in timestamps_seconds
+                                    for i in timestamps_units
                                     for j in np.arange(unit_ob_num)
                                 ]
-                                timestamps = np.array(timestamps).reshape(
-                                    (self.truck.CloudUnitNumber, -1)
-                                )
+                                timestamps = np.array(timestamps_list).reshape(
+                                    (self.truck.cloud_unit_number, -1)
+                                )  # final format is a list of integers as timestamps in ms
                                 current = ragged_nparray_list_interp(
-                                    value["list_current_1s"],
-                                    ob_num=unit_ob_num,
-                                )
+                                    value['list_current_1s'],
+                                    ob_num=unit_ob_num,  # 4s * 1s * 50Hz
+                                )  # 4x50
                                 voltage = ragged_nparray_list_interp(
-                                    value["list_voltage_1s"],
+                                    value['list_voltage_1s'],
                                     ob_num=unit_ob_num,
                                 )
                                 thrust = ragged_nparray_list_interp(
-                                    value["list_pedal_1s"],
+                                    value['list_pedal_1s'],
                                     ob_num=unit_ob_num,
                                 )
                                 brake = ragged_nparray_list_interp(
-                                    value["list_brake_pressure_1s"],
+                                    value['list_brake_pressure_1s'],
                                     ob_num=unit_ob_num,
                                 )
                                 velocity = ragged_nparray_list_interp(
-                                    value["list_speed_1s"],
+                                    value['list_speed_1s'],
                                     ob_num=unit_ob_num,
-                                )
-                                gears = ragged_nparray_list_interp(
-                                    value["list_gears"],
+                                )  # 4*50
+                                gear = ragged_nparray_list_interp(
+                                    value['list_gears'],
                                     ob_num=unit_gear_num,
                                 )
                                 # upsample gears from 2Hz to 50Hz
-                                gears = np.repeat(
-                                    gears,
+                                gear = np.repeat(
+                                    gear,
                                     (signal_freq // gear_freq),
                                     axis=1,
                                 )
 
-                                motion_power = np.c_[
-                                    timestamps.reshape(-1, 1),
-                                    velocity.reshape(-1, 1),
-                                    thrust.reshape(-1, 1),
-                                    brake.reshape(-1, 1),
-                                    gears.reshape(-1, 1),
-                                    current.reshape(-1, 1),
-                                    voltage.reshape(-1, 1),
-                                ]  # 1 + 3 + 1 + 2  : im 7
+                                idx = pd.DatetimeIndex(
+                                    timestamps.flatten(), tz=self.truck.tz
+                                )
+                                df_motion_power = pd.DataFrame(
+                                    {
+                                        'timestep': timestamps.flatten(),
+                                        'velocity': velocity.flatten(),
+                                        'thrust': thrust.flatten(),
+                                        'brake': brake.flatten(),
+                                        'gear': gear.flatten(),
+                                        'current': current.flatten(),
+                                        'voltage': voltage.flatten(),
+                                    },
+                                )
+                                df_motion_power.columns.name = 'qtuple'
+                                # df_motion_power.set_index('timestamp', inplace=True)
+                                # motion_power = np.c_[
+                                #     timestamps.reshape(-1, 1),  # 200
+                                #     velocity.reshape(-1, 1),  # 200
+                                #     thrust.reshape(-1, 1),  # 200
+                                #     brake.reshape(-1, 1),  # 200
+                                #     gears.reshape(-1, 1),  # 200
+                                #     current.reshape(-1, 1),  # 200
+                                #     voltage.reshape(-1, 1),  # 200
+                                # ]  # 1 + 3 + 1 + 2  : im 7  # 200*7
 
                                 # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
                                 # average concept
@@ -1179,21 +1233,25 @@ class RealtimeRDPG(object):
                                     )
                                 else:
                                     logger_remote_get.warning(
-                                        f"cycle higher than 120km/h!",
+                                        f"{{\'header\': \'cycle higher than 120km/h!\'}}",
                                         extra=self.dictLogger,
                                     )
                                     self.vcu_calib_table_row_start = 16
 
                                 logger_remote_get.info(
-                                    f"Cycle velocity: Aver{np.mean(velocity):.2f},Min{np.amin(velocity):.2f},Max{np.amax(velocity):.2f},StartIndex{self.vcu_calib_table_row_start}!",
+                                    f"{{\'header\': \'Cycle velocity description\', "
+                                    f"\'aver\': {np.mean(velocity):.2f}, "
+                                    f"\'min\': {np.amin(velocity):.2f}, "
+                                    f"\'max\': {np.amax(velocity):.2f}, "
+                                    f"\'start_index\': {self.vcu_calib_table_row_start}\'}}",
                                     extra=self.dictLogger,
                                 )
 
                                 with self.captureQ_lock:
-                                    self.motionpowerQueue.put(motion_power)
+                                    self.motionpowerQueue.put(df_motion_power)
 
                                 logger_remote_get.info(
-                                    f"Get one record, wait for remote_flash!!!",
+                                    f"{{\'header\': \'Get one record, wait for remote_flash!!!\'}}",
                                     extra=self.dictLogger,
                                 )
                                 # as long as one observation is received, always waiting for flash
@@ -1201,7 +1259,8 @@ class RealtimeRDPG(object):
                                 with self.flash_env_lock:
                                     evt_remote_flash.clear()
                                 logger_remote_get.info(
-                                    f"evt_remote_flash wakes up, reset inner lock, restart remote_get!!!",
+                                    f"{{\'header\': \'evt_remote_flash wakes up, "
+                                    f"reset inner lock, restart remote_get!!!\'}}",
                                     extra=self.dictLogger,
                                 )
                             else:
@@ -1210,27 +1269,31 @@ class RealtimeRDPG(object):
                                 #     extra=self.dictLogger,
                                 # )
                                 pass
-                    except Exception as X:
+                    except Exception as e:
                         logger_remote_get.error(
-                            f"Observation Corrupt! Status exception {X}",
+                            f"{{\'header\': \'Observation Corrupt! \', "
+                            f"\'exception\': {e}\'}}",
                             extra=self.dictLogger,
                         )
                 else:
                     logger_remote_get.error(
-                        f"get_signals failed: {remotecan_data}",
+                        f"{{\'header\': \'get_signals failed: {ret_msg}\'}}",
                         extra=self.dictLogger,
                     )
 
-            except Exception as X:
+            except Exception as e:
                 logger_remote_get.info(
-                    f"Break due to Exception: {X}",
+                    f"{{\'header\': \'Break due to Exception\', "
+                    f"\'exception\': {e}\'}}",
                     extra=self.dictLogger,
                 )
 
             with self.get_env_lock:
                 evt_remote_get.clear()
 
-        logger_remote_get.info(f"thr_remoteget dies!!!!!", extra=self.dictLogger)
+        logger_remote_get.info(
+            f"{{\'header\': \'thr_remoteget dies!!!!!\'}}", extra=self.dictLogger
+        )
 
     def remote_webhmi_state_machine(
         self,
@@ -1242,7 +1305,7 @@ class RealtimeRDPG(object):
         This function is used to get the truck status
         from remote can module
         """
-        logger_webhmi_sm = self.logger.getChild("webhmi_sm")
+        logger_webhmi_sm = self.logger.getChild('webhmi_sm')
         logger_webhmi_sm.propagate = True
         th_exit = False
 
@@ -1250,28 +1313,33 @@ class RealtimeRDPG(object):
             self.rmq_consumer.start()
             self.rmq_producer.start()
             logger_webhmi_sm.info(
-                f"Start RocketMQ client on {self.trip_server.Host}!",
+                f"{{\'header\': \'Start RocketMQ client\', "
+                f"\'host\': \'{self.trip_server.Host}\'}}",
                 extra=self.dictLogger,
             )
 
-            msg_topic = self.driver + "_" + self.truck.VIN
+            msg_topic = self.driver.pid + '_' + self.truck.vid
 
             broker_msgs = self.rmq_consumer.pull(msg_topic)
             logger_webhmi_sm.info(
-                f"Before clearing history: Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                f"{{\'header\': \'Before clearing history: Pull\', "
+                f"\'msg_number\': {len(list(broker_msgs))}, "
+                f"\'topic\': {msg_topic}\'}}",
                 extra=self.dictLogger,
             )
             self.rmq_consumer.clear_history(msg_topic)
             broker_msgs = self.rmq_consumer.pull(msg_topic)
             logger_webhmi_sm.info(
-                f"After clearing history: Pull {len(list(broker_msgs))} history messages of {msg_topic}!",
+                f"{{\'header\': \'After clearing history: Pull\', "
+                f"\'msg_number\': {len(list(broker_msgs))}, "
+                f"\'topic\': {msg_topic}\'}}",
                 extra=self.dictLogger,
             )
             all(broker_msgs)  # exhaust history messages
 
         except Exception as e:
             logger_webhmi_sm.error(
-                f"send_sync failed: {e}",
+                f"{{\'header\': \'send_sync failed\', " f"\'exception\': {e}\'}}",
                 extra=self.dictLogger,
             )
             return
@@ -1279,21 +1347,22 @@ class RealtimeRDPG(object):
             # send ready signal to trip server
             ret = self.rmq_producer.send_sync(self.rmq_message_ready)
             logger_webhmi_sm.info(
-                f"Sending ready signal to trip server:"
-                f"status={ret.status};"
-                f"msg-id={ret.msg_id};"
-                f"offset={ret.offset}.",
+                f"{{\'header\': \'Sending ready signal to trip server\', "
+                f"\'status\': \'{ret.status}\', "
+                f"\'msg_id\': \'{ret.msg_id}\', "
+                f"\'offset\': \'{ret.offset}\'}}",
                 extra=self.dictLogger,
             )
             with self.state_machine_lock:
                 self.program_start = True
 
             logger_webhmi_sm.info(
-                f"RocketMQ client Initialization Done!", extra=self.dictLogger
+                f"{{\'header\': \'RocketMQ client Initialization Done!\'}}",
+                extra=self.dictLogger,
             )
         except Exception as e:
             logger_webhmi_sm.error(
-                f"Fatal Failure!: {e}",
+                f"{{\'header\': \'Fatal Failure!\', " f"\'exception\': {e}\'}}",
                 extra=self.dictLogger,
             )
             return
@@ -1302,8 +1371,7 @@ class RealtimeRDPG(object):
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_webhmi_sm.info(
-                        "%s",
-                        "Capture thread exit due to processing request!!!",
+                        f"{{\'header\': \'Capture thread exit due to processing request!!!\'}}",
                         extra=self.dictLogger,
                     )
                     th_exit = True
@@ -1313,17 +1381,22 @@ class RealtimeRDPG(object):
                 msg_body = json.loads(msg.body)
                 if not isinstance(msg_body, dict):
                     logger_webhmi_sm.critical(
-                        f"rocketmq server sending wrong data type!",
+                        f"{{\'header\': \'rocketmq server sending wrong data type!\'}}",
                         extra=self.dictLogger,
                     )
-                    raise TypeError("rocketmq server sending wrong data type!")
-                logger_webhmi_sm.info(f"Get message {msg_body}!", extra=self.dictLogger)
-                if msg_body["vin"] != self.truck.VIN:
+                    raise TypeError('rocketmq server sending wrong data type!')
+                logger_webhmi_sm.info(
+                    f"{{\'header\': \'Get message\', " f"\'msg\': {msg_body}\'}}",
+                    extra=self.dictLogger,
+                )
+                if msg_body['vin'] != self.truck.vin:
                     continue
 
-                if msg_body["code"] == 5:  # "config/start testing"
+                if msg_body['code'] == 5:  # "config/start testing"
                     logger_webhmi_sm.info(
-                        f"Restart/Reconfigure message VIN: {msg_body['vin']}; driver {msg_body['name']}!",
+                        f"{{\'header\': \'Restart/Reconfigure message\', "
+                        f"\'VIN\': \'{msg_body['vin']}\', "
+                        f"\'driver\': \'{msg_body['name']}\'}}",
                         extra=self.dictLogger,
                     )
 
@@ -1333,17 +1406,17 @@ class RealtimeRDPG(object):
                     # send ready signal to trip server
                     ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                     logger_webhmi_sm.info(
-                        f"Sending ready signal to trip server:"
-                        f"status={ret.status};"
-                        f"msg-id={ret.msg_id};"
-                        f"offset={ret.offset}.",
+                        f"{{\'header\': \'Sending ready signal to trip server\', "
+                        f"\'status\': \'{ret.status}\', "
+                        f"\'msg_id\': \'{ret.msg_id}\', "
+                        f"\'offset\': \'{ret.offset}\'}}",
                         extra=self.dictLogger,
                     )
-                elif msg_body["code"] == 1:  # start episode
-
+                elif msg_body['code'] == 1:  # start episode
                     self.get_truck_status_start = True
                     logger_webhmi_sm.info(
-                        "%s", "Episode will start!!!", extra=self.dictLogger
+                        f"{{\'header\': \'Episode will start!!!\'}}",
+                        extra=self.dictLogger,
                     )
                     th_exit = False
                     # ts_epi_start = time.time()
@@ -1352,7 +1425,7 @@ class RealtimeRDPG(object):
                     with self.flash_env_lock:
                         evt_remote_flash.clear()
                     logger_webhmi_sm.info(
-                        f"Episode start! clear remote_flash and remote_get!",
+                        f"{{\'header\': \'Episode start! clear remote_flash and remote_get!\'}}",
                         extra=self.dictLogger,
                     )
 
@@ -1362,12 +1435,13 @@ class RealtimeRDPG(object):
                     with self.hmi_lock:
                         self.episode_done = False
                         self.episode_end = False
-                elif msg_body["code"] == 2:  # valid stop
-
+                elif msg_body['code'] == 2:  # valid stop
                     # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                     # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                    logger_webhmi_sm.info("End Valid!!!!!!", extra=self.dictLogger)
+                    logger_webhmi_sm.info(
+                        f"{{\'header\': \'End Valid!!!!!!\'}}", extra=self.dictLogger
+                    )
                     self.get_truck_status_start = (
                         True  # do not stopping data capture immediately
                     )
@@ -1376,16 +1450,18 @@ class RealtimeRDPG(object):
                     with self.done_env_lock:
                         evt_epi_done.set()
 
-                    logger_webhmi_sm.info(f"Episode end starts countdown!")
+                    logger_webhmi_sm.info(
+                        f"{{\'header\': \'Episode end starts countdown!\'}}"
+                    )
                     with self.hmi_lock:
                         # self.episode_count += 1  # valid round increments self.epi_countdown = False
                         self.episode_done = False  # TODO delay episode_done to make main thread keep running
                         self.episode_end = False
-                elif msg_body["code"] == 3:  # invalid stop
-
+                elif msg_body['code'] == 3:  # invalid stop
                     self.get_truck_status_start = False
                     logger_webhmi_sm.info(
-                        f"Episode is interrupted!!!", extra=self.dictLogger
+                        f"{{\'header\': \'Episode is interrupted!!!\'}}",
+                        extra=self.dictLogger,
                     )
                     self.get_truck_status_motpow_t = []
                     # motionpowerQueue.queue.clear()
@@ -1407,7 +1483,7 @@ class RealtimeRDPG(object):
                     with self.flash_env_lock:
                         evt_remote_flash.set()
                     logger_webhmi_sm.info(
-                        f"end_invalid! free remote_flash and remote_get!",
+                        f"{{\'header\': \'end_invalid! free remote_flash and remote_get!\'}}",
                         extra=self.dictLogger,
                     )
 
@@ -1415,7 +1491,7 @@ class RealtimeRDPG(object):
                         self.episode_done = False
                         self.episode_end = True
                         self.episode_count += 1  # invalid round increments
-                elif msg_body["code"] == 4:  # "exit"
+                elif msg_body['code'] == 4:  # "exit"
                     self.get_truck_status_start = False
                     self.get_truck_status_motpow_t = []
 
@@ -1424,7 +1500,7 @@ class RealtimeRDPG(object):
                     with self.flash_env_lock:
                         evt_remote_flash.set()
                     logger_webhmi_sm.info(
-                        f"Program exit!!!! free remote_flash and remote_get!",
+                        f"{{\'header\': \'Program exit!!!! free remote_flash and remote_get!\'}}",
                         extra=self.dictLogger,
                     )
 
@@ -1446,7 +1522,9 @@ class RealtimeRDPG(object):
                     # time.sleep(0.1)
                 else:
                     logger_webhmi_sm.warning(
-                        f"Unknown message {msg_body}!", extra=self.dictLogger
+                        f"{{\'header\': \'Unknown message\',"
+                        f"\'msg_body\': {msg_body}\'}}",
+                        extra=self.dictLogger,
                     )
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
@@ -1456,13 +1534,15 @@ class RealtimeRDPG(object):
 
         self.rmq_consumer.shutdown()
         self.rmq_producer.shutdown()
-        logger_webhmi_sm.info(f"remote webhmi dies!!!", extra=self.dictLogger)
+        logger_webhmi_sm.info(
+            f"{{\'header\': \'remote webhmi dies!!!\'}}", extra=self.dictLogger
+        )
 
     def remote_cloudhmi_state_machine(
-            self,
-            evt_epi_done: threading.Event,
-            evt_remote_get: threading.Event,
-            evt_remote_flash: threading.Event,
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1471,11 +1551,13 @@ class RealtimeRDPG(object):
 
         th_exit = False
 
-        logger_cloudhmi_sm = self.logger.getChild("cloudhmi_sm")
+        logger_cloudhmi_sm = self.logger.getChild('cloudhmi_sm')
         logger_cloudhmi_sm.propagate = True
 
         logger_cloudhmi_sm.info(
-            f"Start/Configure message VIN: {self.truck.VIN}; driver {self.driver}!",
+            f"{{\'header\': \'Start/Configure message\', "
+            f"\'VIN\': {self.truck.vin}, "
+            f"\'driver\': {self.driver.pid}\'}}",
             extra=self.dictLogger,
         )
 
@@ -1483,8 +1565,7 @@ class RealtimeRDPG(object):
             self.program_start = True
 
         logger_cloudhmi_sm.info(
-            "%s",
-            "Road Test with inferring will start as one single episode!!!",
+            f"{{\'header\': \'Road Test with inferring will start as one single episode!!!\'}}",
             extra=self.dictLogger,
         )
         with self.get_env_lock:
@@ -1497,14 +1578,12 @@ class RealtimeRDPG(object):
             self.episode_end = False
 
         while not th_exit:  # th_exit is local; program_exit is global
-
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 # Check if the runner is trying to kill the process
                 # kill signal captured from main thread
                 if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_cloudhmi_sm.info(
-                        "%s",
-                        "UI thread exit due to processing request!!!",
+                        f"{{\'header\': \'UI thread exit due to processing request!!!\'}}",
                         extra=self.dictLogger,
                     )
 
@@ -1516,7 +1595,8 @@ class RealtimeRDPG(object):
                     with self.flash_env_lock:
                         evt_remote_flash.set()
                     logger_cloudhmi_sm.info(
-                        f"Process is being killed and Program exit!!!! free remote_flash and remote_get!",
+                        f"{{\'header\': \'Process is being killed and Program exit!!!! "
+                        f"Free remote_flash and remote_get!\'}}",
                         extra=self.dictLogger,
                     )
 
@@ -1538,7 +1618,8 @@ class RealtimeRDPG(object):
                 evt_remote_get.set()
 
         logger_cloudhmi_sm.info(
-            f"remote cloudhmi killed gracefully!!!", extra=self.dictLogger
+            f"{{\'header\': \'remote cloudhmi killed gracefully!!!\'}}",
+            extra=self.dictLogger,
         )
 
     def remote_hmi_state_machine(
@@ -1554,21 +1635,22 @@ class RealtimeRDPG(object):
 
         th_exit = False
 
-        logger_hmi_sm = self.logger.getChild("hmi_sm")
+        logger_hmi_sm = self.logger.getChild('hmi_sm')
         logger_hmi_sm.propagate = True
         #  Get the HMI control command from UDP, but not the data from KvaserCAN
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket.socket.settimeout(s, None)
         s.bind((self.get_truck_status_myHost, self.get_truck_status_myPort))
         # s.listen(5)
-        logger_hmi_sm.info(f"Socket Initialization Done!", extra=self.dictLogger)
+        logger_hmi_sm.info(
+            f"{{\'header\': \'Socket Initialization Done!\'}}", extra=self.dictLogger
+        )
 
         while not th_exit:  # th_exit is local; program_exit is global
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 if self.program_exit == True:  # if program_exit is True, exit thread
                     logger_hmi_sm.info(
-                        "%s",
-                        "Capture thread exit due to processing request!!!",
+                        f"{{\'header\': \'Capture thread exit due to processing request!!!\'}}",
                         extra=self.dictLogger,
                     )
                     th_exit = True
@@ -1580,20 +1662,22 @@ class RealtimeRDPG(object):
             # self.logc.info(f"Data type is {data_type}", extra=self.dictLogger)
             if not isinstance(pop_data, dict):
                 logger_hmi_sm.critical(
-                    f"udp sending wrong data type!", extra=self.dictLogger
+                    f"{{\'header\': \'udp sending wrong data type!\'}}",
+                    extra=self.dictLogger,
                 )
-                raise TypeError("udp sending wrong data type!")
+                raise TypeError('udp sending wrong data type!')
 
             for key, value in pop_data.items():
-                if key == "status":  # state machine chores
+                if key == 'status':  # state machine chores
                     # print(candata)
                     # self.logc.info(
                     #     f"Status data: key={key},value={value}!!!!!!", extra=self.dictLogger
                     # )
-                    if value == "begin":
+                    if value == 'begin':
                         self.get_truck_status_start = True
                         logger_hmi_sm.info(
-                            "%s", "Episode will start!!!", extra=self.dictLogger
+                            f"{{\'header\': \'Episode will start!!!\'}}",
+                            extra=self.dictLogger,
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
@@ -1602,7 +1686,7 @@ class RealtimeRDPG(object):
                         with self.flash_env_lock:
                             evt_remote_flash.clear()
                         logger_hmi_sm.info(
-                            f"Episode start! clear remote_flash and remote_get!",
+                            f"{{\'header\': \'Episode start! clear remote_flash and remote_get!\'}}",
                             extra=self.dictLogger,
                         )
 
@@ -1612,11 +1696,14 @@ class RealtimeRDPG(object):
                         with self.hmi_lock:
                             self.episode_done = False
                             self.episode_end = False
-                    elif value == "end_valid":
+                    elif value == 'end_valid':
                         # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
                         # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
 
-                        logger_hmi_sm.info("End Valid!!!!!!", extra=self.dictLogger)
+                        logger_hmi_sm.info(
+                            f"{{\'header\': \'End Valid!!!!!!\'}}",
+                            extra=self.dictLogger,
+                        )
                         self.get_truck_status_start = (
                             True  # do not stopping data capture immediately
                         )
@@ -1624,15 +1711,18 @@ class RealtimeRDPG(object):
                         # set flag for countdown thread
                         with self.done_env_lock:
                             evt_epi_done.set()
-                        logger_hmi_sm.info(f"Episode end starts countdown!")
+                        logger_hmi_sm.info(
+                            f"{{\'header\': \'Episode end starts countdown!\'}}"
+                        )
                         with self.hmi_lock:
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
-                    elif value == "end_invalid":
+                    elif value == 'end_invalid':
                         self.get_truck_status_start = False
                         logger_hmi_sm.info(
-                            f"Episode is interrupted!!!", extra=self.dictLogger
+                            f"{{\'header\': \'Episode is interrupted!!!\'}}",
+                            extra=self.dictLogger,
                         )
                         self.get_truck_status_motpow_t = []
                         # motionpowerQueue.queue.clear()
@@ -1654,7 +1744,7 @@ class RealtimeRDPG(object):
                         with self.flash_env_lock:
                             evt_remote_flash.set()
                         logger_hmi_sm.info(
-                            f"end_invalid! free remote_flash and remote_get!",
+                            f"{{\'header\': \'end_invalid! free remote_flash and remote_get!\'}}",
                             extra=self.dictLogger,
                         )
 
@@ -1662,7 +1752,7 @@ class RealtimeRDPG(object):
                             self.episode_done = False
                             self.episode_end = True
                             self.episode_count += 1  # invalid round increments
-                    elif value == "exit":
+                    elif value == 'exit':
                         self.get_truck_status_start = False
                         self.get_truck_status_motpow_t = []
 
@@ -1671,7 +1761,7 @@ class RealtimeRDPG(object):
                         with self.flash_env_lock:
                             evt_remote_flash.set()
                         logger_hmi_sm.info(
-                            f"Program exit!!!! free remote_flash and remote_get!",
+                            f"{{\'header\': \'Program exit!!!! free remote_flash and remote_get!\'}}",
                             extra=self.dictLogger,
                         )
 
@@ -1691,7 +1781,7 @@ class RealtimeRDPG(object):
                             evt_epi_done.set()
                         break
                         # time.sleep(0.1)
-                elif key == "data":
+                elif key == 'data':
                     #  instead of get kvasercan, we get remotecan data here!
                     if self.get_truck_status_start:  # starts episode
                         # set flag for remote_get thread
@@ -1700,13 +1790,17 @@ class RealtimeRDPG(object):
                         # self.logc.info(f"Kick off remoteget!!")
                 else:
                     logger_hmi_sm.warning(
-                        f"udp sending message with key: {key}; value: {value}!!!"
+                        f"{{\'header\': \'udp sending message with\', "
+                        f"\'key\': \'{key}\', "
+                        f"\'value\': \'{value}\'}}"
                     )
 
                     break
 
         s.close()
-        logger_hmi_sm.info(f"remote hmi dies!!!", extra=self.dictLogger)
+        logger_hmi_sm.info(
+            f"{{\'header\': \'remote hmi dies!!!\'}}", extra=self.dictLogger
+        )
 
     def remote_flash_vcu(self, evt_remote_flash: threading.Event):
         """
@@ -1716,9 +1810,11 @@ class RealtimeRDPG(object):
         flash_count = 0
         th_exit = False
 
-        logger_flash = self.logger.getChild("flash")
+        logger_flash = self.logger.getChild('flash')
         logger_flash.propagate = True
-        logger_flash.info(f"Initialization Done!", extra=self.dictLogger)
+        logger_flash.info(
+            f"{{\'header\': \'Initialization Done!\'}}", extra=self.dictLogger
+        )
         while not th_exit:
             # time.sleep(0.1)
 
@@ -1752,7 +1848,7 @@ class RealtimeRDPG(object):
                     with self.flash_env_lock:
                         evt_remote_flash.set()  # triggered flash by remote_get thread, need to reset remote_get waiting evt
                     logger_flash.info(
-                        f"Episode ends, skipping remote_flash and continue!",
+                        f"{{\'header\': \'Episode ends, skipping remote_flash and continue!\'}}",
                         extra=self.dictLogger,
                     )
                     continue
@@ -1762,23 +1858,27 @@ class RealtimeRDPG(object):
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
-                        self.vcu_calib_table_row_reduced,
-                        self.vcu_calib_table_col,
+                        self.truck.torque_row_num_flash,
+                        self.truck.torque_table_col_num,
                     ],
                 )
 
                 # get change budget : % of initial table
-                vcu_calib_table_reduced = vcu_calib_table_reduced * self.action_budget
+                vcu_calib_table_reduced = (
+                    vcu_calib_table_reduced * self.truck.torque_budget
+                )
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.vcu_calib_table_row_reduced + table_start,
+                    table_start : self.truck.torque_row_num_flash + table_start,
                     :,
                 ]
                 vcu_calib_table_min_reduced = (
-                    vcu_calib_table0_reduced - self.action_budget
+                    vcu_calib_table0_reduced - self.truck.torque_budget
                 )
-                vcu_calib_table_max_reduced = 1.0 * vcu_calib_table0_reduced
+                vcu_calib_table_max_reduced = (
+                    self.truck.torque_upper_bound * vcu_calib_table0_reduced
+                )
 
                 vcu_calib_table_reduced = tf.clip_by_value(
                     vcu_calib_table_reduced + vcu_calib_table0_reduced,
@@ -1789,21 +1889,26 @@ class RealtimeRDPG(object):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.vcu_calib_table_row_reduced + table_start
+                    table_start : self.truck.torque_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
-
                     curr_table_store_path = self.tableroot.joinpath(
-                        "instant_table_ddpg-vb-"
-                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
-                        + "e-"
+                        'instant_table_'
+                        + str(self.agent)
+                        + '-'
+                        + self.truck.vid
+                        + '-'
+                        + self.driver.pid
+                        + '-'
+                        + datetime.now().strftime('%y-%m-%d-%h-%m-%s-')
+                        + 'e-'
                         + str(epi_cnt)
-                        + "-"
+                        + '-'
                         + str(step_count)
-                        + ".csv"
+                        + '.csv'
                     )
-                    with open(curr_table_store_path, "wb") as f:
+                    with open(curr_table_store_path, 'wb') as f:
                         self.vcu_calib_table1.to_csv(curr_table_store_path)
                         # np.save(last_table_store_path, vcu_calib_table1)
                     # self.logc.info(
@@ -1824,39 +1929,48 @@ class RealtimeRDPG(object):
                 #     continue
 
                 # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
-                timeout = self.vcu_calib_table_row_reduced + 3
+                timeout = self.truck.torque_row_num_flash + 3
                 logger_flash.info(
-                    f"flash starts, timeout={timeout}s", extra=self.dictLogger
+                    f"{{\'header\': \'flash starts\', " f"\'timeout\': {timeout}\'}}",
+                    extra=self.dictLogger,
                 )
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
-                    returncode, ret_str = self.remotecan_client.send_torque_map(
+                    (ret_code, ret_str) = self.remotecan_client.send_torque_map(
                         pedalmap=self.vcu_calib_table1.iloc[
-                            table_start : self.vcu_calib_table_row_reduced + table_start
+                            table_start : self.truck.torque_row_num_flash + table_start
                         ],
                         swap=False,
                         timeout=timeout,
                     )
                 # time.sleep(1.0)
-                if returncode != 0:
+                if ret_code != 0:
                     logger_flash.error(
-                        f"send_torque_map failed and retry: {returncode}, ret_str: {ret_str}",
+                        f"{{\'header\': \'send_torque_map failed and retry\', "
+                        f"\'ret_code\': \'{ret_code}\', "
+                        f"\'ret_str\': \'{ret_str}\'}}",
                         extra=self.dictLogger,
                     )
 
-                    response = os.system("ping -c 1 " + self.can_server.Url)
+                    response = os.system('ping -c 1 ' + self.can_server.Url)
                     if response == 0:
                         logger_flash.info(
-                            f"{self.can_server.Url} is up!", extra=self.dictLogger
+                            f"{{\'header\': \'Can server is up!\', "
+                            f"\'host\': \'{self.can_server.Url}\'}}",
+                            extra=self.dictLogger,
                         )
                     else:
                         logger_flash.info(
-                            f"{self.can_server.Url} is down!", extra=self.dictLogger
+                            f"{{\'header\': \'Can server is down!\', "
+                            f"\'host\': \'{self.can_server.Url}\'}}",
+                            extra=self.dictLogger,
                         )
                 else:
                     logger_flash.info(
-                        f"flash done, count:{flash_count}", extra=self.dictLogger
+                        f"{{\'header\': \'flash done\', "
+                        f"\'count\': {flash_count}\'}}",
+                        extra=self.dictLogger,
                     )
                     flash_count += 1
 
@@ -1866,37 +1980,158 @@ class RealtimeRDPG(object):
 
                 # watch(flash_count)
 
-        logger_flash.info(f"Save the last table!!!!", extra=self.dictLogger)
+        logger_flash.info(
+            f"{{\'header\': \'Save the last table!!!!\'}}", extra=self.dictLogger
+        )
 
         last_table_store_path = (
-            self.dataroot.joinpath(  #  there's no slash in the end of the string
-                "last_table_ddpg-"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-                + ".csv"
+            self.data_root.joinpath(  # there's no slash in the end of the string
+                'last_table_'
+                + str(self.agent)
+                + '-'
+                + self.truck.vid
+                + '-'
+                + self.driver.pid
+                + '-'
+                + datetime.now().strftime('%y-%m-%d-%H-%M-%S')
+                + '.csv'
             )
         )
-        with open(last_table_store_path, "wb") as f:
+        with open(last_table_store_path, 'wb') as f:
             self.vcu_calib_table1.to_csv(last_table_store_path)
         # motionpowerQueue.join()
-        logger_flash.info(f"remote_flash_vcu dies!!!", extra=self.dictLogger)
+        logger_flash.info(
+            f"{{\'header\': \'remote_flash_vcu dies!!!\'}}", extra=self.dictLogger
+        )
 
-    # @eye
+    def assemble_state_ser(self, motionpower: pd.DataFrame) -> pd.Series:
+        """
+        assemble state df from motionpower df
+        order is vital for the model:
+        "timestep, velocity, thrust, brake"
+        contiguous storage in each measurement
+        due to sort_index, output:
+        [col0: brake, col1: thrust, col2: timestep, col3: velocity]
+        """
+        state = (
+            motionpower.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+            .stack()
+            .swaplevel(0, 1)
+        )
+        state.name = 'state'
+        state.index.names = ['rows', 'idx']
+        state.sort_index(
+            inplace=True
+        )  # sort by rows and idx (brake, thrust, timestep, velocity)
+
+        return state
+
+    def assemble_reward_ser(self, motionpower: pd.DataFrame) -> pd.Series:
+        """
+        assemble reward df from motionpower df
+        order is vital for the model:
+        contiguous storage in each row, due to sort_index, output:
+        [timestep, work]
+        """
+
+        pow_t = motionpower.loc[:, ['current', 'voltage']]
+        ui_sum = pow_t.prod(axis=1).sum()
+        wh = (
+            ui_sum / 3600.0 / self.truck.observation_sampling_rate
+        )  # rate 0.05 for kvaser, 0.02 remote # negative wh
+        self.logc.info(
+            f'wh: {wh}',
+            extra=self.dictLogger,
+        )
+        work = wh * (-1.0)
+        reward_ts = pd.to_datetime(datetime.now())
+        reward = (
+            pd.DataFrame({'work': work, 'timestep': reward_ts}, index=[0])
+            .stack()
+            .swaplevel(0, 1)
+            .sort_index()  # columns oder (timestep, work)
+        )
+        reward.name = 'reward'
+        reward.index.names = ['rows', 'idx']
+        return reward
+
+    def assemble_action_ser(
+        self,
+        torque_map_line: tf.Tensor,
+        table_start: int,
+        flash_start_ts: pd.Timestamp,
+        flash_end_ts: pd.Timestamp,
+    ) -> pd.Series:
+        """
+        generate action df from torque_map_line
+        order is vital for the model:
+        contiguous storage in each row, due to sort_index, output:
+        "r0, r1, r2, r3, ..., ,speed, throttle(map),timestep"
+        """
+        # assemble_action_df
+        row_num = self.truck.action_flashrow
+        speed_ser = pd.Series(
+            self.truck.speed_scale[
+                table_start : table_start + self.truck.action_flashrow
+            ],
+            name='speed',
+        )
+        throttle_ser = pd.Series(self.truck.pedal_scale, name='throttle')
+        torque_map = tf.reshape(
+            torque_map_line,
+            [self.truck.torque_row_num_flash, self.truck.torque_table_col_num],
+        )
+        df_torque_map = pd.DataFrame(
+            torque_map.to_numpy()
+        ).transpose()  # row to columns
+        df_torque_map.columns = (
+            self.agent.torque_table_row_names
+        )  # index: [r0, r1, ...]
+
+        span_each_row = (flash_end_ts - flash_start_ts) / row_num
+        flash_timestamps_ser = pd.Series(
+            flash_start_ts
+            + pd.date_range(
+                np.linspace(1, row_num, row_num) * span_each_row, unit='ms'
+            ),
+            name='timestep',
+        )
+        action = (
+            reduce(
+                lambda left, right: pd.merge(
+                    left,
+                    right,
+                    how='outer',
+                    left_index=True,
+                    right_index=True,
+                ),
+                [df_torque_map, flash_timestamps_ser, speed_ser, throttle_ser],
+            )
+            .stack()
+            .swaplevel(0, 1)
+            .sort_index()  # columns order (r0, r1, ..., speed, throttle, timestep)
+        )
+        action.name = 'action'
+        action.index.names = ['rows', 'idx']
+        action.columns.names = []
+
+        return action
+
     def run(self):
-
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
         evt_remote_get = threading.Event()
         evt_remote_flash = threading.Event()
         self.thr_countdown = Thread(
             target=self.capture_countdown_handler,
-            name="countdown",
+            name='countdown',
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
         self.thr_countdown.start()
 
         self.thr_observe = Thread(
             target=self.get_truck_status,
-            name="observe",
+            name='observe',
             args=[evt_epi_done, evt_remote_get, evt_remote_flash],
         )
         self.thr_observe.start()
@@ -1904,13 +2139,13 @@ class RealtimeRDPG(object):
         if self.cloud:
             self.thr_remoteget = Thread(
                 target=self.remote_get_handler,
-                name="remoteget",
+                name='remoteget',
                 args=[evt_remote_get, evt_remote_flash],
             )
             self.thr_remoteget.start()
 
         self.thr_flash = Thread(
-            target=self.flash_vcu, name="flash", args=[evt_remote_flash]
+            target=self.flash_vcu, name='flash', args=[evt_remote_flash]
         )
         self.thr_flash.start()
 
@@ -1924,7 +2159,7 @@ class RealtimeRDPG(object):
         # Gracefulkiller only in the main thread!
         killer = GracefulKiller()
 
-        self.logc.info(f"main Initialization done!", extra=self.dictLogger)
+        self.logc.info(f'main Initialization done!', extra=self.dictLogger)
         while not th_exit:  # run until solved or program exit; th_exit is local
             with self.hmi_lock:  # wait for tester to kick off or to exit
                 th_exit = self.program_exit  # if program_exit is False,
@@ -1944,20 +2179,22 @@ class RealtimeRDPG(object):
             episode_reward = 0
             # tf.summary.trace_on(graph=True, profiler=True)
 
-            self.logc.info("----------------------", extra=self.dictLogger)
+            self.logc.info('----------------------', extra=self.dictLogger)
             self.logc.info(
-                f"E{epi_cnt} starts!",
+                f"{{\'header\': \'episosde starts!\', " f"\'episode\': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
 
-            self.rdpg.start_episode(datetime.now())
+            # mongodb default to UTC time
+            self.agent.start_episode(datetime.now())
+
             tf.debugging.set_log_device_placement(True)
-            with tf.device("/GPU:0"):
+            with tf.device('/GPU:0'):
                 while (
                     not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
                     if killer.kill_now:
-                        self.logc.info(f"Process is being killed!!!")
+                        self.logc.info(f'Process is being killed!!!')
                         with self.hmi_lock:
                             self.program_exit = True
 
@@ -1974,11 +2211,11 @@ class RealtimeRDPG(object):
 
                     with self.captureQ_lock:
                         motionpowerqueue_size = self.motionpowerQueue.qsize()
-                    # self.logc.info(f"motionpowerQueue.qsize(): {motionpowerqueue_size}")
+                    self.logc.info(f'motionpowerQueue.qsize(): {motionpowerqueue_size}')
                     if epi_end and done and (motionpowerqueue_size > 2):
                         # self.logc.info(f"motionpowerQueue.qsize(): {self.motionpowerQueue.qsize()}")
                         self.logc.info(
-                            f"Residue in Queue is a sign of disordered sequence, interrupted!"
+                            f"{{\'header\': \'Residue in Queue is a sign of disordered sequence, interrupted!\'}}"
                         )
                         done = (
                             False  # this local done is true done with data exploitation
@@ -1998,96 +2235,92 @@ class RealtimeRDPG(object):
                             )
                     except queue.Empty:
                         self.logc.info(
-                            f"E{epi_cnt} No data in the Queue!!!",
+                            f"{{\'header\': \'No data in the Queue!!!\', "
+                            f"\'episode\': {epi_cnt}}}",
                             extra=self.dictLogger,
                         )
                         continue
 
                     self.logc.info(
-                        f"E{epi_cnt} start step {step_count}",
+                        f"{{\'header\': \'start\', "
+                        f"\'step\': {step_count}, "
+                        f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )  # env.step(action) action is flash the vcu calibration table
-                    # watch(step_count)
-                    # reward history
-                    motpow_t = tf.convert_to_tensor(
-                        motionpower
-                    )  # state must have 30 (velocity, pedal, brake, current, voltage) 5 tuple (num_observations)
-                    if self.cloud:
-                        out = tf.split(
-                            motpow_t, [1, 3, 1, 2], 1
-                        )  # note the difference of split between np and tf
-                        (ts, o_t0, gr_t, pow_t) = [tf.squeeze(x) for x in out]
-                        o_t = tf.reshape(o_t0, -1)
-                    else:
-                        o_t0, pow_t = tf.split(motpow_t, [3, 2], 1)
-                        o_t = tf.reshape(o_t0, -1)
-
-                    self.logc.info(
-                        f"E{epi_cnt} tensor convert and split!",
-                        extra=self.dictLogger,
-                    )
-                    ui_sum = tf.reduce_sum(
-                        tf.reduce_prod(pow_t, 1)
-                    )  # vcu reward is a scalar
-                    wh = (
-                        ui_sum / 3600.0 * self.sample_rate
-                    )  # rate 0.05 for kvaser, 0.02 remote # negative wh
-                    # self.logger.info(
-                    #     f"ui_sum: {ui_sum}",
-                    #     extra=self.dictLogger,
-                    # )
-                    self.logc.info(
-                        f"wh: {wh}",
-                        extra=self.dictLogger,
-                    )
 
                     # !!!no parallel even!!!
                     # predict action probabilities and estimated future rewards
                     # from environment state
                     # for causal rl, the odd indexed observation/reward are caused by last action
                     # skip the odd indexed observation/reward for policy to make it causal
-                    self.logc.info(
-                        f"E{epi_cnt} before inference!",
-                        extra=self.dictLogger,
-                    )
-                    # motion states o_t is 30*3/50*3 matrix
-                    a_t = self.rdpg.actor_predict(o_t, int(step_count / 1))
-                    # self.logc.info(
-                    #     f"E{epi_cnt} step{int(step_count/2)},o_t.shape:{o_t.shape},a_t.shape:{a_t.shape}!",
-                    #     extra=self.dictLogger,
-                    # )
-                    self.logc.info(
-                        f"E{epi_cnt} inference done with reduced action space!",
-                        extra=self.dictLogger,
-                    )
 
+                    # assemble state
+                    timestamp = motionpower.loc[
+                        0, 'timestep'
+                    ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
+                    state = self.assemble_state_ser(motionpower)
+
+                    # assemble reward
+                    reward = self.assemble_reward_ser(work)
+                    work = reward[('work', 0)]
+                    episode_reward += work
+
+                    self.logc.info(
+                        f"{{\'header\': \'assembling state and reward!\', "
+                        f"\'episode\': {epi_cnt}}}",
+                        extra=self.dictLogger,
+                    )
+                    # stripping timestamps from state, (later flatten and convert to tensor)
+                    torque_map_line = self.agent.actor_predict(
+                        state[['velocity', 'thrust', 'brake']], int(step_count / 1)
+                    )  # model input requires fixed order velocity col -> thrust col -> brake col
+                    #  !!! training with samples of the same order!!!
+
+                    self.logc.info(
+                        f"{{\'header\': \'inference done with reduced action space!\', "
+                        f"\'episode\': {epi_cnt}}}",
+                        extra=self.dictLogger,
+                    )
+                    # flash the vcu calibration table and assemble action
+                    flash_start_ts = pd.to_datetime(datetime.now())
                     with self.tableQ_lock:
-                        self.tableQueue.put(a_t)
+                        self.tableQueue.put(torque_map_line)
                         self.logc.info(
-                            f"E{epi_cnt} StartIndex {table_start} Action Push table: {self.tableQueue.qsize()}",
+                            f"{{\'header\': \'Action Push table\', "
+                            f"\'StartIndex\': {table_start}, "
+                            f"\'qsize\': {self.tableQueue.qsize()}}}",
                             extra=self.dictLogger,
                         )
-                    self.logc.info(
-                        f"E{epi_cnt} Finish Inference Step: {step_count}",
-                        extra=self.dictLogger,
+
+                    # wait for remote flash to finish
+                    evt_remote_flash.wait()
+                    flash_end_ts = pd.to_datetime(datetime.now())
+
+                    action = self.assemble_action_ser(
+                        torque_map_line,
+                        table_start,
+                        flash_start_ts,
+                        flash_end_ts,
                     )
 
-                    # !!!no parallel even!!!
-                    cycle_reward = wh * (-1.0)
-                    episode_reward += cycle_reward
-
                     if step_count > 0:
-                        self.rdpg.deposit(
-                            prev_o_t, prev_a_t, prev_table_start, cycle_reward
+                        self.agent.deposit(
+                            prev_timestamp,
+                            prev_state,
+                            prev_action,
+                            reward,
+                            state,
                         )
 
-                    prev_o_t = o_t
-                    prev_a_t = a_t
-                    prev_table_start = table_start
+                    prev_timestamp = timestamp
+                    prev_state = state
+                    prev_action = action
 
                     # TODO add speed sum as positive reward
                     self.logc.info(
-                        f"E{epi_cnt} Step done: {step_count}",
+                        f"{{\'header\': \'Step done\',"
+                        f"\'step\': {step_count}, "
+                        f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
 
@@ -2102,57 +2335,63 @@ class RealtimeRDPG(object):
                 not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 self.logc.info(
-                    f"E{epi_cnt} interrupted, waits for next episode to kick off!",
+                    f"{{\'header\': \'interrupted, waits for next episode to kick off!\' "
+                    f"\'episode\': {epi_cnt}}}",
                     extra=self.dictLogger,
                 )
                 # send ready signal to trip server
-                if self.ui == "mobile":
+                if self.ui == 'mobile':
                     ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                     self.logc.info(
-                        f"Sending ready signal to trip server:"
-                        f"status={ret.status};"
-                        f"msg-id={ret.msg_id};"
-                        f"offset={ret.offset}.",
+                        f"{{\'header\': \'Sending ready signal to trip server\', "
+                        f"\'status\': \'{ret.status}\', "
+                        f"\'msg-id\': \'{ret.msg_id}\', "
+                        f"\'offset\': \'{ret.offset}\'}}",
                         extra=self.dictLogger,
                     )
                 continue  # otherwise assuming the history is valid and back propagate
 
-            self.rdpg.end_episode()  # deposit history
+            self.agent.end_episode()  # deposit history
 
-            self.logc.info(
-                f"E{epi_cnt} Experience Collection ends!",
+            self.logger.info(
+                f"{{\'header\': \'Episode end.\', " f"\'episode\': {epi_cnt}, ",
+                f"\'timestamp\': {datetime.now()}}}",
                 extra=self.dictLogger,
             )
 
             critic_loss = 0
             actor_loss = 0
             if self.infer_mode:
+                (critic_loss, actor_loss) = self.agent.get_losses()
                 # FIXME bugs in maximal sequence length for ungraceful testing
-                # (actor_loss, critic_loss) = self.rdpg.notrain()
-                self.logc.info("No Learning, just calculating loss")
-
+                # self.logc.info("Nothing to be done for rdgp!")
+                self.logc.info(
+                    "{{\'header\': \'No Learning, just calculating loss.\'}}"
+                )
             else:
-                self.logc.info("Learning and soft updating 6 times")
+                self.logc.info("{{\'header\': \'Learning and updating 6 times!\'}}")
                 for k in range(6):
                     # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    if self.rdpg.buffer_counter > 0:
-                        (actor_loss, critic_loss) = self.rdpg.train()
-                        self.rdpg.soft_update_target()
-
+                    if self.agent.buffer.count() > 0:
+                        (critic_loss, actor_loss) = self.agent.train()
+                        self.agent.soft_update_target()
                     else:
                         self.logc.info(
-                            f"Buffer empty, no learning!", extra=self.dictLogger
+                            f"{{\'header\': \'Buffer empty, no learning!\'}}",
+                            extra=self.dictLogger,
                         )
                         self.logc.info(
-                            "++++++++++++++++++++++++", extra=self.dictLogger
+                            '++++++++++++++++++++++++', extra=self.dictLogger
                         )
                         break
-
                 # Checkpoint manager save model
-                self.rdpg.save_ckpt()
+                self.agent.save_ckpt()
 
             self.logc.info(
-                f"E{epi_cnt}BP 6 times critic loss: {critic_loss}; actor loss: {actor_loss}",
+                f"{{\'header\': \'losses after 6 times BP\', "
+                f"\'episode\': {epi_cnt}, "
+                f"\'critic loss\': {critic_loss}, "
+                f"\'actor loss\': {actor_loss}}}",
                 extra=self.dictLogger,
             )
 
@@ -2165,52 +2404,49 @@ class RealtimeRDPG(object):
             # tf logging after episode ends
             # use local episode counter epi_cnt_local tf.summary.writer; otherwise specify multiple self.logdir and automatic switch
             with self.train_summary_writer.as_default():
-                tf.summary.scalar("WH", -episode_reward, step=epi_cnt_local)
-                tf.summary.scalar("actor loss", actor_loss, step=epi_cnt_local)
-                tf.summary.scalar("critic loss", critic_loss, step=epi_cnt_local)
-                tf.summary.scalar("reward", episode_reward, step=epi_cnt_local)
-                tf.summary.scalar("running reward", running_reward, step=epi_cnt_local)
+                tf.summary.scalar('WH', -episode_reward, step=epi_cnt_local)
+                tf.summary.scalar('actor loss', actor_loss, step=epi_cnt_local)
+                tf.summary.scalar('critic loss', critic_loss, step=epi_cnt_local)
+                tf.summary.scalar('reward', episode_reward, step=epi_cnt_local)
+                tf.summary.scalar('running reward', running_reward, step=epi_cnt_local)
                 tf.summary.image(
-                    "Calibration Table", plot_to_image(fig), step=epi_cnt_local
+                    'Calibration Table', plot_to_image(fig), step=epi_cnt_local
                 )
                 tf.summary.histogram(
-                    "Calibration Table Hist",
+                    'Calibration Table Hist',
                     self.vcu_calib_table1.to_numpy().tolist(),
                     step=epi_cnt_local,
                 )
                 # tf.summary.trace_export(
-                #     name="veos_trace", step=epi_cnt_local, profiler_outdir=self.train_log_dir
+                #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
                 # )
 
             epi_cnt_local += 1
             plt.close(fig)
 
             self.logc.info(
-                f"E{epi_cnt} Episode Reward: {episode_reward}",
+                f"{{\'episode\': {epi_cnt}, " f"\'reward\': {episode_reward}}}",
                 extra=self.dictLogger,
             )
 
-            self.logc.info(
-                f"E{epi_cnt} done, waits for next episode to kick off!",
-                extra=self.dictLogger,
-            )
             self.logc.info("----------------------", extra=self.dictLogger)
             if epi_cnt % 10 == 0:
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
                 self.logc.info(
-                    f"Running reward: {running_reward:.2f} at E{epi_cnt}",
+                    f"{{\'header\': \'Running reward\': {running_reward:.2f}, "
+                    f"\'episode\': \'{epi_cnt}\'}}",
                     extra=self.dictLogger,
                 )
                 self.logc.info("++++++++++++++++++++++++", extra=self.dictLogger)
 
             # send ready signal to trip server
-            if self.ui == "mobile":
+            if self.ui == 'mobile':
                 ret = self.rmq_producer.send_sync(self.rmq_message_ready)
                 self.logger.info(
-                    f"Sending ready signal to trip server:"
-                    f"status={ret.status};"
-                    f"msg-id={ret.msg_id};"
-                    f"offset={ret.offset}.",
+                    f"{{\'header\': \'Sending ready signal to trip server\', "
+                    f"\'status\': \'{ret.status}\', "
+                    f"\'msg_id\': \'{ret.msg_id}\', "
+                    f"\'offset\': \'{ret.offset}\'}}",
                     extra=self.dictLogger,
                 )
         # TODO terminate condition to be defined: reward > limit (percentage); time too long
@@ -2226,102 +2462,113 @@ class RealtimeRDPG(object):
         self.thr_flash.join()
         self.thr_countdown.join()
 
-        self.logc.info(f"main dies!!!!", extra=self.dictLogger)
+        self.logc.info(f"{{\'header\': \'main dies!!!!\'}}", extra=self.dictLogger)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     """
     ## Setup
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        "Use Recurrent DPG with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds"
+        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds'
     )
     parser.add_argument(
-        "-c",
-        "--cloud",
-        default=True,
-        help="Use cloud mode, default is False",
-        action="store_true",
+        '-a',
+        '--agent',
+        type=str,
+        default='ddpg',
+        help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
     )
 
     parser.add_argument(
-        "-u",
-        "--ui",
+        '-c',
+        '--cloud',
+        default=False,
+        help='Use cloud mode, default is False',
+        action='store_true',
+    )
+
+    parser.add_argument(
+        '-u',
+        '--ui',
         type=str,
-        default="cloud",
+        default='cloud',
         help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
+
     parser.add_argument(
-        "-r",
-        "--resume",
+        '-r',
+        '--resume',
         default=True,
-        help="resume the last training with restored model, checkpoint and pedal map",
-        action="store_true",
+        help='resume the last training with restored model, checkpoint and pedal map',
+        action='store_true',
     )
 
     parser.add_argument(
-        "-i",
-        "--infer",
+        '-i',
+        '--infer',
         default=False,
-        help="No model update and training. Only Inference",
-        action="store_true",
+        help='No model update and training. Only Inference mode',
+        action='store_true',
     )
     parser.add_argument(
-        "-t",
-        "--record_table",
+        '-t',
+        '--record_table',
         default=True,
-        help="record action table during training",
-        action="store_true",
+        help='record action table during training',
+        action='store_true',
     )
     parser.add_argument(
-        "-p",
-        "--path",
+        '-p',
+        '--path',
         type=str,
-        default=".",
-        help="relative path to be saved, for create subfolder for different drivers",
+        default='.',
+        help='relative path to be saved, for create subfolder for different drivers',
     )
     parser.add_argument(
-        "-v",
-        "--vehicle",
+        '-v',
+        '--vehicle',
         type=str,
-        default=".",
+        default='.',
         help="vehicle ID like 'VB7' or 'MP3' or VIN 'HMZABAAH1MF011055'",
     )
     parser.add_argument(
-        "-d",
-        "--driver",
+        '-d',
+        '--driver',
         type=str,
-        default=".",
+        default='.',
         help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
     )
     parser.add_argument(
-        "-m",
-        "--remotecan",
+        '-m',
+        '--remotecan',
         type=str,
-        default="10.0.64.78:5000",
-        help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test",
+        default='10.0.64.78:5000',
+        help='url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test',
     )
     parser.add_argument(
-        "-w",
-        "--web",
+        '-w',
+        '--web',
         type=str,
-        default="10.0.64.78:9876",
-        help="url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test",
+        default='10.0.64.78:9876',
+        help='url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test',
     )
     parser.add_argument(
-        "-o",
-        "--mongodb",
+        '-o',
+        '--mongodb',
         type=str,
-        default="mongo_local",
-        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local",
+        default='mongo_local',
+        help="url for mongodb server in format usr:password@host:port, e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, or simply name with synced default config, e.g. mongo_cluster, mongo_local; if specified as empty string '', use local npy file",
     )
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
 
+    assert args.agent in ['ddpg', 'rdpg'], 'agent must be either ddpg or rdpg'
     try:
-        app = RealtimeRDPG(
+        app = Avatar(
+            args.agent,
             args.cloud,
             args.ui,
             args.resume,
@@ -2337,9 +2584,16 @@ if __name__ == "__main__":
             logger,
         )
     except TypeError as e:
-        logger.error(f"Project Exeception TypeError: {e}", extra=dictLogger)
+        logger.error(
+            f"{{\'header\': \'Project Exeception TypeError\', "
+            f"\'exception\': \'{e}\'}}",
+            extra=dictLogger,
+        )
         sys.exit(1)
     except Exception as e:
-        logger.error(e, extra=dictLogger)
+        logger.error(
+            f"{{\'header\': \main Exeception\', " f"\'exception\': \'{e}\'}}",
+            extra=dictLogger,
+        )
         sys.exit(1)
     app.run()

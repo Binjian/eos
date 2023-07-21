@@ -1,15 +1,35 @@
-from .decorators import prepend_string_arg
-from .exception import ReadOnlyError, TruckIDError, WriteOnlyError
-from .log import get_logger
-from .numerics import ragged_nparray_list_interp
-from .gracefulkiller import GracefulKiller
+from eos.utils.decorators import prepend_string_arg
+from eos.utils.exception import ReadOnlyError, TruckIDError, WriteOnlyError
+from eos.utils.log import get_logger, logger, dictLogger
+from eos.utils.numerics import ragged_nparray_list_interp
+from eos.utils.gracefulkiller import GracefulKiller
+from eos.utils.eos_pandas import (
+    df_to_nested_dict,
+    eos_df_to_nested_dict,
+    avro_ep_encoding,
+    ep_nest,
+    df_to_ep_nested_dict,
+    decode_mongo_documents,
+    decode_dataframe_from_parquet,
+    avro_ep_decoding,
+)
 
 __all__ = [
     "get_logger",
+    "logger",
+    "dictLogger",
     "prepend_string_arg",
     "ragged_nparray_list_interp",
     "TruckIDError",
     "ReadOnlyError",
     "WriteOnlyError",
     "GracefulKiller",
+    "df_to_nested_dict",
+    "eos_df_to_nested_dict",
+    "ep_nest",
+    "df_to_ep_nested_dict",
+    "avro_ep_encoding",  # "eos_df_to_nested_dict
+    "avro_ep_decoding",
+    "decode_mongo_documents",
+    "decode_dataframe_from_parquet",
 ]
