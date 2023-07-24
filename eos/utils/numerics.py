@@ -1,9 +1,9 @@
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 import numpy as np
 
 
-def nan_helper_1d(y: np.array) -> (np.array, Callable):
+def nan_helper_1d(y: np.ndarray) -> Tuple[np.ndarray, Callable]:
     """Helper to handle indices and logical indices of NaNs.
 
     Input:
@@ -11,7 +11,7 @@ def nan_helper_1d(y: np.array) -> (np.array, Callable):
     Output:
         - nans, logical indices of NaNs
         - index, a function, with signature indices= index(logical_indices),
-          to convert logical indices of NaNs to 'equivalent' indices
+            to convert logical indices of NaNs to 'equivalent' indices
     Example:
         >>> # linear interpolation of NaNs
         >>> nans, x= nan_helper_1d(y)
@@ -23,7 +23,7 @@ def nan_helper_1d(y: np.array) -> (np.array, Callable):
     return np.isnan(y), lambda z: z.nonzero()[0]
 
 
-def nan_interp_1d(y: np.array) -> np.array:
+def nan_interp_1d(y: np.ndarray) -> np.ndarray:
     """Linear interpolation of NaNs.
 
     Input:
@@ -42,7 +42,7 @@ def nan_interp_1d(y: np.array) -> np.array:
     return y
 
 
-def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.array:
+def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.ndarray:
     """Linear interpolation of NaNs.
 
     Input:
@@ -64,7 +64,7 @@ def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.
                 np.VisibleDeprecationWarning,
                 "Creating an ndarray from ragged nested sequences",
             )
-            ragged_nparray_list = np.array(ragged_list_list)
+            ragged_nparray_list: np.ndarray = np.ndarray(ragged_list_list)  # type: ignore
             if len(log_warning) > 0:
                 log_warning.pop()
                 item_len = [len(item) for item in ragged_nparray_list]
@@ -82,7 +82,7 @@ def ragged_nparray_list_interp(ragged_list_list: List[List], ob_num: int) -> np.
                         ragged_nparray_list[count] = ragged_nparray_list[count][:ob_num]
                     else:
                         pass
-                aligned_nparray = np.array(list(ragged_nparray_list), dtype=np.float32)
+                aligned_nparray: np.ndarray = np.ndarray(list(ragged_nparray_list), dtype=np.float32)
             else:
                 aligned_nparray = ragged_nparray_list
     return aligned_nparray
