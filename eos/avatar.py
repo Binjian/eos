@@ -65,7 +65,6 @@ from rocketmq.client import Message, Producer  # type: ignore
 
 from eos import projroot
 from eos.utils import dictLogger, logger
-from eos.comm import RemoteCan, kvaser_send_float_array, ClearablePullConsumer
 from eos.data_io.config import (
     trucks_by_id,
     trucks_by_vin,
@@ -81,10 +80,15 @@ from eos.data_io.config import (
     TruckInField,
 )
 
-from eos.comm import RemoteCan, ClearablePullConsumer, kvaser_send_float_array
+from eos.comm import (
+    RemoteCan,
+    RemoteCanException,
+    ClearablePullConsumer,
+    kvaser_send_float_array,
+)
 from eos.utils import ragged_nparray_list_interp, GracefulKiller
 from eos.visualization import plot_3d_figure, plot_to_image
-from .algo import DPG
+from eos.algo import DPG
 
 # from bson import ObjectId
 
@@ -104,6 +108,8 @@ from .algo import DPG
 
 # system warnings and numpy warnings handling
 warnings.filterwarnings('ignore', message='currentThread', category=DeprecationWarning)
+
+
 # np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
@@ -128,7 +134,7 @@ class Avatar(abc.ABC):
     _agent: Optional[DPG] = None  # set by derived Avartar like AvatarDDPG
 
     def __post_init__(
-        self,
+            self,
     ):
         self.repo = Repo(self.proj_root)
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
@@ -269,10 +275,10 @@ class Avatar(abc.ABC):
         if self.can_server is None:
             self.can_server = can_servers_by_host.get(self.remotecan_srv.split(':')[0])
             assert (
-                self.can_server is not None
+                    self.can_server is not None
             ), f'No such remotecan host {self.remotecan_srv} found!'
             assert (
-                self.remotecan_srv.split(':')[1] == self.can_server.Port
+                    self.remotecan_srv.split(':')[1] == self.can_server.Port
             ), f'Port mismatch for remotecan host {self.remotecan_srv}!'
         self.logc.info(f'CAN Server found: {self.remotecan_srv}', extra=self.dictLogger)
 
@@ -286,10 +292,10 @@ class Avatar(abc.ABC):
             if self.trip_server is None:
                 self.trip_server = trip_servers_by_host.get(self.web_srv.split(':')[0])
                 assert (
-                    self.trip_server is not None
+                        self.trip_server is not None
                 ), f'No such trip server {self.web_srv} found!'
                 assert (
-                    self.web_srv.split(':')[1] == self.trip_server.Port
+                        self.web_srv.split(':')[1] == self.trip_server.Port
                 ), f'Port mismatch for trip host {self.web_srv}!'
             self.logger.info(
                 f'Trip Server found: {self.trip_server}', extra=self.dictLogger
@@ -424,7 +430,7 @@ class Avatar(abc.ABC):
                     extra=self.dictLogger,
                 )
                 latest_file = (
-                    self.proj_root / 'eos/data_io/config' / 'vb7_init_table.csv'
+                        self.proj_root / 'eos/data_io/config' / 'vb7_init_table.csv'
                 )
             else:
                 self.logger.info(
@@ -496,8 +502,8 @@ class Avatar(abc.ABC):
         self.step_count = 0
         if self.cloud:
             self.epi_countdown_time = (
-                self.truck.cloud_unit_number
-                * self.truck.cloud_unit_duration  # extend capture time after valid episode temrination
+                    self.truck.cloud_unit_number
+                    * self.truck.cloud_unit_duration  # extend capture time after valid episode temrination
             )
         else:
             self.epi_countdown_time = (
@@ -517,10 +523,10 @@ class Avatar(abc.ABC):
         self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
 
     def capture_countdown_handler(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         logger_countdown = self.logger.getChild('countdown')
         logger_countdown.propagate = True
@@ -574,10 +580,10 @@ class Avatar(abc.ABC):
         )
 
     def kvaser_get_truck_status(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -737,8 +743,8 @@ class Avatar(abc.ABC):
                             vel_cycle_dQ.append(velocity)
 
                             if (
-                                len(self.get_truck_status_motpow_t)
-                                >= self.truck.observation_length
+                                    len(self.get_truck_status_motpow_t)
+                                    >= self.truck.observation_length
                             ):
                                 if len(vel_cycle_dQ) != vel_cycle_dQ.maxlen:
                                     self.logc.warning(  # the recent 1.5s average velocity
@@ -761,7 +767,7 @@ class Avatar(abc.ABC):
                                     self.vcu_calib_table_row_start = 1
                                 elif vel_max < 120:
                                     self.vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 30) / 10) + 2
+                                            math.floor((vel_max - 30) / 10) + 2
                                     )
                                 else:
                                     logger_kvaser_get.warning(
@@ -809,7 +815,8 @@ class Avatar(abc.ABC):
                     except Exception as e:
                         logger_kvaser_get.info(
                             f"{{\'header\': \'kvaser get signal error\',"
-                            f"\'exception\': \'{e}\'}}",  # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                            f"\'exception\': \'{e}\'}}",
+                            # f"Valid episode, Reset data capturing to stop after 3 seconds!",
                             extra=self.dictLogger,
                         )
                         break
@@ -864,26 +871,26 @@ class Avatar(abc.ABC):
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
-                        self.truck.torque_row_num_flash,
+                        self.truck.torque_table_row_num_flash,
                         self.truck.torque_table_col_num,
                     ],
                 )
 
                 # get change budget : % of initial table
                 vcu_calib_table_reduced = (
-                    vcu_calib_table_reduced * self.truck.torque_budget
+                        vcu_calib_table_reduced * self.truck.torque_budget
                 )
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.truck.torque_row_num_flash + table_start,
-                    :,
-                ]
+                                           table_start: self.truck.torque_table_row_num_flash + table_start,
+                                           :,
+                                           ]
                 vcu_calib_table_min_reduced = (
-                    vcu_calib_table0_reduced - self.truck.torque_budget
+                        vcu_calib_table0_reduced - self.truck.torque_budget
                 )  # apply the budget instead of truck.torque_lower_bound
                 vcu_calib_table_max_reduced = (
-                    self.truck.torque_upper_bound * vcu_calib_table0_reduced
+                        self.truck.torque_upper_bound * vcu_calib_table0_reduced
                 )  # 1.0*
 
                 vcu_calib_table_reduced = tf.clip_by_value(
@@ -895,7 +902,7 @@ class Avatar(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.truck.torque_table_row_num_flash + table_start
+                table_start: self.truck.torque_table_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -964,9 +971,9 @@ class Avatar(abc.ABC):
         )
 
     def remote_get_handler(
-        self,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         th_exit = False
         logger_remote_get = self.logger.getChild('remote_get')
@@ -1017,274 +1024,221 @@ class Avatar(abc.ABC):
                 extra=self.dictLogger,
             )
             with self.remoteClient_lock:
-                (ret_code, ret_msg) = self.remotecan_client.get_signals(
-                    duration=self.truck.cloud_unit_number, timeout=timeout
-                )  # timeout is 1 second longer than duration
-                if ret_code != 0:  # in case of failure, ping server
-                    logger_remote_get.warning(
-                        f"{{\'header\': \'RemoteCAN failure!\',"
-                        f"\'ret_code\': {ret_code}, "
-                        f"\'ret_msg\'={ret_msg}\'}}",
+                try:
+                    ret_msg = self.remotecan_client.get_signals(
+                        duration=self.truck.cloud_unit_number, timeout=timeout
+                    )  # timeout is 1 second longer than duration
+                except RemoteCanException as exc:
+                    logger_remote_get.error(
+                        f"{{\'header\': \'remote get_signals failed and retry\', "
+                        f"\'ret_code\': \'{exc.err_code}\', "
+                        f"\'ret_str\': \'{exc.codes[exc.err_code]}\', "
+                        f"\'extra_str\': \'{exc.extra_msg}\'}}",
                         extra=self.dictLogger,
                     )
+                    # if the exception is connection related, ping the server to get further information.
+                    if exc.err_code in (1, 1000, 1002):
+                        response = os.system('ping -c 1 ' + self.can_server.Host)
+                        if response == 0:
+                            logger_remote_get.info(
+                                f"{{\'header\': \'host is up\', "
+                                f"\'host\': \'{self.can_server.Host}\'}}",
+                                extra=self.dictLogger,
+                            )
+                        else:
+                            logger_remote_get.info(
+                                f"{{\'header\': \'host is down\', "
+                                f"\'host\': \'{self.can_server.Host}\'}}",
+                                extra=self.dictLogger,
+                            )
 
-                    response = os.system('ping -c 1 ' + self.can_server.Host)
-                    if response == 0:
+            with self.hmi_lock:
+                th_exit = self.program_exit
+                episode_end = self.episode_end
+            if episode_end is True:
+                logger_remote_get.info(
+                    f"{{\'header\': \'Episode ends, not waiting for evt_remote_flash and continue!\'}}",
+                    extra=self.dictLogger,
+                )
+                with self.get_env_lock:
+                    evt_remote_get.clear()
+                continue
+
+            try:
+                signal_freq = self.truck.cloud_signal_frequency
+                gear_freq = self.truck.cloud_gear_frequency
+                unit_duration = self.truck.cloud_unit_duration
+                unit_ob_num = unit_duration * signal_freq
+                unit_gear_num = unit_duration * gear_freq
+                unit_num = self.truck.cloud_unit_number
+                for key, value in ret_msg.items():
+                    if key == 'result':
                         logger_remote_get.info(
-                            f"{{\'header\': \'host is up\', "
-                            f"\'host\': \'{self.can_server.Host}\'}}",
+                            "{{\'header\': \'convert observation state to array.\'}}",
+                            extra=self.dictLogger,
+                        )
+                        # timestamp processing
+                        timestamps_list = []
+                        separators = '--T::.'  # adaption separators of the raw intest string
+                        start_century = '20'
+                        for ts in value['timestamps']:
+                            # create standard iso string datetime format
+                            ts_substrings = [
+                                ts[i: i + 2] for i in range(0, len(ts), 2)
+                            ]
+                            ts_iso = start_century
+                            for i, sep in enumerate(separators):
+                                ts_iso = ts_iso + ts_substrings[i] + sep
+                            ts_iso = ts_iso + ts_substrings[-1]
+                            timestamps_list.append(
+                                ts_iso
+                            )  # string of timestamps in iso format, UTC-0
+                        timestamps_units = list(
+                            (
+                                    np.array(timestamps_list).astype(
+                                        'datetime64[ms]'
+                                    )  # convert to milliseconds
+                                    - np.timedelta64(
+                                8, 'h'
+                            )  # to np.datetime64 (in local time UTC-8)
+                            ).astype(  # convert to UTC+8  TODO using pytz.timezone for conversion
+                                'int'
+                            )  # convert to int, time unit is millisecond
+                        )  # convert to list of int
+                        if len(timestamps_units) != unit_num:
+                            raise ValueError(
+                                f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
+                            )
+                        # upsample gears from 2Hz to 50Hz
+                        sampling_interval = 1.0 / signal_freq * 1000  # in ms
+                        timestamps_list = [
+                            i + j * sampling_interval
+                            for i in timestamps_units
+                            for j in np.arange(unit_ob_num)
+                        ]
+                        timestamps: np.ndarray = np.ndarray(timestamps_list).reshape(  # type: ignore
+                            (self.truck.cloud_unit_number, -1)
+                        )  # final format is a list of integers as timestamps in ms
+                        current = ragged_nparray_list_interp(
+                            value['list_current_1s'],
+                            ob_num=unit_ob_num,  # 4s * 1s * 50Hz
+                        )  # 4x50
+                        voltage = ragged_nparray_list_interp(
+                            value['list_voltage_1s'],
+                            ob_num=unit_ob_num,
+                        )
+                        thrust = ragged_nparray_list_interp(
+                            value['list_pedal_1s'],
+                            ob_num=unit_ob_num,
+                        )
+                        brake = ragged_nparray_list_interp(
+                            value['list_brake_pressure_1s'],
+                            ob_num=unit_ob_num,
+                        )
+                        velocity = ragged_nparray_list_interp(
+                            value['list_speed_1s'],
+                            ob_num=unit_ob_num,
+                        )  # 4*50
+                        gear = ragged_nparray_list_interp(
+                            value['list_gears'],
+                            ob_num=unit_gear_num,
+                        )
+                        # upsample gears from 2Hz to 50Hz
+                        gear = np.repeat(
+                            gear,
+                            (signal_freq // gear_freq),
+                            axis=1,
+                        )
+
+                        idx = pd.DatetimeIndex(
+                            timestamps.flatten(), tz=self.truck.tz
+                        )
+                        df_motion_power = pd.DataFrame(
+                            {
+                                'timestep': timestamps.flatten(),
+                                'velocity': velocity.flatten(),
+                                'thrust': thrust.flatten(),
+                                'brake': brake.flatten(),
+                                'gear': gear.flatten(),
+                                'current': current.flatten(),
+                                'voltage': voltage.flatten(),
+                            },
+                        )
+                        df_motion_power.columns.name = 'qtuple'
+                        # df_motion_power.set_index('timestamp', inplace=True)
+                        # motion_power = np.c_[
+                        #     timestamps.reshape(-1, 1),  # 200
+                        #     velocity.reshape(-1, 1),  # 200
+                        #     thrust.reshape(-1, 1),  # 200
+                        #     brake.reshape(-1, 1),  # 200
+                        #     gears.reshape(-1, 1),  # 200
+                        #     current.reshape(-1, 1),  # 200
+                        #     voltage.reshape(-1, 1),  # 200
+                        # ]  # 1 + 3 + 1 + 2  : im 7  # 200*7
+
+                        # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
+                        # average concept
+                        # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
+                        #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                        # here upper bound rule adopted
+                        vel_max: float = np.amax(velocity)
+                        if vel_max < 20:
+                            self.vcu_calib_table_row_start = 0
+                        elif vel_max < 30:
+                            self.vcu_calib_table_row_start = 1
+                        elif vel_max < 120:
+                            self.vcu_calib_table_row_start = (
+                                    math.floor((vel_max - 30) / 10) + 2
+                            )
+                        else:
+                            logger_remote_get.warning(
+                                f"{{\'header\': \'cycle higher than 120km/h!\'}}",
+                                extra=self.dictLogger,
+                            )
+                            self.vcu_calib_table_row_start = 16
+
+                        logger_remote_get.info(
+                            f"{{\'header\': \'Cycle velocity description\', "
+                            f"\'aver\': {np.mean(velocity):.2f}, "
+                            f"\'min\': {np.amin(velocity):.2f}, "
+                            f"\'max\': {np.amax(velocity):.2f}, "
+                            f"\'start_index\': {self.vcu_calib_table_row_start}\'}}",
+                            extra=self.dictLogger,
+                        )
+
+                        with self.captureQ_lock:
+                            self.motionpowerQueue.put(df_motion_power)
+
+                        logger_remote_get.info(
+                            f"{{\'header\': \'Get one record, wait for remote_flash!!!\'}}",
+                            extra=self.dictLogger,
+                        )
+                        # as long as one observation is received, always waiting for flash
+                        evt_remote_flash.wait()
+                        with self.flash_env_lock:
+                            evt_remote_flash.clear()
+                        logger_remote_get.info(
+                            f"{{\'header\': \'evt_remote_flash wakes up, "
+                            f"reset inner lock, restart remote_get!!!\'}}",
                             extra=self.dictLogger,
                         )
                     else:
-                        logger_remote_get.info(
-                            f"{{\'header\': \'host is down\', "
-                            f"\'host\': \'{self.can_server.Host}\'}}",
-                            extra=self.dictLogger,
-                        )
-                    # ping test
-                    # try:
-                    #     response_ping = subprocess.check_output(
-                    #         "ping -c 1 " + self.can_server.Host, shell=True
-                    #     )
-                    # except subprocess.CalledProcessError as e:
-                    #     logger_remote_get.info(
-                    #         f"{self.can_server.Host} is down, responds: {response_ping}"
-                    #         f"return code: {e.returncode}, output: {e.output}!",
-                    #         extra=self.dictLogger,
-                    #     )
-                    # logger_remote_get.info(
-                    #     f"{self.can_server.Host} is up, responds: {response_ping}!",
-                    #     extra=self.dictLogger,
-                    # )
-                    #
-                    # # telnet test
-                    # try:
-                    #     response_telnet = subprocess.check_output(
-                    #         f"timeout 1 telnet {self.can_server.Host} {self.can_server.Port}",
-                    #         shell=True,
-                    #     )
-                    #     logger_remote_get.info(
-                    #         f"Telnet {self.can_server.Host} responds: {response_telnet}!",
-                    #         extra=self.dictLogger,
-                    #     )
-                    # except subprocess.CalledProcessError as e:
-                    #     logger_remote_get.info(
-                    #         f"telnet {self.can_server.Host} return code: {e.returncode}, output: {e.output}!",
-                    #         extra=self.dictLogger,
-                    #     )
-                    # except subprocess.TimeoutExpired as e:
-                    #     logger_remote_get.info(
-                    #         f"telnet {self.can_server.Host} timeout"
-                    #         f"cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
-                    #         extra=self.dictLogger,
-                    #     )
-
-            if not isinstance(ret_msg, dict):
-                logger_remote_get.critical(
-                    f"{{\'header\': \'udp sending wrong data type!\'}}",
-                    extra=self.dictLogger,
-                )
-                raise TypeError('udp sending wrong data type!')
-            else:
-                logger_remote_get.info(
-                    f"{{\'header\': \'Get remote data, signal_success={ret_code}!\'}}",
+                        # self.logger.info(
+                        #     f"show status: {key}:{value}",
+                        #     extra=self.dictLogger,
+                        # )
+                        pass
+            except KeyError as exc:
+                logger_remote_get.error(
+                    f"{{\'header\': \' Data Corrupt, dict KeyError! \', "
+                    f"\'exception\': {exc}\'}}",
                     extra=self.dictLogger,
                 )
 
-            try:
-                if ret_code == 0:
-                    with self.hmi_lock:
-                        th_exit = self.program_exit
-                        episode_end = self.episode_end
-                    if episode_end is True:
-                        logger_remote_get.info(
-                            f"{{\'header\': \'Episode ends, not waiting for evt_remote_flash and continue!\'}}",
-                            extra=self.dictLogger,
-                        )
-                        with self.get_env_lock:
-                            evt_remote_get.clear()
-                        continue
-
-                    try:
-                        signal_freq = self.truck.cloud_signal_frequency
-                        gear_freq = self.truck.cloud_gear_frequency
-                        unit_duration = self.truck.cloud_unit_duration
-                        unit_ob_num = unit_duration * signal_freq
-                        unit_gear_num = unit_duration * gear_freq
-                        unit_num = self.truck.cloud_unit_number
-                        for key, value in ret_msg.items():
-                            if key == 'result':
-                                logger_remote_get.info(
-                                    "{{\'header\': \'convert observation state to array.\'}}",
-                                    extra=self.dictLogger,
-                                )
-                                # timestamp processing
-                                timestamps_list = []
-                                separators = '--T::.'  # adaption separators of the raw intest string
-                                start_century = '20'
-                                for ts in value['timestamps']:
-                                    # create standard iso string datetime format
-                                    ts_substrings = [
-                                        ts[i : i + 2] for i in range(0, len(ts), 2)
-                                    ]
-                                    ts_iso = start_century
-                                    for i, sep in enumerate(separators):
-                                        ts_iso = ts_iso + ts_substrings[i] + sep
-                                    ts_iso = ts_iso + ts_substrings[-1]
-                                    timestamps_list.append(
-                                        ts_iso
-                                    )  # string of timestamps in iso format, UTC-0
-                                timestamps_units = list(
-                                    (
-                                        np.array(timestamps_list).astype(
-                                            'datetime64[ms]'
-                                        )  # convert to milliseconds
-                                        - np.timedelta64(
-                                            8, 'h'
-                                        )  # to np.datetime64 (in local time UTC-8)
-                                    ).astype(  # convert to UTC+8  TODO using pytz.timezone for conversion
-                                        'int'
-                                    )  # convert to int, time unit is millisecond
-                                )  # convert to list of int
-                                if len(timestamps_units) != unit_num:
-                                    raise ValueError(
-                                        f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
-                                    )
-                                # upsample gears from 2Hz to 50Hz
-                                sampling_interval = 1.0 / signal_freq * 1000  # in ms
-                                timestamps_list = [
-                                    i + j * sampling_interval
-                                    for i in timestamps_units
-                                    for j in np.arange(unit_ob_num)
-                                ]
-                                timestamps = np.array(timestamps_list).reshape(
-                                    (self.truck.cloud_unit_number, -1)
-                                )  # final format is a list of integers as timestamps in ms
-                                current = ragged_nparray_list_interp(
-                                    value['list_current_1s'],
-                                    ob_num=unit_ob_num,  # 4s * 1s * 50Hz
-                                )  # 4x50
-                                voltage = ragged_nparray_list_interp(
-                                    value['list_voltage_1s'],
-                                    ob_num=unit_ob_num,
-                                )
-                                thrust = ragged_nparray_list_interp(
-                                    value['list_pedal_1s'],
-                                    ob_num=unit_ob_num,
-                                )
-                                brake = ragged_nparray_list_interp(
-                                    value['list_brake_pressure_1s'],
-                                    ob_num=unit_ob_num,
-                                )
-                                velocity = ragged_nparray_list_interp(
-                                    value['list_speed_1s'],
-                                    ob_num=unit_ob_num,
-                                )  # 4*50
-                                gear = ragged_nparray_list_interp(
-                                    value['list_gears'],
-                                    ob_num=unit_gear_num,
-                                )
-                                # upsample gears from 2Hz to 50Hz
-                                gear = np.repeat(
-                                    gear,
-                                    (signal_freq // gear_freq),
-                                    axis=1,
-                                )
-
-                                idx = pd.DatetimeIndex(
-                                    timestamps.flatten(), tz=self.truck.tz
-                                )
-                                df_motion_power = pd.DataFrame(
-                                    {
-                                        'timestep': timestamps.flatten(),
-                                        'velocity': velocity.flatten(),
-                                        'thrust': thrust.flatten(),
-                                        'brake': brake.flatten(),
-                                        'gear': gear.flatten(),
-                                        'current': current.flatten(),
-                                        'voltage': voltage.flatten(),
-                                    },
-                                )
-                                df_motion_power.columns.name = 'qtuple'
-                                # df_motion_power.set_index('timestamp', inplace=True)
-                                # motion_power = np.c_[
-                                #     timestamps.reshape(-1, 1),  # 200
-                                #     velocity.reshape(-1, 1),  # 200
-                                #     thrust.reshape(-1, 1),  # 200
-                                #     brake.reshape(-1, 1),  # 200
-                                #     gears.reshape(-1, 1),  # 200
-                                #     current.reshape(-1, 1),  # 200
-                                #     voltage.reshape(-1, 1),  # 200
-                                # ]  # 1 + 3 + 1 + 2  : im 7  # 200*7
-
-                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
-                                # average concept
-                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
-                                #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                                # here upper bound rule adopted
-                                vel_max = np.amax(velocity)
-                                if vel_max < 20:
-                                    self.vcu_calib_table_row_start = 0
-                                elif vel_max < 30:
-                                    self.vcu_calib_table_row_start = 1
-                                elif vel_max < 120:
-                                    self.vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 30) / 10) + 2
-                                    )
-                                else:
-                                    logger_remote_get.warning(
-                                        f"{{\'header\': \'cycle higher than 120km/h!\'}}",
-                                        extra=self.dictLogger,
-                                    )
-                                    self.vcu_calib_table_row_start = 16
-
-                                logger_remote_get.info(
-                                    f"{{\'header\': \'Cycle velocity description\', "
-                                    f"\'aver\': {np.mean(velocity):.2f}, "
-                                    f"\'min\': {np.amin(velocity):.2f}, "
-                                    f"\'max\': {np.amax(velocity):.2f}, "
-                                    f"\'start_index\': {self.vcu_calib_table_row_start}\'}}",
-                                    extra=self.dictLogger,
-                                )
-
-                                with self.captureQ_lock:
-                                    self.motionpowerQueue.put(df_motion_power)
-
-                                logger_remote_get.info(
-                                    f"{{\'header\': \'Get one record, wait for remote_flash!!!\'}}",
-                                    extra=self.dictLogger,
-                                )
-                                # as long as one observation is received, always waiting for flash
-                                evt_remote_flash.wait()
-                                with self.flash_env_lock:
-                                    evt_remote_flash.clear()
-                                logger_remote_get.info(
-                                    f"{{\'header\': \'evt_remote_flash wakes up, "
-                                    f"reset inner lock, restart remote_get!!!\'}}",
-                                    extra=self.dictLogger,
-                                )
-                            else:
-                                # self.logger.info(
-                                #     f"show status: {key}:{value}",
-                                #     extra=self.dictLogger,
-                                # )
-                                pass
-                    except Exception as e:
-                        logger_remote_get.error(
-                            f"{{\'header\': \'Observation Corrupt! \', "
-                            f"\'exception\': {e}\'}}",
-                            extra=self.dictLogger,
-                        )
-                else:
-                    logger_remote_get.error(
-                        f"{{\'header\': \'get_signals failed: {ret_msg}\'}}",
-                        extra=self.dictLogger,
-                    )
-
-            except Exception as e:
-                logger_remote_get.info(
-                    f"{{\'header\': \'Break due to Exception\', "
-                    f"\'exception\': {e}\'}}",
+            except Exception as exc:
+                logger_remote_get.error(
+                    f"{{\'header\': \'Observation Corrupt! \', "
+                    f"\'exception\': {exc}\'}}",
                     extra=self.dictLogger,
                 )
 
@@ -1296,10 +1250,10 @@ class Avatar(abc.ABC):
         )
 
     def remote_webhmi_state_machine(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1539,10 +1493,10 @@ class Avatar(abc.ABC):
         )
 
     def remote_cloudhmi_state_machine(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1623,10 +1577,10 @@ class Avatar(abc.ABC):
         )
 
     def remote_hmi_state_machine(
-        self,
-        evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,
-        evt_remote_flash: threading.Event,
+            self,
+            evt_epi_done: threading.Event,
+            evt_remote_get: threading.Event,
+            evt_remote_flash: threading.Event,
     ):
         """
         This function is used to get the truck status
@@ -1858,26 +1812,26 @@ class Avatar(abc.ABC):
                 vcu_calib_table_reduced = tf.reshape(
                     table,
                     [
-                        self.truck.torque_row_num_flash,
+                        self.truck.torque_table_row_num_flash,
                         self.truck.torque_table_col_num,
                     ],
                 )
 
                 # get change budget : % of initial table
                 vcu_calib_table_reduced = (
-                    vcu_calib_table_reduced * self.truck.torque_budget
+                        vcu_calib_table_reduced * self.truck.torque_budget
                 )
 
                 # dynamically change table row start index
                 vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.truck.torque_row_num_flash + table_start,
-                    :,
-                ]
+                                           table_start: self.truck.torque_table_row_num_flash + table_start,
+                                           :,
+                                           ]
                 vcu_calib_table_min_reduced = (
-                    vcu_calib_table0_reduced - self.truck.torque_budget
+                        vcu_calib_table0_reduced - self.truck.torque_budget
                 )
                 vcu_calib_table_max_reduced = (
-                    self.truck.torque_upper_bound * vcu_calib_table0_reduced
+                        self.truck.torque_upper_bound * vcu_calib_table0_reduced
                 )
 
                 vcu_calib_table_reduced = tf.clip_by_value(
@@ -1889,7 +1843,7 @@ class Avatar(abc.ABC):
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
                 self.vcu_calib_table1.iloc[
-                    table_start : self.truck.torque_row_num_flash + table_start
+                table_start: self.truck.torque_table_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
                 if args.record_table:
@@ -1929,7 +1883,7 @@ class Avatar(abc.ABC):
                 #     continue
 
                 # empirically, 1s is enough for 1 row, 4 rows need 5 seconds
-                timeout = self.truck.torque_row_num_flash + 3
+                timeout = self.truck.torque_table_row_num_flash + 3
                 logger_flash.info(
                     f"{{\'header\': \'flash starts\', " f"\'timeout\': {timeout}\'}}",
                     extra=self.dictLogger,
@@ -1937,42 +1891,52 @@ class Avatar(abc.ABC):
                 # lock doesn't control the logic explictitly
                 # competetion is not desired
                 with self.remoteClient_lock:
-                    (ret_code, ret_str) = self.remotecan_client.send_torque_map(
-                        pedalmap=self.vcu_calib_table1.iloc[
-                            table_start : self.truck.torque_row_num_flash + table_start
-                        ],
-                        swap=False,
-                        timeout=timeout,
-                    )
+                    try:
+                        ret_str = self.remotecan_client.send_torque_map(
+                            pedalmap=self.vcu_calib_table1.iloc[
+                                     table_start: self.truck.torque_table_row_num_flash
+                                                  + table_start
+                                     ],
+                            swap=False,
+                            timeout=timeout,
+                        )
+                        logger_flash.info(
+                            f"{{\'header\': \'flash ends\', "
+                            f"\'ret_str\': \'{ret_str}\'}}",
+                            extra=self.dictLogger,
+                        )
+                    except RemoteCanException as exc:
+                        logger_flash.error(
+                            f"{{\'header\': \'send_torque_map failed and retry\', "
+                            f"\'ret_code\': \'{exc.err_code}\', "
+                            f"\'ret_str\': \'{exc.codes[exc.err_code]}\', "
+                            f"\'extra_str\': \'{exc.extra_msg}\'}}",
+                            extra=self.dictLogger,
+                        )
+                        # if the exception is connection related, ping the server to get further information.
+                        if exc.err_code in (1, 1000, 1002):  # connection related exceptions
+                            response = os.system('ping -c 1 ' + self.can_server.Url)
+                            if response == 0:
+                                logger_flash.info(
+                                    f"{{\'header\': \'Can server is up!\', "
+                                    f"\'host\': \'{self.can_server.Url}\'}}",
+                                    extra=self.dictLogger,
+                                )
+                            else:
+                                logger_flash.info(
+                                    f"{{\'header\': \'Can server is down!\', "
+                                    f"\'host\': \'{self.can_server.Url}\'}}",
+                                    extra=self.dictLogger,
+                                )
+                    except Exception as exc:
+                        raise exc  # raise other exceptions to propagate
                 # time.sleep(1.0)
-                if ret_code != 0:
-                    logger_flash.error(
-                        f"{{\'header\': \'send_torque_map failed and retry\', "
-                        f"\'ret_code\': \'{ret_code}\', "
-                        f"\'ret_str\': \'{ret_str}\'}}",
-                        extra=self.dictLogger,
-                    )
-
-                    response = os.system('ping -c 1 ' + self.can_server.Url)
-                    if response == 0:
-                        logger_flash.info(
-                            f"{{\'header\': \'Can server is up!\', "
-                            f"\'host\': \'{self.can_server.Url}\'}}",
-                            extra=self.dictLogger,
-                        )
-                    else:
-                        logger_flash.info(
-                            f"{{\'header\': \'Can server is down!\', "
-                            f"\'host\': \'{self.can_server.Url}\'}}",
-                            extra=self.dictLogger,
-                        )
-                else:
-                    logger_flash.info(
-                        f"{{\'header\': \'flash done\', "
-                        f"\'count\': {flash_count}\'}}",
-                        extra=self.dictLogger,
-                    )
-                    flash_count += 1
+                logger_flash.info(
+                    f"{{\'header\': \'flash done\', "
+                    f"\'count\': {flash_count}\'}}",
+                    extra=self.dictLogger,
+                )
+                flash_count += 1
 
                 # flash is done and unlock remote_get
                 with self.flash_env_lock:
@@ -2037,7 +2001,7 @@ class Avatar(abc.ABC):
         pow_t = motionpower.loc[:, ['current', 'voltage']]
         ui_sum = pow_t.prod(axis=1).sum()
         wh = (
-            ui_sum / 3600.0 / self.truck.observation_sampling_rate
+                ui_sum / 3600.0 / self.truck.observation_sampling_rate
         )  # rate 0.05 for kvaser, 0.02 remote # negative wh
         self.logc.info(
             f'wh: {wh}',
@@ -2056,11 +2020,11 @@ class Avatar(abc.ABC):
         return reward
 
     def assemble_action_ser(
-        self,
-        torque_map_line: tf.Tensor,
-        table_start: int,
-        flash_start_ts: pd.Timestamp,
-        flash_end_ts: pd.Timestamp,
+            self,
+            torque_map_line: tf.Tensor,
+            table_start: int,
+            flash_start_ts: pd.Timestamp,
+            flash_end_ts: pd.Timestamp,
     ) -> pd.Series:
         """
         generate action df from torque_map_line
@@ -2072,14 +2036,14 @@ class Avatar(abc.ABC):
         row_num = self.truck.action_flashrow
         speed_ser = pd.Series(
             self.truck.speed_scale[
-                table_start : table_start + self.truck.action_flashrow
+            table_start: table_start + self.truck.action_flashrow
             ],
             name='speed',
         )
         throttle_ser = pd.Series(self.truck.pedal_scale, name='throttle')
         torque_map = tf.reshape(
             torque_map_line,
-            [self.truck.torque_row_num_flash, self.truck.torque_table_col_num],
+            [self.truck.torque_table_row_num_flash, self.truck.torque_table_col_num],
         )
         df_torque_map = pd.DataFrame(
             torque_map.to_numpy()
@@ -2191,7 +2155,7 @@ class Avatar(abc.ABC):
             tf.debugging.set_log_device_placement(True)
             with tf.device('/GPU:0'):
                 while (
-                    not epi_end
+                        not epi_end
                 ):  # end signal, either the round ends normally or user interrupt
                     if killer.kill_now:
                         self.logc.info(f'Process is being killed!!!')
@@ -2332,7 +2296,7 @@ class Avatar(abc.ABC):
                     step_count += 1
 
             if (
-                not done
+                    not done
             ):  # if user interrupt prematurely or exit, then ignore back propagation since data incomplete
                 self.logc.info(
                     f"{{\'header\': \'interrupted, waits for next episode to kick off!\' "
