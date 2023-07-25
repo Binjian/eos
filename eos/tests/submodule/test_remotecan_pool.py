@@ -21,7 +21,7 @@ from bson import ObjectId
 from tensorflow.keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all
 
-from eos import Pool, RemoteCan, projroot
+from eos import Pool, RemoteCanClient, projroot
 from eos.config import generate_vcu_calibration
 from eos.config import (
     db_config_servers_by_name,
@@ -119,12 +119,12 @@ class TestRemoteCanPool(unittest.TestCase):
         )
 
     def set_logger(self, projroot):
-        logroot = projroot.joinpath('data/scratch/tests')
+        log_root = projroot.joinpath('data/scratch/tests')
         try:
-            os.makedirs(logroot)
+            os.makedirs(log_root)
         except FileExistsError:
             pass
-        logfile = logroot.joinpath(
+        logfile = log_root.joinpath(
             'test_remotecan_pool-'
             + self.truck.vid
             + '-'
@@ -149,7 +149,7 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_deposit_episode(self):
         self.logger.info('Start test_pool_deposit', extra=self.dictLogger)
-        self.client = RemoteCan(
+        self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
@@ -200,7 +200,7 @@ class TestRemoteCanPool(unittest.TestCase):
     def test_native_pool_sample_episode(self):
         # coll_name = "episode_coll1"
         # db_name = "test_episode_db"
-        self.client = RemoteCan(
+        self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
@@ -361,7 +361,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_sample_record(self):
-        # self.client = RemoteCan(
+        # self.client = RemoteCanClient(
         #     truck_name=self.truck.vid,
         #     url="http://" + self.can_server.Host+ ":" + self.can_server.Port + "/",
         # )
@@ -424,7 +424,7 @@ class TestRemoteCanPool(unittest.TestCase):
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_deposit_record(self):
         self.logger.info('Start test_pool_deposit', extra=self.dictLogger)
-        self.client = RemoteCan(
+        self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
@@ -466,7 +466,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
-        self.client = RemoteCan(
+        self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
@@ -538,7 +538,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     @unittest.skipIf(site == 'internal', 'skip for internal test')
     def test_native_pool_consecutive_records(self):
-        self.client = RemoteCan(
+        self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )
@@ -585,7 +585,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_flash_test(self):
-        self.client = RemoteCan(
+        self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url='http://' + self.can_server.Host + ':' + self.can_server.Port + '/',
         )

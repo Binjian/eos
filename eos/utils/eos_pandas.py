@@ -1,5 +1,138 @@
 import pandas as pd
-from typing import Dict
+import numpy as np
+from typing import Dict, cast, Union
+from datetime import datetime
+from functools import reduce
+
+
+def assemble_state_ser(motion_power: pd.DataFrame) -> pd.Series:
+    """
+    assemble state df from motion_power df
+    order is vital for the model:
+    "timestep, velocity, thrust, brake"
+    contiguous storage in each measurement
+    due to sort_index, output:
+    [col0: brake, col1: thrust, col2: timestep, col3: velocity]
+    """
+    state: pd.Series = cast(
+        pd.Series,
+        (
+            motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+            .stack()
+            .swaplevel(0, 1)
+        ),
+    )
+    state.name = 'state'
+    state.index.names = ['rows', 'idx']
+    state.sort_index(
+        inplace=True
+    )  # sort by rows and idx (brake, thrust, timestep, velocity)
+
+    return state
+
+
+def assemble_reward_ser(
+    motion_power: pd.DataFrame, obs_sampling_rate: int
+) -> pd.Series:
+    """
+    assemble reward df from motion_power df
+    order is vital for the model:
+    contiguous storage in each row, due to sort_index, output:
+    [timestep, work]
+    """
+
+    pow_t = motion_power.loc[:, ['current', 'voltage']]
+    ui_sum = pow_t.prod(axis=1).sum()
+    wh = (
+        ui_sum / 3600.0 / obs_sampling_rate
+    )  # rate 0.05 for kvaser, 0.02 remote # negative wh
+    # self.logc.info(
+    #     f'wh: {wh}',
+    #     extra=self.dictLogger,
+    # )
+    work = wh * (-1.0)
+    reward_ts = pd.to_datetime(datetime.now())
+    reward: pd.Series = cast(
+        pd.Series,
+        (
+            pd.DataFrame({'work': work, 'timestep': reward_ts}, index=[0])
+            .stack()
+            .swaplevel(0, 1)
+            .sort_index()  # columns oder (timestep, work)
+        ),
+    )
+    reward.name = 'reward'
+    reward.index.names = ['rows', 'idx']
+    return reward
+
+
+def assemble_action_ser(
+    torque_map_line: np.ndarray,
+    torque_table_row_names: list[str],
+    table_start: int,
+    flash_start_ts: pd.Timestamp,
+    flash_end_ts: pd.Timestamp,
+    torque_table_row_num_flash: int,
+    torque_table_col_num: int,
+    speed_scale: tuple,
+    pedal_scale: tuple,
+) -> pd.Series:
+    """
+    generate action df from torque_map_line
+    order is vital for the model:
+    contiguous storage in each row, due to sort_index, output:
+    "r0, r1, r2, r3, ..., ,speed, throttle(map),timestep"
+    """
+    # assemble_action_df
+    row_num = torque_table_row_num_flash
+    speed_ser = pd.Series(
+        speed_scale[table_start : table_start + torque_table_row_num_flash],
+        name='speed',
+    )
+    throttle_ser = pd.Series(pedal_scale, name='throttle')
+    torque_map = np.reshape(
+        torque_map_line,
+        [torque_table_row_num_flash, torque_table_col_num],
+    )
+    df_torque_map = pd.DataFrame(torque_map).transpose()  # row to columns
+    df_torque_map.columns = pd.Index(torque_table_row_names)  # index: [r0, r1, ...]
+
+    span_each_row = (flash_end_ts - flash_start_ts) / row_num
+    flash_timestamps_ser = pd.Series(
+        pd.to_datetime(
+            flash_start_ts + np.linspace(1, row_num, row_num) * span_each_row
+        ),
+        name='timestep',
+    )
+
+    dfs: list[Union[pd.DataFrame, pd.Series]] = [
+        df_torque_map,
+        flash_timestamps_ser,
+        speed_ser,
+        throttle_ser,
+    ]
+    action_df: pd.DataFrame = cast(
+        pd.DataFrame,
+        reduce(
+            lambda left, right: pd.merge(
+                left,
+                right,
+                how='outer',
+                left_index=True,
+                right_index=True,
+            ),
+            dfs,
+        ),
+    )
+
+    action = cast(
+        pd.Series, (action_df.stack().swaplevel(0, 1).sort_index())
+    )  # columns order (r0, r1, ..., speed, throttle, timestep)
+    action.name = 'action'
+    action.index.names = ['rows', 'idx']
+    action.columns.names = []
+
+    return action
 
 
 def nest(d: dict) -> dict:

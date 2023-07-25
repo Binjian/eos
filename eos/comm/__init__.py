@@ -2,7 +2,7 @@ from pathlib import Path
 
 from .remote.remote_can_client import (  # type: ignore
     ClearablePullConsumer,
-    RemoteCan,
+    RemoteCanClient,
     RemoteCanException,
 )
 from .tbox.scripts.tbox_sim import send_float_array, set_tbox_sim_path  # type: ignore
@@ -12,7 +12,7 @@ kvaser_send_float_array = send_float_array
 
 
 __all__ = [
-    'RemoteCan',
+    'RemoteCanClient',
     'RemoteCanException',
     'kvaser_send_float_array',
     'ClearablePullConsumer',

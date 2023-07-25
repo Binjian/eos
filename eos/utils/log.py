@@ -59,11 +59,11 @@ def get_logger(folder, name, level=logging.INFO):
     except FileExistsError:
         print("User folder exists, just resume!")
 
-    logfilename = logfolder + (
+    log_file_name = logfolder + (
         name + datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S") + ".log"
     )
 
-    fh = logging.FileHandler(logfilename)
+    fh = logging.FileHandler(log_file_name)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(json_file_formatter)
     ch = logging.StreamHandler()

@@ -11,7 +11,7 @@ import numpy as np
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
-from eos import RemoteCan, projroot
+from eos import RemoteCanClient, projroot
 from eos.config import trucks_by_id, trucks_by_vin, trip_servers, can_servers
 from eos.utils import ragged_nparray_list_interp
 from eos.config import generate_vcu_calibration
@@ -66,12 +66,12 @@ class TestRemoteCanGet(unittest.TestCase):
         )
 
     def set_logger(self, projroot):
-        logroot = projroot.joinpath('data/scratch/tests')
+        log_root = projroot.joinpath('data/scratch/tests')
         try:
-            os.makedirs(logroot)
+            os.makedirs(log_root)
         except FileExistsError:
             pass
-        logfile = logroot.joinpath(
+        logfile = log_root.joinpath(
             'test_remotecan_get-'
             + self.truck.vid
             + datetime.datetime.now().isoformat().replace(':', '-')
@@ -97,7 +97,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # def test_proxy_get(self):
     #
     #     self.logger.info("start test_proxy", extra=self.dictLogger)
-    #     self.client = RemoteCan(
+    #     self.client = RemoteCanClient(
     #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
     #     )
     #     self.native_get()
@@ -106,7 +106,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # def test_proxy_send(self):
     #
     #     self.logger.info("start test_proxy", extra=self.dictLogger)
-    #     self.client = RemoteCan(
+    #     self.client = RemoteCanClient(
     #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
     #     )
     #     self.native_send()
@@ -114,7 +114,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     # def test_native_get(self):
     #     self.logger.info("Start test_native_get", extra=self.dictLogger)
-    #     self.client = RemoteCan(
+    #     self.client = RemoteCanClient(
     #         truck_name=self.truck.vid, url=self.truck.RemoteCANHost
     #     )
     #     self.logger.info("Set client", extra=self.dictLogger)
@@ -123,7 +123,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     # def test_native_send(self):
     #     self.logger.info("Start test_native_send", extra=self.dictLogger)
-    #     self.client = RemoteCan(
+    #     self.client = RemoteCanClient(
     #         truck_name=self.truck.vid, url=self.truck.RemoteCANHost
     #     )
     #     self.logger.info("Set client", extra=self.dictLogger)

@@ -5,14 +5,14 @@ import argparse
 from eos import projroot
 from eos.utils import dictLogger, logger
 
-from avatar import Avatar
-from algo.ddpg.ddpg import DDPG
-from algo.hyperparams import hyper_param_by_name, HYPER_PARAM
+from avatar import Avatar  # type: ignore
+from agent.ddpg.ddpg import DDPG  # type: ignore
+from agent.utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
 
 
 @dataclass
 class AvatarDDPG(Avatar):
-    hyper_param: HYPER_PARAM = hyper_param_by_name('DDPG')
+    hyper_param: HYPER_PARAM = hyper_param_by_name['DDPG']
 
     def __post__init__(self):
         self.agent = DDPG(

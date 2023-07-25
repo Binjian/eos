@@ -4,6 +4,9 @@ from eos.utils.log import get_logger, logger, dictLogger
 from eos.utils.numerics import ragged_nparray_list_interp
 from eos.utils.gracefulkiller import GracefulKiller
 from eos.utils.eos_pandas import (
+    assemble_state_ser,
+    assemble_reward_ser,
+    assemble_action_ser,
     df_to_nested_dict,
     eos_df_to_nested_dict,
     avro_ep_encoding,
@@ -24,6 +27,9 @@ __all__ = [
     "ReadOnlyError",
     "WriteOnlyError",
     "GracefulKiller",
+    "assemble_state_ser",
+    "assemble_reward_ser",
+    "assemble_action_ser",
     "df_to_nested_dict",
     "eos_df_to_nested_dict",
     "ep_nest",

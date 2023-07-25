@@ -33,13 +33,13 @@ try:
 except FileExistsError:
     print('User folder exists, just resume!')
 
-logfilename = logfolder + (
+log_file_name = logfolder + (
     '/l045a-transcribe-'
     + datetime.datetime.now().strftime('%y-%m-%d-%H-%M-%S')
     + '.log'
 )
 
-fh = logging.FileHandler(logfilename)
+fh = logging.FileHandler(log_file_name)
 fh.setLevel(logging.DEBUG)
 fh.setFormatter(json_file_formatter)
 ch = logging.StreamHandler()
@@ -94,6 +94,4 @@ udp_logfilename = (
     + '.pcap'
 )
 portNum = 8002  # port number
-p = os.execlp(
-    'tcpdump', 'udp', '-w', udp_logfilename, '-i', 'lo', 'port', str(portNum)
-)
+p = os.execlp('tcpdump', 'udp', '-w', udp_logfilename, '-i', 'lo', 'port', str(portNum))
