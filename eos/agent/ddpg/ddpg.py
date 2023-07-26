@@ -6,7 +6,7 @@ from pathlib import Path
 from contextlib import redirect_stdout
 import os
 import logging
-from typing import Optional
+from typing import Union
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -14,11 +14,13 @@ import tensorflow as tf
 # from tensorflow.python import keras
 from tensorflow.python.keras import layers
 
+# from tensorflow.python.keras import CheckpointManager, Checkpoint
+
 # from pymongoarrow.monkey import patch_all
 from eos.utils import dictLogger, logger
-from ..utils import OUActionNoise, hyper_param_by_name, HYPER_PARAM
+from eos.agent.utils import OUActionNoise, hyper_param_by_name, HYPER_PARAM
 from eos.data_io.buffer import MongoBuffer, DaskBuffer
-from ..dpg import DPG
+from eos.agent.dpg import DPG
 
 # patch_all()
 """
@@ -132,21 +134,23 @@ class DDPG(DPG):
     """
 
     _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
-    _buffer: Optional[
-        MongoBuffer | DaskBuffer
-    ] = None  # cannot have default value, because it precedes _plot in base class DPG
-    logger: Optional[logging.Logger] = None
-    _episode_start_dt: Optional[datetime] = None
-    _actor_model: Optional[tf.keras.Model] = None
-    _critic_model: Optional[tf.keras.Model] = None
-    _target_actor_model: Optional[tf.keras.Model] = None
-    _target_critic_model: Optional[tf.keras.Model] = None
-    manager_critic: Optional[tf.train.CheckpointManager] = None
-    ckpt_critic: Optional[tf.train.Checkpoint] = None
-    manager_actor: Optional[tf.train.CheckpointManager] = None
-    ckpt_actor: Optional[tf.train.Checkpoint] = None
-    actor_saved_model_path: Optional[Path] = None
-    critic_saved_model_path: Optional[Path] = None
+    _buffer: Union[
+        MongoBuffer, DaskBuffer
+    ] = (
+        MongoBuffer()
+    )  # cannot have default value, because it precedes _plot in base class DPG
+    logger: logging.Logger = logging.Logger('eos.agent.ddpg.ddpg')
+    _episode_start_dt: datetime = datetime.now()
+    _actor_model: tf.keras.Model = tf.keras.Model()
+    _critic_model: tf.keras.Model = tf.keras.Model()
+    _target_actor_model: tf.keras.Model = tf.keras.Model()
+    _target_critic_model: tf.keras.Model = tf.keras.Model()
+    manager_critic: tf.train.CheckpointManager = tf.train.CheckpointManager()
+    ckpt_critic: tf.train.Checkpoint = tf.train.Checkpoint()
+    manager_actor: tf.train.CheckpointManager = tf.train.CheckpointManager()
+    ckpt_actor: tf.train.Checkpoint = tf.train.Checkpoint()
+    actor_saved_model_path: Path = Path('.')
+    critic_saved_model_path: Path = Path('.')
 
     def __post_init__(self):
         self.logger = logger.getChild("eos").getChild(self.__str__())

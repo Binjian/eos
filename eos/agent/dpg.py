@@ -3,26 +3,25 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
 import pandas as pd
 import re
 
 from eos.data_io.config import (
     Truck,
+    TruckInCloud,
     get_db_config,
     RE_DBKEY,
     Driver,
 )
 from eos.data_io.struct import (
-    StateUnitCodes,
-    ObservationMeta,
-    StateSpecs,
-    ActionSpecs,
+    ObservationMetaCloud,
+    ObservationMetaField,
     get_filemeta_config,
     RE_RECIPEKEY,
 )
 from utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
-from eos.data_io.buffer import Buffer, MongoBuffer, DaskBuffer
+from eos.data_io.buffer import MongoBuffer, DaskBuffer
 
 
 """Base class for differentiable policy gradient methods."""
@@ -34,6 +33,8 @@ class DPG(abc.ABC):
 
     _truck: Truck
     _driver: Driver
+    _buffer: Union[MongoBuffer, DaskBuffer] = field(default_factory=MongoBuffer)
+    # as last of non-default parameters, so that derived class can override with default
     _coll_type: str = (
         "RECORD"  # or 'EPISODE', used for create different buffer and pool
     )
@@ -44,13 +45,12 @@ class DPG(abc.ABC):
     _data_folder: str = "./"
     _infer_mode: bool = False
     # Following are derived from above
-    _buffer: Optional[
-        Buffer
-    ] = None  # as last of non-default parameters, so that derived class can override with default
-    _observation_meta: Optional[ObservationMeta] = None
-    _episode_start_dt: Optional[datetime] = None
+    _observation_meta: Union[
+        ObservationMetaCloud, ObservationMetaField
+    ] = ObservationMetaCloud()
+    _episode_start_dt: datetime = datetime.now()
     _resume: bool = True
-    _observations: list[pd.DataFrame] = field(default_factory=list[pd.DataFrame])
+    _observations: list[pd.Series] = field(default_factory=list[pd.Series])
     _torque_table_row_names: list[str] = field(default_factory=list[str])
     _epi_no: int = 0
 
@@ -70,28 +70,10 @@ class DPG(abc.ABC):
         #  init observation meta info object,
         #  episode start time will be updated for each episode, for now it is the time when the algo is created
 
-        self.observation_meta = ObservationMeta(
-            state_specs=StateSpecs(
-                state_unit_codes=StateUnitCodes(
-                    velocity_unit_code="kph",
-                    thrust_unit_code="pct",
-                    brake_unit_code="pct",
-                ),
-                state_number=3,  # velocity, thrust, and brake
-                unit_number=self.truck.cloud_unit_number,  # 4
-                unit_duration=self.truck.cloud_unit_duration,  # 1s
-                frequency=self.truck.cloud_signal_frequency,  # 50 hz
-            ),
-            action_specs=ActionSpecs(
-                action_unit_code="nm",
-                action_row_number=self.truck.torque_table_row_num_flash,
-                action_column_number=len(self.truck.pedal_scale),
-            ),
-            reward_specs={
-                "reward_unit": "wh",
-            },
-            site=self.truck.site,
-        )
+        if isinstance(self.truck, TruckInCloud):
+            self.observation_meta = ObservationMetaCloud()  # use default
+        else:  # Kvaser
+            self.observation_meta = ObservationMetaField()  # use default
 
         (
             self.truck.observation_numel,
@@ -105,7 +87,7 @@ class DPG(abc.ABC):
         recipe_pattern = re.compile(RE_RECIPEKEY)
         # if pool_key is an url or a mongodb name
         if "mongo" in self.pool_key.lower() or login_pattern.match(self.pool_key):
-            # TODO coll_type needs to be passed in for differentiantion between RECORD and EPISODE
+            # TODO coll_type needs to be passed in for differentiation between RECORD and EPISODE
             db_config = get_db_config(self.pool_key, self.coll_type)
             self.buffer = MongoBuffer(  # choose item type: Record/Episode
                 db_config=db_config,
@@ -113,6 +95,7 @@ class DPG(abc.ABC):
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
+                buffer_count=0,  # will be updated during initialization of Buffer
                 torque_table_row_names=self.torque_table_row_names,
             )
         elif self.pool_key is None or recipe_pattern.match(
@@ -130,6 +113,7 @@ class DPG(abc.ABC):
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
+                buffer_count=0,
                 torque_table_row_names=self.torque_table_row_names,
             )
         else:
@@ -190,9 +174,11 @@ class DPG(abc.ABC):
         """
 
         # Create MultiIndex
-        ts = pd.Series([timestamp], name="timestamp")
-        ts.index = pd.MultiIndex.from_product([ts.index, [0]], names=["rows", "idx"])
-        timestamp_index = (ts.name, "", 0)  # triple index (name, row, idx)
+        timestamp_ser = pd.Series([timestamp], name="timestamp")
+        timestamp_ser.index = pd.MultiIndex.from_product(
+            [timestamp_ser.index, [0]], names=["rows", "idx"]
+        )
+        timestamp_index = (timestamp_ser.name, "", 0)  # triple index (name, row, idx)
         state_index = [(state.name, *i) for i in state.index]
         reward_index = [(reward.name, *i) for i in reward.index]
         action_index = [(action.name, *i) for i in action.index]
@@ -201,8 +187,10 @@ class DPG(abc.ABC):
         multiindex = pd.MultiIndex.from_tuples(
             [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
         )
-        observation_list = [timestamp, state, action, reward, nstate]
-        observation = pd.concat(observation_list)  # concat Series along MultiIndex,
+        observation_list = [timestamp_ser, state, action, reward, nstate]
+        observation = pd.concat(
+            observation_list
+        )  # concat Series along MultiIndex, still a Series
         observation.index = multiindex  # each observation is a series for the quadruple (s,a,r,s') with a MultiIndex
         self.observations.append(
             observation
@@ -345,19 +333,21 @@ class DPG(abc.ABC):
         self._episode_start_dt = value
 
     @property
-    def observation_meta(self) -> ObservationMeta:
+    def observation_meta(self) -> Union[ObservationMetaCloud, ObservationMetaField]:
         return self._observation_meta
 
     @observation_meta.setter
-    def observation_meta(self, value: ObservationMeta):
+    def observation_meta(
+        self, value: Union[ObservationMetaCloud, ObservationMetaField]
+    ):
         self._observation_meta = value
 
     @property
-    def buffer(self) -> Buffer:
+    def buffer(self) -> Union[MongoBuffer, DaskBuffer]:
         return self._buffer
 
     @buffer.setter
-    def buffer(self, value: Buffer):
+    def buffer(self, value: Union[MongoBuffer, DaskBuffer]):
         self._buffer = value
 
     @property
@@ -369,11 +359,11 @@ class DPG(abc.ABC):
         self._coll_type = value
 
     @property
-    def observations(self) -> list[pd.DataFrame]:
+    def observations(self) -> list[pd.Series]:
         return self._observations
 
     @observations.setter
-    def observations(self, value: list[pd.DataFrame]):
+    def observations(self, value: list[pd.Series]):
         self._observations = value
 
     @property

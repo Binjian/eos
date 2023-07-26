@@ -3,6 +3,7 @@ import numpy as np
 from typing import Dict, cast, Union
 from datetime import datetime
 from functools import reduce
+from keras.preprocessing.sequence import pad_sequences  # type: ignore
 
 
 def assemble_state_ser(motion_power: pd.DataFrame) -> pd.Series:
@@ -295,7 +296,7 @@ def avro_ep_decoding(episodes: list[Dict]) -> list[pd.DataFrame]:
     return df_episodes_list
 
 
-def decode_mongo_documents(
+def decode_mongo_records(
     df: pd.DataFrame,
     torque_table_row_names: list[str],
 ) -> tuple[
@@ -404,6 +405,45 @@ def decode_mongo_documents(
     return df_states, df_actions, ser_rewards, df_nstates
 
 
+def decode_mongo_episodes(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    decoding the batch RECORD observations from mongodb nested dicts to pandas dataframe
+    (EPISODE doesn't need decoding, it is already a dataframe)
+    TODO need to check whether sort_index is necessary"""
+
+    dict_observations = {
+        (
+            meta['vehicle'],
+            meta['driver'],
+            meta['episodestart'],
+            timestamp,
+            qtuple,
+            rows,
+            idx,
+        ): value
+        for meta, obs in zip(df['meta'], df['observation'])
+        for timestamp, obs1 in obs.items()
+        for qtuple, obs2 in obs1.items()  # (state, action, reward, next_state)
+        for rows, obs3 in obs2.items()  # (velocity, thrust, brake), (r0, r1, r2, ...),
+        for idx, value in obs3.items()  # (0, 1, 2, ...)
+    }
+    ser_decoded = pd.Series(dict_observations)
+    ser_decoded.index.names = [
+        'vehicle',
+        'driver',
+        'episodestart',
+        'timestamp',
+        'qtuple',
+        'rows',
+        'idx',
+    ]
+    batch = ser_decoded.unstack(level=['qtuple', 'rows', 'idx'])  # type: ignore
+
+    return batch
+
+
 def decode_dataframe_from_parquet(df: pd.DataFrame):
     """
     decode the dataframe from parquet with flat column indices to MultiIndexed DataFrame
@@ -435,3 +475,57 @@ def decode_dataframe_from_parquet(df: pd.DataFrame):
     df = df.set_index(['vehicle', 'driver', 'episodestart', df.index])  # type: ignore
 
     return df
+
+
+def decode_episode_dataframes_to_padded_arrays(
+    batch: pd.DataFrame,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    decode the dataframes to numpy arrays
+    """
+
+    episodestart_index = batch.index.unique(level='episode_start')
+    batch.sort_index(inplace=False, axis=0).sort_index(inplace=True, axis=1)
+
+    # array of rewards for minibatch
+    idx = pd.IndexSlice
+    df_rewards = batch.loc[:, idx['reward', 'work']]  # type: ignore
+    rewards_list = [
+        df_rewards.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
+        for ep_start in episodestart_index
+    ]
+    r_n_t = pad_sequences(
+        rewards_list, padding='post', dtype=np.float32, value=-10000.0
+    )
+
+    # array of states for minibatch
+    df_states = batch.loc[
+        :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
+    ]  # same order as inference !!!
+    states_list = [
+        df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
+        for ep_start in episodestart_index
+    ]
+    s_n_t = pad_sequences(states_list, padding='post', dtype=np.float32, value=-10000.0)
+
+    # array of actions for minibatch
+    df_actions = batch.loc[:, idx['action', self.torque_table_row_names]]  # type: ignore
+    actions_list = [
+        df_actions.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
+        for ep_start in episodestart_index
+    ]
+    a_n_t = pad_sequences(
+        actions_list, padding='post', dtype=np.float32, value=-10000.0
+    )
+
+    # array of next_states for minibatch
+    df_nstates = df_decoded.loc[:, idx['nstate', ['velocity', 'thrust', 'brake']]]  # type: ignore
+    nstates_list = [
+        df_nstates.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
+        for ep_start in episodestart_index
+    ]
+    ns_n_t = pad_sequences(
+        nstates_list, padding='post', dtype=np.float32, value=-10000.0
+    )
+
+    return s_n_t, a_n_t, r_n_t, ns_n_t

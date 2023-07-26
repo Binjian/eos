@@ -2551,7 +2551,7 @@ if __name__ == '__main__':
 
     # set up data folder (logging, checkpoint, table)
     try:
-        truck: Union[TruckInCloud, TruckInField] = str_to_truck(args.vehicle)
+        truck: Truck = str_to_truck(args.vehicle)
     except KeyError:
         raise KeyError(f"vehicle {args.vehicle} not found in config file")
     else:
