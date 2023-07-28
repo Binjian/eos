@@ -1,0 +1,3 @@
+import pandas as pd
+
+def plot_3d_figure(table: pd.DataFrame): ...

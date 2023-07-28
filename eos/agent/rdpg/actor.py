@@ -151,12 +151,10 @@ class ActorNet:
         Returns:
             np.array: Action
         """
-        # logc("ActorNet.predict")
 
         # get the last step action and squeeze the batch dimension
         action = self.predict_step(state)
         sampled_action = action + self.ou_noise()  # noise object is a row vector
-        # logc("ActorNet.predict")
         return sampled_action
 
     @tf.function(
@@ -170,7 +168,6 @@ class ActorNet:
         Returns:
             np.array: Action
         """
-        # logc("ActorNet.predict")
         action_seq = self.eager_model(state)
 
         # get the last step action and squeeze the batch dimension
@@ -188,7 +185,6 @@ class ActorNet:
         Returns:
             np.array: Q-value
         """
-        # logc("ActorNet.evaluate_actions")
         return self.eager_model(state)
 
     @property
