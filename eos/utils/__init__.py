@@ -13,10 +13,11 @@ from eos.utils.eos_pandas import (
     ep_nest,
     df_to_ep_nested_dict,
     decode_mongo_records,
-    decode_dataframe_from_parquet,
+    encode_dataframe_from_parquet,
     avro_ep_decoding,
     decode_episode_dataframes_to_padded_arrays,
     decode_mongo_episodes,
+    encode_episode_dataframe_from_series,
 )
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "avro_ep_decoding",
     "decode_mongo_records",
     "decode_mongo_episodes",
-    "decode_dataframe_from_parquet",
+    "encode_dataframe_from_parquet",
     'decode_episode_dataframes_to_padded_arrays',
+    'encode_episode_dataframe_from_series',
 ]

@@ -22,6 +22,7 @@ from eos.data_io.struct import (
 )
 from utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
 from eos.data_io.buffer import MongoBuffer, DaskBuffer
+from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 
 """Base class for differentiable policy gradient methods."""
@@ -209,39 +210,13 @@ class DPG(abc.ABC):
         Deposit the whole episode of experience into the replay buffer for DPG.
         """
 
-        episode = pd.concat(
-            self.observations, axis=1
-        ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
-        episode.columns.name = ["tuple", "rows", "idx"]
-        episode.set_index(("timestamp", "", 0), append=False, inplace=True)
-        episode.index.name = "timestamp"
-        # episode.sort_index(inplace=True)
-
-        # convert columns types to float where necessary
-        state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
-        action_cols_float = [
-            ("action", col)
-            for col in [*self.torque_table_row_names, "speed", "throttle"]
-        ]
-        reward_cols_float = [("reward", "work")]
-        nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
-        for col in (
-            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
-        ):
-            episode[col[0], col[1]] = episode[col[0], col[1]].astype(
-                "float"
-            )  # float16 not allowed in parquet
-
-        # Create MultiIndex for the episode, in the order 'episodestart', 'vehicle', 'driver'
-        episode = pd.concat(
-            [episode],
-            keys=[pd.to_datetime(self.episode_start_dt)],
-            names=["episodestart"],
+        episode = encode_episode_dataframe_from_series(
+            self.observations,
+            self.torque_table_row_names,
+            self.episode_start_dt,
+            self.truck.vid,
+            self.driver.pid,
         )
-        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
-        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
-        episode.sort_index(inplace=True)  # sorting in the time order of timestamps
-
         self.buffer.store(episode)
 
     @abc.abstractmethod

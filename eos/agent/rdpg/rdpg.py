@@ -1,7 +1,8 @@
 # system imports
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
+from pathlib import Path
 
 # third-party imports
 import numpy as np
@@ -13,14 +14,14 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 
 # local imports
 from eos.utils import dictLogger, logger
-from eos.data_io.struct import EpisodeDoc
 from ..dpg import DPG  # type: ignore
-from ..hyperparams import hyper_param_by_name, HYPER_PARAM
+from eos.agent.utils.hyperparams import hyper_param_by_name
 
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
 from eos.data_io.buffer import MongoBuffer, DaskBuffer  # type: ignore
+from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 patch_all()
 
@@ -50,18 +51,13 @@ class RDPG(DPG):
             - critic network
     """
 
-    logger: logging.Logger = None
-    actor_net: ActorNet = None
-    critic_net: CriticNet = None
-    target_actor_net: ActorNet = None
-    target_critic_net: CriticNet = None
-    state_t: list = None
-    R: list = None
-    h_t: list = None
-    buffer_count: int = 0
-    _seq_len: int = 8  # length of the sequence for recurrent network
-    _ckpt_actor_dir: str = "ckpt_actor"
-    _ckpt_critic_dir: str = "ckpt_critic"
+    logger: logging.Logger = logging.Logger('eos.agent.rdpg.rdpg')
+    actor_net: ActorNet = ActorNet()
+    critic_net: CriticNet = CriticNet()
+    target_actor_net: ActorNet = ActorNet()
+    target_critic_net: CriticNet = CriticNet()
+    _ckpt_actor_dir: Path = Path('')
+    _ckpt_critic_dir: Path = Path('')
 
     def __post_init__(
         self,
@@ -79,7 +75,7 @@ class RDPG(DPG):
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "EPISODE"
-        self.hyper_param = hyper_param_by_name(self.__class__.__name__)
+        self.hyper_param = hyper_param_by_name[self.__class__.__name__]
 
         # actor network (w/ target network)
         self.init_checkpoint()
@@ -242,11 +238,20 @@ class RDPG(DPG):
         batchsize is 1.
         """
 
+        # get the current episode so far from self.observations stored by DPG.deposit()
         # self.state_t = np.ones((1, t + 1, self._num_states))
         # self.state_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
+
+        episode_curr = encode_episode_dataframe_from_series(
+            self.observations,
+            self.torque_table_row_names,
+            self.episode_start_dt,
+            self.truck.vid,
+            self.driver.pid,
+        )
         input_array = tf.convert_to_tensor(
-            np.expand_dims(np.vstack(self.state_t)), dtype=tf.float32
+            np.expand_dims(pd.DataFrame(self.observations)), dtype=tf.float32
         )
         self.logger.info(
             f"input_array.shape: {input_array.shape}", extra=self.dictLogger

@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, cast, Union
+from typing import Dict, cast, Union, List
 from datetime import datetime
 from functools import reduce
 from keras.preprocessing.sequence import pad_sequences  # type: ignore
@@ -444,7 +444,7 @@ def decode_mongo_episodes(
     return batch
 
 
-def decode_dataframe_from_parquet(df: pd.DataFrame):
+def encode_dataframe_from_parquet(df: pd.DataFrame):
     """
     decode the dataframe from parquet with flat column indices to MultiIndexed DataFrame
     """
@@ -482,6 +482,8 @@ def decode_episode_dataframes_to_padded_arrays(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to numpy arrays
+    episodes with variable lengths will turn into ragged arrays with the same raggedness, thus the same maximum length
+    after padding the arrays will have the same shape and padding pattern.
     """
 
     episodestart_index = batch.index.unique(level='episode_start')
@@ -529,3 +531,48 @@ def decode_episode_dataframes_to_padded_arrays(
     )
 
     return s_n_t, a_n_t, r_n_t, ns_n_t
+
+
+def encode_episode_dataframe_from_series(
+    observations: List[pd.Series],
+    torque_table_row_names: List[str],
+    episode_start_dt: datetime,
+    driver_str: str,
+    truck_str: str,
+) -> pd.DataFrame:
+    """
+    encode the list of observations as a dataframe with multi-indexed columns
+    """
+    episode = pd.concat(
+        observations, axis=1
+    ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
+    episode.columns.name = ["tuple", "rows", "idx"]
+    episode.set_index(("timestamp", "", 0), append=False, inplace=True)
+    episode.index.name = "timestamp"
+    # episode.sort_index(inplace=True)
+
+    # convert columns types to float where necessary
+    state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
+    action_cols_float = [
+        ("action", col) for col in [*torque_table_row_names, "speed", "throttle"]
+    ]
+    reward_cols_float = [("reward", "work")]
+    nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
+    for col in (
+        action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
+    ):
+        episode[col[0], col[1]] = episode[col[0], col[1]].astype(
+            "float"
+        )  # float16 not allowed in parquet
+
+    # Create MultiIndex for the episode, in the order 'episodestart', 'vehicle', 'driver'
+    episode = pd.concat(
+        [episode],
+        keys=[pd.to_datetime(episode_start_dt)],
+        names=["episodestart"],
+    )
+    episode = pd.concat([episode], keys=[driver_str], names=["driver"])
+    episode = pd.concat([episode], keys=[truck_str], names=["vehicle"])
+    episode.sort_index(inplace=True)  # sorting in the time order of timestamps
+
+    return episode
