@@ -1,14 +1,13 @@
 # third-party imports
-from keras import initializers
 import numpy as np
 import tensorflow as tf
-from keras import layers
-
+from tensorflow.python.keras import layers
+from pathlib import Path
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
 
 # local imports
-from ..utils.ou_noise import OUActionNoise
+from eos.agent.utils.ou_noise import OUActionNoise
 
 
 class ActorNet:
@@ -16,15 +15,15 @@ class ActorNet:
 
     def __init__(
         self,
-        state_dim,
-        action_dim,
-        hidden_dim,
-        n_layers,
-        padding_value,
-        tau,
-        lr,
-        ckpt_dir,
-        ckpt_interval,
+        state_dim: int = 0,
+        action_dim: int = 0,
+        hidden_dim: int = 0,
+        n_layers: int = 0,
+        padding_value: float = 0.0,
+        tau: float = 0.0,
+        lr: float = 0.0,
+        ckpt_dir: Path = Path("."),
+        ckpt_interval: int = 0,
     ):
         """Initialize the actor network.
 
@@ -46,19 +45,32 @@ class ActorNet:
         self._n_layers = n_layers
         self._tau = tau
 
-        inputs = layers.Input(shape=(None, state_dim))
+        states = layers.Input(shape=(None, state_dim))
+        last_actions = layers.Input(shape=(None, action_dim))
+
+        inputs = [
+            states,
+            last_actions,
+        ]  # history update consists of current states s_t and last actions a_{t-1}
+        x = layers.Concatenate(axis=-1)(
+            inputs
+        )  # feature dimension would be [states + actions]
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=padding_value)(
-            inputs
-        )  # input (observation) padded with -10000.0
+            x
+        )  # input (observation) padded with -10000.0, on the time dimension
 
-        # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
-        # x = layers.Rescale(inputs, 1.0)
+        x = layers.Dense(hidden_dim, activation="relu")(
+            x
+        )  # linear layer to map [states + actions] to [hidden_dim]
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
+            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(
+                x
+            )  # only return full sequences of hidden states, necessary for stacking LSTM layers,
+            # last hidden state is not needed
 
         lstm_output = layers.LSTM(
             hidden_dim, return_sequences=False, return_state=False
@@ -67,7 +79,7 @@ class ActorNet:
         # rescale the output of the lstm layer to (-1, 1)
         action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
 
-        self.eager_model = tf.keras.Model(inputs, action_output)
+        self.eager_model = tf.keras.Model([states, last_actions], action_output)
         # no need to evaluate the last action separately
         # just run the model inference and get the last action
         # self.action_last = action_outputs[:, -1, :]
@@ -86,7 +98,9 @@ class ActorNet:
         self.ckpt_dir = ckpt_dir
         self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.optimizer, net=self.eager_model
+            step=tf.Variable(tf.constant(1)),
+            optimizer=self.optimizer,
+            net=self.eager_model,
         )
         self.ckpt_manager = tf.train.CheckpointManager(
             self.ckpt, self.ckpt_dir, max_to_keep=10

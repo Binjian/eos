@@ -1,6 +1,7 @@
 # third-party imports
 import tensorflow as tf
-from keras import layers
+from tensorflow.python.keras import layers
+from pathlib import Path
 
 # local imports
 from eos.utils import dictLogger, logger
@@ -12,15 +13,15 @@ class CriticNet:
 
     def __init__(
         self,
-        state_dim,
-        action_dim,
-        hidden_dim,
-        n_layers,
-        padding_value,
-        tau,
-        lr,
-        ckpt_dir,
-        ckpt_interval,
+        state_dim: int = 0,
+        action_dim: int = 0,
+        hidden_dim: int = 0,
+        n_layers: int = 0,
+        padding_value: float = 0.0,
+        tau: float = 0.0,
+        lr: float = 0.0,
+        ckpt_dir: Path = Path('.'),
+        ckpt_interval: int = 0,
     ):
         """Initialize the critic network.
 
@@ -42,16 +43,25 @@ class CriticNet:
         self._tau = tau
         self._padding_value = padding_value
 
-        inputs_state = layers.Input(shape=(None, state_dim))
-        inputs_action = layers.Input(shape=(None, action_dim))
+        states = layers.Input(shape=(None, state_dim))
+        last_actions = layers.Input(shape=(None, action_dim))
+        actions = layers.Input(shape=(None, action_dim))
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
-        inputs_state_action = layers.Concatenate(axis=-1)([inputs_state, inputs_action])
+        inputs_state_action = layers.Concatenate(axis=-1)(
+            [states, last_actions, actions]
+        )  # feature dimension would be [states + actions + actions],
+        # where the first two tensor are the updates to states, Q(h_t, a_t),
+        # the last one is the current action before the env update
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=self.padding_value)(
             inputs_state_action
         )  # input (observation) padded with -10000.0
+
+        x = layers.Dense(hidden_dim, activation="relu")(
+            x
+        )  # linear layer to map [states, last actions, current cations] to [hidden dim]
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
@@ -64,7 +74,7 @@ class CriticNet:
         critic_output = layers.Dense(1, activation=None)(lstm_output)
 
         self.eager_model = tf.keras.Model(
-            inputs=[inputs_state, inputs_action], outputs=critic_output
+            inputs=[states, last_actions, actions], outputs=critic_output
         )
 
         self.eager_model.summary()
@@ -75,7 +85,9 @@ class CriticNet:
         self.ckpt_dir = ckpt_dir
         self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.optimizer, net=self.eager_model
+            step=tf.Variable(tf.constant(1)),
+            optimizer=self.optimizer,
+            net=self.eager_model,
         )
         self.ckpt_manager = tf.train.CheckpointManager(
             self.ckpt, self.ckpt_dir, max_to_keep=10
@@ -129,7 +141,6 @@ class CriticNet:
         Returns:
             np.array: Q-value
         """
-        # logc("ActorNet.evaluate_actions")
         return self.eager_model([state, action])
 
     @property
