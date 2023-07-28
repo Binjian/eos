@@ -3,13 +3,14 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Union
+from typing import Union, ClassVar
 import pandas as pd
 import re
 
 from eos.data_io.config import (
     Truck,
     TruckInCloud,
+    trucks_by_id,
     get_db_config,
     RE_DBKEY,
     Driver,
@@ -31,6 +32,10 @@ from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 @dataclass(kw_only=True)
 class DPG(abc.ABC):
     """Base class for differentiable policy gradient methods."""
+
+    _truck_type: ClassVar[Truck] = trucks_by_id[
+        "default"
+    ]  # class attribute for default truck properties
 
     _truck: Truck
     _driver: Driver

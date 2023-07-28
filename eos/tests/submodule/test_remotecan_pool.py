@@ -21,7 +21,7 @@ from bson import ObjectId
 from tensorflow.keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all
 
-from eos import Pool, RemoteCanClient, projroot
+from eos import Pool, RemoteCanClient, proj_root
 from eos.config import generate_vcu_calibration
 from eos.config import (
     db_config_servers_by_name,
@@ -84,13 +84,13 @@ class TestRemoteCanPool(unittest.TestCase):
         self.rec_schema = []
         self.epi_schema = []
         self.record = []
-        self.projroot = projroot
+        self.proj_root = proj_root
         self.logger = logging.getLogger('eostest')
         self.logger.propagate = False
         self.dictLogger = {'user': inspect.currentframe().f_code.co_name}
 
         self.truck = self.trucks_by_id[self.truck_name]
-        self.set_logger(projroot)
+        self.set_logger(proj_root)
         self.logger.info(
             f'Truck: {self.truck.vid}-{self.truck.vin}',
             extra=self.dictLogger,
@@ -115,11 +115,11 @@ class TestRemoteCanPool(unittest.TestCase):
             self.truck.VelocityScale,
             self.truck.VelocityRange,
             2,
-            self.projroot.joinpath('eos/config'),
+            self.proj_root.joinpath('eos/config'),
         )
 
-    def set_logger(self, projroot):
-        log_root = projroot.joinpath('data/scratch/tests')
+    def set_logger(self, proj_root):
+        log_root = proj_root.joinpath('data/scratch/tests')
         try:
             os.makedirs(log_root)
         except FileExistsError:

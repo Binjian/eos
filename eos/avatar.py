@@ -63,7 +63,7 @@ from pythonjsonlogger import jsonlogger  # type: ignore
 # from rocketmq.client import Message, Producer  # type: ignore
 import rocketmq.client as rmq_client  # type: ignore
 
-from eos import projroot
+from eos import proj_root
 from eos.utils import dictLogger, logger
 from eos.data_io.config import (
     CANMessenger,
@@ -198,11 +198,11 @@ class Avatar(abc.ABC):
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
         if self.resume:
-            self.data_root = projroot.joinpath(
+            self.data_root = proj_root.joinpath(
                 'data/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
         else:
-            self.data_root = projroot.joinpath(
+            self.data_root = proj_root.joinpath(
                 'data/scratch/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
 
@@ -2619,7 +2619,7 @@ if __name__ == '__main__':
             record=args.record_table,
             path=args.path,
             pool_key=args.pool,
-            proj_root=projroot,
+            proj_root=proj_root,
             logger=logger,
         )
     except TypeError as e:

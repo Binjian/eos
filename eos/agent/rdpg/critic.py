@@ -1,4 +1,5 @@
 # third-party imports
+from typing import ClassVar
 import tensorflow as tf
 from tensorflow.python.keras import layers
 from pathlib import Path
@@ -6,10 +7,15 @@ from pathlib import Path
 # local imports
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
+from eos.data_io.config import trucks_by_id, Truck
 
 
 class CriticNet:
     """Critic network for the RDPG algorithm."""
+
+    _truck_type: ClassVar[Truck] = trucks_by_id[
+        "default"
+    ]  # for tf.function to get truck signal properties
 
     def __init__(
         self,
@@ -25,15 +31,15 @@ class CriticNet:
     ):
         """Initialize the critic network.
 
-                restore checkpoint from the provided directory if it exists,
-                initialize otherwise.
-                Args:
-                    state_dim (int): Dimension of the state space.
-                    action_dim (int): Dimension of the action space.
-                    hidden_dim (int): Dimension of the hidden layer.
-                    lr (float): Learning rate for the network.
-                    ckpt_dir (str): Directory to restore the checkpoint from.
-        i"""
+        restore checkpoint from the provided directory if it exists,
+        initialize otherwise.
+        Args:
+            state_dim (int): Dimension of the state space.
+            action_dim (int): Dimension of the action space.
+            hidden_dim (int): Dimension of the hidden layer.
+            lr (float): Learning rate for the network.
+            ckpt_dir (str): Directory to restore the checkpoint from.
+        """
 
         self._state_dim = state_dim
         self._action_dim = action_dim
@@ -128,20 +134,28 @@ class CriticNet:
 
     @tf.function(
         input_signature=[
-            tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32),
-            tf.TensorSpec(shape=[None, None, 68], dtype=tf.float32),
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.observation_numel], dtype=tf.float32
+            ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser  states
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser  last_actions
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser  actions
         ]
     )
-    def evaluate_q(self, state, action):
+    def evaluate_q(self, states, last_actions, actions):
         """Evaluate the action value given the state and action
         Args:
-            state (np.array): State in a minibatch
-            action (np.array): Action in a minibatch
+            states (np.array): State in a minibatch
+            last_actions (np.array): Action in a minibatch
+            actions (np.array): Action in a minibatch
 
         Returns:
             np.array: Q-value
         """
-        return self.eager_model([state, action])
+        return self.eager_model([states, last_actions, actions])
 
     @property
     def state_dim(self):

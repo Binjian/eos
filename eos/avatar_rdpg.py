@@ -4,7 +4,7 @@ from .avatar import Avatar  # type: ignore
 from .agent.rdpg import RDPG  # type: ignore
 from .agent.utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
 from eos.utils import dictLogger, logger
-from eos import projroot
+from eos import proj_root
 
 
 @dataclass
@@ -139,7 +139,7 @@ if __name__ == '__main__':
             remotecan_srv=args.remotecan,
             web_srv=args.web,
             pool_key=args.pool_key,
-            proj_root=projroot,
+            proj_root=proj_root,
             logger=logger,
         )
     except TypeError as e:

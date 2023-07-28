@@ -1,10 +1,13 @@
 # third-party imports
+from typing import ClassVar
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import layers
+
 from pathlib import Path
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
+from eos.data_io.config import trucks_by_id, Truck
 
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
@@ -12,6 +15,10 @@ from eos.agent.utils.ou_noise import OUActionNoise
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
+
+    _truck_type: ClassVar[Truck] = trucks_by_id[
+        "default"
+    ]  # for tf.function to get truck signal properties
 
     def __init__(
         self,
@@ -143,7 +150,7 @@ class ActorNet:
         self.ou_noise.reset()
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
-    def predict(self, state):
+    def predict(self, states, last_actions):
         """Predict the action given the state.
         Args:
             state (np.array): State, Batch dimension needs to be one.
@@ -153,39 +160,55 @@ class ActorNet:
         """
 
         # get the last step action and squeeze the batch dimension
-        action = self.predict_step(state)
+        action = self.predict_step(states, last_actions)
         sampled_action = action + self.ou_noise()  # noise object is a row vector
         return sampled_action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+        input_signature=[
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.observation_numel], dtype=tf.float32
+            ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser
+        ]
     )
-    def predict_step(self, state):
+    def predict_step(self, states, last_actions):
         """Predict the action given the state.
         Args:
-            state (np.array): State, Batch dimension needs to be one.
+            states (tf.Tensor): State, Batch dimension needs to be one.
+            last_actions (tf.Tensor): State, Batch dimension needs to be one.
 
         Returns:
-            np.array: Action
+            np.array: Action, ditch the batch dimension
         """
-        action_seq = self.eager_model(state)
+        action_seq = self.eager_model([states, last_actions])
 
         # get the last step action and squeeze the batch dimension
         last_action = tf.squeeze(action_seq[:, -1, :])
         return last_action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+        input_signature=[
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.observation_numel], dtype=tf.float32
+            ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
+            tf.TensorSpec(
+                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser
+        ]
     )
-    def evaluate_actions(self, state):
+    def evaluate_actions(self, states, last_actions):
         """Evaluate the action given the state.
         Args:
-            state (np.array): State, in a minibatch
+            states (tf.Tensor): State, Batch dimension needs to be one.
+            last_actions (tf.Tensor): State, Batch dimension needs to be one.
 
         Returns:
-            np.array: Q-value
+            np.array: Action, keep the batch dimension
         """
-        return self.eager_model(state)
+        return self.eager_model([states, last_actions])
 
     @property
     def state_dim(self):

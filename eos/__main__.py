@@ -1,7 +1,7 @@
 import os
 import pprint
 
-from eos import logger, projroot
+from eos import logger, proj_root
 from eos.RealtimeDDPG import RealtimeDDPG
 
 pp = pprint.PrettyPrinter(indent=40)
@@ -11,7 +11,7 @@ pp = pprint.PrettyPrinter(indent=40)
 # Set the package directory
 def main():
     pp.pprint(f'veos __main__ CWD: {os.getcwd()}')
-    app = RealtimeDDPG(False, False, True, 'install', projroot, logger)
+    app = RealtimeDDPG(False, False, True, 'install', proj_root, logger)
     app.run()
 
 

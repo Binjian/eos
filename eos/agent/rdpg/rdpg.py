@@ -243,35 +243,40 @@ class RDPG(DPG):
         # self.state_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
 
-        episode_curr = encode_episode_dataframe_from_series(
-            self.observations,
-            self.torque_table_row_names,
-            self.episode_start_dt,
-            self.truck.vid,
-            self.driver.pid,
-        )
-        input_array = tf.convert_to_tensor(
-            np.expand_dims(pd.DataFrame(self.observations)), dtype=tf.float32
-        )
+        states = tf.expand_dims(
+            tf.convert_to_tensor(state.values), axis=0
+        )  # add batch dimension at axis 0
+        last_actions = tf.expand_dims(self.observations[-1], axis=0)
         self.logger.info(
-            f"input_array.shape: {input_array.shape}", extra=self.dictLogger
+            f"states.shape: {states.shape}; last_actions.shape: {last_actions.shape}",
+            extra=self.dictLogger,
         )
         # action = self.actor_net.predict(input_array)
-        action = self.actor_predict_step(input_array)
+        action = self.actor_predict_step(states, last_actions)
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
         return action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+        input_signature=[
+            tf.TensorSpec(
+                shape=[None, None, DPG._truck_type.observation_numel],
+                dtype=tf.float32,
+            ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
+            tf.TensorSpec(
+                shape=[None, None, DPG._truck_type.torque_flash_numel], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser
+        ]
     )
-    def actor_predict_step(self, obs):
+    def actor_predict_step(
+        self, states: tf.Tensor, last_actions: tf.Tensor
+    ) -> tf.Tensor:
         """
         evaluate the actors given a single observations.
         batchsize is 1.
         """
         # logger.info(f"tracing", extra=self.dictLogger)
         print("tracing!")
-        action = self.actor_net.predict(obs)
+        action = self.actor_net.predict(states, last_actions)
         return action
 
     def train(self):

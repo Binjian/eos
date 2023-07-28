@@ -2,7 +2,7 @@ import sys
 from dataclasses import dataclass
 import argparse
 
-from eos import projroot
+from eos import proj_root
 from eos.utils import dictLogger, logger
 
 from avatar import Avatar  # type: ignore
@@ -147,7 +147,7 @@ if __name__ == '__main__':
             remotecan_srv=args.remotecan,
             web_srv=args.web,
             pool_key=args.pool_key,
-            proj_root=projroot,
+            proj_root=proj_root,
             logger=logger,
         )
     except TypeError as e:
