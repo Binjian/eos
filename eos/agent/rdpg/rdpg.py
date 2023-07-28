@@ -236,21 +236,11 @@ class RDPG(DPG):
                 extra=self.dictLogger,
             )
 
-    def actor_predict(self, state: pd.Series, t: int):
+    def actor_predict(self, state: pd.Series):
         """
         evaluate the actors given a single observations.
         batchsize is 1.
         """
-        # todo add sequence padding for variable length sequences?
-        if t == 0:
-            # initialize with padding values
-            # todo: replace the static self._seq_len with the actual length of the sequence
-            # todo: monitor the length of the sequence so far
-            self.state_t = [
-                state.values
-            ]  # pd.Series values are already in a flattened np array
-        else:
-            self.state_t.append(state.values)
 
         # self.state_t = np.ones((1, t + 1, self._num_states))
         # self.state_t[0, 0, :] = obs

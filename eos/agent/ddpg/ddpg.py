@@ -594,12 +594,11 @@ class DDPG(DPG):
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
-    def actor_predict(self, state: pd.Series, t: int):
+    def actor_predict(self, state: pd.Series):
         """
         `actor_predict()` returns an action sampled from our Actor network without noise.
         add optional t just to have uniform interface with rdpg
         """
-        _ = t  # ddpg is not sequential
         return self.policy(state)
 
     @tf.function

@@ -141,7 +141,7 @@ class DPG(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def actor_predict(self, state: pd.Series, t: int):
+    def actor_predict(self, state: pd.Series):
         """
         Evaluate the actors given a single observations.
         batch_size is 1.
