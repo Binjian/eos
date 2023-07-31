@@ -160,7 +160,9 @@ class DPG(abc.ABC):
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
-        self.observations = []
+        self.observations: list[
+            pd.Series
+        ] = []  # create a new empty list for each episode
 
     # @abc.abstractmethod
     def deposit(

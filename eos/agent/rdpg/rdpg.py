@@ -1,6 +1,6 @@
 # system imports
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 from pathlib import Path
 
@@ -21,7 +21,6 @@ from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
 from eos.data_io.buffer import MongoBuffer, DaskBuffer  # type: ignore
-from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 patch_all()
 
@@ -153,7 +152,7 @@ class RDPG(DPG):
 
         # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
 
-        _ = self.actor_predict(input_array, 0)
+        _ = self.actor_predict(input_array)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor",
             extra=self.dictLogger,
@@ -162,8 +161,7 @@ class RDPG(DPG):
         self.actor_net.ou_noise.reset()
 
         # warm up the gpu training graph execution pipeline
-        self.buffer_count = self.buffer.count()
-        if self.buffer_count != 0:
+        if self.buffer.count() != 0:
             if not self.infer_mode:
                 self.logger.info(
                     f"rdpg warm up training!",
@@ -244,9 +242,28 @@ class RDPG(DPG):
         # expand the batch dimension and turn obs_t into a numpy array
 
         states = tf.expand_dims(
-            tf.convert_to_tensor(state.values), axis=0
+            tf.convert_to_tensor(state.values),
+            axis=0,  # state is Multi-Indexed Series, its values are flatted
         )  # add batch dimension at axis 0
-        last_actions = tf.expand_dims(self.observations[-1], axis=0)
+        idx = pd.IndexSlice
+        try:
+            last_actions = tf.expand_dims(
+                tf.expand_dims(
+                    self.observations[-1]  # last observation contains last action!
+                    .sort_index()
+                    .loc[idx['action', self.torque_table_row_names, :]]
+                    .values.astype(np.float32),  # type convert to float32
+                    axis=0,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
+                ),  # get last_actions from last observation,
+                axis=0,  # and add batch and time dimensions at axis 0
+            )
+        except (
+            IndexError
+        ):  # if no last action in case of the first step of the episode, then use zeros
+            last_actions = tf.zeros(
+                shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
+                dtype=tf.float32,
+            )
         self.logger.info(
             f"states.shape: {states.shape}; last_actions.shape: {last_actions.shape}",
             extra=self.dictLogger,

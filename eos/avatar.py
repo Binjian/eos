@@ -2134,6 +2134,9 @@ class Avatar(abc.ABC):
 
             step_count = 0
             episode_reward = 0
+            prev_timestamp = None
+            prev_state = None
+            prev_action = None
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logger_control_flow.info(
@@ -2221,7 +2224,7 @@ class Avatar(abc.ABC):
                     ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
                     state = assemble_state_ser(motion_power)
 
-                    # assemble reward
+                    # assemble reward, actually the reward from last action
                     reward = assemble_reward_ser(
                         motion_power, self.truck.observation_sampling_rate
                     )
@@ -2233,6 +2236,8 @@ class Avatar(abc.ABC):
                         f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
+
+                    # Inference !!!
                     # stripping timestamps from state, (later flatten and convert to tensor)
                     torque_map_line = self.agent.actor_predict(
                         state[['velocity', 'thrust', 'brake']]
@@ -2271,12 +2276,12 @@ class Avatar(abc.ABC):
                         self.truck.pedal_scale,
                     )
 
-                    if step_count > 0:
+                    if (not prev_timestamp) and (not prev_state) and (not prev_action):
                         self.agent.deposit(
                             prev_timestamp,
                             prev_state,
                             prev_action,
-                            reward,
+                            reward,  # reward from last action
                             state,
                         )
 
