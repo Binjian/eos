@@ -230,6 +230,7 @@ class RDPG(DPG):
                 extra=self.dictLogger,
             )
 
+    # TODO for infer only mode, implement a method without noisy exploration.
     def actor_predict(self, state: pd.Series):
         """
         evaluate the actors given a single observations.
@@ -242,9 +243,11 @@ class RDPG(DPG):
         # expand the batch dimension and turn obs_t into a numpy array
 
         states = tf.expand_dims(
-            tf.convert_to_tensor(state.values),
-            axis=0,  # state is Multi-Indexed Series, its values are flatted
-        )  # add batch dimension at axis 0
+            tf.expand_dims(
+                tf.convert_to_tensor(state.values),
+                axis=0,  # state is Multi-Indexed Series, its values are flatted
+            ),
+        )  # add batch and time dimension twice at axis 0, so that states is a 3D tensor
         idx = pd.IndexSlice
         try:
             last_actions = tf.expand_dims(
@@ -255,21 +258,23 @@ class RDPG(DPG):
                     .values.astype(np.float32),  # type convert to float32
                     axis=0,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
                 ),  # get last_actions from last observation,
-                axis=0,  # and add batch and time dimensions at axis 0
-            )
+                axis=0,  # and add batch and time dimension twice at axis 0
+            )  # so that last_actions is a 3D tensor
         except (
             IndexError
         ):  # if no last action in case of the first step of the episode, then use zeros
             last_actions = tf.zeros(
                 shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
                 dtype=tf.float32,
-            )
+            )  # first zero last_actions is a 3D tensor
         self.logger.info(
             f"states.shape: {states.shape}; last_actions.shape: {last_actions.shape}",
             extra=self.dictLogger,
         )
         # action = self.actor_net.predict(input_array)
-        action = self.actor_predict_step(states, last_actions)
+        action = self.actor_predict_step(
+            states, last_actions
+        )  # both states and last_actions are 3d tensors [B,T,D]
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
         return action
 
@@ -293,7 +298,9 @@ class RDPG(DPG):
         """
         # logger.info(f"tracing", extra=self.dictLogger)
         print("tracing!")
-        action = self.actor_net.predict(states, last_actions)
+        action = self.actor_net.predict(
+            states, last_actions
+        )  # already un-squeezed inside Actor function
         return action
 
     def train(self):
@@ -319,7 +326,10 @@ class RDPG(DPG):
         with tf.GradientTape() as tape:
             # actions at h_t+1
             self.logger.info(f"start evaluate_actions")
-            t_a_ht1 = self.target_actor_net.evaluate_actions(s_n_t)
+            t_a_ht1 = self.target_actor_net.evaluate_actions(
+                s_n_t[:, 1:, :],
+                a_n_t[:, :-1, :],  # [(a_0, s_1), (a_1, s_2), ..., (a_{n-1}, s_n), ...]
+            )
 
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")

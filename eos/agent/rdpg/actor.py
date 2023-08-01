@@ -151,7 +151,7 @@ class ActorNet:
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
     def predict(self, states, last_actions):
-        """Predict the action given the state.
+        """Predict the action given the state. Batch dimension needs to be one.
         Args:
             state (np.array): State, Batch dimension needs to be one.
 
@@ -161,7 +161,9 @@ class ActorNet:
 
         # get the last step action and squeeze the batch dimension
         action = self.predict_step(states, last_actions)
-        sampled_action = action + self.ou_noise()  # noise object is a row vector
+        sampled_action = (
+            action + self.ou_noise()
+        )  # noise object is a row vector, without batch and time dimension
         return sampled_action
 
     @tf.function(
@@ -185,9 +187,10 @@ class ActorNet:
         """
         action_seq = self.eager_model([states, last_actions])
 
-        # get the last step action and squeeze the batch dimension
-        last_action = tf.squeeze(action_seq[:, -1, :])
-        return last_action
+        # get the last step action and squeeze the time dimension,
+        # since Batch is one when inferring, squeeze also the batch dimension by tf.squeeze default
+        action = tf.squeeze(action_seq[:, -1, :])
+        return action
 
     @tf.function(
         input_signature=[

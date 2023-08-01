@@ -6,9 +6,9 @@ from functools import reduce
 from keras.preprocessing.sequence import pad_sequences  # type: ignore
 
 
-def assemble_state_ser(motion_power: pd.DataFrame) -> pd.Series:
+def assemble_state_ser(state_columns: pd.DataFrame) -> pd.Series:
     """
-    assemble state df from motion_power df
+    assemble state df from state_columns dataframe
     order is vital for the model:
     "timestep, velocity, thrust, brake"
     contiguous storage in each measurement
@@ -17,11 +17,7 @@ def assemble_state_ser(motion_power: pd.DataFrame) -> pd.Series:
     """
     state: pd.Series = cast(
         pd.Series,
-        (
-            motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
-            .stack()
-            .swaplevel(0, 1)
-        ),
+        (state_columns.stack().swaplevel(0, 1)),
     )
     state.name = 'state'
     state.index.names = ['rows', 'idx']
@@ -33,17 +29,17 @@ def assemble_state_ser(motion_power: pd.DataFrame) -> pd.Series:
 
 
 def assemble_reward_ser(
-    motion_power: pd.DataFrame, obs_sampling_rate: int
+    power_columns: pd.DataFrame, obs_sampling_rate: int
 ) -> pd.Series:
     """
     assemble reward df from motion_power df
     order is vital for the model:
     contiguous storage in each row, due to sort_index, output:
+    power_columns: ['current', 'voltage']
     [timestep, work]
     """
 
-    pow_t = motion_power.loc[:, ['current', 'voltage']]
-    ui_sum = pow_t.prod(axis=1).sum()
+    ui_sum = power_columns.prod(axis=1).sum()
     wh = (
         ui_sum / 3600.0 / obs_sampling_rate
     )  # rate 0.05 for kvaser, 0.02 remote # negative wh

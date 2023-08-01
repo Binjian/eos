@@ -1104,11 +1104,11 @@ class Avatar(abc.ABC):
 
             try:
                 signal_freq = truck_in_cloud.observation_sampling_rate
-                gear_freq = truck_in_cloud.cloud_gear_frequency
-                unit_duration = truck_in_cloud.cloud_unit_duration
+                gear_freq = truck_in_cloud.tbox_gear_frequency
+                unit_duration = truck_in_cloud.tbox_unit_duration
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
-                unit_num = truck_in_cloud.cloud_unit_number
+                unit_num = truck_in_cloud.tbox_unit_number
                 for key, value in ret_msg.items():
                     if key == 'result':
                         logger_remote_get.info(
@@ -1157,7 +1157,7 @@ class Avatar(abc.ABC):
                             for j in np.arange(unit_ob_num)
                         ]
                         timestamps: np.ndarray = np.ndarray(timestamps_list).reshape(  # type: ignore
-                            (truck_in_cloud.cloud_unit_number, -1)
+                            (truck_in_cloud.tbox_unit_number, -1)
                         )  # final format is a list of integers as timestamps in ms
                         current = ragged_nparray_list_interp(
                             value['list_current_1s'],
@@ -2132,11 +2132,6 @@ class Avatar(abc.ABC):
                 # self.logger.info(f'Wait for start!', extra=self.dictLogger)
                 continue
 
-            step_count = 0
-            episode_reward = 0
-            prev_timestamp = None
-            prev_state = None
-            prev_action = None
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logger_control_flow.info(
@@ -2148,8 +2143,53 @@ class Avatar(abc.ABC):
             )
 
             # mongodb default to UTC time
-            self.agent.start_episode(datetime.now())
 
+            # Get the initial motion_power data for the initial quadruple (s, a, r, s')_{-1}
+            while True:
+                try:
+                    with self.captureQ_lock:
+                        motion_power = self.motion_power_queue.get(
+                            block=True, timeout=1.55
+                        )
+                    break  # break the while loop if we get the first data
+                except queue.Empty:
+                    self.logger_control_flow.info(
+                        f"{{\'header\': \'No data in the Queue!!!\', "
+                        f"\'episode\': {epi_cnt}}}",
+                        extra=self.dictLogger,
+                    )
+                    continue
+
+            self.agent.start_episode(datetime.now())
+            step_count = 0
+            episode_reward = 0
+            prev_timestamp = self.agent.episode_start_dt
+            prev_state = assemble_state_ser(
+                motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+            )
+            zero_torque_map_line = np.zeros(
+                shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
+                dtype=tf.float32,
+            )  # first zero last_actions is a 3D tensor
+            prev_action = assemble_action_ser(
+                zero_torque_map_line,
+                self.agent.torque_table_row_names,
+                table_start,
+                flash_start_ts,
+                flash_end_ts,
+                self.truck.torque_table_row_num_flash,
+                self.truck.torque_table_col_num,
+                self.truck.speed_scale,
+                self.truck.pedal_scale,
+            )
+            # reward is measured in next step
+
+            self.logger_control_flow.info(
+                f"{{\'header\': \'start\', "
+                f"\'step\': {step_count}, "
+                f"\'episode\': {epi_cnt}}}",
+                extra=self.dictLogger,
+            )
             tf.debugging.set_log_device_placement(True)
             with tf.device('/GPU:0'):
                 while (
@@ -2222,11 +2262,17 @@ class Avatar(abc.ABC):
                     timestamp = motion_power.loc[
                         0, 'timestep'
                     ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
-                    state = assemble_state_ser(motion_power)
+
+                    # motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+                    state = assemble_state_ser(
+                        motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+                    )
 
                     # assemble reward, actually the reward from last action
+                    # pow_t = motion_power.loc[:, ['current', 'voltage']]
                     reward = assemble_reward_ser(
-                        motion_power, self.truck.observation_sampling_rate
+                        motion_power.loc[:, ['current', 'voltage']],
+                        self.truck.observation_sampling_rate,
                     )
                     work = reward[('work', 0)]
                     episode_reward += work
@@ -2237,8 +2283,20 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
+                    #  at step 0: [ep_start, None (use zeros), a=0, r=0, s=s_0]
+                    #  at step n: [t=t_{n-1}, s=s_{n-1}, a=a_{n-1}, r=r_{n-1}, s'=s_n]
+                    #  at step N: [t=t_{N-1}, s=s_{N-1}, a=a_{N-1}, r=r_{N-1}, s'=s_N]
+                    self.agent.deposit(
+                        prev_timestamp,
+                        prev_state,
+                        prev_action,
+                        reward,  # reward from last action
+                        state,
+                    )
+
                     # Inference !!!
                     # stripping timestamps from state, (later flatten and convert to tensor)
+                    # agent return the inferred action sequence without batch and time dimension
                     torque_map_line = self.agent.actor_predict(
                         state[['velocity', 'thrust', 'brake']]
                     )  # model input requires fixed order velocity col -> thrust col -> brake col
@@ -2275,15 +2333,6 @@ class Avatar(abc.ABC):
                         self.truck.speed_scale,
                         self.truck.pedal_scale,
                     )
-
-                    if (not prev_timestamp) and (not prev_state) and (not prev_action):
-                        self.agent.deposit(
-                            prev_timestamp,
-                            prev_state,
-                            prev_action,
-                            reward,  # reward from last action
-                            state,
-                        )
 
                     prev_timestamp = timestamp
                     prev_state = state
