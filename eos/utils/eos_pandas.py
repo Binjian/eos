@@ -477,7 +477,7 @@ def decode_episode_dataframes_to_padded_arrays(
     batch: pd.DataFrame,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    decode the dataframes to numpy arrays
+    decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
     episodes with variable lengths will turn into ragged arrays with the same raggedness, thus the same maximum length
     after padding the arrays will have the same shape and padding pattern.
     """

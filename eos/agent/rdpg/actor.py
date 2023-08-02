@@ -178,6 +178,7 @@ class ActorNet:
     )
     def predict_step(self, states, last_actions):
         """Predict the action given the state.
+        For Inferring
         Args:
             states (tf.Tensor): State, Batch dimension needs to be one.
             last_actions (tf.Tensor): State, Batch dimension needs to be one.
@@ -204,6 +205,7 @@ class ActorNet:
     )
     def evaluate_actions(self, states, last_actions):
         """Evaluate the action given the state.
+        For training
         Args:
             states (tf.Tensor): State, Batch dimension needs to be one.
             last_actions (tf.Tensor): State, Batch dimension needs to be one.

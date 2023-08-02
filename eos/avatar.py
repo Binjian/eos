@@ -2166,7 +2166,7 @@ class Avatar(abc.ABC):
             prev_timestamp = self.agent.episode_start_dt
             prev_state = assemble_state_ser(
                 motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
-            )
+            )  # s_{-1}
             zero_torque_map_line = np.zeros(
                 shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
                 dtype=tf.float32,
@@ -2181,7 +2181,7 @@ class Avatar(abc.ABC):
                 self.truck.torque_table_col_num,
                 self.truck.speed_scale,
                 self.truck.pedal_scale,
-            )
+            )  # a_{-1}
             # reward is measured in next step
 
             self.logger_control_flow.info(
@@ -2292,7 +2292,7 @@ class Avatar(abc.ABC):
                         prev_action,
                         reward,  # reward from last action
                         state,
-                    )
+                    )  # (s_{-1}, a_{-1}, r_{-1}, s_0), (s_0, a_0, r_0, s_1), ..., (s_{N-1}, a_{N-1}, r_{N-1}, s_N)
 
                     # Inference !!!
                     # stripping timestamps from state, (later flatten and convert to tensor)

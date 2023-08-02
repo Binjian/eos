@@ -311,14 +311,14 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        s_n_t, a_n_t, r_n_t, _ = self.buffer.sample()  # ignore next state for now
-        actor_loss, critic_loss = self.train_step(s_n_t, a_n_t, r_n_t)
+        s_n_t, a_n_t, r_n_t, ns_n_t = self.buffer.sample()  # ignore next state for now
+        actor_loss, critic_loss = self.train_step(s_n_t, a_n_t, r_n_t, ns_n_t)
         return actor_loss, critic_loss
 
     # @tf.function(input_signature=[tf.tensorspec(shape=[none,none,1], dtype=tf.float32),
     #                               tf.tensorspec(shape=[none,none,90], dtype=tf.float32),
     #                               tf.tensorspec(shape=[none,none,85], dtype=tf.float32)])
-    def train_step(self, s_n_t, a_n_t, r_n_t):
+    def train_step(self, s_n_t, a_n_t, r_n_t, ns_n_t):
         # train critic using bptt
         print("tracing train_step!")
         self.logger.info(f"start train_step with tracing")
@@ -327,36 +327,32 @@ class RDPG(DPG):
             # actions at h_t+1
             self.logger.info(f"start evaluate_actions")
             t_a_ht1 = self.target_actor_net.evaluate_actions(
-                s_n_t[:, 1:, :],
-                a_n_t[:, :-1, :],  # [(a_0, s_1), (a_1, s_2), ..., (a_{n-1}, s_n), ...]
-            )
+                ns_n_t[:, 1:, :],  # s_1, s_2, ..., s_n, ...
+                a_n_t[:, 1:, :],  # a_0, a_1, ..., a_{n-1}, ...
+            )  # t_actor(h_{t+1}): [h_1(a_0, s_1), h_2(a_1, s_2), ..., h_n(a_{n-1}, s_n), ...]
 
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
             # logger.info(f"t_a_ht1.shape: {self.t_a_ht1.shape}")
             self.logger.info(f"start critic evaluate_q")
-            t_q_ht1 = self.target_critic_net.evaluate_q(s_n_t, t_a_ht1)
+            t_q_ht1 = self.target_critic_net.evaluate_q(
+                ns_n_t[:, 1:, :], a_n_t[:, 1:, :], t_a_ht1
+            )  # t_critic(h_{t+1}, t_actor(h_{t+1})): [h_1(s_1, a_0), h_2(s_2, a_1), ..., h_n(s_n, a_{n-1}), ...]
             self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
 
-            # compute the target action value at h_t for the current batch
-            # using fancy indexing
-            # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-            t_q_ht_bl = tf.cast(
-                tf.experimental.numpy.append(
-                    t_q_ht1[:, 1:, :],
-                    np.zeros((self.hyper_param.BatchSize, 1, 1)),
-                    axis=1,
-                ),  # todo: replace self._seq_len with maximal seq length
-                dtype=tf.float32,
-            )
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
-            # y_n_t shape (batch_size, seq_len, 1)
-            y_n_t = r_n_t + self.hyper_param.Gamma * t_q_ht_bl
+            # y_n_t shape (batch_size, seq_len, 1), target value
+            y_n_t = (
+                r_n_t[:, 1:, :] + self.hyper_param.Gamma * t_q_ht1
+            )  # y0(r_0, Q(h_1,mu(h_1))), y1(r_1, Q(h_2,mu(h_2)), ...)
             self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
-                y_n_t - self.critic_net.evaluate_q(s_n_t, a_n_t)
+                y_n_t
+                - self.critic_net.evaluate_q(
+                    s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_n_t[:, 1:, :]
+                )  # Q(s_t, a_{t-1}, a_t): Q(s_0, a_-1, a_0), Q(s_1, a_0, a_1), ..., Q(s_n, a_{n-1}, a_n)
             )
         critic_grad = tape.gradient(
             critic_loss, self.critic_net.eager_model.trainable_variables
@@ -369,12 +365,14 @@ class RDPG(DPG):
         # train actor using bptt
         with tf.GradientTape() as tape:
             self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
-            a_ht = self.actor_net.evaluate_actions(s_n_t)
+            a_ht = self.actor_net.evaluate_actions(
+                s_n_t[:, 1:, :], a_n_t[:, :-1, :]
+            )  # states, last actions: (s_0, a_-1), (s_1, a_0), ..., (s_n, a_{n-1})
             self.logger.info(
                 f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
                 extra=dictLogger,
             )
-            q_ht = self.critic_net.evaluate_q(s_n_t, a_ht)
+            q_ht = self.critic_net.evaluate_q(s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_ht)
             self.logger.info(
                 f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
                 extra=dictLogger,
@@ -383,15 +381,8 @@ class RDPG(DPG):
             # logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht
             # scalar value, average over the batch and time steps
-            actor_loss = tf.math.reduce_mean(-q_ht)
+            actor_loss = -tf.math.reduce_mean(q_ht)
 
-        # action_gradients = tape.gradient(self.a_ht, self.actor_net.eager_model.trainable_variables)
-        # actor_grad_weight = tape.gradient(
-        #     actor_loss,
-        #     self.a_ht,
-        #     action_gradients  # weights for self.a_ht
-        # )
-        # todo check if this is correct. compare above actor_grad with below
         actor_grad = tape.gradient(
             actor_loss, self.actor_net.eager_model.trainable_variables
         )
@@ -416,32 +407,38 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        s_n_t, a_n_t, r_n_t, _ = self.buffer.sample  # ignore the next state
+        s_n_t, a_n_t, r_n_t, ns_n_t = self.buffer.sample()  # ignore the next state
 
         # get critic loss
         # actions at h_t+1
-        t_a_ht1 = self.target_actor_net.evaluate_actions(s_n_t)
+        t_a_ht1 = self.target_actor_net.evaluate_actions(
+            ns_n_t[:, 1:, :],  # s_1, s_2, ..., s_n
+            a_n_t[:, 1:, :],  # a_0, a_1, ..., a_{n-1}
+        )  # t_actor(h_{t+1}, s_{t+1}): [h_1(s_1), h_2(s_2), ..., h_n(s_n), ...]
 
         # state action value at h_t+1
-        t_q_ht1 = self.target_critic_net.evaluate_q(s_n_t, t_a_ht1)
+        t_q_ht1 = self.target_critic_net.evaluate_q(
+            ns_n_t[:, 1:, :], a_n_t[:, 1:, :], t_a_ht1
+        )  # t_critic(h_{t+1}, t_actor(h_{t+1})): [h_1(s_1, a_0), h_2(s_2, a_1), ..., h_n(s_n, a_{n-1}), ...]
 
-        # compute the target action value at h_t for the current batch
-        # using fancy indexing
-        # t_q_ht bootloading value for estimating target action value y_n_t for time h_t+1
-        t_q_ht_bl = tf.experimental.numpy.append(
-            t_q_ht1[:, [1, self._seq_len], :], 0, axis=1
-        )
         # y_n_t shape (batch_size, seq_len, 1)
-        y_n_t = r_n_t + tf.convert_to_tensor(self.hyper_param.Gamma) * t_q_ht_bl
+        y_n_t = (
+            r_n_t[:, 1:, :] + self.hyper_param.Gamma * t_q_ht1
+        )  # y0(r_0, Q(h_1,mu(h_1))), y1(r_1, Q(h_2, mu(h_2)), ...)
 
         # scalar value, average over the batch, time steps
         critic_loss = tf.math.reduce_mean(
-            y_n_t - self.critic_net.evaluate_q(s_n_t, a_n_t)
-        )
+            y_n_t
+            - self.critic_net.evaluate_q(
+                s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_n_t[:, 1:, :]
+            )
+        )  # Q(s_t, a_{t-1}, a_t): Q(s_0, a_-1, a_0), Q(s_1, a_0, a_1), ..., Q(s_n, a_{n-1}, a_n)
 
         # get  actor loss
-        a_ht = self.actor_net.evaluate_actions(s_n_t)
-        q_ht = self.critic_net.evaluate_q(s_n_t, a_ht)
+        a_ht = self.actor_net.evaluate_actions(
+            s_n_t[:, 1:, :], a_n_t[:, :-1, :]
+        )  # states, last actions: (s_0, a_-1), (s_1, a_0), ..., (s_n, a_{n-1})
+        q_ht = self.critic_net.evaluate_q(s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_ht)
 
         # -1 because we want to maximize the q_ht
         # scalar value, average over the batch and time steps
