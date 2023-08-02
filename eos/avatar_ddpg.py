@@ -4,6 +4,14 @@ import argparse
 
 from eos import proj_root
 from eos.utils import dictLogger, logger
+from eos.data_io.config import (
+    Driver,
+    Truck,
+    str_to_truck,
+    str_to_driver,
+    str_to_can_server,
+    str_to_trip_server,
+)
 
 from avatar import Avatar  # type: ignore
 from agent.ddpg.ddpg import DDPG  # type: ignore
@@ -132,21 +140,62 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
+    try:
+        truck: Truck = str_to_truck(args.vehicle)
+    except KeyError:
+        raise KeyError(f"vehicle {args.vehicle} not found in config file")
+    else:
+        logger.info(
+            f'Vehicle found. vid:{truck.vid}, vin: {truck.vin}.', extra=dictLogger
+        )
 
+    try:
+        driver: Driver = str_to_driver(args.driver)
+    except KeyError:
+        raise KeyError(f"driver {args.driver} not found in config file")
+    else:
+        logger.info(
+            f'Driver found. pid:{driver.pid}, vin: {driver.name}.', extra=dictLogger
+        )
+
+    # remotecan_srv: str = 'can_intra'
+    try:
+        can_server = str_to_can_server(args.remotecan)
+    except KeyError:
+        raise KeyError(f"can server {args.remotecan} not found in config file")
+    else:
+        logger.info(f'CAN Server found: {can_server.SRVName}', extra=dictLogger)
+
+    try:
+        trip_server = str_to_trip_server(args.web)
+    except KeyError:
+        raise KeyError(f"trip server {args.web} not found in config file")
+    else:
+        logger.info(f'Trip Server found: {trip_server.SRVName}', extra=dictLogger)
     assert args.agent == 'ddpg', 'Only DDPG is supported in this module'
+    agent: DDPG = DDPG(
+        _coll_type='RECORD',
+        _hyper_param=HyperParamDDPG('DDPG'),
+        _truck=truck,
+        _driver=driver,
+        _pool_key=args.pool_key,
+        _data_folder=args.data_root,
+        _infer_mode=args.infer_mode,
+    )
     try:
         avatar = AvatarDDPG(
+            truck=truck,
+            driver=driver,
+            can_server=can_server,
+            trip_server=trip_server,
+            _agent=agent,
             cloud=args.cloud,
             ui=args.ui,
             resume=args.resume,
             infer_mode=args.infer,
             record=args.record_table,
             path=args.path,
-            vehicle_str=args.vehicle,
-            driver_str=args.driver,
-            remotecan_srv=args.remotecan,
-            web_srv=args.web,
-            pool_key=args.pool_key,
+            pool_key=args.pool,
             proj_root=proj_root,
             logger=logger,
         )
