@@ -2,14 +2,14 @@ from dataclasses import dataclass
 import argparse, sys
 from .avatar import Avatar  # type: ignore
 from .agent.rdpg import RDPG  # type: ignore
-from .agent.utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
+from .agent.utils import HyperParamRDPG  # type: ignore
 from eos.utils import dictLogger, logger
 from eos import proj_root
 
 
 @dataclass
 class AvatarRDPG(Avatar):
-    hyper_param: HYPER_PARAM = hyper_param_by_name['RDPG']
+    hyper_param: HyperParamRDPG = HyperParamRDPG('RDPG')
 
     def __post_init__(self):
         self.agent = RDPG(

@@ -1,7 +1,7 @@
 from _typeshed import Incomplete
 from typing import Dict, NamedTuple
 
-class HYPER_PARAM(NamedTuple):
+class HyperParam(NamedTuple):
     ModelName: Incomplete
     BatchSize: Incomplete
     NStates: Incomplete
@@ -22,4 +22,4 @@ class HYPER_PARAM(NamedTuple):
     PaddingValue: Incomplete
 
 hyper_param_list: Incomplete
-hyper_param_by_name: Dict[str, HYPER_PARAM]
+hyper_param_by_name: Dict[str, HyperParam]

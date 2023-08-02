@@ -18,7 +18,7 @@ from tensorflow.python.keras import layers
 
 # from pymongoarrow.monkey import patch_all
 from eos.utils import dictLogger, logger
-from eos.agent.utils import OUActionNoise, hyper_param_by_name, HYPER_PARAM
+from eos.agent.utils import OUActionNoise, HyperParamDDPG
 from eos.data_io.buffer import MongoBuffer, DaskBuffer
 from eos.agent.dpg import DPG
 
@@ -133,7 +133,6 @@ class DDPG(DPG):
             - critic network
     """
 
-    _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
     _buffer: Union[
         MongoBuffer, DaskBuffer
     ] = (
@@ -159,13 +158,14 @@ class DDPG(DPG):
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "RECORD"
-        self.hyper_param = hyper_param_by_name[self.__class__.__name__]
+        self.hyper_param = HyperParamDDPG('DDPG')
         # print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks
         self.actor_model = self.get_actor(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsAction,  # 256
+            self.hyper_param.ActorInputDenseDimension1,  # 256
+            self.hyper_param.ActorInputDenseDimension2,  # 256
             self.hyper_param.NLayerActor,  # 2
             self.hyper_param.ActionBias,  # 0.0
         )
@@ -174,7 +174,8 @@ class DDPG(DPG):
         self.target_actor_model = self.get_actor(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsAction,  # 256
+            self.hyper_param.ActorInputDenseDimension1,  # 256
+            self.hyper_param.ActorInputDenseDimension2,  # 256
             self.hyper_param.NLayerActor,  # 2
             self.hyper_param.ActionBias,  # 0.0
         )
@@ -182,18 +183,22 @@ class DDPG(DPG):
         self.critic_model = self.get_critic(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsState0,  # 16
-            self.hyper_param.HiddenUnitsState1,  # 32
-            self.hyper_param.HiddenUnitsOut,  # 256
+            self.hyper_param.CriticStateInputDenseDimension1,  # 16
+            self.hyper_param.CriticStateInputDenseDimension2,  # 32
+            self.hyper_param.CriticActionInputDenseDimension,  # 32
+            self.hyper_param.CriticOutputDenseDimension1,  # 256
+            self.hyper_param.CriticOutputDenseDimension2,  # 256
             self.hyper_param.NLayerCritic,  # 2
         )
 
         self.target_critic_model = self.get_critic(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsState0,  # 16
-            self.hyper_param.HiddenUnitsState1,  # 32
-            self.hyper_param.HiddenUnitsOut,  # 256
+            self.hyper_param.CriticStateInputDenseDimension1,  # 16
+            self.hyper_param.CriticStateInputDenseDimension2,  # 32
+            self.hyper_param.CriticActionInputDenseDimension,  # 32
+            self.hyper_param.CriticOutputDenseDimension1,  # 256
+            self.hyper_param.CriticOutputDenseDimension2,  # 256
             self.hyper_param.NLayerCritic,  # 2
         )
 
@@ -489,7 +494,8 @@ class DDPG(DPG):
         cls,
         num_states: int,
         num_actions: int,
-        num_hidden: int = 256,
+        num_actor_inputs1: int = 256,
+        num_actor_inputs2: int = 256,
         num_layers: int = 2,
         action_bias: float = 0,
     ):
@@ -500,7 +506,7 @@ class DDPG(DPG):
         # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
 
         x = layers.Dense(
-            num_hidden,
+            num_actor_inputs1,
             activation="relu",
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(inputs)
@@ -508,7 +514,7 @@ class DDPG(DPG):
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
             x = layers.Dense(
-                num_hidden,
+                num_actor_inputs2,
                 activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
@@ -536,21 +542,25 @@ class DDPG(DPG):
         cls,
         num_states: int,
         num_actions: int,
-        num_hidden0: int = 16,
-        num_hidden1: int = 32,
-        num_hidden2: int = 256,
+        num_state_input_dense1: int = 16,
+        num_state_input_dense2: int = 32,
+        num_action_input_dense: int = 32,
+        num_output_dense1: int = 256,
+        num_output_dense2: int = 256,
         num_layers: int = 2,
     ):
         # State as input
         state_input = layers.Input(shape=(num_states,))
-        state_out = layers.Dense(num_hidden0, activation="relu")(state_input)
-        state_out = layers.Dense(num_hidden1, activation="relu")(state_out)
+        state_out = layers.Dense(num_state_input_dense1, activation="relu")(state_input)
+        state_out = layers.Dense(num_state_input_dense2, activation="relu")(state_out)
 
         # Action as input
         action_input = layers.Input(
             shape=(num_actions,)
         )  # action is defined as flattened.
-        action_out = layers.Dense(num_hidden1, activation="relu")(action_input)
+        action_out = layers.Dense(num_action_input_dense, activation="relu")(
+            action_input
+        )
 
         # Both are passed through separate layer before concatenating
         x = layers.Concatenate()([state_out, action_out])
@@ -558,12 +568,12 @@ class DDPG(DPG):
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
             x = layers.Dense(
-                num_hidden2,
+                num_output_dense1,
                 activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
         x = layers.Dense(
-            num_hidden2,
+            num_output_dense2,
             activation="relu",
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(x)

@@ -21,7 +21,7 @@ from eos.data_io.struct import (
     get_filemeta_config,
     RE_RECIPEKEY,
 )
-from utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
+from utils import HyperParamRDPG, HyperParamDDPG  # type: ignore
 from eos.data_io.buffer import MongoBuffer, DaskBuffer
 from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
@@ -44,7 +44,7 @@ class DPG(abc.ABC):
     _coll_type: str = (
         "RECORD"  # or 'EPISODE', used for create different buffer and pool
     )
-    _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
+    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = HyperParamDDPG('DDPG')
     _pool_key: str = "mongo_local"  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
@@ -365,9 +365,9 @@ class DPG(abc.ABC):
         self._torque_table_row_names = value
 
     @property
-    def hyper_param(self) -> HYPER_PARAM:
+    def hyper_param(self) -> Union[HyperParamDDPG, HyperParamRDPG]:
         return self._hyper_param
 
     @hyper_param.setter
-    def hyper_param(self, value: HYPER_PARAM):
+    def hyper_param(self, value: Union[HyperParamDDPG, HyperParamRDPG]):
         self._hyper_param = value

@@ -7,15 +7,15 @@ from pathlib import Path
 # local imports
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
-from eos.data_io.config import trucks_by_id, Truck
+from eos.agent.utils.hyperparams import HyperParamRDPG
 
 
 class CriticNet:
     """Critic network for the RDPG algorithm."""
 
-    _truck_type: ClassVar[Truck] = trucks_by_id[
-        "default"
-    ]  # for tf.function to get truck signal properties
+    _hyperparams: ClassVar[HyperParamRDPG] = HyperParamRDPG(
+        'RDPG'
+    )  # for tf.function to get truck signal properties
 
     def __init__(
         self,
@@ -135,13 +135,13 @@ class CriticNet:
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, _truck_type.observation_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.NStates], dtype=tf.float32
             ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser  states
             tf.TensorSpec(
-                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.NActions], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser  last_actions
             tf.TensorSpec(
-                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.HiddenDimension], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser  actions
         ]
     )

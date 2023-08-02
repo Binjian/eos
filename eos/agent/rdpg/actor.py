@@ -7,18 +7,18 @@ from tensorflow.python.keras import layers
 from pathlib import Path
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
-from eos.data_io.config import trucks_by_id, Truck
 
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
+from eos.agent.utils.hyperparams import HyperParamRDPG
 
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
 
-    _truck_type: ClassVar[Truck] = trucks_by_id[
-        "default"
-    ]  # for tf.function to get truck signal properties
+    _hyperparams: ClassVar[HyperParamRDPG] = HyperParamRDPG(
+        'RDPG'
+    )  # for tf.function to get some of the default hyperparameters
 
     def __init__(
         self,
@@ -79,9 +79,13 @@ class ActorNet:
             )  # only return full sequences of hidden states, necessary for stacking LSTM layers,
             # last hidden state is not needed
 
-        lstm_output = layers.LSTM(
-            hidden_dim, return_sequences=False, return_state=False
+        (lstm_output, actor_state_h, actor_state_c) = layers.LSTM(
+            hidden_dim,
+            return_sequences=False,
+            return_state=True,  # return hidden and cell states for inference of each time step
         )(x)
+
+        actor_states = [actor_state_h, actor_state_c]
 
         # rescale the output of the lstm layer to (-1, 1)
         action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
@@ -150,17 +154,21 @@ class ActorNet:
         self.ou_noise.reset()
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
-    def predict(self, states, last_actions):
+    def predict(
+        self, states: tf.Tensor, last_actions: tf.Tensor, hidden_in: tf.Tensor
+    ) -> tf.Tensor:
         """Predict the action given the state. Batch dimension needs to be one.
         Args:
-            state (np.array): State, Batch dimension needs to be one.
+            states: State, Batch dimension needs to be one.
+            last_actions: Last action, Batch dimension needs to be one.
+            hidden_in: Hidden state of the LSTM layer, Batch dimension needs to be one.
 
         Returns:
-            np.array: Action
+            Action
         """
 
         # get the last step action and squeeze the batch dimension
-        action = self.predict_step(states, last_actions)
+        action = self.predict_step(states, last_actions, hidden_in)
         sampled_action = (
             action + self.ou_noise()
         )  # noise object is a row vector, without batch and time dimension
@@ -169,11 +177,14 @@ class ActorNet:
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, _truck_type.observation_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.NStates], dtype=tf.float32
             ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
             tf.TensorSpec(
-                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.NActions], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser
+            tf.TensorSpec(
+                shape=[None, None, _hyperparams.HiddenDimension], dtype=tf.float32
+            ),  # [None, None, 256] for LSTM hidden and cell states
         ]
     )
     def predict_step(self, states, last_actions):
@@ -196,10 +207,10 @@ class ActorNet:
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, _truck_type.observation_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.NStates], dtype=tf.float32
             ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
             tf.TensorSpec(
-                shape=[None, None, _truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[None, None, _hyperparams.NActions], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser
         ]
     )

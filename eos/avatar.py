@@ -93,7 +93,7 @@ from eos.utils import (
 )
 from eos.visualization import plot_3d_figure, plot_to_image
 from eos.agent import DPG, DDPG, RDPG
-from eos.agent.utils import hyper_param_by_name
+from eos.agent.utils import HyperParamRDPG, HyperParamDDPG
 
 # from bson import ObjectId
 
@@ -2641,7 +2641,7 @@ if __name__ == '__main__':
     if args.agent == 'ddpg':
         agent: DDPG = DDPG(
             _coll_type='RECORD',
-            _hyper_param=hyper_param_by_name['ddpg'],
+            _hyper_param=HyperParamDDPG('DDPG'),
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
@@ -2651,7 +2651,7 @@ if __name__ == '__main__':
     else:  # args.agent == 'rdpg':
         agent: RDPG = RDPG(  # type: ignore
             _coll_type='EPISODE',
-            _hyper_param=hyper_param_by_name['rdpg'],
+            _hyper_param=HyperParamRDPG('RDPG'),
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,

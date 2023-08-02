@@ -15,7 +15,7 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 # local imports
 from eos.utils import dictLogger, logger
 from ..dpg import DPG  # type: ignore
-from eos.agent.utils.hyperparams import hyper_param_by_name
+from eos.agent.utils.hyperparams import HyperParamRDPG
 
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
@@ -74,7 +74,7 @@ class RDPG(DPG):
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "EPISODE"
-        self.hyper_param = hyper_param_by_name[self.__class__.__name__]
+        self.hyper_param = HyperParamRDPG("RDPG")
 
         # actor network (w/ target network)
         self.init_checkpoint()
@@ -82,7 +82,7 @@ class RDPG(DPG):
         self.actor_net = ActorNet(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsAction,  # 256
+            self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerActor,  # 2
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauActor,  # 0.005
@@ -94,7 +94,7 @@ class RDPG(DPG):
         self.target_actor_net = ActorNet(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsAction,  # 256
+            self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerActor,  # 2
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauActor,  # 0.005
@@ -110,7 +110,7 @@ class RDPG(DPG):
         self.critic_net = CriticNet(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsOut,  # 256
+            self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerCritic,  # 2
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauCritic,  # 0.005
@@ -122,7 +122,7 @@ class RDPG(DPG):
         self.target_critic_net = CriticNet(
             self.truck.observation_numel,
             self.truck.torque_flash_numel,
-            self.hyper_param.HiddenUnitsOut,  # 256
+            self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerCritic,  # 2
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauCritic,  # 0.005
