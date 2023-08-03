@@ -71,11 +71,18 @@ class CriticNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
+            x = layers.LSTM(
+                hidden_dim,
+                return_sequences=True,
+                return_state=False,
+                stateful=True,  # stateful for batches of long sequences, and inference with single time step
+            )(x)
 
         lstm_output = layers.LSTM(
-            hidden_dim, return_sequences=False, return_state=False
-        )(x)
+            hidden_dim, return_sequences=False, return_state=False, stateful=True
+        )(
+            x
+        )  # stateful for batches of long sequences, and inference with single time step
 
         critic_output = layers.Dense(1, activation=None)(lstm_output)
 

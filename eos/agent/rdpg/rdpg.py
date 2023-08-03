@@ -315,14 +315,15 @@ class RDPG(DPG):
         actor_loss, critic_loss = self.train_step(s_n_t, a_n_t, r_n_t, ns_n_t)
         return actor_loss, critic_loss
 
-    # @tf.function(input_signature=[tf.tensorspec(shape=[none,none,1], dtype=tf.float32),
-    #                               tf.tensorspec(shape=[none,none,90], dtype=tf.float32),
-    #                               tf.tensorspec(shape=[none,none,85], dtype=tf.float32)])
+    # @tf.function(input_signature=[tf.TensorSpec(shape=[none,none,1], dtype=tf.float32),
+    #                               tf.TensorSpec(shape=[none,none,90], dtype=tf.float32),
+    #                               tf.TensorSpec(shape=[none,none,85], dtype=tf.float32)])
     def train_step(self, s_n_t, a_n_t, r_n_t, ns_n_t):
         # train critic using bptt
         print("tracing train_step!")
         self.logger.info(f"start train_step with tracing")
         # logger.info(f"start train_step")
+
         with tf.GradientTape() as tape:
             # actions at h_t+1
             self.logger.info(f"start evaluate_actions")
@@ -395,6 +396,14 @@ class RDPG(DPG):
         self.logger.info(f"applied actor gradient", extra=dictLogger)
 
         return actor_loss, critic_loss
+
+    def end_episode(self):
+        super().end_episode()
+        # reset the states of the actor and critic networks
+        self.actor_net.eager_model.reset_states()
+        self.critic_net.eager_model.reset_states()
+        self.target_actor_net.eager_model.reset_states()
+        self.target_critic_net.eager_model.reset_states()
 
     def get_losses(self):
         pass

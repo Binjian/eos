@@ -74,18 +74,23 @@ class ActorNet:
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(
+            x = layers.LSTM(
+                hidden_dim,
+                return_sequences=True,
+                return_state=False,
+                stateful=True,  # stateful for batches of long sequences split into batches of shorter sequences
+            )(
                 x
             )  # only return full sequences of hidden states, necessary for stacking LSTM layers,
             # last hidden state is not needed
 
-        (lstm_output, actor_state_h, actor_state_c) = layers.LSTM(
+        lstm_output = layers.LSTM(
             hidden_dim,
             return_sequences=False,
-            return_state=True,  # return hidden and cell states for inference of each time step
+            return_state=False,  # return hidden and cell states for inference of each time step,
+            stateful=True,  # stateful for batches of long sequences split into batches of shorter sequences
+            # need to reset_states when the episode ends
         )(x)
-
-        actor_states = [actor_state_h, actor_state_c]
 
         # rescale the output of the lstm layer to (-1, 1)
         action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
@@ -154,21 +159,18 @@ class ActorNet:
         self.ou_noise.reset()
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
-    def predict(
-        self, states: tf.Tensor, last_actions: tf.Tensor, hidden_in: tf.Tensor
-    ) -> tf.Tensor:
+    def predict(self, states: tf.Tensor, last_actions: tf.Tensor) -> tf.Tensor:
         """Predict the action given the state. Batch dimension needs to be one.
         Args:
             states: State, Batch dimension needs to be one.
             last_actions: Last action, Batch dimension needs to be one.
-            hidden_in: Hidden state of the LSTM layer, Batch dimension needs to be one.
 
         Returns:
             Action
         """
 
         # get the last step action and squeeze the batch dimension
-        action = self.predict_step(states, last_actions, hidden_in)
+        action = self.predict_step(states, last_actions)
         sampled_action = (
             action + self.ou_noise()
         )  # noise object is a row vector, without batch and time dimension
@@ -182,9 +184,6 @@ class ActorNet:
             tf.TensorSpec(
                 shape=[None, None, _hyperparams.NActions], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser
-            tf.TensorSpec(
-                shape=[None, None, _hyperparams.HiddenDimension], dtype=tf.float32
-            ),  # [None, None, 256] for LSTM hidden and cell states
         ]
     )
     def predict_step(self, states, last_actions):
