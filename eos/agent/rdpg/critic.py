@@ -13,9 +13,9 @@ from eos.agent.utils.hyperparams import HyperParamRDPG
 class CriticNet:
     """Critic network for the RDPG algorithm."""
 
-    _hyperparams: ClassVar[HyperParamRDPG] = HyperParamRDPG(
-        'RDPG'
-    )  # for tf.function to get truck signal properties
+    _hyperparams: ClassVar[
+        HyperParamRDPG
+    ] = HyperParamRDPG()  # for tf.function to get truck signal properties
 
     def __init__(
         self,

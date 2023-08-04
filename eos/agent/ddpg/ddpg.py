@@ -21,6 +21,7 @@ from eos.utils import dictLogger, logger
 from eos.agent.utils import OUActionNoise, HyperParamDDPG
 from eos.data_io.buffer import MongoBuffer, DaskBuffer
 from eos.agent.dpg import DPG
+from eos.data_io.struct import PoolQuery, veos_lifetime_start_date, veos_lifetime_end_date  # type: ignore
 
 # patch_all()
 """
@@ -158,7 +159,37 @@ class DDPG(DPG):
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "RECORD"
-        self.hyper_param = HyperParamDDPG('DDPG')
+        self.hyper_param = HyperParamDDPG(
+            CriticStateInputDenseDimension1=16,
+            CriticStateInputDenseDimension2=32,
+            CriticActionInputDenseDimension=32,
+            CriticOutputDenseDimension1=256,
+            CriticOutputDenseDimension2=256,
+            ActorInputDenseDimension1=256,
+            ActorInputDenseDimension2=256,
+            BatchSize=4,
+            NStates=self.truck.observation_numel,  # 600
+            NActions=self.truck.torque_flash_numel,  # 68
+            ActionBias=self.truck.torque_bias,  # 0.0
+            NLayerActor=2,
+            NLayersCritic=2,
+            Gamma=0.99,
+            TauActor=0.005,
+            TauCritic=0.005,
+            ActorLR=0.001,
+            CriticLR=0.001,
+            CkptInterval=5,
+        )
+
+        self.buffer.query = PoolQuery(
+            vehicle=self.truck.vid,
+            driver=self.driver.pid,
+            episodestart_start=veos_lifetime_start_date,
+            episodestart_end=veos_lifetime_end_date,
+            timestamp_start=veos_lifetime_start_date,
+            timestamp_end=veos_lifetime_end_date,
+        )
+
         # print(f"In DDPG buffer is {self.buffer}!")
         # Initialize networks
         self.actor_model = self.get_actor(

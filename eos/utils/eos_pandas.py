@@ -474,7 +474,7 @@ def encode_dataframe_from_parquet(df: pd.DataFrame):
 
 
 def decode_episode_dataframes_to_padded_arrays(
-    batch: pd.DataFrame,
+    batch: pd.DataFrame, padding_value: float = -10000.0
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
@@ -493,7 +493,7 @@ def decode_episode_dataframes_to_padded_arrays(
         for ep_start in episodestart_index
     ]
     r_n_t = pad_sequences(
-        rewards_list, padding='post', dtype=np.float32, value=-10000.0
+        rewards_list, padding='post', dtype=np.float32, value=padding_value
     )
 
     # array of states for minibatch
@@ -504,7 +504,9 @@ def decode_episode_dataframes_to_padded_arrays(
         df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    s_n_t = pad_sequences(states_list, padding='post', dtype=np.float32, value=-10000.0)
+    s_n_t = pad_sequences(
+        states_list, padding='post', dtype=np.float32, value=padding_value
+    )
 
     # array of actions for minibatch
     df_actions = batch.loc[:, idx['action', self.torque_table_row_names]]  # type: ignore
@@ -513,7 +515,7 @@ def decode_episode_dataframes_to_padded_arrays(
         for ep_start in episodestart_index
     ]
     a_n_t = pad_sequences(
-        actions_list, padding='post', dtype=np.float32, value=-10000.0
+        actions_list, padding='post', dtype=np.float32, value=padding_value
     )
 
     # array of next_states for minibatch
@@ -523,7 +525,7 @@ def decode_episode_dataframes_to_padded_arrays(
         for ep_start in episodestart_index
     ]
     ns_n_t = pad_sequences(
-        nstates_list, padding='post', dtype=np.float32, value=-10000.0
+        nstates_list, padding='post', dtype=np.float32, value=padding_value
     )
 
     return s_n_t, a_n_t, r_n_t, ns_n_t

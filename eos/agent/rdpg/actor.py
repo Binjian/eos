@@ -16,9 +16,9 @@ from eos.agent.utils.hyperparams import HyperParamRDPG
 class ActorNet:
     """Actor network for the RDPG algorithm."""
 
-    _hyperparams: ClassVar[HyperParamRDPG] = HyperParamRDPG(
-        'RDPG'
-    )  # for tf.function to get some of the default hyperparameters
+    _hyperparams: ClassVar[
+        HyperParamRDPG
+    ] = HyperParamRDPG()  # for tf.function to get some of the default hyperparameters
 
     def __init__(
         self,

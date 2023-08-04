@@ -44,7 +44,7 @@ class DPG(abc.ABC):
     _coll_type: str = (
         "RECORD"  # or 'EPISODE', used for create different buffer and pool
     )
-    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = HyperParamDDPG('DDPG')
+    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = HyperParamDDPG()
     _pool_key: str = "mongo_local"  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access

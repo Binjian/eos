@@ -1,16 +1,15 @@
 from __future__ import annotations
-from typing import Dict, NamedTuple
 from eos.data_io.config import trucks_by_id
+from pydantic import BaseModel
 
 default_truck = trucks_by_id['default']
 
 
-class HyperParamDPG(NamedTuple):
+class HyperParamDPG(BaseModel):
     """
     Generic Hyperparameters for the RL agent
     """
 
-    ModelName: str = 'DEFAULT'  # name of the model
     BatchSize: int = 4  # batch size for training
     NStates: int = (
         default_truck.observation_numel
@@ -34,7 +33,6 @@ class HyperParamDDPG(HyperParamDPG):
     Hyperparameters for the DDPG agent
     """
 
-    ModelName: str = 'DDPG'
     CriticStateInputDenseDimension1: int = (
         16  # output dimension for the state input (first) Dense layer
     )
@@ -63,8 +61,11 @@ class HyperParamRDPG(HyperParamDPG):
     Hyperparameters for the RDPG agent
     """
 
-    ModelName: str = 'RDPG'
     HiddenDimension: int = 256  # hidden unit number for the action input layer
     PaddingValue: float = (
         -10000
     )  # padding value for the input, impossible value for observation, action or reward
+    tbptt_k1: int = 200  # truncated backpropagation through time: forward steps,
+    # example: 100*4s=400s (6min40s), 200*4s=800s (13min20s) 400*4s=1600s (26min40s)
+    tbptt_k2: int = 200  # truncated backpropagation through time: backward steps,
+    # Note: keras only support k1=k2, ignite support k1!=k2

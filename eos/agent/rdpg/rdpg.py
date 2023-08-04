@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+from typing import Tuple
 
 # third-party imports
 import numpy as np
@@ -21,6 +22,7 @@ from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
 from eos.data_io.buffer import MongoBuffer, DaskBuffer  # type: ignore
+from eos.data_io.struct import PoolQuery, veos_lifetime_start_date, veos_lifetime_end_date  # type: ignore
 
 patch_all()
 
@@ -74,7 +76,35 @@ class RDPG(DPG):
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "EPISODE"
-        self.hyper_param = HyperParamRDPG("RDPG")
+        self.hyper_param = HyperParamRDPG(
+            HiddenDimension=256,
+            PaddingValue=-10000,
+            tbptt_k1=20,
+            tbptt_k2=20,
+            BatchSize=4,
+            NStates=self.truck.observation_numel,
+            NActions=self.truck.torque_flash_numel,
+            ActionBias=self.truck.torque_bias,
+            NLayerActor=2,
+            NLayersCritic=2,
+            Gamma=0.99,
+            TauActor=0.005,
+            TauCritic=0.005,
+            ActorLR=0.001,
+            CriticLR=0.001,
+            CkptInterval=5,
+        )
+
+        self.buffer.query = PoolQuery(
+            vehicle=self.truck.vid,
+            driver=self.driver.pid,
+            episodestart_start=veos_lifetime_start_date,
+            episodestart_end=veos_lifetime_end_date,
+            seq_len_from=(
+                self.hyper_param.tbptt_k1 - 5  # from 15
+            ),  # sample sequence with a length from 1 to 4*200
+            seq_len_to=self.hyper_param.tbptt_k1 * 2,  # to 40
+        )
 
         # actor network (w/ target network)
         self.init_checkpoint()
@@ -231,7 +261,7 @@ class RDPG(DPG):
             )
 
     # TODO for infer only mode, implement a method without noisy exploration.
-    def actor_predict(self, state: pd.Series):
+    def actor_predict(self, state: pd.Series) -> np.ndarray:
         """
         evaluate the actors given a single observations.
         batchsize is 1.
@@ -276,7 +306,7 @@ class RDPG(DPG):
             states, last_actions
         )  # both states and last_actions are 3d tensors [B,T,D]
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
-        return action
+        return action.numpy()
 
     @tf.function(
         input_signature=[
@@ -303,22 +333,75 @@ class RDPG(DPG):
         )  # already un-squeezed inside Actor function
         return action
 
-    def train(self):
+    def train(self) -> Tuple[float, float]:
         """
-        train the actor and critic moving network.
+        train the actor and critic moving network with truncated Backpropagation through time (TBPTT)
+        with k1 = k2 = self.hyperparam.tbptt_k1 (keras)
 
         return:
             tuple: (actor_loss, critic_loss)
         """
 
         s_n_t, a_n_t, r_n_t, ns_n_t = self.buffer.sample()  # ignore next state for now
-        actor_loss, critic_loss = self.train_step(s_n_t, a_n_t, r_n_t, ns_n_t)
-        return actor_loss, critic_loss
+        split_num = (
+            s_n_t.shape[1] // self.hyper_param.tbptt_k1
+            + 1
+            # after padding all observations have the same length (the length of  the longest episode)
+        )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split
+        self.logger.info(
+            f"{{\'header\': \'Batch splitting\', " f"\'split_num\': \'{split_num}\'}}",
+            extra=self.dictLogger,
+        )
+        if split_num <= 0:
+            raise ValueError("split_num <= 0, check tbptt_k1 and episode length")
 
-    # @tf.function(input_signature=[tf.TensorSpec(shape=[none,none,1], dtype=tf.float32),
-    #                               tf.TensorSpec(shape=[none,none,90], dtype=tf.float32),
-    #                               tf.TensorSpec(shape=[none,none,85], dtype=tf.float32)])
-    def train_step(self, s_n_t, a_n_t, r_n_t, ns_n_t):
+        # reset the states of the stateful moving and target networks at the beginning of the training
+        self.actor_net.eager_model.reset_states()
+        self.critic_net.eager_model.reset_states()
+        self.target_actor_net.eager_model.reset_states()
+        self.target_critic_net.eager_model.reset_states()
+        actor_loss = tf.constant(0.0)
+        critic_loss = tf.constant(0.0)
+        for i, batch_t in enumerate(
+            zip(
+                np.array_split(
+                    s_n_t, split_num, axis=1
+                ),  # split on the time axis (axis=1)
+                np.array_split(a_n_t, split_num, axis=1),
+                np.array_split(r_n_t, split_num, axis=1),
+                np.array_split(ns_n_t, split_num, axis=1),
+            )
+        ):  # all actor critic have stateful LSTMs so that the LSTM states are kept between sub-batches,
+            # while trainings extend only to the end of each sub-batch by default of train_step
+            # out of tf.GradientTape() context, the tensors are detached like .detach() in pytorch
+            self.logger.info(f"batch sub sequence: {i}", extra=self.dictLogger)
+            s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub = batch_t
+            actor_loss, critic_loss = self.train_step(
+                s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub
+            )
+            self.logger.info(
+                f"batch actor loss: {actor_loss.numpy()[0]}; batch critic loss: {critic_loss.numpy()[0]}",
+                extra=self.dictLogger,
+            )
+
+        # return the last actor and critic loss
+        return actor_loss.numpy()[0], critic_loss.numpy()[0]
+
+    @tf.function(
+        input_signature=[
+            tf.tensorspec(
+                shape=[None, None, DPG._truck_type.observation_numel], dtype=tf.float32
+            ),
+            tf.tensorspec(
+                shape=[None, None, DPG._truck_type.torque_flash_numel], dtype=tf.float32
+            ),
+            tf.tensorspec(shape=[None, None, 1], dtype=tf.float32),
+            tf.tensorspec(
+                shape=[None, None, DPG._truck_type.observation_numel], dtype=tf.float32
+            ),
+        ]
+    )
+    def train_step(self, s_n_t, a_n_t, r_n_t, ns_n_t) -> Tuple[tf.Tensor, tf.Tensor]:
         # train critic using bptt
         print("tracing train_step!")
         self.logger.info(f"start train_step with tracing")
