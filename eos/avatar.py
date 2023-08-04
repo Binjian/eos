@@ -1882,7 +1882,7 @@ class Avatar(abc.ABC):
                 assert self.tableQ_lock is not None
                 with self.tableQ_lock:
                     assert self.tableQueue is not None
-                    table = self.tableQueue.get(
+                    table: np.ndarray = self.tableQueue.get(
                         block=False, timeout=1
                     )  # default block = True
                     # print("2 table_queue size: {}".format(table_queue.qsize()))
@@ -1904,12 +1904,11 @@ class Avatar(abc.ABC):
             except queue.Empty:
                 pass
             else:
-                vcu_calib_table_reduced = tf.reshape(
-                    table,
-                    [
+                vcu_calib_table_reduced = table.reshape(
+                    (
                         self.truck.torque_table_row_num_flash,
                         self.truck.torque_table_col_num,
-                    ],
+                    )
                 )
 
                 # get change budget : % of initial table
@@ -1919,21 +1918,20 @@ class Avatar(abc.ABC):
 
                 # dynamically change table row start index
                 assert self.vcu_calib_table0 is not None
-                vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.truck.torque_table_row_num_flash + table_start,
-                    :,
-                ]
+                vcu_calib_table0_reduced = self.vcu_calib_table0.iloc[
+                    table_start : self.truck.torque_table_row_num_flash + table_start, :
+                ]  # Pandas DataFrame implicit slicing, just a view of the whole array
                 vcu_calib_table_min_reduced = (
                     vcu_calib_table0_reduced - self.truck.torque_budget
-                )
+                )  # Apply NumPy broadcasting
                 vcu_calib_table_max_reduced = (
                     self.truck.torque_upper_bound * vcu_calib_table0_reduced
                 )
 
-                vcu_calib_table_reduced = tf.clip_by_value(
+                vcu_calib_table_reduced = np.clip(
                     vcu_calib_table_reduced + vcu_calib_table0_reduced,
-                    clip_value_min=vcu_calib_table_min_reduced,
-                    clip_value_max=vcu_calib_table_max_reduced,
+                    vcu_calib_table_min_reduced,
+                    vcu_calib_table_max_reduced,
                 )
 
                 # create updated complete pedal map, only update the first few rows
@@ -1941,7 +1939,7 @@ class Avatar(abc.ABC):
                 assert self.vcu_calib_table1 is not None
                 self.vcu_calib_table1.iloc[
                     table_start : self.truck.torque_table_row_num_flash + table_start
-                ] = vcu_calib_table_reduced.numpy()
+                ] = vcu_calib_table_reduced
 
                 if args.record_table:
                     curr_table_store_path = self.table_root.joinpath(
