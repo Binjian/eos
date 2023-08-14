@@ -20,7 +20,7 @@ from agent.utils import HyperParamDDPG  # type: ignore
 
 @dataclass
 class AvatarDDPG(Avatar):
-    hyper_param: HyperParamDDPG = HyperParamDDPG('DDPG')
+    hyper_param: HyperParamDDPG = HyperParamDDPG()
 
     def __post__init__(self):
         self.agent = DDPG(
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     assert args.agent == 'ddpg', 'Only DDPG is supported in this module'
     agent: DDPG = DDPG(
         _coll_type='RECORD',
-        _hyper_param=HyperParamDDPG('DDPG'),
+        _hyper_param=HyperParamDDPG(),
         _truck=truck,
         _driver=driver,
         _pool_key=args.pool_key,

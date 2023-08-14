@@ -299,7 +299,7 @@ class Avatar(abc.ABC):
         )
 
     @property
-    def agent(self) -> Union[DPG | None]:
+    def agent(self) -> Union[DPG, None]:
         return self._agent
 
     @agent.setter
@@ -2639,7 +2639,7 @@ if __name__ == '__main__':
     if args.agent == 'ddpg':
         agent: DDPG = DDPG(
             _coll_type='RECORD',
-            _hyper_param=HyperParamDDPG('DDPG'),
+            _hyper_param=HyperParamDDPG(),
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
@@ -2649,7 +2649,7 @@ if __name__ == '__main__':
     else:  # args.agent == 'rdpg':
         agent: RDPG = RDPG(  # type: ignore
             _coll_type='EPISODE',
-            _hyper_param=HyperParamRDPG('RDPG'),
+            _hyper_param=HyperParamRDPG(),
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,

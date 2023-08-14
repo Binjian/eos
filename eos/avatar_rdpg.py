@@ -19,7 +19,7 @@ from .avatar import Avatar  # type: ignore
 
 @dataclass
 class AvatarRDPG(Avatar):
-    hyper_param: HyperParamRDPG = HyperParamRDPG('RDPG')
+    hyper_param: HyperParamRDPG = HyperParamRDPG()
 
     def __post_init__(self):
         self.agent = RDPG(
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     assert args.agent == 'rdpg', 'Only RDPG is supported in this module'
     agent: RDPG = RDPG(  # type: ignore
         _coll_type='EPISODE',
-        _hyper_param=HyperParamRDPG('RDPG'),
+        _hyper_param=HyperParamRDPG(),
         _truck=truck,
         _driver=driver,
         _pool_key=args.pool_key,
