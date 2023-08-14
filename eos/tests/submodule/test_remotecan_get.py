@@ -11,7 +11,7 @@ import numpy as np
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
-from eos import RemoteCanClient, projroot
+from eos import RemoteCanClient, proj_root
 from eos.config import trucks_by_id, trucks_by_vin, trip_servers, can_servers
 from eos.utils import ragged_nparray_list_interp
 from eos.config import generate_vcu_calibration
@@ -46,12 +46,12 @@ class TestRemoteCanGet(unittest.TestCase):
         self.trucks = trucks
         self.truck_name = 'VB7'  # index of truck to test, 0 is VB7, 1 is VB6, 2 is HQ
 
-        self.projroot = projroot
+        self.proj_root = proj_root
         self.logger = logging.getLogger('eostest')
         self.logger.propagate = False
         self.dictLogger = {'user': inspect.currentframe().f_code.co_name}
         self.truck = self.trucks[self.truck_name]
-        self.set_logger(projroot)
+        self.set_logger(proj_root)
 
         # check if the truck is valid
         self.assertEqual(self.truck_name, self.truck.vid)
@@ -62,11 +62,11 @@ class TestRemoteCanGet(unittest.TestCase):
             self.truck.VelocityScale,
             self.truck.VelocityRange,
             2,
-            self.projroot.joinpath('eos/config'),
+            self.proj_root.joinpath('eos/config'),
         )
 
-    def set_logger(self, projroot):
-        log_root = projroot.joinpath('data/scratch/tests')
+    def set_logger(self, proj_root):
+        log_root = proj_root.joinpath('data/scratch/tests')
         try:
             os.makedirs(log_root)
         except FileExistsError:

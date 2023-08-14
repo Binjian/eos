@@ -1,30 +1,36 @@
 # third-party imports
-from keras import initializers
+from typing import ClassVar
 import numpy as np
 import tensorflow as tf
-from keras import layers
+from tensorflow.python.keras import layers
 
+from pathlib import Path
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
 
 # local imports
-from ..utils.ou_noise import OUActionNoise
+from eos.agent.utils.ou_noise import OUActionNoise
+from eos.agent.utils.hyperparams import HyperParamRDPG
 
 
 class ActorNet:
     """Actor network for the RDPG algorithm."""
 
+    _hyperparams: ClassVar[
+        HyperParamRDPG
+    ] = HyperParamRDPG()  # for tf.function to get some of the default hyperparameters
+
     def __init__(
         self,
-        state_dim,
-        action_dim,
-        hidden_dim,
-        n_layers,
-        padding_value,
-        tau,
-        lr,
-        ckpt_dir,
-        ckpt_interval,
+        state_dim: int = 0,
+        action_dim: int = 0,
+        hidden_dim: int = 0,
+        n_layers: int = 0,
+        padding_value: float = 0.0,
+        tau: float = 0.0,
+        lr: float = 0.0,
+        ckpt_dir: Path = Path("."),
+        ckpt_interval: int = 0,
     ):
         """Initialize the actor network.
 
@@ -46,28 +52,50 @@ class ActorNet:
         self._n_layers = n_layers
         self._tau = tau
 
-        inputs = layers.Input(shape=(None, state_dim))
+        states = layers.Input(shape=(None, state_dim))
+        last_actions = layers.Input(shape=(None, action_dim))
+
+        inputs = [
+            states,
+            last_actions,
+        ]  # history update consists of current states s_t and last actions a_{t-1}
+        x = layers.Concatenate(axis=-1)(
+            inputs
+        )  # feature dimension would be [states + actions]
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
         x = layers.Masking(mask_value=padding_value)(
-            inputs
-        )  # input (observation) padded with -10000.0
+            x
+        )  # input (observation) padded with -10000.0, on the time dimension
 
-        # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
-        # x = layers.Rescale(inputs, 1.0)
+        x = layers.Dense(hidden_dim, activation="relu")(
+            x
+        )  # linear layer to map [states + actions] to [hidden_dim]
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(hidden_dim, return_sequences=True, return_state=False)(x)
+            x = layers.LSTM(
+                hidden_dim,
+                return_sequences=True,
+                return_state=False,
+                stateful=True,  # stateful for batches of long sequences split into batches of shorter sequences
+            )(
+                x
+            )  # only return full sequences of hidden states, necessary for stacking LSTM layers,
+            # last hidden state is not needed
 
         lstm_output = layers.LSTM(
-            hidden_dim, return_sequences=False, return_state=False
+            hidden_dim,
+            return_sequences=False,
+            return_state=False,  # return hidden and cell states for inference of each time step,
+            stateful=True,  # stateful for batches of long sequences split into batches of shorter sequences
+            # need to reset_states when the episode ends
         )(x)
 
         # rescale the output of the lstm layer to (-1, 1)
         action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
 
-        self.eager_model = tf.keras.Model(inputs, action_output)
+        self.eager_model = tf.keras.Model([states, last_actions], action_output)
         # no need to evaluate the last action separately
         # just run the model inference and get the last action
         # self.action_last = action_outputs[:, -1, :]
@@ -86,7 +114,9 @@ class ActorNet:
         self.ckpt_dir = ckpt_dir
         self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
-            step=tf.Variable(1), optimizer=self.optimizer, net=self.eager_model
+            step=tf.Variable(tf.constant(1)),
+            optimizer=self.optimizer,
+            net=self.eager_model,
         )
         self.ckpt_manager = tf.train.CheckpointManager(
             self.ckpt, self.ckpt_dir, max_to_keep=10
@@ -129,53 +159,71 @@ class ActorNet:
         self.ou_noise.reset()
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=[None, None, self._state_dim], dtype=tf.float32)])
-    def predict(self, state):
-        """Predict the action given the state.
+    def predict(self, states: tf.Tensor, last_actions: tf.Tensor) -> tf.Tensor:
+        """Predict the action given the state. Batch dimension needs to be one.
         Args:
-            state (np.array): State, Batch dimension needs to be one.
+            states: State, Batch dimension needs to be one.
+            last_actions: Last action, Batch dimension needs to be one.
 
         Returns:
-            np.array: Action
+            Action
         """
-        # logc("ActorNet.predict")
 
         # get the last step action and squeeze the batch dimension
-        action = self.predict_step(state)
-        sampled_action = action + self.ou_noise()  # noise object is a row vector
-        # logc("ActorNet.predict")
+        action = self.predict_step(states, last_actions)
+        sampled_action = (
+            action + self.ou_noise()
+        )  # noise object is a row vector, without batch and time dimension
         return sampled_action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+        input_signature=[
+            tf.TensorSpec(
+                shape=[None, None, _hyperparams.NStates], dtype=tf.float32
+            ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
+            tf.TensorSpec(
+                shape=[None, None, _hyperparams.NActions], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser
+        ]
     )
-    def predict_step(self, state):
+    def predict_step(self, states, last_actions):
         """Predict the action given the state.
+        For Inferring
         Args:
-            state (np.array): State, Batch dimension needs to be one.
+            states (tf.Tensor): State, Batch dimension needs to be one.
+            last_actions (tf.Tensor): State, Batch dimension needs to be one.
 
         Returns:
-            np.array: Action
+            np.array: Action, ditch the batch dimension
         """
-        # logc("ActorNet.predict")
-        action_seq = self.eager_model(state)
+        action_seq = self.eager_model([states, last_actions])
 
-        # get the last step action and squeeze the batch dimension
-        last_action = tf.squeeze(action_seq[:, -1, :])
-        return last_action
+        # get the last step action and squeeze the time dimension,
+        # since Batch is one when inferring, squeeze also the batch dimension by tf.squeeze default
+        action = tf.squeeze(action_seq[:, -1, :])
+        return action
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=[None, None, 600], dtype=tf.float32)]
+        input_signature=[
+            tf.TensorSpec(
+                shape=[None, None, _hyperparams.NStates], dtype=tf.float32
+            ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
+            tf.TensorSpec(
+                shape=[None, None, _hyperparams.NActions], dtype=tf.float32
+            ),  # [None, None, 68] for both cloud and kvaser
+        ]
     )
-    def evaluate_actions(self, state):
+    def evaluate_actions(self, states, last_actions):
         """Evaluate the action given the state.
+        For training
         Args:
-            state (np.array): State, in a minibatch
+            states (tf.Tensor): State, Batch dimension needs to be one.
+            last_actions (tf.Tensor): State, Batch dimension needs to be one.
 
         Returns:
-            np.array: Q-value
+            np.array: Action, keep the batch dimension
         """
-        # logc("ActorNet.evaluate_actions")
-        return self.eager_model(state)
+        return self.eager_model([states, last_actions])
 
     @property
     def state_dim(self):

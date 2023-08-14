@@ -63,7 +63,7 @@ from pythonjsonlogger import jsonlogger  # type: ignore
 # from rocketmq.client import Message, Producer  # type: ignore
 import rocketmq.client as rmq_client  # type: ignore
 
-from eos import projroot
+from eos import proj_root
 from eos.utils import dictLogger, logger
 from eos.data_io.config import (
     CANMessenger,
@@ -93,7 +93,7 @@ from eos.utils import (
 )
 from eos.visualization import plot_3d_figure, plot_to_image
 from eos.agent import DPG, DDPG, RDPG
-from eos.agent.utils import hyper_param_by_name
+from eos.agent.utils import HyperParamRDPG, HyperParamDDPG
 
 # from bson import ObjectId
 
@@ -124,7 +124,7 @@ class Avatar(abc.ABC):
     driver: Driver
     can_server: CANMessenger
     trip_server: TripMessenger
-    _agent: DPG  # set by derived Avartar like AvatarDDPG
+    _agent: DPG  # set by derived Avatar like AvatarDDPG
     cloud: bool  # determined by truck type
     ui: str
     logger: logging.Logger
@@ -198,11 +198,11 @@ class Avatar(abc.ABC):
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
         if self.resume:
-            self.data_root = projroot.joinpath(
+            self.data_root = proj_root.joinpath(
                 'data/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
         else:
-            self.data_root = projroot.joinpath(
+            self.data_root = proj_root.joinpath(
                 'data/scratch/' + self.truck.vin + '−' + self.driver.pid
             ).joinpath(self.path)
 
@@ -299,7 +299,7 @@ class Avatar(abc.ABC):
         )
 
     @property
-    def agent(self) -> Union[DPG | None]:
+    def agent(self) -> Union[DPG, None]:
         return self._agent
 
     @agent.setter
@@ -882,14 +882,14 @@ class Avatar(abc.ABC):
                     th_exit = True
                     continue
             try:
-                # print("1 tablequeue size: {}".format(tablequeue.qsize()))
+                # print("1 table queue size: {}".format(table_queue.qsize()))
                 assert self.tableQ_lock is not None
                 with self.tableQ_lock:
                     assert self.tableQueue is not None
                     table = self.tableQueue.get(
                         block=False, timeout=1
                     )  # default block = True
-                    # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+                    # print("2 table_queue size: {}".format(table_queue.qsize()))
             except queue.Empty:
                 pass
             else:
@@ -1104,11 +1104,11 @@ class Avatar(abc.ABC):
 
             try:
                 signal_freq = truck_in_cloud.observation_sampling_rate
-                gear_freq = truck_in_cloud.cloud_gear_frequency
-                unit_duration = truck_in_cloud.cloud_unit_duration
+                gear_freq = truck_in_cloud.tbox_gear_frequency
+                unit_duration = truck_in_cloud.tbox_unit_duration
                 unit_ob_num = unit_duration * signal_freq
                 unit_gear_num = unit_duration * gear_freq
-                unit_num = truck_in_cloud.cloud_unit_number
+                unit_num = truck_in_cloud.tbox_unit_number
                 for key, value in ret_msg.items():
                     if key == 'result':
                         logger_remote_get.info(
@@ -1118,7 +1118,7 @@ class Avatar(abc.ABC):
                         # timestamp processing
                         timestamps_list = []
                         separators = (
-                            '--T::.'  # adaption separators of the raw intest string
+                            '--T::.'  # adaption separators of the raw Intest string
                         )
                         start_century = '20'
                         for ts in value['timestamps']:
@@ -1149,7 +1149,7 @@ class Avatar(abc.ABC):
                             raise ValueError(
                                 f'timestamps_units length is {len(timestamps_units)}, not {unit_num}'
                             )
-                        # upsample gears from 2Hz to 50Hz
+                        # up-sample gears from 2Hz to 50Hz
                         sampling_interval = 1.0 / signal_freq * 1000  # in ms
                         timestamps_list = [
                             i + j * sampling_interval
@@ -1157,7 +1157,7 @@ class Avatar(abc.ABC):
                             for j in np.arange(unit_ob_num)
                         ]
                         timestamps: np.ndarray = np.ndarray(timestamps_list).reshape(  # type: ignore
-                            (truck_in_cloud.cloud_unit_number, -1)
+                            (truck_in_cloud.tbox_unit_number, -1)
                         )  # final format is a list of integers as timestamps in ms
                         current = ragged_nparray_list_interp(
                             value['list_current_1s'],
@@ -1181,9 +1181,9 @@ class Avatar(abc.ABC):
                         )  # 4*50
                         gear = ragged_nparray_list_interp(
                             value['list_gears'],
-                            ob_num=unit_gear_num,
+                            ob_num=int(unit_gear_num),
                         )
-                        # upsample gears from 2Hz to 50Hz
+                        # up-sample gears from 2Hz to 50Hz
                         gear = np.repeat(
                             gear,
                             (signal_freq // gear_freq),
@@ -1568,10 +1568,10 @@ class Avatar(abc.ABC):
 
         th_exit = False
 
-        logger_cloudhmi_sm = self.logger.getChild('cloudhmi_sm')
-        logger_cloudhmi_sm.propagate = True
+        logger_cloud_hmi_sm = self.logger.getChild('cloud_hmi_sm')
+        logger_cloud_hmi_sm.propagate = True
 
-        logger_cloudhmi_sm.info(
+        logger_cloud_hmi_sm.info(
             f"{{\'header\': \'Start/Configure message\', "
             f"\'VIN\': {self.truck.vin}, "
             f"\'driver\': {self.driver.pid}\'}}",
@@ -1582,7 +1582,7 @@ class Avatar(abc.ABC):
         with self.state_machine_lock:
             self.program_start = True
 
-        logger_cloudhmi_sm.info(
+        logger_cloud_hmi_sm.info(
             f"{{\'header\': \'Road Test with inferring will start as one single episode!!!\'}}",
             extra=self.dictLogger,
         )
@@ -1603,7 +1603,7 @@ class Avatar(abc.ABC):
                 # Check if the runner is trying to kill the process
                 # kill signal captured from main thread
                 if self.program_exit:  # if program_exit is True, exit thread
-                    logger_cloudhmi_sm.info(
+                    logger_cloud_hmi_sm.info(
                         f"{{\'header\': \'UI thread exit due to processing request!!!\'}}",
                         extra=self.dictLogger,
                     )
@@ -1615,7 +1615,7 @@ class Avatar(abc.ABC):
                         evt_remote_get.set()
                     with self.flash_env_lock:
                         evt_remote_flash.set()
-                    logger_cloudhmi_sm.info(
+                    logger_cloud_hmi_sm.info(
                         f"{{\'header\': \'Process is being killed and Program exit!!!! "
                         f"Free remote_flash and remote_get!\'}}",
                         extra=self.dictLogger,
@@ -1641,8 +1641,8 @@ class Avatar(abc.ABC):
             with self.get_env_lock:
                 evt_remote_get.set()
 
-        logger_cloudhmi_sm.info(
-            f"{{\'header\': \'remote cloudhmi killed gracefully!!!\'}}",
+        logger_cloud_hmi_sm.info(
+            f"{{\'header\': \'remote cloud_hmi killed gracefully!!!\'}}",
             extra=self.dictLogger,
         )
 
@@ -1824,7 +1824,7 @@ class Avatar(abc.ABC):
                         break
                         # time.sleep(0.1)
                 elif key == 'data':
-                    #  instead of get kvasercan, we get remotecan data here!
+                    #  instead of get kvaser can, we get remotecan data here!
                     if self.get_truck_status_start:  # starts episode
                         # set flag for remote_get thread
                         assert self.get_env_lock is not None
@@ -1878,14 +1878,14 @@ class Avatar(abc.ABC):
 
             # self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
-                # print("1 tablequeue size: {}".format(tablequeue.qsize()))
+                # print("1 table_queue size: {}".format(table_queue.qsize()))
                 assert self.tableQ_lock is not None
                 with self.tableQ_lock:
                     assert self.tableQueue is not None
-                    table = self.tableQueue.get(
+                    table: np.ndarray = self.tableQueue.get(
                         block=False, timeout=1
                     )  # default block = True
-                    # print("2 tablequeue size: {}".format(tablequeue.qsize()))
+                    # print("2 table_queue size: {}".format(table_queue.qsize()))
 
                 with self.hmi_lock:
                     th_exit = self.program_exit
@@ -1904,12 +1904,11 @@ class Avatar(abc.ABC):
             except queue.Empty:
                 pass
             else:
-                vcu_calib_table_reduced = tf.reshape(
-                    table,
-                    [
+                vcu_calib_table_reduced = table.reshape(
+                    (
                         self.truck.torque_table_row_num_flash,
                         self.truck.torque_table_col_num,
-                    ],
+                    )
                 )
 
                 # get change budget : % of initial table
@@ -1919,21 +1918,20 @@ class Avatar(abc.ABC):
 
                 # dynamically change table row start index
                 assert self.vcu_calib_table0 is not None
-                vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
-                    table_start : self.truck.torque_table_row_num_flash + table_start,
-                    :,
-                ]
+                vcu_calib_table0_reduced = self.vcu_calib_table0.iloc[
+                    table_start : self.truck.torque_table_row_num_flash + table_start, :
+                ]  # Pandas DataFrame implicit slicing, just a view of the whole array
                 vcu_calib_table_min_reduced = (
                     vcu_calib_table0_reduced - self.truck.torque_budget
-                )
+                )  # Apply NumPy broadcasting
                 vcu_calib_table_max_reduced = (
                     self.truck.torque_upper_bound * vcu_calib_table0_reduced
                 )
 
-                vcu_calib_table_reduced = tf.clip_by_value(
+                vcu_calib_table_reduced = np.clip(
                     vcu_calib_table_reduced + vcu_calib_table0_reduced,
-                    clip_value_min=vcu_calib_table_min_reduced,
-                    clip_value_max=vcu_calib_table_max_reduced,
+                    vcu_calib_table_min_reduced,
+                    vcu_calib_table_max_reduced,
                 )
 
                 # create updated complete pedal map, only update the first few rows
@@ -1941,7 +1939,7 @@ class Avatar(abc.ABC):
                 assert self.vcu_calib_table1 is not None
                 self.vcu_calib_table1.iloc[
                     table_start : self.truck.torque_table_row_num_flash + table_start
-                ] = vcu_calib_table_reduced.numpy()
+                ] = vcu_calib_table_reduced
 
                 if args.record_table:
                     curr_table_store_path = self.table_root.joinpath(
@@ -2064,7 +2062,7 @@ class Avatar(abc.ABC):
                 + '.csv'
             )
         )
-        with open(last_table_store_path, 'wb') as f:
+        with open(last_table_store_path, 'wb'):
             assert self.vcu_calib_table1 is not None
             self.vcu_calib_table1.to_csv(last_table_store_path)
         # motion_power_queue.join()
@@ -2129,24 +2127,67 @@ class Avatar(abc.ABC):
                 continue
 
             if epi_end:  # if episode_end is True, wait for start of episode
-                # self.logger.info(f'wait for start!', extra=self.dictLogger)
+                # self.logger.info(f'Wait for start!', extra=self.dictLogger)
                 continue
 
-            step_count = 0
-            episode_reward = 0
             # tf.summary.trace_on(graph=True, profiler=True)
 
             self.logger_control_flow.info(
                 '----------------------', extra=self.dictLogger
             )
             self.logger_control_flow.info(
-                f"{{\'header\': \'episosde starts!\', " f"\'episode\': {epi_cnt}}}",
+                f"{{\'header\': \'episode starts!\', " f"\'episode\': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
 
             # mongodb default to UTC time
-            self.agent.start_episode(datetime.now())
 
+            # Get the initial motion_power data for the initial quadruple (s, a, r, s')_{-1}
+            while True:
+                try:
+                    with self.captureQ_lock:
+                        motion_power = self.motion_power_queue.get(
+                            block=True, timeout=1.55
+                        )
+                    break  # break the while loop if we get the first data
+                except queue.Empty:
+                    self.logger_control_flow.info(
+                        f"{{\'header\': \'No data in the Queue!!!\', "
+                        f"\'episode\': {epi_cnt}}}",
+                        extra=self.dictLogger,
+                    )
+                    continue
+
+            self.agent.start_episode(datetime.now())
+            step_count = 0
+            episode_reward = 0
+            prev_timestamp = self.agent.episode_start_dt
+            prev_state = assemble_state_ser(
+                motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+            )  # s_{-1}
+            zero_torque_map_line = np.zeros(
+                shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
+                dtype=tf.float32,
+            )  # first zero last_actions is a 3D tensor
+            prev_action = assemble_action_ser(
+                zero_torque_map_line,
+                self.agent.torque_table_row_names,
+                table_start,
+                flash_start_ts,
+                flash_end_ts,
+                self.truck.torque_table_row_num_flash,
+                self.truck.torque_table_col_num,
+                self.truck.speed_scale,
+                self.truck.pedal_scale,
+            )  # a_{-1}
+            # reward is measured in next step
+
+            self.logger_control_flow.info(
+                f"{{\'header\': \'start\', "
+                f"\'step\': {step_count}, "
+                f"\'episode\': {epi_cnt}}}",
+                extra=self.dictLogger,
+            )
             tf.debugging.set_log_device_placement(True)
             with tf.device('/GPU:0'):
                 while (
@@ -2169,11 +2210,11 @@ class Avatar(abc.ABC):
                         self.step_count = step_count
 
                     with self.captureQ_lock:
-                        motionpowerqueue_size = self.motion_power_queue.qsize()
+                        motion_power_queue_size = self.motion_power_queue.qsize()
                     self.logger_control_flow.info(
-                        f'motion_power_queue.qsize(): {motionpowerqueue_size}'
+                        f'motion_power_queue.qsize(): {motion_power_queue_size}'
                     )
-                    if epi_end and done and (motionpowerqueue_size > 2):
+                    if epi_end and done and (motion_power_queue_size > 2):
                         # self.logc.info(f"motion_power_queue.qsize(): {self.motion_power_queue.qsize()}")
                         self.logger_control_flow.info(
                             f"{{\'header\': \'Residue in Queue is a sign of disordered sequence, interrupted!\'}}"
@@ -2219,11 +2260,17 @@ class Avatar(abc.ABC):
                     timestamp = motion_power.loc[
                         0, 'timestep'
                     ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
-                    state = assemble_state_ser(motion_power)
 
-                    # assemble reward
+                    # motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+                    state = assemble_state_ser(
+                        motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
+                    )
+
+                    # assemble reward, actually the reward from last action
+                    # pow_t = motion_power.loc[:, ['current', 'voltage']]
                     reward = assemble_reward_ser(
-                        motion_power, self.truck.observation_sampling_rate
+                        motion_power.loc[:, ['current', 'voltage']],
+                        self.truck.observation_sampling_rate,
                     )
                     work = reward[('work', 0)]
                     episode_reward += work
@@ -2233,9 +2280,23 @@ class Avatar(abc.ABC):
                         f"\'episode\': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
+
+                    #  at step 0: [ep_start, None (use zeros), a=0, r=0, s=s_0]
+                    #  at step n: [t=t_{n-1}, s=s_{n-1}, a=a_{n-1}, r=r_{n-1}, s'=s_n]
+                    #  at step N: [t=t_{N-1}, s=s_{N-1}, a=a_{N-1}, r=r_{N-1}, s'=s_N]
+                    self.agent.deposit(
+                        prev_timestamp,
+                        prev_state,
+                        prev_action,
+                        reward,  # reward from last action
+                        state,
+                    )  # (s_{-1}, a_{-1}, r_{-1}, s_0), (s_0, a_0, r_0, s_1), ..., (s_{N-1}, a_{N-1}, r_{N-1}, s_N)
+
+                    # Inference !!!
                     # stripping timestamps from state, (later flatten and convert to tensor)
+                    # agent return the inferred action sequence without batch and time dimension
                     torque_map_line = self.agent.actor_predict(
-                        state[['velocity', 'thrust', 'brake']], int(step_count / 1)
+                        state[['velocity', 'thrust', 'brake']]
                     )  # model input requires fixed order velocity col -> thrust col -> brake col
                     #  !!! training with samples of the same order!!!
 
@@ -2270,15 +2331,6 @@ class Avatar(abc.ABC):
                         self.truck.speed_scale,
                         self.truck.pedal_scale,
                     )
-
-                    if step_count > 0:
-                        self.agent.deposit(
-                            prev_timestamp,
-                            prev_state,
-                            prev_action,
-                            reward,
-                            state,
-                        )
 
                     prev_timestamp = timestamp
                     prev_state = state
@@ -2332,7 +2384,7 @@ class Avatar(abc.ABC):
             if self.infer_mode:
                 (critic_loss, actor_loss) = self.agent.get_losses()
                 # FIXME bugs in maximal sequence length for ungraceful testing
-                # self.logc.info("Nothing to be done for rdgp!")
+                # self.logc.info("Nothing to be done for rdpg!")
                 self.logger_control_flow.info(
                     "{{\'header\': \'No Learning, just calculating loss.\'}}"
                 )
@@ -2389,7 +2441,7 @@ class Avatar(abc.ABC):
                     step=epi_cnt_local,
                 )
                 # tf.summary.trace_export(
-                #     name="veos_trace", step=epi_cnt_local, profiler_outdir=train_log_dir
+                #     name="veos_trace", step=epi_cnt_local, profiler_out_dir=train_log_dir
                 # )
 
             epi_cnt_local += 1
@@ -2431,7 +2483,7 @@ class Avatar(abc.ABC):
         #     tf.summary.trace_export(
         #         name="veos_trace",
         #         step=epi_cnt_local,
-        #         profiler_outdir=self.train_log_dir,
+        #         profiler_out_dir=self.train_log_dir,
         #     )
         self.thr_observe.join()
         if self.cloud:
@@ -2450,7 +2502,7 @@ if __name__ == '__main__':
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS with coastdown activated '
+        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS with coast-down activated '
         'and expected velocity in 3 seconds'
     )
     parser.add_argument(
@@ -2474,7 +2526,7 @@ if __name__ == '__main__':
         '--ui',
         type=str,
         default='cloud',
-        help="User Inferface: "
+        help="User Interface: "
         "'RMQ' for mobile phone (using rocketmq for training/assessment); "
         "'TCP' for local hmi (using loopback tcp for training/assessment); "
         "'NUMB' for non-interaction for inference only and testing purpose",
@@ -2507,7 +2559,7 @@ if __name__ == '__main__':
         '--path',
         type=str,
         default='.',
-        help='relative path to be saved, for create subfolder for different drivers',
+        help='relative path to be saved, for create sub-folder for different drivers',
     )
     parser.add_argument(
         '-v',
@@ -2587,7 +2639,7 @@ if __name__ == '__main__':
     if args.agent == 'ddpg':
         agent: DDPG = DDPG(
             _coll_type='RECORD',
-            _hyper_param=hyper_param_by_name['ddpg'],
+            _hyper_param=HyperParamDDPG(),
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
@@ -2597,7 +2649,7 @@ if __name__ == '__main__':
     else:  # args.agent == 'rdpg':
         agent: RDPG = RDPG(  # type: ignore
             _coll_type='EPISODE',
-            _hyper_param=hyper_param_by_name['rdpg'],
+            _hyper_param=HyperParamRDPG(),
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
@@ -2619,7 +2671,7 @@ if __name__ == '__main__':
             record=args.record_table,
             path=args.path,
             pool_key=args.pool,
-            proj_root=projroot,
+            proj_root=proj_root,
             logger=logger,
         )
     except TypeError as e:

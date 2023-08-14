@@ -1,15 +1,25 @@
+import argparse
+import sys
 from dataclasses import dataclass
-import argparse, sys
-from .avatar import Avatar  # type: ignore
-from .agent.rdpg import RDPG  # type: ignore
-from .agent.utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
+
+from eos import proj_root
+from eos.data_io.config import (
+    Driver,
+    Truck,
+    str_to_truck,
+    str_to_driver,
+    str_to_can_server,
+    str_to_trip_server,
+)
 from eos.utils import dictLogger, logger
-from eos import projroot
+from .agent.rdpg import RDPG  # type: ignore
+from .agent.utils import HyperParamRDPG  # type: ignore
+from .avatar import Avatar  # type: ignore
 
 
 @dataclass
 class AvatarRDPG(Avatar):
-    hyper_param: HYPER_PARAM = hyper_param_by_name['RDPG']
+    hyper_param: HyperParamRDPG = HyperParamRDPG()
 
     def __post_init__(self):
         self.agent = RDPG(
@@ -30,7 +40,8 @@ if __name__ == '__main__':
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS with coastdown activated and expected velocity in 3 seconds'
+        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS '
+        'with coast-down activated and expected velocity in 3 seconds'
     )
     parser.add_argument(
         '-a',
@@ -53,7 +64,7 @@ if __name__ == '__main__':
         '--ui',
         type=str,
         default='cloud',
-        help="User Inferface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
+        help="User Interface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
 
     parser.add_argument(
@@ -83,7 +94,7 @@ if __name__ == '__main__':
         '--path',
         type=str,
         default='.',
-        help='relative path to be saved, for create subfolder for different drivers',
+        help='relative path to be saved, for create sub-folder for different drivers',
     )
     parser.add_argument(
         '-v',
@@ -125,25 +136,69 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # set up data folder (logging, checkpoint, table)
+    try:
+        truck: Truck = str_to_truck(args.vehicle)
+    except KeyError:
+        raise KeyError(f"vehicle {args.vehicle} not found in config file")
+    else:
+        logger.info(
+            f'Vehicle found. vid:{truck.vid}, vin: {truck.vin}.', extra=dictLogger
+        )
+
+    try:
+        driver: Driver = str_to_driver(args.driver)
+    except KeyError:
+        raise KeyError(f"driver {args.driver} not found in config file")
+    else:
+        logger.info(
+            f'Driver found. pid:{driver.pid}, vin: {driver.name}.', extra=dictLogger
+        )
+
+    # remotecan_srv: str = 'can_intra'
+    try:
+        can_server = str_to_can_server(args.remotecan)
+    except KeyError:
+        raise KeyError(f"can server {args.remotecan} not found in config file")
+    else:
+        logger.info(f'CAN Server found: {can_server.SRVName}', extra=dictLogger)
+
+    try:
+        trip_server = str_to_trip_server(args.web)
+    except KeyError:
+        raise KeyError(f"trip server {args.web} not found in config file")
+    else:
+        logger.info(f'Trip Server found: {trip_server.SRVName}', extra=dictLogger)
+    # set up data folder (logging, checkpoint, table)
     assert args.agent == 'rdpg', 'Only RDPG is supported in this module'
+    agent: RDPG = RDPG(  # type: ignore
+        _coll_type='EPISODE',
+        _hyper_param=HyperParamRDPG(),
+        _truck=truck,
+        _driver=driver,
+        _pool_key=args.pool_key,
+        _data_folder=args.data_root,
+        _infer_mode=args.infer_mode,
+    )
+
     try:
         app = AvatarRDPG(
+            truck=truck,
+            driver=driver,
+            can_server=can_server,
+            trip_server=trip_server,
+            _agent=agent,
             cloud=args.cloud,
             ui=args.ui,
             resume=args.resume,
             infer_mode=args.infer,
             record=args.record_table,
             path=args.path,
-            vehicle_str=args.vehicle,
-            driver_str=args.driver,
-            remotecan_srv=args.remotecan,
-            web_srv=args.web,
-            pool_key=args.pool_key,
-            proj_root=projroot,
+            pool_key=args.pool,
+            proj_root=proj_root,
             logger=logger,
         )
     except TypeError as e:
-        logger.error(f'Project Exeception TypeError: {e}', extra=dictLogger)
+        logger.error(f'Project Exception TypeError: {e}', extra=dictLogger)
         sys.exit(1)
     except Exception as e:
         logger.error(e, extra=dictLogger)

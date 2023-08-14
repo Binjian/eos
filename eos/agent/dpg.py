@@ -3,13 +3,14 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Union
+from typing import Union, ClassVar
 import pandas as pd
 import re
 
 from eos.data_io.config import (
     Truck,
     TruckInCloud,
+    trucks_by_id,
     get_db_config,
     RE_DBKEY,
     Driver,
@@ -20,8 +21,9 @@ from eos.data_io.struct import (
     get_filemeta_config,
     RE_RECIPEKEY,
 )
-from utils import hyper_param_by_name, HYPER_PARAM  # type: ignore
+from utils import HyperParamRDPG, HyperParamDDPG  # type: ignore
 from eos.data_io.buffer import MongoBuffer, DaskBuffer
+from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 
 """Base class for differentiable policy gradient methods."""
@@ -31,6 +33,10 @@ from eos.data_io.buffer import MongoBuffer, DaskBuffer
 class DPG(abc.ABC):
     """Base class for differentiable policy gradient methods."""
 
+    _truck_type: ClassVar[Truck] = trucks_by_id[
+        "default"
+    ]  # class attribute for default truck properties
+
     _truck: Truck
     _driver: Driver
     _buffer: Union[MongoBuffer, DaskBuffer] = field(default_factory=MongoBuffer)
@@ -38,7 +44,7 @@ class DPG(abc.ABC):
     _coll_type: str = (
         "RECORD"  # or 'EPISODE', used for create different buffer and pool
     )
-    _hyper_param: HYPER_PARAM = hyper_param_by_name["DEFAULT"]
+    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = HyperParamDDPG()
     _pool_key: str = "mongo_local"  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
@@ -141,7 +147,7 @@ class DPG(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def actor_predict(self, state: pd.Series, t: int):
+    def actor_predict(self, state: pd.Series):
         """
         Evaluate the actors given a single observations.
         batch_size is 1.
@@ -154,7 +160,9 @@ class DPG(abc.ABC):
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
 
-        self.observations = []
+        self.observations: list[
+            pd.Series
+        ] = []  # create a new empty list for each episode
 
     # @abc.abstractmethod
     def deposit(
@@ -209,39 +217,13 @@ class DPG(abc.ABC):
         Deposit the whole episode of experience into the replay buffer for DPG.
         """
 
-        episode = pd.concat(
-            self.observations, axis=1
-        ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
-        episode.columns.name = ["tuple", "rows", "idx"]
-        episode.set_index(("timestamp", "", 0), append=False, inplace=True)
-        episode.index.name = "timestamp"
-        # episode.sort_index(inplace=True)
-
-        # convert columns types to float where necessary
-        state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
-        action_cols_float = [
-            ("action", col)
-            for col in [*self.torque_table_row_names, "speed", "throttle"]
-        ]
-        reward_cols_float = [("reward", "work")]
-        nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
-        for col in (
-            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
-        ):
-            episode[col[0], col[1]] = episode[col[0], col[1]].astype(
-                "float"
-            )  # float16 not allowed in parquet
-
-        # Create MultiIndex for the episode, in the order 'episodestart', 'vehicle', 'driver'
-        episode = pd.concat(
-            [episode],
-            keys=[pd.to_datetime(self.episode_start_dt)],
-            names=["episodestart"],
+        episode = encode_episode_dataframe_from_series(
+            self.observations,
+            self.torque_table_row_names,
+            self.episode_start_dt,
+            self.truck.vid,
+            self.driver.pid,
         )
-        episode = pd.concat([episode], keys=[self.driver.pid], names=["driver"])
-        episode = pd.concat([episode], keys=[self.truck.vid], names=["vehicle"])
-        episode.sort_index(inplace=True)  # sorting in the time order of timestamps
-
         self.buffer.store(episode)
 
     @abc.abstractmethod
@@ -383,9 +365,9 @@ class DPG(abc.ABC):
         self._torque_table_row_names = value
 
     @property
-    def hyper_param(self) -> HYPER_PARAM:
+    def hyper_param(self) -> Union[HyperParamDDPG, HyperParamRDPG]:
         return self._hyper_param
 
     @hyper_param.setter
-    def hyper_param(self, value: HYPER_PARAM):
+    def hyper_param(self, value: Union[HyperParamDDPG, HyperParamRDPG]):
         self._hyper_param = value

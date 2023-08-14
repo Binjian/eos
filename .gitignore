@@ -51,3 +51,6 @@ data
 *.dot
 *.dot
 *.dot
+/eos.chat
+/eos/classes.png
+/eos/packages.png
