@@ -1,8 +1,9 @@
-import pandas as pd
-import numpy as np
-from typing import Dict, cast, Union, List
 from datetime import datetime
 from functools import reduce
+from typing import Dict, List, Union, cast
+
+import numpy as np
+import pandas as pd
 from keras.preprocessing.sequence import pad_sequences  # type: ignore
 
 

@@ -1,7 +1,8 @@
+from typing import Optional
+
 import pandas as pd
 from _typeshed import Incomplete
 from ordered_set import OrderedSet
-from typing import Optional
 
 DriverCat: Incomplete
 RE_DRIVER: str

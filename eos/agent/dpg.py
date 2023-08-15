@@ -1,30 +1,20 @@
 from __future__ import annotations
 
 import abc
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Union, ClassVar
+from typing import ClassVar, Union
+
 import pandas as pd
-import re
+from utils import HyperParamDDPG, HyperParamRDPG  # type: ignore
 
-from eos.data_io.config import (
-    Truck,
-    TruckInCloud,
-    trucks_by_id,
-    get_db_config,
-    RE_DBKEY,
-    Driver,
-)
-from eos.data_io.struct import (
-    ObservationMetaCloud,
-    ObservationMetaField,
-    get_filemeta_config,
-    RE_RECIPEKEY,
-)
-from utils import HyperParamRDPG, HyperParamDDPG  # type: ignore
-from eos.data_io.buffer import MongoBuffer, DaskBuffer
+from eos.data_io.buffer import DaskBuffer, MongoBuffer
+from eos.data_io.config import (RE_DBKEY, Driver, Truck, TruckInCloud,
+                                get_db_config, trucks_by_id)
+from eos.data_io.struct import (RE_RECIPEKEY, ObservationMetaCloud,
+                                ObservationMetaField, get_filemeta_config)
 from eos.utils.eos_pandas import encode_episode_dataframe_from_series
-
 
 """Base class for differentiable policy gradient methods."""
 

@@ -1,16 +1,18 @@
 import logging
+from pathlib import Path
+
 import pandas as pd
 import tensorflow as tf
 from _typeshed import Incomplete
+
 from eos.agent.dpg import DPG as DPG
-from eos.agent.utils import (
-    HyperParam as HyperParam,
-    OUActionNoise as OUActionNoise,
-    hyper_param_by_name as hyper_param_by_name,
-)
-from eos.data_io.buffer import DaskBuffer as DaskBuffer, MongoBuffer as MongoBuffer
-from eos.utils import dictLogger as dictLogger, logger as logger
-from pathlib import Path
+from eos.agent.utils import HyperParam as HyperParam
+from eos.agent.utils import OUActionNoise as OUActionNoise
+from eos.agent.utils import hyper_param_by_name as hyper_param_by_name
+from eos.data_io.buffer import DaskBuffer as DaskBuffer
+from eos.data_io.buffer import MongoBuffer as MongoBuffer
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
 
 class DDPG(DPG):
     logger: logging.Logger

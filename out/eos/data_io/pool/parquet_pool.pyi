@@ -1,10 +1,14 @@
+from typing import Optional
+
 import dask.dataframe as dd
 import pandas as pd
 from _typeshed import Incomplete
+
 from eos.data_io.pool.dask_pool import DaskPool as DaskPool
-from eos.data_io.struct import ObservationMeta as ObservationMeta, PoolQuery as PoolQuery
-from eos.utils import dictLogger as dictLogger, logger as logger
-from typing import Optional
+from eos.data_io.struct import ObservationMeta as ObservationMeta
+from eos.data_io.struct import PoolQuery as PoolQuery
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
 
 class ParquetPool(DaskPool):
     ddf: dd.DataFrame

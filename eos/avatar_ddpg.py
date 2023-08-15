@@ -1,21 +1,16 @@
+import argparse
 import sys
 from dataclasses import dataclass
-import argparse
 
-from eos import proj_root
-from eos.utils import dictLogger, logger
-from eos.data_io.config import (
-    Driver,
-    Truck,
-    str_to_truck,
-    str_to_driver,
-    str_to_can_server,
-    str_to_trip_server,
-)
-
-from avatar import Avatar  # type: ignore
 from agent.ddpg.ddpg import DDPG  # type: ignore
 from agent.utils import HyperParamDDPG  # type: ignore
+from avatar import Avatar  # type: ignore
+
+from eos import proj_root
+from eos.data_io.config import (Driver, Truck, str_to_can_server,
+                                str_to_driver, str_to_trip_server,
+                                str_to_truck)
+from eos.utils import dictLogger, logger
 
 
 @dataclass

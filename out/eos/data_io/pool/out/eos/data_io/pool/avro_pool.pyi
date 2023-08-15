@@ -1,10 +1,12 @@
+from typing import Optional
+
 import dask.bag as db
 import pandas as pd
 from _typeshed import Incomplete as Incomplete
 from dask.bag import Bag as Bag
+
 from eos.data_io.pool.dask_pool import DaskPool as DaskPool
 from eos.data_io.struct import PoolQuery as PoolQuery
-from typing import Optional
 
 class AvroPool(DaskPool):
     dbg: db.Bag

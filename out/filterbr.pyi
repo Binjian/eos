@@ -1,5 +1,6 @@
-from _typeshed import Incomplete
 from collections.abc import Generator
+
+from _typeshed import Incomplete
 
 def skip_comments(lines) -> Generator[Incomplete, None, None]: ...
 def cond_lines(lines) -> Generator[Incomplete, None, None]: ...

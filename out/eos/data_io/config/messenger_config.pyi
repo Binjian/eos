@@ -1,7 +1,8 @@
-from _typeshed import Incomplete
-from bson import ObjectId as ObjectId
 from datetime import datetime as datetime
 from typing import NamedTuple
+
+from _typeshed import Incomplete
+from bson import ObjectId as ObjectId
 
 class CANMessenger(NamedTuple):
     SRVName: Incomplete

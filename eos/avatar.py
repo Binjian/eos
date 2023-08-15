@@ -20,16 +20,11 @@ as energy consumption
 from __future__ import annotations
 
 import abc
-from dataclasses import dataclass, field
-from typing import Union, cast, Optional
-
 import argparse
 import json
-
 # logging
 import logging
 import math
-
 # system imports
 import os
 import queue
@@ -38,62 +33,44 @@ import sys
 import threading
 import time
 import warnings
-
 # third party imports
 from collections import deque
+from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
 from threading import Lock, Thread
+from typing import Optional, Union, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-# tf.debugging.set_log_device_placement(True)
-# visualization import
-import tensorflow as tf
-from tensorflow.python.client import device_lib
-from tensorflow.summary import create_file_writer, scalar, SummaryWriter  # type: ignore
-from git import Repo
-from pythonjsonlogger import jsonlogger  # type: ignore
-
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
 # from rocketmq.client import Message, Producer  # type: ignore
 import rocketmq.client as rmq_client  # type: ignore
+# tf.debugging.set_log_device_placement(True)
+# visualization import
+import tensorflow as tf
+from git import Repo
+from pythonjsonlogger import jsonlogger  # type: ignore
+from tensorflow.python.client import device_lib
+from tensorflow.summary import (SummaryWriter,  # type: ignore
+                                create_file_writer, scalar)
 
 from eos import proj_root
-from eos.utils import dictLogger, logger
-from eos.data_io.config import (
-    CANMessenger,
-    TripMessenger,
-    Driver,
-    Truck,
-    TruckInCloud,
-    TruckInField,
-    str_to_truck,
-    str_to_driver,
-    str_to_can_server,
-    str_to_trip_server,
-)
-
-from eos.comm import (
-    RemoteCanClient,
-    RemoteCanException,
-    ClearablePullConsumer,
-    kvaser_send_float_array,
-)
-from eos.utils import (
-    ragged_nparray_list_interp,
-    GracefulKiller,
-    assemble_state_ser,
-    assemble_reward_ser,
-    assemble_action_ser,
-)
+from eos.agent import DDPG, DPG, RDPG
+from eos.agent.utils import HyperParamDDPG, HyperParamRDPG
+from eos.comm import (ClearablePullConsumer, RemoteCanClient,
+                      RemoteCanException, kvaser_send_float_array)
+from eos.data_io.config import (CANMessenger, Driver, TripMessenger, Truck,
+                                TruckInCloud, TruckInField, str_to_can_server,
+                                str_to_driver, str_to_trip_server,
+                                str_to_truck)
+from eos.utils import (GracefulKiller, assemble_action_ser,
+                       assemble_reward_ser, assemble_state_ser, dictLogger,
+                       logger, ragged_nparray_list_interp)
 from eos.visualization import plot_3d_figure, plot_to_image
-from eos.agent import DPG, DDPG, RDPG
-from eos.agent.utils import HyperParamRDPG, HyperParamDDPG
 
 # from bson import ObjectId
 

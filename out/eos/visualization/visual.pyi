@@ -1,5 +1,6 @@
 from matplotlib import style as style
-from reportlab.platypus import Spacer as Spacer, Table as Table
+from reportlab.platypus import Spacer as Spacer
+from reportlab.platypus import Table as Table
 
 def plot_to_image(figure): ...
 def visual(t_real, v_real, v_wltc) -> None: ...

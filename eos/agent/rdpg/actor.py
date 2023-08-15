@@ -1,16 +1,16 @@
 # third-party imports
+from pathlib import Path
 from typing import ClassVar
+
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import layers
 
-from pathlib import Path
-from eos.utils import dictLogger, logger
-from eos.utils.exception import ReadOnlyError
-
+from eos.agent.utils.hyperparams import HyperParamRDPG
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
-from eos.agent.utils.hyperparams import HyperParamRDPG
+from eos.utils import dictLogger, logger
+from eos.utils.exception import ReadOnlyError
 
 
 class ActorNet:

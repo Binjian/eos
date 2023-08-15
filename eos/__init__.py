@@ -1,12 +1,7 @@
 from pathlib import Path
 
-from .data_io.pool import (
-    Pool,
-    DaskPool,
-    MongoPool,
-)
 from .data_io.config.vcu_calib_generator import generate_vcu_calibration
-
+from .data_io.pool import DaskPool, MongoPool, Pool
 
 proj_root = Path(__file__).parent.parent
 

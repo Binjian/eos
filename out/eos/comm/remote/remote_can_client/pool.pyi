@@ -1,8 +1,11 @@
+from datetime import datetime
+
 from _typeshed import Incomplete
 from bson import ObjectId as ObjectId
-from datetime import datetime
-from eos.utils import dictLogger as dictLogger, logger as logger
 from pymongoarrow.api import Schema as Schema
+
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
 
 class Pool:
     logger: Incomplete

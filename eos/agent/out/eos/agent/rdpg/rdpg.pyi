@@ -1,17 +1,20 @@
 import logging
+
 import pandas as pd
+from _typeshed import Incomplete
+from keras.utils import pad_sequences as pad_sequences
+
+from eos.data_io.buffer import DaskBuffer as DaskBuffer
+from eos.data_io.buffer import MongoBuffer as MongoBuffer
+from eos.data_io.struct import EpisodeDoc as EpisodeDoc
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
+
 from ..dpg import DPG as DPG
-from ..hyperparams import (
-    HyperParam as HyperParam,
-    hyper_param_by_name as hyper_param_by_name,
-)
+from ..hyperparams import HyperParam as HyperParam
+from ..hyperparams import hyper_param_by_name as hyper_param_by_name
 from .actor import ActorNet as ActorNet
 from .critic import CriticNet as CriticNet
-from _typeshed import Incomplete
-from eos.data_io.buffer import DaskBuffer as DaskBuffer, MongoBuffer as MongoBuffer
-from eos.data_io.struct import EpisodeDoc as EpisodeDoc
-from eos.utils import dictLogger as dictLogger, logger as logger
-from keras.utils import pad_sequences as pad_sequences
 
 class RDPG(DPG):
     logger: logging.Logger

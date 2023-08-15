@@ -1,13 +1,17 @@
+from typing import Optional, Union
+
 import pandas as pd
 from _typeshed import Incomplete as Incomplete
 from bson.codec_options import CodecOptions as CodecOptions
-from eos.data_io.config import DBConfig as DBConfig
-from eos.data_io.pool import Pool as Pool
-from eos.data_io.struct import DataFrameDoc as DataFrameDoc, ObservationMeta as ObservationMeta, PoolQuery as PoolQuery
 from pymongo import MongoClient as MongoClient
 from pymongo.collection import Collection as Collection
 from pymongo.database import Database as Database
-from typing import Optional, Union
+
+from eos.data_io.config import DBConfig as DBConfig
+from eos.data_io.pool import Pool as Pool
+from eos.data_io.struct import DataFrameDoc as DataFrameDoc
+from eos.data_io.struct import ObservationMeta as ObservationMeta
+from eos.data_io.struct import PoolQuery as PoolQuery
 
 class MongoPool(Pool[pd.DataFrame]):
     client: MongoClient

@@ -1,5 +1,7 @@
 from _typeshed import Incomplete
-from eos.comm import generate_vcu_calibration as generate_vcu_calibration, kvaser_send_float_array as kvaser_send_float_array
+
+from eos.comm import generate_vcu_calibration as generate_vcu_calibration
+from eos.comm import kvaser_send_float_array as kvaser_send_float_array
 
 mpl_logger: Incomplete
 logger: Incomplete

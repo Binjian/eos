@@ -1,12 +1,15 @@
+from configparser import ConfigParser
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple, TypeVar, Union
+
 import pandas as pd
 from _typeshed import Incomplete
 from bson import ObjectId as ObjectId
-from configparser import ConfigParser
-from datetime import datetime
-from eos.data_io.config import CloudMixin as CloudMixin, KvaserMixin as KvaserMixin
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Tuple, TypeVar, Union
 from typing_extensions import TypedDict
+
+from eos.data_io.config import CloudMixin as CloudMixin
+from eos.data_io.config import KvaserMixin as KvaserMixin
 
 veos_lifetime_start_date: datetime
 veos_lifetime_end_date: datetime

@@ -1,12 +1,23 @@
+from typing import Optional
+
 import dask.bag as db
 import pandas as pd
 from _typeshed import Incomplete
-from dask.bag import Bag as Bag, random as random
+from dask.bag import Bag as Bag
+from dask.bag import random as random
+
 from eos.data_io.pool.dask_pool import DaskPool as DaskPool
-from eos.data_io.pool.episode_avro_schema import gen_episode_schema as gen_episode_schema
-from eos.data_io.struct import ObservationMeta as ObservationMeta, PoolQuery as PoolQuery, veos_lifetime_end_date as veos_lifetime_end_date, veos_lifetime_start_date as veos_lifetime_start_date
-from eos.utils import avro_ep_decoding as avro_ep_decoding, avro_ep_encoding as avro_ep_encoding, dictLogger as dictLogger, logger as logger
-from typing import Optional
+from eos.data_io.pool.episode_avro_schema import \
+    gen_episode_schema as gen_episode_schema
+from eos.data_io.struct import ObservationMeta as ObservationMeta
+from eos.data_io.struct import PoolQuery as PoolQuery
+from eos.data_io.struct import veos_lifetime_end_date as veos_lifetime_end_date
+from eos.data_io.struct import \
+    veos_lifetime_start_date as veos_lifetime_start_date
+from eos.utils import avro_ep_decoding as avro_ep_decoding
+from eos.utils import avro_ep_encoding as avro_ep_encoding
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
 
 class AvroPool(DaskPool):
     dbg: db.Bag

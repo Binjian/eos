@@ -1,9 +1,14 @@
-import pandas as pd
-from .utils.remote_can_exceptions import RemoteCanException as RemoteCanException
-from _typeshed import Incomplete
-from eos.utils import dictLogger as dictLogger, logger as logger
-from requests.adapters import HTTPAdapter
 from typing import Dict, Optional
+
+import pandas as pd
+from _typeshed import Incomplete
+from requests.adapters import HTTPAdapter
+
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
+
+from .utils.remote_can_exceptions import \
+    RemoteCanException as RemoteCanException
 
 DEFAULT_TIMEOUT: int
 

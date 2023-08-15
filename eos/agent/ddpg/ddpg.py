@@ -1,27 +1,30 @@
 from __future__ import annotations
 
-from datetime import datetime
-from dataclasses import dataclass
-from pathlib import Path
-from contextlib import redirect_stdout
-import os
 import logging
+import os
+from contextlib import redirect_stdout
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import Union
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-
 # from tensorflow.python import keras
 from tensorflow.python.keras import layers
 
-# from tensorflow.python.keras import CheckpointManager, Checkpoint
-
+from eos.agent.dpg import DPG
+from eos.agent.utils import HyperParamDDPG, OUActionNoise
+from eos.data_io.buffer import DaskBuffer, MongoBuffer
+from eos.data_io.struct import (PoolQuery,  # type: ignore
+                                veos_lifetime_end_date,
+                                veos_lifetime_start_date)
 # from pymongoarrow.monkey import patch_all
 from eos.utils import dictLogger, logger
-from eos.agent.utils import OUActionNoise, HyperParamDDPG
-from eos.data_io.buffer import MongoBuffer, DaskBuffer
-from eos.agent.dpg import DPG
-from eos.data_io.struct import PoolQuery, veos_lifetime_start_date, veos_lifetime_end_date  # type: ignore
+
+# from tensorflow.python.keras import CheckpointManager, Checkpoint
+
 
 # patch_all()
 """

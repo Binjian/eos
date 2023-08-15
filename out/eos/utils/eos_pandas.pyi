@@ -1,6 +1,7 @@
+from typing import Dict
+
 import numpy as np
 import pandas as pd
-from typing import Dict
 
 def assemble_state_ser(motion_power: pd.DataFrame) -> pd.Series: ...
 def assemble_reward_ser(motion_power: pd.DataFrame, obs_sampling_rate: int) -> pd.Series: ...

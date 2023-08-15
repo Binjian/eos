@@ -1,5 +1,6 @@
-from _typeshed import Incomplete
 from typing import Dict, NamedTuple
+
+from _typeshed import Incomplete
 
 class HYPER_PARAM(NamedTuple):
     ModelName: Incomplete

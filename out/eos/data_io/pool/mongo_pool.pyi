@@ -1,14 +1,24 @@
+from typing import Optional, Union
+
 import pandas as pd
 from _typeshed import Incomplete
 from bson.codec_options import CodecOptions
-from eos.data_io.config import DBConfig as DBConfig, db_config_servers_by_name as db_config_servers_by_name
-from eos.data_io.pool import Pool as Pool
-from eos.data_io.struct import DataFrameDoc as DataFrameDoc, ObservationMeta as ObservationMeta, PoolQuery as PoolQuery, veos_lifetime_start_date as veos_lifetime_start_date
-from eos.utils import dictLogger as dictLogger, eos_df_to_nested_dict as eos_df_to_nested_dict, logger as logger
 from pymongo import MongoClient
 from pymongo.collection import Collection as Collection
 from pymongo.database import Database as Database
-from typing import Optional, Union
+
+from eos.data_io.config import DBConfig as DBConfig
+from eos.data_io.config import \
+    db_config_servers_by_name as db_config_servers_by_name
+from eos.data_io.pool import Pool as Pool
+from eos.data_io.struct import DataFrameDoc as DataFrameDoc
+from eos.data_io.struct import ObservationMeta as ObservationMeta
+from eos.data_io.struct import PoolQuery as PoolQuery
+from eos.data_io.struct import \
+    veos_lifetime_start_date as veos_lifetime_start_date
+from eos.utils import dictLogger as dictLogger
+from eos.utils import eos_df_to_nested_dict as eos_df_to_nested_dict
+from eos.utils import logger as logger
 
 class MongoPool(Pool[pd.DataFrame]):
     client: MongoClient

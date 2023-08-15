@@ -1,5 +1,6 @@
-from _typeshed import Incomplete
 from typing import NamedTuple
+
+from _typeshed import Incomplete
 
 RE_DBKEY: str
 

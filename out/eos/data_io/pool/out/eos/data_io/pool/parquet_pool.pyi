@@ -1,9 +1,11 @@
+from typing import Optional
+
 import dask.dataframe as dd
 import pandas as pd
 from _typeshed import Incomplete as Incomplete
+
 from eos.data_io.pool.dask_pool import DaskPool as DaskPool
 from eos.data_io.struct import PoolQuery as PoolQuery
-from typing import Optional
 
 class ParquetPool(DaskPool):
     ddf: dd.DataFrame

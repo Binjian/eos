@@ -1,13 +1,14 @@
 # third-party imports
+from pathlib import Path
 from typing import ClassVar
+
 import tensorflow as tf
 from tensorflow.python.keras import layers
-from pathlib import Path
 
+from eos.agent.utils.hyperparams import HyperParamRDPG
 # local imports
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
-from eos.agent.utils.hyperparams import HyperParamRDPG
 
 
 class CriticNet:

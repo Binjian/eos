@@ -1,9 +1,13 @@
-from .agent.rdpg import RDPG as RDPG
-from .agent.utils import HYPER_PARAM as HYPER_PARAM, hyper_param_by_name as hyper_param_by_name
-from .avatar import Avatar as Avatar
 from _typeshed import Incomplete
+
 from eos import projroot as projroot
-from eos.utils import dictLogger as dictLogger, logger as logger
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
+
+from .agent.rdpg import RDPG as RDPG
+from .agent.utils import HYPER_PARAM as HYPER_PARAM
+from .agent.utils import hyper_param_by_name as hyper_param_by_name
+from .avatar import Avatar as Avatar
 
 class AvatarRDPG(Avatar):
     hyper_param: HYPER_PARAM

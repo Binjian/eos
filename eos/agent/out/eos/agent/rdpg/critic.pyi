@@ -1,5 +1,7 @@
 from _typeshed import Incomplete
-from eos.utils import dictLogger as dictLogger, logger as logger
+
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
 from eos.utils.exception import ReadOnlyError as ReadOnlyError
 
 class CriticNet:

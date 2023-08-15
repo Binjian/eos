@@ -1,8 +1,11 @@
-from ..utils.ou_noise import OUActionNoise as OUActionNoise
 from _typeshed import Incomplete
-from eos.utils import dictLogger as dictLogger, logger as logger
-from eos.utils.exception import ReadOnlyError as ReadOnlyError
 from keras import initializers as initializers
+
+from eos.utils import dictLogger as dictLogger
+from eos.utils import logger as logger
+from eos.utils.exception import ReadOnlyError as ReadOnlyError
+
+from ..utils.ou_noise import OUActionNoise as OUActionNoise
 
 class ActorNet:
     eager_model: Incomplete

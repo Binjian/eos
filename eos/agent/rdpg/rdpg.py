@@ -1,7 +1,7 @@
 # system imports
+import logging
 import os
 from dataclasses import dataclass
-import logging
 from pathlib import Path
 from typing import Tuple
 
@@ -9,20 +9,20 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-
 from keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all  # type: ignore
 
+from eos.agent.utils.hyperparams import HyperParamRDPG
+from eos.data_io.buffer import DaskBuffer, MongoBuffer  # type: ignore
+from eos.data_io.struct import (PoolQuery,  # type: ignore
+                                veos_lifetime_end_date,
+                                veos_lifetime_start_date)
 # local imports
 from eos.utils import dictLogger, logger
-from ..dpg import DPG  # type: ignore
-from eos.agent.utils.hyperparams import HyperParamRDPG
 
+from ..dpg import DPG  # type: ignore
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
-
-from eos.data_io.buffer import MongoBuffer, DaskBuffer  # type: ignore
-from eos.data_io.struct import PoolQuery, veos_lifetime_start_date, veos_lifetime_end_date  # type: ignore
 
 patch_all()
 

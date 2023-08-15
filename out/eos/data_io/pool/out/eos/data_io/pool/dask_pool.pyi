@@ -1,13 +1,16 @@
 import abc
+from configparser import ConfigParser
+from pathlib import Path
+from typing import Dict, Optional, Union
+
 import dask.bag as db
 import dask.dataframe as dd
 import pandas as pd
 from _typeshed import Incomplete as Incomplete
-from configparser import ConfigParser
+
 from eos.data_io.pool import Pool as Pool
-from eos.data_io.struct import ObservationMeta as ObservationMeta, PoolQuery as PoolQuery
-from pathlib import Path
-from typing import Dict, Optional, Union
+from eos.data_io.struct import ObservationMeta as ObservationMeta
+from eos.data_io.struct import PoolQuery as PoolQuery
 
 class DaskPool(Pool[pd.DataFrame], metaclass=abc.ABCMeta):
     recipe: ConfigParser

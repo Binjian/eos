@@ -1,9 +1,11 @@
-import pandas as pd
-from _typeshed import Incomplete
-from eos.data_io.struct import timezones as timezones
-from ordered_set import OrderedSet
 from typing import Optional
 from zoneinfo import ZoneInfo
+
+import pandas as pd
+from _typeshed import Incomplete
+from ordered_set import OrderedSet
+
+from eos.data_io.struct import timezones as timezones
 
 PEDAL_SCALES: Incomplete
 SPEED_SCALES_MULE: Incomplete

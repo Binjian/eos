@@ -1,9 +1,12 @@
 import abc
+from typing import Generic, Optional, Tuple
+
 import numpy as np
 import pandas as pd
+
 from eos.data_io.pool import Pool as Pool
-from eos.data_io.struct import DocItemT as DocItemT, PoolQuery as PoolQuery
-from typing import Generic, Optional, Tuple
+from eos.data_io.struct import DocItemT as DocItemT
+from eos.data_io.struct import PoolQuery as PoolQuery
 
 class Buffer(abc.ABC, Generic[DocItemT], metaclass=abc.ABCMeta):
     pool: Pool

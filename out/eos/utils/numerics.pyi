@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Callable, List, Tuple
+
+import numpy as np
 
 def nan_helper_1d(y: np.ndarray) -> Tuple[np.ndarray, Callable]: ...
 def nan_interp_1d(y: np.ndarray) -> np.ndarray: ...

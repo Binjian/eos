@@ -1,4 +1,5 @@
 from _typeshed import Incomplete
+
 from eos.data_io.struct.eos_data import ObservationMeta as ObservationMeta
 
 state_unit_fields_schema: Incomplete

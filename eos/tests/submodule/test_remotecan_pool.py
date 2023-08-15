@@ -1,11 +1,11 @@
 # system import
 # 3rd party import
 import datetime
-import time
 import inspect
 import logging
 import os
 import subprocess
+import time
 import unittest
 import warnings
 from datetime import datetime
@@ -15,22 +15,15 @@ import numpy as np
 import pyarrow as pa
 import pymongo as pmg
 import pymongoarrow as pmga
-
 # from pymongoarrow.api import Schema
 from bson import ObjectId
-from tensorflow.keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all
+from tensorflow.keras.utils import pad_sequences  # type: ignore
 
 from eos import Pool, RemoteCanClient, proj_root
-from eos.config import generate_vcu_calibration
-from eos.config import (
-    db_config_servers_by_name,
-    can_servers_by_name,
-    episode_schemas,
-    record_schemas,
-    trucks_by_vin,
-    trucks_by_id,
-)
+from eos.config import (can_servers_by_name, db_config_servers_by_name,
+                        episode_schemas, generate_vcu_calibration,
+                        record_schemas, trucks_by_id, trucks_by_vin)
 from eos.utils import ragged_nparray_list_interp
 from eos.utils.exception import TruckIDError
 

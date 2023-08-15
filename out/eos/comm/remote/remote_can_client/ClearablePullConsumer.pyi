@@ -1,5 +1,6 @@
-from _typeshed import Incomplete
 from collections.abc import Generator
+
+from _typeshed import Incomplete
 from rocketmq.client import PullConsumer
 
 class ClearablePullConsumer(PullConsumer):

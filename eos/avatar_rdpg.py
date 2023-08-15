@@ -3,15 +3,11 @@ import sys
 from dataclasses import dataclass
 
 from eos import proj_root
-from eos.data_io.config import (
-    Driver,
-    Truck,
-    str_to_truck,
-    str_to_driver,
-    str_to_can_server,
-    str_to_trip_server,
-)
+from eos.data_io.config import (Driver, Truck, str_to_can_server,
+                                str_to_driver, str_to_trip_server,
+                                str_to_truck)
 from eos.utils import dictLogger, logger
+
 from .agent.rdpg import RDPG  # type: ignore
 from .agent.utils import HyperParamRDPG  # type: ignore
 from .avatar import Avatar  # type: ignore

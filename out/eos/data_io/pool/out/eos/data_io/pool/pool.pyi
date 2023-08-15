@@ -1,7 +1,10 @@
 import abc
-import pandas as pd
-from eos.data_io.struct import ItemT as ItemT, PoolQuery as PoolQuery
 from typing import Any, Generic, Optional, Union
+
+import pandas as pd
+
+from eos.data_io.struct import ItemT as ItemT
+from eos.data_io.struct import PoolQuery as PoolQuery
 
 class Pool(abc.ABC, Generic[ItemT], metaclass=abc.ABCMeta):
     def __init_subclass__(cls) -> None: ...
