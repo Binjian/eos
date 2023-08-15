@@ -12,18 +12,18 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>=3.10
+  - python>=3.11
   - mypy
   - pylint
   - typing_inspect
   - dacite  # for dataclass from_dict
   - poetry
   - pydantic
-  - tensorflow=2.11.1
+  - tensorflow=2.12.1
   - tensorflow-estimator
   - tensorflow-probability
   - tensorboard
-  - flatbuffers=23.3.3
+  - flatbuffers
   - python-json-logger
   - plotly
   - Pillow

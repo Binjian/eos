@@ -41,7 +41,6 @@ data
 *.python-version
 *.iml
 *.json
-/requirements.txt
 /classes.dot
 /eos/utils/.ipynb_checkpoints/
 /eos/utils/test_suite.ipynb
