@@ -14,11 +14,12 @@ channels:
 dependencies:
   - python>=3.11
   - mypy
+  - black
   - pylint
   - typing_inspect
   - dacite  # for dataclass from_dict
   - poetry
-  - pydantic
+  - pydantic=2.1
   - tensorflow=2.12.1
   - tensorflow-estimator
   - tensorflow-probability
@@ -28,6 +29,7 @@ dependencies:
   - plotly
   - Pillow
   - pandas=2.0
+  - pandas-stubs
   - ordered-set
   - opt-einsum
   - jupyterlab
@@ -55,3 +57,4 @@ dependencies:
     - rocketmq
     - cutelog
     - pyqt5
+    - types-tensorflow
