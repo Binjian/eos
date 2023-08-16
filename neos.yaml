@@ -18,6 +18,8 @@ dependencies:
   - pylint
   - typing_inspect
   - typeguard
+  - types-requests
+  - types-urllib3
   - dacite  # for dataclass from_dict
   - poetry
   - pydantic=2.1
