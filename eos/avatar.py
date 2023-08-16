@@ -44,6 +44,7 @@ from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
 from threading import Lock, Thread
 from typing import Optional, Union, cast
+from typeguard import check_type
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -529,8 +530,7 @@ class Avatar(abc.ABC):
         logger_countdown.propagate = True
         th_exit = False
         while not th_exit:
-            assert self.hmi_lock is not None
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 if self.program_exit:
                     th_exit = True
                     continue
@@ -539,8 +539,7 @@ class Avatar(abc.ABC):
                 f"{{'header': 'wait for countdown'}}", extra=self.dictLogger
             )
             evt_epi_done.wait()
-            assert self.done_env_lock is not None
-            with self.done_env_lock:
+            with check_type(self.done_env_lock, Lock):
                 evt_epi_done.clear()
             # if episode is done, sleep for the extension time
             time.sleep(self.epi_countdown_time)
@@ -549,7 +548,7 @@ class Avatar(abc.ABC):
                 f"{{'header': 'finish countdown'}}", extra=self.dictLogger
             )
 
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 self.episode_count += 1  # valid round increments
                 self.episode_done = (
                     True  # TODO delay episode_done to make main thread keep running
@@ -558,18 +557,14 @@ class Avatar(abc.ABC):
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
             self.get_truck_status_motion_power_t = []
-            assert self.captureQ_lock is not None
-            with self.captureQ_lock:
-                assert self.motion_power_queue is not None
-                while not self.motion_power_queue.empty():
-                    self.motion_power_queue.get()
+            with check_type(self.captureQ_lock, Lock):
+                while not check_type(self.motion_power_queue, queue.Queue).empty():
+                    check_type(self.motion_power_queue, queue.Queue).get()
 
             # unlock remote_get_handler
-            assert self.get_env_lock is not None
-            with self.get_env_lock:
+            with check_type(self.get_env_lock, Lock):
                 evt_remote_get.set()
-            assert self.flash_env_lock is not None
-            with self.flash_env_lock:
+            with check_type(self.flash_env_lock, Lock):
                 evt_remote_flash.set()
             logger_countdown.info(
                 f"{{'header': 'Episode done! free remote_flash and remote_get!'}}",
@@ -614,12 +609,13 @@ class Avatar(abc.ABC):
         vel_cycle_dq: deque = deque(
             maxlen=truck_in_field.observation_length
         )  # accumulate 1.5s (one cycle) of velocity values
-        assert self.hmi_lock is not None
-        with self.hmi_lock:
+        with check_type(self.hmi_lock, Lock):
             self.program_start = True
 
         while not th_exit:  # th_exit is local; program_exit is global
-            with self.hmi_lock:  # wait for tester to kick off or to exit
+            with check_type(
+                self.hmi_lock, Lock
+            ):  # wait for tester to kick off or to exit
                 if self.program_exit:  # if program_exit is True, exit thread
                     logger_kvaser_get.info(
                         f"{{'header': 'Capture thread exit due to processing request!!!'}}",
@@ -645,13 +641,13 @@ class Avatar(abc.ABC):
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            while not self.motion_power_queue.empty():
-                                self.motion_power_queue.get()
+                        with check_type(self.captureQ_lock, Lock):
+                            while not check_type(
+                                self.motion_power_queue, queue.Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, queue.Queue).get()
                         self.vel_hist_dq.clear()
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = False
 
@@ -663,13 +659,12 @@ class Avatar(abc.ABC):
                         )
 
                         # set flag for countdown thread
-                        assert self.done_env_lock is not None
-                        with self.done_env_lock:
+                        with check_type(self.done_env_lock, Lock):
                             evt_epi_done.set()
                         logger_kvaser_get.info(
                             f"{{'header': 'Episode end starts countdown!'}}"
                         )
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
@@ -686,16 +681,16 @@ class Avatar(abc.ABC):
                         #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            while not self.motion_power_queue.empty():
-                                self.motion_power_queue.get()
+                        with check_type(self.captureQ_lock, Lock):
+                            while not check_type(
+                                self.motion_power_queue, queue.Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, queue.Queue).get()
                         # self.logc.info(
                         #     f"Episode motion_power_queue gets cleared!", extra=self.dictLogger
                         # )
                         th_exit = False
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = True
                             self.episode_count += 1  # invalid round increments
@@ -703,22 +698,21 @@ class Avatar(abc.ABC):
                         self.get_truck_status_start = False
                         self.get_truck_status_motion_power_t = []
                         self.vel_hist_dq.clear()
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            while not self.motion_power_queue.empty():
-                                self.motion_power_queue.get()
+                        with check_type(self.captureQ_lock, Lock):
+                            while not check_type(
+                                self.motion_power_queue, queue.Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, queue.Queue).get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
                         # final change to inform main thread
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = True
                             self.program_exit = True
                             self.episode_count += 1
-                        assert self.done_env_lock is not None
-                        with self.done_env_lock:
+                        with check_type(self.done_env_lock, Lock):
                             evt_epi_done.set()
                         break
                         # time.sleep(0.1)
@@ -759,8 +753,9 @@ class Avatar(abc.ABC):
                                 >= truck_in_field.observation_length
                             ):
                                 if len(vel_cycle_dq) != vel_cycle_dq.maxlen:
-                                    assert self.logger_control_flow is not None
-                                    self.logger_control_flow.warning(  # the recent 1.5s average velocity
+                                    check_type(
+                                        self.logger_control_flow, logging.Logger
+                                    ).warning(  # the recent 1.5s average velocity
                                         f"{{'header': 'cycle deque is inconsistent!'}}",
                                         extra=self.dictLogger,
                                     )
@@ -815,13 +810,13 @@ class Avatar(abc.ABC):
                                 # df_motion_power.set_index('timestamp', inplace=True)
                                 df_motion_power.columns.name = "qtuple"
 
-                                assert self.captureQ_lock is not None
-                                with self.captureQ_lock:
-                                    assert self.motion_power_queue is not None
-                                    self.motion_power_queue.put(df_motion_power)
-                                    motion_power_queue_size = (
-                                        self.motion_power_queue.qsize()
-                                    )
+                                with check_type(self.captureQ_lock, Lock):
+                                    check_type(
+                                        self.motion_power_queue, queue.Queue
+                                    ).put(df_motion_power)
+                                    motion_power_queue_size = check_type(
+                                        self.motion_power_queue, queue.Queue
+                                    ).qsize()
                                 logger_kvaser_get.info(
                                     f"{{'header': 'motion_power_queue size: {motion_power_queue_size}'}}",
                                     extra=self.dictLogger,
@@ -862,12 +857,11 @@ class Avatar(abc.ABC):
         )
         while not th_exit:
             # time.sleep(0.1)
-            assert self.hmi_lock is not None
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 program_start = self.program_start
             if program_start is False:
                 continue
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 table_start = self.vcu_calib_table_row_start
                 epi_cnt = self.episode_count
                 step_count = self.step_count
@@ -876,10 +870,8 @@ class Avatar(abc.ABC):
                     continue
             try:
                 # print("1 table queue size: {}".format(table_queue.qsize()))
-                assert self.tableQ_lock is not None
-                with self.tableQ_lock:
-                    assert self.tableQueue is not None
-                    table = self.tableQueue.get(
+                with check_type(self.tableQ_lock, Lock):
+                    table = check_type(self.tableQueue, queue.Queue).get(
                         block=False, timeout=1
                     )  # default block = True
                     # print("2 table_queue size: {}".format(table_queue.qsize()))
@@ -900,8 +892,9 @@ class Avatar(abc.ABC):
                 )
 
                 # dynamically change table row start index
-                assert self.vcu_calib_table0 is not None
-                vcu_calib_table0_reduced = self.vcu_calib_table0.to_numpy()[
+                vcu_calib_table0_reduced = check_type(
+                    self.vcu_calib_table0, pd.DataFrame
+                ).to_numpy()[
                     table_start : self.truck.torque_table_row_num_flash + table_start,
                     :,
                 ]
@@ -920,8 +913,7 @@ class Avatar(abc.ABC):
 
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
-                assert self.vcu_calib_table1 is not None
-                self.vcu_calib_table1.iloc[
+                check_type(self.vcu_calib_table1, pd.DataFrame).iloc[
                     table_start : self.truck.torque_table_row_num_flash + table_start
                 ] = vcu_calib_table_reduced.numpy()
 
@@ -942,7 +934,9 @@ class Avatar(abc.ABC):
                         + ".csv"
                     )
                     with open(curr_table_store_path, "wb"):
-                        self.vcu_calib_table1.to_csv(curr_table_store_path)
+                        check_type(self.vcu_calib_table1, pd.DataFrame).to_csv(
+                            curr_table_store_path
+                        )
                         # np.save(last_table_store_path, vcu_calib_table1)
                     logger_flash.info(
                         f"{{'header': 'E{epi_cnt} done with record instant table: {step_count}'}}",
@@ -985,8 +979,9 @@ class Avatar(abc.ABC):
             )
         )
         with open(last_table_store_path, "wb"):
-            assert self.vcu_calib_table1 is not None
-            self.vcu_calib_table1.to_csv(last_table_store_path)
+            check_type(self.vcu_calib_table1, pd.DataFrame).to_csv(
+                last_table_store_path
+            )
         logger_flash.info(f"{{'header': 'flash_vcu dies!!!'}}", extra=self.dictLogger)
 
     def remote_get_handler(
@@ -1003,8 +998,7 @@ class Avatar(abc.ABC):
         )  # runtime typing cast
 
         while not th_exit:
-            assert self.hmi_lock is not None
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 if self.program_exit:
                     th_exit = self.program_exit
                     continue
@@ -1014,8 +1008,7 @@ class Avatar(abc.ABC):
                     f"{{'header': 'Episode ends and wait for evt_remote_get!'}}",
                     extra=self.dictLogger,
                 )
-                assert self.get_env_lock is not None
-                with self.get_env_lock:
+                with check_type(self.get_env_lock, Lock):
                     evt_remote_get.clear()
                 # continue
 
@@ -1026,7 +1019,7 @@ class Avatar(abc.ABC):
             evt_remote_get.wait()
 
             # after long wait, need to refresh state machine
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 th_exit = self.program_exit
                 episode_end = self.episode_end
 
@@ -1035,8 +1028,7 @@ class Avatar(abc.ABC):
                     f"{{'header': 'Episode ends after evt_remote_get without get_signals!'}}",
                     extra=self.dictLogger,
                 )
-                assert self.get_env_lock is not None
-                with self.get_env_lock:
+                with check_type(self.get_env_lock, Lock):
                     evt_remote_get.clear()
                 continue
 
@@ -1049,11 +1041,11 @@ class Avatar(abc.ABC):
                 f"'timeout': {timeout}}}",
                 extra=self.dictLogger,
             )
-            assert self.remoteClient_lock is not None
-            with self.remoteClient_lock:
+            with check_type(self.remoteClient_lock, Lock):
                 try:
-                    assert self.remotecan_client is not None
-                    ret_msg = self.remotecan_client.get_signals(
+                    ret_msg = check_type(
+                        self.remotecan_client, RemoteCanClient
+                    ).get_signals(
                         duration=truck_in_cloud.observation_duration, timeout=timeout
                     )  # timeout is 1 second longer than duration
                 except RemoteCanException as exc:
@@ -1080,7 +1072,7 @@ class Avatar(abc.ABC):
                                 extra=self.dictLogger,
                             )
 
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 th_exit = self.program_exit
                 episode_end = self.episode_end
             if episode_end is True:
@@ -1088,8 +1080,7 @@ class Avatar(abc.ABC):
                     f"{{'header': 'Episode ends, not waiting for evt_remote_flash and continue!'}}",
                     extra=self.dictLogger,
                 )
-                assert self.get_env_lock is not None
-                with self.get_env_lock:
+                with check_type(self.get_env_lock, Lock):
                     evt_remote_get.clear()
                 continue
 
@@ -1237,10 +1228,10 @@ class Avatar(abc.ABC):
                             extra=self.dictLogger,
                         )
 
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            self.motion_power_queue.put(df_motion_power)
+                        with check_type(self.captureQ_lock, Lock):
+                            check_type(self.motion_power_queue, queue.Queue).put(
+                                df_motion_power
+                            )
 
                         logger_remote_get.info(
                             f"{{'header': 'Get one record, wait for remote_flash!!!'}}",
@@ -1248,8 +1239,7 @@ class Avatar(abc.ABC):
                         )
                         # as long as one observation is received, always waiting for flash
                         evt_remote_flash.wait()
-                        assert self.flash_env_lock is not None
-                        with self.flash_env_lock:
+                        with check_type(self.flash_env_lock, Lock):
                             evt_remote_flash.clear()
                         logger_remote_get.info(
                             f"{{'header': 'evt_remote_flash wakes up, "
@@ -1275,8 +1265,7 @@ class Avatar(abc.ABC):
                     extra=self.dictLogger,
                 )
 
-            assert self.get_env_lock is not None
-            with self.get_env_lock:
+            with check_type(self.get_env_lock, Lock):
                 evt_remote_get.clear()
 
         logger_remote_get.info(
@@ -1298,10 +1287,8 @@ class Avatar(abc.ABC):
         th_exit = False
 
         try:
-            assert self.rmq_consumer is not None
-            self.rmq_consumer.start()
-            assert self.rmq_producer is not None
-            self.rmq_producer.start()
+            check_type(self.rmq_consumer, ClearablePullConsumer).start()
+            check_type(self.rmq_producer, rmq_client.Producer).start()
             logger_webhmi_sm.info(
                 f"{{'header': 'Start RocketMQ client', "
                 f"'host': '{self.trip_server.Host}'}}",
@@ -1310,15 +1297,21 @@ class Avatar(abc.ABC):
 
             msg_topic = self.driver.pid + "_" + self.truck.vid
 
-            broker_msgs = self.rmq_consumer.pull(msg_topic)
+            broker_msgs = check_type(self.rmq_consumer, ClearablePullConsumer).pull(
+                msg_topic
+            )
             logger_webhmi_sm.info(
                 f"{{'header': 'Before clearing history: Pull', "
                 f"'msg_number': {len(list(broker_msgs))}, "
                 f"'topic': {msg_topic}'}}",
                 extra=self.dictLogger,
             )
-            self.rmq_consumer.clear_history(msg_topic)
-            broker_msgs = self.rmq_consumer.pull(msg_topic)
+            check_type(self.rmq_consumer, ClearablePullConsumer).clear_history(
+                msg_topic
+            )
+            broker_msgs = check_type(self.rmq_consumer, ClearablePullConsumer).pull(
+                msg_topic
+            )
             logger_webhmi_sm.info(
                 f"{{'header': 'After clearing history: Pull', "
                 f"'msg_number': {len(list(broker_msgs))}, "
@@ -1335,7 +1328,9 @@ class Avatar(abc.ABC):
             return
         try:
             # send ready signal to trip server
-            ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+            ret = check_type(self.rmq_producer, rmq_client.Producer).send_sync(
+                self.rmq_message_ready
+            )
             logger_webhmi_sm.info(
                 f"{{'header': 'Sending ready signal to trip server', "
                 f"'status': '{ret.status}', "
@@ -1343,8 +1338,7 @@ class Avatar(abc.ABC):
                 f"'offset': '{ret.offset}'}}",
                 extra=self.dictLogger,
             )
-            assert self.state_machine_lock is not None
-            with self.state_machine_lock:
+            with check_type(self.state_machine_lock, Lock):
                 self.program_start = True
 
             logger_webhmi_sm.info(
@@ -1359,8 +1353,9 @@ class Avatar(abc.ABC):
             return
 
         while not th_exit:  # th_exit is local; program_exit is global
-            assert self.hmi_lock is not None
-            with self.hmi_lock:  # wait for tester to kick off or to exit
+            with check_type(
+                self.hmi_lock, Lock
+            ):  # wait for tester to kick off or to exit
                 if self.program_exit:  # if program_exit is True, exit thread
                     logger_webhmi_sm.info(
                         f"{{'header': 'Capture thread exit due to processing request!!!'}}",
@@ -1368,7 +1363,7 @@ class Avatar(abc.ABC):
                     )
                     th_exit = True
                     continue
-            msgs = self.rmq_consumer.pull(msg_topic)
+            msgs = check_type(self.rmq_consumer, ClearablePullConsumer).pull(msg_topic)
             for msg in msgs:
                 msg_body = json.loads(msg.body)
                 if not isinstance(msg_body, dict):
@@ -1392,11 +1387,14 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    with self.state_machine_lock:
+                    with check_type(self.state_machine_lock, Lock):
                         self.program_start = True
 
                     # send ready signal to trip server
-                    ret = self.rmq_producer.send_sync(self.rmq_message_ready)
+                    ret = check_type(self.rmq_producer, rmq_client.Producer).send_sync(
+                        check_type(self.rmq_message_ready, rmq_client.Message)
+                    )
+
                     logger_webhmi_sm.info(
                         f"{{'header': 'Sending ready signal to trip server', "
                         f"'status': '{ret.status}', "
@@ -1412,23 +1410,21 @@ class Avatar(abc.ABC):
                     )
                     th_exit = False
                     # ts_epi_start = time.time()
-                    assert self.get_env_lock is not None
-                    with self.get_env_lock:
+                    with check_type(self.get_env_lock, Lock):
                         evt_remote_get.clear()
-                    assert self.flash_env_lock is not None
-                    with self.flash_env_lock:
+                    with check_type(self.flash_env_lock, Lock):
                         evt_remote_flash.clear()
                     logger_webhmi_sm.info(
                         f"{{'header': 'Episode start! clear remote_flash and remote_get!'}}",
                         extra=self.dictLogger,
                     )
 
-                    assert self.captureQ_lock is not None
-                    with self.captureQ_lock:
-                        assert self.motion_power_queue is not None
-                        while not self.motion_power_queue.empty():
-                            self.motion_power_queue.get()
-                    with self.hmi_lock:
+                    with check_type(self.captureQ_lock, Lock):
+                        while not check_type(
+                            self.motion_power_queue, queue.Queue
+                        ).empty():
+                            check_type(self.motion_power_queue, queue.Queue).get()
+                    with check_type(self.hmi_lock, Lock):
                         self.episode_done = False
                         self.episode_end = False
                 elif msg_body["code"] == 2:  # valid stop
@@ -1443,14 +1439,13 @@ class Avatar(abc.ABC):
                     )
 
                     # set flag for countdown thread
-                    assert self.done_env_lock is not None
-                    with self.done_env_lock:
+                    with check_type(self.done_env_lock, Lock):
                         evt_epi_done.set()
 
                     logger_webhmi_sm.info(
                         f"{{'header': 'Episode end starts countdown!'}}"
                     )
-                    with self.hmi_lock:
+                    with check_type(self.hmi_lock, Lock):
                         # self.episode_count += 1  # valid round increments self.epi_countdown = False
                         self.episode_done = False  # TODO delay episode_done to make main thread keep running
                         self.episode_end = False
@@ -1466,29 +1461,27 @@ class Avatar(abc.ABC):
                     #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
                     #     extra=self.dictLogger,
                     # )
-                    assert self.captureQ_lock is not None
-                    with self.captureQ_lock:
-                        assert self.motion_power_queue is not None
-                        while not self.motion_power_queue.empty():
-                            self.motion_power_queue.get()
+                    with check_type(self.captureQ_lock, Lock):
+                        while not check_type(
+                            self.motion_power_queue, queue.Queue
+                        ).empty():
+                            check_type(self.motion_power_queue, queue.Queue).get()
                     # self.logc.info(
                     #     f"Episode motion_power_queue gets cleared!", extra=self.dictLogger
                     # )
                     th_exit = False
 
                     # remote_get_handler exit
-                    assert self.get_env_lock
-                    with self.get_env_lock:
+                    with check_type(self.get_env_lock, Lock):
                         evt_remote_get.set()
-                    assert self.flash_env_lock
-                    with self.flash_env_lock:
+                    with check_type(self.flash_env_lock, Lock):
                         evt_remote_flash.set()
                     logger_webhmi_sm.info(
                         f"{{'header': 'end_invalid! free remote_flash and remote_get!'}}",
                         extra=self.dictLogger,
                     )
 
-                    with self.hmi_lock:
+                    with check_type(self.hmi_lock, Lock):
                         self.episode_done = False
                         self.episode_end = True
                         self.episode_count += 1  # invalid round increments
@@ -1496,33 +1489,30 @@ class Avatar(abc.ABC):
                     self.get_truck_status_start = False
                     self.get_truck_status_motion_power_t = []
 
-                    assert self.get_env_lock is not None
-                    with self.get_env_lock:
+                    with check_type(self.get_env_lock, Lock):
                         evt_remote_get.set()
-                    assert self.flash_env_lock is not None
-                    with self.flash_env_lock:
+                    with check_type(self.flash_env_lock, Lock):
                         evt_remote_flash.set()
                     logger_webhmi_sm.info(
                         f"{{'header': 'Program exit!!!! free remote_flash and remote_get!'}}",
                         extra=self.dictLogger,
                     )
 
-                    assert self.captureQ_lock is not None
-                    with self.captureQ_lock:
-                        assert self.motion_power_queue is not None
-                        while not self.motion_power_queue.empty():
-                            self.motion_power_queue.get()
+                    with check_type(self.captureQ_lock, Lock):
+                        while not check_type(
+                            self.motion_power_queue, queue.Queue
+                        ).empty():
+                            check_type(self.motion_power_queue, queue.Queue).get()
                     # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                     th_exit = True
                     # for program exit, need to set episode states
                     # final change to inform main thread
-                    with self.hmi_lock:
+                    with check_type(self.hmi_lock, Lock):
                         self.episode_done = False
                         self.episode_end = True
                         self.program_exit = True
                         self.episode_count += 1
-                    assert self.done_env_lock
-                    with self.done_env_lock:
+                    with check_type(self.done_env_lock, Lock):
                         evt_epi_done.set()
                     break
                     # time.sleep(0.1)
@@ -1534,12 +1524,11 @@ class Avatar(abc.ABC):
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
             if self.get_truck_status_start:
-                assert self.get_env_lock
-                with self.get_env_lock:
+                with check_type(self.get_env_lock, Lock):
                     evt_remote_get.set()
 
-        self.rmq_consumer.shutdown()
-        self.rmq_producer.shutdown()
+        check_type(self.rmq_consumer, ClearablePullConsumer).shutdown()
+        check_type(self.rmq_producer, rmq_client.Producer).shutdown()
         logger_webhmi_sm.info(
             f"{{'header': 'remote webhmi dies!!!'}}", extra=self.dictLogger
         )
@@ -1567,28 +1556,26 @@ class Avatar(abc.ABC):
             extra=self.dictLogger,
         )
 
-        assert self.state_machine_lock
-        with self.state_machine_lock:
+        with check_type(self.state_machine_lock, Lock):
             self.program_start = True
 
         logger_cloud_hmi_sm.info(
             f"{{'header': 'Road Test with inferring will start as one single episode!!!'}}",
             extra=self.dictLogger,
         )
-        assert self.get_env_lock is not None
-        with self.get_env_lock:
+        with check_type(self.get_env_lock, Lock):
             evt_remote_get.clear()
-        assert self.flash_env_lock is not None
-        with self.flash_env_lock:
+        with check_type(self.flash_env_lock, Lock):
             evt_remote_flash.clear()
 
-        assert self.hmi_lock is not None
-        with self.hmi_lock:
+        with check_type(self.hmi_lock, Lock):
             self.episode_done = False
             self.episode_end = False
 
         while not th_exit:  # th_exit is local; program_exit is global
-            with self.hmi_lock:  # wait for tester to kick off or to exit
+            with check_type(
+                self.hmi_lock, Lock
+            ):  # wait for tester to kick off or to exit
                 # Check if the runner is trying to kill the process
                 # kill signal captured from main thread
                 if self.program_exit:  # if program_exit is True, exit thread
@@ -1600,9 +1587,9 @@ class Avatar(abc.ABC):
                     self.get_truck_status_start = False
                     self.get_truck_status_motion_power_t = []
 
-                    with self.get_env_lock:
+                    with check_type(self.get_env_lock, Lock):
                         evt_remote_get.set()
-                    with self.flash_env_lock:
+                    with check_type(self.flash_env_lock, Lock):
                         evt_remote_flash.set()
                     logger_cloud_hmi_sm.info(
                         f"{{'header': 'Process is being killed and Program exit!!!! "
@@ -1610,24 +1597,23 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    assert self.captureQ_lock is not None
-                    with self.captureQ_lock:
-                        assert self.motion_power_queue is not None
-                        while not self.motion_power_queue.empty():
-                            self.motion_power_queue.get()
+                    with check_type(self.captureQ_lock, Lock):
+                        while not check_type(
+                            self.motion_power_queue, queue.Queue
+                        ).empty():
+                            check_type(self.motion_power_queue, queue.Queue).get()
 
                     self.episode_done = True
                     self.episode_end = True
                     self.episode_count += 1
 
-                    assert self.done_env_lock is not None
-                    with self.done_env_lock:
+                    with check_type(self.done_env_lock, Lock):
                         evt_epi_done.set()
                     th_exit = True
                     continue
 
             time.sleep(0.05)  # sleep for 50ms to update state machine
-            with self.get_env_lock:
+            with check_type(self.get_env_lock, Lock):
                 evt_remote_get.set()
 
         logger_cloud_hmi_sm.info(
@@ -1660,8 +1646,9 @@ class Avatar(abc.ABC):
         )
 
         while not th_exit:  # th_exit is local; program_exit is global
-            assert self.hmi_lock is not None
-            with self.hmi_lock:  # wait for tester to kick off or to exit
+            with check_type(
+                self.hmi_lock, Lock
+            ):  # wait for tester to kick off or to exit
                 if self.program_exit:  # if program_exit is True, exit thread
                     logger_hmi_sm.info(
                         f"{{'header': 'Capture thread exit due to processing request!!!'}}",
@@ -1699,22 +1686,20 @@ class Avatar(abc.ABC):
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
-                        assert self.get_env_lock is not None
-                        with self.get_env_lock:
+                        with check_type(self.get_env_lock, Lock):
                             evt_remote_get.clear()
-                        assert self.flash_env_lock is not None
-                        with self.flash_env_lock:
+                        with check_type(self.flash_env_lock, Lock):
                             evt_remote_flash.clear()
                         logger_hmi_sm.info(
                             f"{{'header': 'Episode start! clear remote_flash and remote_get!'}}",
                             extra=self.dictLogger,
                         )
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            while not self.motion_power_queue.empty():
-                                self.motion_power_queue.get()
-                        with self.hmi_lock:
+                        with check_type(self.captureQ_lock, Lock):
+                            while not check_type(
+                                self.motion_power_queue, queue.Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, queue.Queue).get()
+                        with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = False
                     elif value == "end_valid":
@@ -1730,13 +1715,12 @@ class Avatar(abc.ABC):
                         )
 
                         # set flag for countdown thread
-                        assert self.done_env_lock is not None
-                        with self.done_env_lock:
+                        with check_type(self.done_env_lock, Lock):
                             evt_epi_done.set()
                         logger_hmi_sm.info(
                             f"{{'header': 'Episode end starts countdown!'}}"
                         )
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             # self.episode_count += 1  # valid round increments self.epi_countdown = False
                             self.episode_done = False  # TODO delay episode_done to make main thread keep running
                             self.episode_end = False
@@ -1752,29 +1736,27 @@ class Avatar(abc.ABC):
                         #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            while not self.motion_power_queue.empty():
-                                self.motion_power_queue.get()
+                        with check_type(self.captureQ_lock, Lock):
+                            while not check_type(
+                                self.motion_power_queue, queue.Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, queue.Queue).get()
                         # self.logc.info(
                         #     f"Episode motion_power_queue gets cleared!", extra=self.dictLogger
                         # )
                         th_exit = False
 
                         # remote_get_handler exit
-                        assert self.get_env_lock is not None
-                        with self.get_env_lock:
+                        with check_type(self.get_env_lock, Lock):
                             evt_remote_get.set()
-                        assert self.flash_env_lock is not None
-                        with self.flash_env_lock:
+                        with check_type(self.flash_env_lock, Lock):
                             evt_remote_flash.set()
                         logger_hmi_sm.info(
                             f"{{'header': 'end_invalid! free remote_flash and remote_get!'}}",
                             extra=self.dictLogger,
                         )
 
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = True
                             self.episode_count += 1  # invalid round increments
@@ -1782,33 +1764,30 @@ class Avatar(abc.ABC):
                         self.get_truck_status_start = False
                         self.get_truck_status_motion_power_t = []
 
-                        assert self.get_env_lock is not None
-                        with self.get_env_lock:
+                        with check_type(self.get_env_lock, Lock):
                             evt_remote_get.set()
-                        assert self.flash_env_lock is not None
-                        with self.flash_env_lock:
+                        with check_type(self.flash_env_lock, Lock):
                             evt_remote_flash.set()
                         logger_hmi_sm.info(
                             f"{{'header': 'Program exit!!!! free remote_flash and remote_get!'}}",
                             extra=self.dictLogger,
                         )
 
-                        assert self.captureQ_lock is not None
-                        with self.captureQ_lock:
-                            assert self.motion_power_queue is not None
-                            while not self.motion_power_queue.empty():
-                                self.motion_power_queue.get()
+                        with check_type(self.captureQ_lock, Lock):
+                            while not check_type(
+                                self.motion_power_queue, queue.Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, queue.Queue).get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
                         # final change to inform main thread
-                        with self.hmi_lock:
+                        with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = True
                             self.program_exit = True
                             self.episode_count += 1
-                        assert self.done_env_lock is not None
-                        with self.done_env_lock:
+                        with check_type(self.done_env_lock, Lock):
                             evt_epi_done.set()
                         break
                         # time.sleep(0.1)
@@ -1816,8 +1795,7 @@ class Avatar(abc.ABC):
                     #  instead of get kvaser can, we get remotecan data here!
                     if self.get_truck_status_start:  # starts episode
                         # set flag for remote_get thread
-                        assert self.get_env_lock is not None
-                        with self.get_env_lock:
+                        with check_type(self.get_env_lock, Lock):
                             evt_remote_get.set()
                         # self.logc.info(f"Kick off remoteget!!")
                 else:
@@ -1848,14 +1826,12 @@ class Avatar(abc.ABC):
         while not th_exit:
             # time.sleep(0.1)
 
-            assert self.state_machine_lock is not None
-            with self.state_machine_lock:
+            with check_type(self.state_machine_lock, Lock):
                 program_start = self.program_start
             if program_start is False:
                 continue
 
-            assert self.hmi_lock is not None
-            with self.hmi_lock:
+            with check_type(self.hmi_lock, Lock):
                 table_start = self.vcu_calib_table_row_start
                 epi_cnt = self.episode_count
                 step_count = self.step_count
@@ -1866,21 +1842,18 @@ class Avatar(abc.ABC):
             # self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
                 # print("1 table_queue size: {}".format(table_queue.qsize()))
-                assert self.tableQ_lock is not None
-                with self.tableQ_lock:
-                    assert self.tableQueue is not None
-                    table: np.ndarray = self.tableQueue.get(
+                with check_type(self.tableQ_lock, Lock):
+                    table: np.ndarray = check_type(self.tableQueue, queue.Queue).get(
                         block=False, timeout=1
                     )  # default block = True
                     # print("2 table_queue size: {}".format(table_queue.qsize()))
 
-                with self.hmi_lock:
+                with check_type(self.hmi_lock, Lock):
                     th_exit = self.program_exit
                     episode_end = self.episode_end
 
                 if episode_end is True:
-                    assert self.flash_env_lock is not None
-                    with self.flash_env_lock:
+                    with check_type(self.flash_env_lock, Lock):
                         evt_remote_flash.set()  # triggered flash by remote_get thread,
                         # need to reset remote_get waiting evt
                     logger_flash.info(
@@ -1904,8 +1877,9 @@ class Avatar(abc.ABC):
                 )
 
                 # dynamically change table row start index
-                assert self.vcu_calib_table0 is not None
-                vcu_calib_table0_reduced = self.vcu_calib_table0.iloc[
+                vcu_calib_table0_reduced = check_type(
+                    self.vcu_calib_table0, pd.DataFrame
+                ).iloc[
                     table_start : self.truck.torque_table_row_num_flash + table_start, :
                 ]  # Pandas DataFrame implicit slicing, just a view of the whole array
                 vcu_calib_table_min_reduced = (
@@ -1923,8 +1897,7 @@ class Avatar(abc.ABC):
 
                 # create updated complete pedal map, only update the first few rows
                 # vcu_calib_table1 keeps changing as the cache of the changing pedal map
-                assert self.vcu_calib_table1 is not None
-                self.vcu_calib_table1.iloc[
+                check_type(self.vcu_calib_table1, pd.DataFrame).iloc[
                     table_start : self.truck.torque_table_row_num_flash + table_start
                 ] = vcu_calib_table_reduced
 
@@ -1945,7 +1918,9 @@ class Avatar(abc.ABC):
                         + ".csv"
                     )
                     with open(curr_table_store_path, "wb"):
-                        self.vcu_calib_table1.to_csv(curr_table_store_path)
+                        check_type(self.vcu_calib_table1, pd.DataFrame).to_csv(
+                            curr_table_store_path
+                        )
                         # np.save(last_table_store_path, vcu_calib_table1)
                     # self.logc.info(
                     #     f"E{epi_cnt} done with record instant table: {step_count}",
@@ -1972,12 +1947,14 @@ class Avatar(abc.ABC):
                 )
                 # lock doesn't control the logic explicitly
                 # competition is not desired
-                assert self.remoteClient_lock is not None
-                with self.remoteClient_lock:
+                with check_type(self.remoteClient_lock, Lock):
                     try:
-                        assert self.remotecan_client is not None
-                        ret_str = self.remotecan_client.send_torque_map(
-                            pedalmap=self.vcu_calib_table1.iloc[
+                        ret_str = check_type(
+                            self.remotecan_client, RemoteCanClient
+                        ).send_torque_map(
+                            pedalmap=check_type(
+                                self.vcu_calib_table1, pd.DataFrame
+                            ).iloc[
                                 table_start : self.truck.torque_table_row_num_flash
                                 + table_start
                             ],
@@ -2025,8 +2002,7 @@ class Avatar(abc.ABC):
                 flash_count += 1
 
                 # flash is done and unlock remote_get
-                assert self.flash_env_lock is not None
-                with self.flash_env_lock:
+                with check_type(self.flash_env_lock, Lock):
                     evt_remote_flash.set()
 
                 # watch(flash_count)
@@ -2049,8 +2025,9 @@ class Avatar(abc.ABC):
             )
         )
         with open(last_table_store_path, "wb"):
-            assert self.vcu_calib_table1 is not None
-            self.vcu_calib_table1.to_csv(last_table_store_path)
+            check_type(self.vcu_calib_table1, pd.DataFrame).to_csv(
+                last_table_store_path
+            )
         # motion_power_queue.join()
         logger_flash.info(
             f"{{'header': 'remote_flash_vcu dies!!!'}}", extra=self.dictLogger
