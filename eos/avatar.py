@@ -29,7 +29,7 @@ import math
 
 # system imports
 import os
-from queue import SimpleQueue, Empty
+from queue import SimpleQueue
 import socket
 import sys
 import threading
@@ -2062,6 +2062,7 @@ class Avatar(abc.ABC):
 
             # Get the initial motion_power data for the initial quadruple (s, a, r, s')_{-1}
             while True:
+                motion_power = None
                 try:
                     motion_power = self.motion_power_queue.get(block=True, timeout=1.55)
                     break  # break the while loop if we get the first data
@@ -2077,6 +2078,7 @@ class Avatar(abc.ABC):
             step_count = 0
             episode_reward = 0
             prev_timestamp = self.agent.episode_start_dt
+            check_type(motion_power, pd.DataFrame)
             prev_state = assemble_state_ser(
                 motion_power.loc[:, ["timestep", "velocity", "thrust", "brake"]]
             )  # s_{-1}
