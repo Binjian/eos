@@ -4,7 +4,7 @@ from typing import Dict, List, Union, cast
 
 import numpy as np
 import pandas as pd
-from keras.preprocessing.sequence import pad_sequences  # type: ignore
+import tensorflow as tf
 
 
 def assemble_state_ser(state_columns: pd.DataFrame) -> pd.Series:
@@ -44,10 +44,6 @@ def assemble_reward_ser(
     wh = (
         ui_sum / 3600.0 / obs_sampling_rate
     )  # rate 0.05 for kvaser, 0.02 remote # negative wh
-    # self.logc.info(
-    #     f'wh: {wh}',
-    #     extra=self.dictLogger,
-    # )
     work = wh * (-1.0)
     reward_ts = pd.to_datetime(datetime.now())
     reward: pd.Series = cast(
@@ -79,7 +75,7 @@ def assemble_action_ser(
     generate action df from torque_map_line
     order is vital for the model:
     contiguous storage in each row, due to sort_index, output:
-    "r0, r1, r2, r3, ..., ,speed, throttle(map),timestep"
+    "r0, r1, r2, r3, ..., speed, throttle(map),timestep"
     """
     # assemble_action_df
     row_num = torque_table_row_num_flash
@@ -364,7 +360,7 @@ def decode_mongo_records(
         action_multi_col = [
             (*column, speed, timestep)  # swap speed and timestep
             for column, timestep, speed in zip(
-                df_action.columns, action_timestep, action_speed
+                df_action.columns, action_timestep, action_speed  # type: ignore
             )
         ]
         df_action.columns = pd.MultiIndex.from_tuples(
@@ -493,7 +489,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_rewards.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    r_n_t = pad_sequences(
+    r_n_t = tf.keras.utils.pad_sequences(
         rewards_list, padding='post', dtype=np.float32, value=padding_value
     )
 
@@ -505,7 +501,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    s_n_t = pad_sequences(
+    s_n_t = tf.keras.utils.pad_sequences(
         states_list, padding='post', dtype=np.float32, value=padding_value
     )
 
@@ -515,7 +511,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_actions.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    a_n_t = pad_sequences(
+    a_n_t = tf.keras.utils.pad_sequences(
         actions_list, padding='post', dtype=np.float32, value=padding_value
     )
 
@@ -525,7 +521,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_nstates.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    ns_n_t = pad_sequences(
+    ns_n_t = tf.keras.utils.pad_sequences(
         nstates_list, padding='post', dtype=np.float32, value=padding_value
     )
 
