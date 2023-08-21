@@ -36,6 +36,7 @@ dependencies:
   - ordered-set
   - opt-einsum
   - jupyterlab
+  - notebook
   - keras
   - numpy
   - scipy
