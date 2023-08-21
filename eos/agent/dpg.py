@@ -13,7 +13,7 @@ from eos.data_io.buffer import DaskBuffer, MongoBuffer
 from eos.data_io.config import (RE_DBKEY, Driver, Truck, TruckInCloud,
                                 get_db_config, trucks_by_id)
 from eos.data_io.struct import (RE_RECIPEKEY, ObservationMetaCloud,
-                                ObservationMetaField, get_filemeta_config)
+                                ObservationMetaECU, get_filemeta_config)
 from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 """Base class for differentiable policy gradient methods."""
@@ -42,7 +42,7 @@ class DPG(abc.ABC):
     _infer_mode: bool = False
     # Following are derived from above
     _observation_meta: Union[
-        ObservationMetaCloud, ObservationMetaField
+        ObservationMetaCloud, ObservationMetaECU
     ] = ObservationMetaCloud()
     _episode_start_dt: datetime = datetime.now()
     _resume: bool = True
@@ -69,7 +69,7 @@ class DPG(abc.ABC):
         if isinstance(self.truck, TruckInCloud):
             self.observation_meta = ObservationMetaCloud()  # use default
         else:  # Kvaser
-            self.observation_meta = ObservationMetaField()  # use default
+            self.observation_meta = ObservationMetaECU()  # use default
 
         (
             self.truck.observation_numel,
@@ -305,12 +305,12 @@ class DPG(abc.ABC):
         self._episode_start_dt = value
 
     @property
-    def observation_meta(self) -> Union[ObservationMetaCloud, ObservationMetaField]:
+    def observation_meta(self) -> Union[ObservationMetaCloud, ObservationMetaECU]:
         return self._observation_meta
 
     @observation_meta.setter
     def observation_meta(
-        self, value: Union[ObservationMetaCloud, ObservationMetaField]
+        self, value: Union[ObservationMetaCloud, ObservationMetaECU]
     ):
         self._observation_meta = value
 

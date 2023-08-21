@@ -4,7 +4,7 @@
     <option name="pathToExecutable" value="$USER_HOME$/.local/bin/black" />
     <option name="sdkUUID" value="af9459d1-df9a-475e-8a5f-2197b0012198" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="/dpt/micromamba/envs/neos" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="meos" project-jdk-type="Python SDK" />
   <component name="PythonCompatibilityInspectionAdvertiser">
     <option name="version" value="3" />
   </component>

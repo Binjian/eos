@@ -14,7 +14,7 @@ from eos.data_io.config import TruckInCloud as TruckInCloud
 from eos.data_io.config import get_db_config as get_db_config
 from eos.data_io.struct import RE_RECIPEKEY as RE_RECIPEKEY
 from eos.data_io.struct import ObservationMetaCloud as ObservationMetaCloud
-from eos.data_io.struct import ObservationMetaField as ObservationMetaField
+from eos.data_io.struct import ObservationMetaECU as ObservationMetaECU
 from eos.data_io.struct import get_filemeta_config as get_filemeta_config
 
 class DPG(abc.ABC, metaclass=abc.ABCMeta):
@@ -60,7 +60,7 @@ class DPG(abc.ABC, metaclass=abc.ABCMeta):
     @property
     def episode_start_dt(self) -> datetime: ...
     @property
-    def observation_meta(self) -> Union[ObservationMetaCloud, ObservationMetaField]: ...
+    def observation_meta(self) -> Union[ObservationMetaCloud, ObservationMetaECU]: ...
     @property
     def buffer(self) -> Union[MongoBuffer, DaskBuffer]: ...
     @property

@@ -13,12 +13,11 @@ channels:
   - defaults
 dependencies:
   - python>=3.10
-  - mypy
+  - mypy>=1.5.1
   - pylint
   - typing_inspect
   - dacite  # for dataclass from_dict
   - poetry
-  - pydantic
   - tensorflow=2.11.1
   - tensorflow-estimator
   - tensorflow-probability
@@ -49,6 +48,7 @@ dependencies:
   - tqdm
   - pip
   - pip:
+    - pydantic=2.2.1
     - poetry2conda
     - cuda-python
     - nvidia-cudnn-cu11
