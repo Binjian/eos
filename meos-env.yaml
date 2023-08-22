@@ -48,7 +48,7 @@ dependencies:
   - tqdm
   - pip
   - pip:
-    - pydantic=2.2.1
+    - pydantic==2.2.1
     - poetry2conda
     - cuda-python
     - nvidia-cudnn-cu11
