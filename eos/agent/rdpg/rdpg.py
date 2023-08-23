@@ -52,13 +52,13 @@ class RDPG(DPG):
             - critic network
     """
 
-    logger: logging.Logger = logging.Logger('eos.agent.rdpg.rdpg')
-    actor_net: ActorNet = ActorNet()
-    critic_net: CriticNet = CriticNet()
-    target_actor_net: ActorNet = ActorNet()
-    target_critic_net: CriticNet = CriticNet()
+    actor_net: ActorNet
+    critic_net: CriticNet
+    target_actor_net: ActorNet
+    target_critic_net: CriticNet
     _ckpt_actor_dir: Path = Path('')
     _ckpt_critic_dir: Path = Path('')
+    logger: logging.Logger = logging.Logger('eos.agent.rdpg.rdpg')
 
     def __post_init__(
         self,
@@ -393,14 +393,14 @@ class RDPG(DPG):
 
     @tf.function(
         input_signature=[
-            tf.tensorspec(
+            tf.TensorSpec(
                 shape=[None, None, DPG._truck_type.observation_numel], dtype=tf.float32
             ),
-            tf.tensorspec(
+            tf.TensorSpec(
                 shape=[None, None, DPG._truck_type.torque_flash_numel], dtype=tf.float32
             ),
-            tf.tensorspec(shape=[None, None, 1], dtype=tf.float32),
-            tf.tensorspec(
+            tf.TensorSpec(shape=[None, None, 1], dtype=tf.float32),
+            tf.TensorSpec(
                 shape=[None, None, DPG._truck_type.observation_numel], dtype=tf.float32
             ),
         ]
