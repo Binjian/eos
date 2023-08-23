@@ -133,7 +133,6 @@ class Avatar(abc.ABC):
     infer_mode: bool = False
     record: bool = True
     path: str = "."
-    pool_key: str = "mongo_local"
     proj_root: Path = Path(".")
     data_root: Path = Path(".") / "data"
     table_root: Path = Path(".") / "tables"
@@ -344,10 +343,6 @@ class Avatar(abc.ABC):
         fmt = "%(created)f-%(asctime)s.%(msecs)03d-%(name)s-"
         "%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
         formatter = logging.Formatter(fmt)
-        logging.basicConfig(
-            format=fmt,
-            datefmt="%Y-%m-%dT%H:%M:%S.%f",
-        )
         logging.basicConfig(
             format=fmt,
             datefmt="%Y-%m-%dT%H:%M:%S.%f",
@@ -2478,7 +2473,7 @@ if __name__ == "__main__":
         "-v",
         "--vehicle",
         type=str,
-        default="VB7",
+        default="VB7_FIELD",
         help="vehicle ID like 'VB7' or 'MP3' or VIN 'HMZABAAH1MF011055'",
     )
     parser.add_argument(
@@ -2580,10 +2575,9 @@ if __name__ == "__main__":
             cloud=args.cloud,
             ui=args.ui,
             resume=args.resume,
-            infer_mode=args.infer,
+            infer_mode=args.infer_mode,
             record=args.record_table,
-            path=args.path,
-            pool_key=args.pool,
+            path=args.data_path,
             proj_root=proj_root,
             logger=logger,
         )
