@@ -417,8 +417,8 @@ class Avatar(abc.ABC):
 
     def init_vehicle(self):
         if self.resume:
-            files = self.data_root.glob("last_table*.csv")
-            if not files:
+            files = sorted(self.data_root.glob("last_table*.csv"))
+            if files == []:
                 self.logger.info(
                     f"{{'header': 'No last table found, start from default calibration table'}}",
                     extra=self.dictLogger,
