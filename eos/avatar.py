@@ -340,8 +340,7 @@ class Avatar(abc.ABC):
             + datetime.now().isoformat().replace(":", "-")
             + ".log"
         )
-        fmt = "%(created)f-%(asctime)s.%(msecs)03d-%(name)s-"
-        "%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
+        fmt = "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
         formatter = logging.Formatter(fmt)
         logging.basicConfig(
             format=fmt,
