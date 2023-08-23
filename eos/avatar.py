@@ -2439,7 +2439,7 @@ if __name__ == "__main__":
         "-u",
         "--ui",
         type=str,
-        default="cloud",
+        default="TCP",
         help="User Interface: "
         "'RMQ' for mobile phone (using rocketmq for training/assessment); "
         "'TCP' for local hmi (using loopback tcp for training/assessment); "
@@ -2479,14 +2479,14 @@ if __name__ == "__main__":
         "-v",
         "--vehicle",
         type=str,
-        default=".",
+        default="VB7",
         help="vehicle ID like 'VB7' or 'MP3' or VIN 'HMZABAAH1MF011055'",
     )
     parser.add_argument(
         "-d",
         "--driver",
         type=str,
-        default=".",
+        default="wang-kai",
         help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
     )
     parser.add_argument(
