@@ -5,6 +5,7 @@ from typing import Dict, List, Union, cast
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow import keras
 
 
 def assemble_state_ser(state_columns: pd.DataFrame) -> pd.Series:
@@ -489,7 +490,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_rewards.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    r_n_t = tf.keras.utils.pad_sequences(
+    r_n_t = keras.utils.pad_sequences(
         rewards_list, padding='post', dtype=np.float32, value=padding_value
     )
 
@@ -501,7 +502,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    s_n_t = tf.keras.utils.pad_sequences(
+    s_n_t = keras.utils.pad_sequences(
         states_list, padding='post', dtype=np.float32, value=padding_value
     )
 
@@ -511,7 +512,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_actions.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    a_n_t = tf.keras.utils.pad_sequences(
+    a_n_t = keras.utils.pad_sequences(
         actions_list, padding='post', dtype=np.float32, value=padding_value
     )
 
@@ -521,7 +522,7 @@ def decode_episode_dataframes_to_padded_arrays(
         df_nstates.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
     ]
-    ns_n_t = tf.keras.utils.pad_sequences(
+    ns_n_t = keras.utils.pad_sequences(
         nstates_list, padding='post', dtype=np.float32, value=padding_value
     )
 

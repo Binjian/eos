@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import tensorflow as tf
-from tensorflow.python.keras import layers
+from tensorflow import keras
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
 # local imports
@@ -51,29 +51,29 @@ class CriticNet:
         self._tau = tau
         self._padding_value = padding_value
 
-        states = layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
-        last_actions = layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
-        actions = layers.Input(batch_shape=(batch_size, None, action_dim), name="actions")
+        states = keras.layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
+        last_actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
+        actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="actions")
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
-        inputs_state_action = layers.Concatenate(axis=-1)(
+        inputs_state_action = keras.layers.Concatenate(axis=-1)(
             [states, last_actions, actions]
         )  # feature dimension would be [states + actions + actions],
         # where the first two tensor are the updates to states, Q(h_t, a_t),
         # the last one is the current action before the env update
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = layers.Masking(mask_value=self.padding_value, input_shape=(batch_size, None, state_dim+2*action_dim))(
+        x = keras.layers.Masking(mask_value=self.padding_value, input_shape=(batch_size, None, state_dim+2*action_dim))(
             inputs_state_action
         )  # input (observation) padded with -10000.0
 
-        x = layers.Dense(hidden_dim, activation="relu")(
+        x = keras.layers.Dense(hidden_dim, activation="relu")(
             x
         )  # linear layer to map [states, last actions, current cations] to [hidden dim]
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(
+            x = keras.layers.LSTM(
                 hidden_dim,
                 batch_input_shape=(batch_size, None, hidden_dim),
                 return_sequences=True,
@@ -82,7 +82,7 @@ class CriticNet:
                 name=f"lstm_{i}",
             )(x)
 
-        lstm_output = layers.LSTM(
+        lstm_output = keras.layers.LSTM(
             hidden_dim,
             batch_input_shape=(batch_size, None, hidden_dim),
             return_sequences=False,
@@ -93,7 +93,7 @@ class CriticNet:
             x
         )  # stateful for batches of long sequences, and inference with single time step
 
-        critic_output = layers.Dense(1, activation=None)(lstm_output)
+        critic_output = keras.layers.Dense(1, activation=None)(lstm_output)
 
         self.eager_model = tf.keras.Model(
             inputs=[states, last_actions, actions], outputs=critic_output
@@ -107,7 +107,7 @@ class CriticNet:
         self.ckpt_dir = ckpt_dir
         self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
-            step=tf.Variable(tf.constant(1)),
+            step=tf.Variable(tf.constant(1), name="step"),
             optimizer=self.optimizer,
             net=self.eager_model,
         )
@@ -140,11 +140,11 @@ class CriticNet:
         )
 
     def save_ckpt(self):
-        self.ckpt.step.assign_add(1)
-        if int(self.ckpt.step) % self.ckpt_interval == 0:
+        self.ckpt.step.assign_add(1)  # type: ignore
+        if int(self.ckpt.step) % self.ckpt_interval == 0:   # type: ignore
             save_path = self.ckpt_manager.save()
             logger.info(
-                f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",
+                f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",   # type: ignore
                 extra=dictLogger,
             )
 

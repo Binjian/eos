@@ -11,8 +11,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-# from tensorflow.python import keras
-from tensorflow.python.keras import layers
+from tensorflow import keras
 
 from eos.agent.dpg import DPG
 from eos.agent.utils import HyperParamDDPG, OUActionNoise
@@ -338,7 +337,7 @@ class DDPG(DPG):
             )
 
         self.ckpt_actor = tf.train.Checkpoint(
-            step=tf.Variable(1),
+            step=tf.Variable(1, name="step"),
             optimizer=self.actor_optimizer,
             net=self.actor_model,
         )
@@ -359,7 +358,7 @@ class DDPG(DPG):
             )
 
         self.ckpt_critic = tf.train.Checkpoint(
-            step=tf.Variable(1),
+            step=tf.Variable(1, name="step"),
             optimizer=self.critic_optimizer,
             net=self.critic_model,
         )
@@ -469,19 +468,19 @@ class DDPG(DPG):
         """
         Save checkpoints
         """
-        self.ckpt_actor.step.assign_add(1)
-        self.ckpt_critic.step.assign_add(1)
+        self.ckpt_actor.step.assign_add(1)  # type: ignore
+        self.ckpt_critic.step.assign_add(1)  # type: ignore
 
-        if int(self.ckpt_actor.step) % self.hyper_param.CkptInterval == 0:
+        if int(self.ckpt_actor.step) % self.hyper_param.CkptInterval == 0:  # type: ignore
             save_path_actor = self.manager_actor.save()
             self.logger.info(
-                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",
+                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",  # type: ignore
                 extra=dictLogger,
             )
-        if int(self.ckpt_critic.step) % self.hyper_param.CkptInterval == 0:
+        if int(self.ckpt_critic.step) % self.hyper_param.CkptInterval == 0:  # type: ignore
             save_path_critic = self.manager_critic.save()
             self.logger.info(
-                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",
+                f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",  # type: ignore
                 extra=dictLogger,
             )
 
@@ -536,10 +535,10 @@ class DDPG(DPG):
         # Initialize weights between -3e-3 and 3-e3
         last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003)
 
-        inputs = layers.Input(shape=(num_states,))
+        inputs = keras.layers.Input(shape=(num_states,))
         # dummy rescale to avoid recursive using of inputs, also placeholder for rescaling
 
-        x = layers.Dense(
+        x = keras.layers.Dense(
             num_actor_inputs1,
             activation="relu",
             kernel_initializer=tf.keras.initializers.HeNormal(),
@@ -547,14 +546,14 @@ class DDPG(DPG):
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
-            x = layers.Dense(
+            x = keras.layers.Dense(
                 num_actor_inputs2,
                 activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
 
         # output layer
-        out = layers.Dense(
+        out = keras.layers.Dense(
             num_actions,
             activation="tanh",
             kernel_initializer=last_init,
@@ -567,7 +566,13 @@ class DDPG(DPG):
         # # apply lower and upper bound to the outputs,
         # # typical value is [0.8, 1.0]
         # outputs = tf.clip_by_value(outputs, action_lower, action_upper)
-        eager_model = tf.keras.Model(inputs, out)
+        try:
+            eager_model = tf.keras.Model(inputs, out)
+        except Exception as e:
+            print(f"Exception: {e}")
+            print(f"inputs: {inputs}")
+            print(f"out: {out}")
+            raise e
         # graph_model = tf.function(eager_model)
         return eager_model
 
@@ -584,35 +589,35 @@ class DDPG(DPG):
         num_layers: int = 2,
     ):
         # State as input
-        state_input = layers.Input(shape=(num_states,))
-        state_out = layers.Dense(num_state_input_dense1, activation="relu")(state_input)
-        state_out = layers.Dense(num_state_input_dense2, activation="relu")(state_out)
+        state_input = keras.layers.Input(shape=(num_states,))
+        state_out = keras.layers.Dense(num_state_input_dense1, activation="relu")(state_input)
+        state_out = keras.layers.Dense(num_state_input_dense2, activation="relu")(state_out)
 
         # Action as input
-        action_input = layers.Input(
+        action_input = keras.layers.Input(
             shape=(num_actions,)
         )  # action is defined as flattened.
-        action_out = layers.Dense(num_action_input_dense, activation="relu")(
+        action_out = keras.layers.Dense(num_action_input_dense, activation="relu")(
             action_input
         )
 
         # Both are passed through separate layer before concatenating
-        x = layers.Concatenate()([state_out, action_out])
+        x = keras.layers.Concatenate()([state_out, action_out])
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(num_layers - 1):
-            x = layers.Dense(
+            x = keras.layers.Dense(
                 num_output_dense1,
                 activation="relu",
                 kernel_initializer=tf.keras.initializers.HeNormal(),
             )(x)
-        x = layers.Dense(
+        x = keras.layers.Dense(
             num_output_dense2,
             activation="relu",
             kernel_initializer=tf.keras.initializers.HeNormal(),
         )(x)
 
-        outputs = layers.Dense(1, activation=None)(x)
+        outputs = keras.layers.Dense(1, activation=None)(x)
 
         # Outputs single value for give state-action
         eager_model = tf.keras.Model([state_input, action_input], outputs)

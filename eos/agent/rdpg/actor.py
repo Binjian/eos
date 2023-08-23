@@ -4,7 +4,7 @@ from typing import ClassVar
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras import layers
+from tensorflow import keras
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
 # local imports
@@ -53,29 +53,29 @@ class ActorNet:
         self._n_layers = n_layers
         self._tau = tau
 
-        states = layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
-        last_actions = layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
+        states = keras.layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
+        last_actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
 
         inputs = [
             states,
             last_actions,
         ]  # history update consists of current states s_t and last actions a_{t-1}
-        x = layers.Concatenate(axis=-1)(
+        x = keras.layers.Concatenate(axis=-1)(
             inputs
         )  # feature dimension would be [states + actions]
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = layers.Masking(mask_value=padding_value, input_shape=(batch_size, None, state_dim+action_dim))(
+        x = keras.layers.Masking(mask_value=padding_value, input_shape=(batch_size, None, state_dim+action_dim))(
             x
         )  # input (observation) padded with -10000.0, on the time dimension
 
-        x = layers.Dense(hidden_dim, activation="relu")(
+        x = keras.layers.Dense(hidden_dim, activation="relu")(
             x
         )  # linear layer to map [states + actions] to [hidden_dim]
 
         # if n_layers <= 1, the loop will be skipped in default
         for i in range(n_layers - 1):
-            x = layers.LSTM(
+            x = keras.layers.LSTM(
                 hidden_dim,
                 batch_input_shape=(batch_size, None, hidden_dim),
                 return_sequences=True,
@@ -87,7 +87,7 @@ class ActorNet:
             )  # only return full sequences of hidden states, necessary for stacking LSTM layers,
             # last hidden state is not needed
 
-        lstm_output = layers.LSTM(
+        lstm_output = keras.layers.LSTM(
             hidden_dim,
             batch_input_shape=(batch_size, None, hidden_dim),
             return_sequences=False,
@@ -98,7 +98,7 @@ class ActorNet:
         )(x)
 
         # rescale the output of the lstm layer to (-1, 1)
-        action_output = layers.Dense(action_dim, activation="tanh")(lstm_output)
+        action_output = keras.layers.Dense(action_dim, activation="tanh")(lstm_output)
 
         self.eager_model = tf.keras.Model([states, last_actions], action_output)
         # no need to evaluate the last action separately
@@ -119,7 +119,7 @@ class ActorNet:
         self.ckpt_dir = ckpt_dir
         self._ckpt_interval = ckpt_interval
         self.ckpt = tf.train.Checkpoint(
-            step=tf.Variable(tf.constant(1)),
+            step=tf.Variable(tf.constant(1), name="step"),
             optimizer=self.optimizer,
             net=self.eager_model,
         )

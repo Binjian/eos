@@ -60,7 +60,6 @@ import rocketmq.client as rmq_client  # type: ignore
 import tensorflow as tf
 from git import Repo
 from pythonjsonlogger import jsonlogger  # type: ignore
-from tensorflow.python.client import device_lib
 from tensorflow.summary import SummaryWriter, create_file_writer, scalar  # type: ignore
 
 from eos import proj_root
@@ -261,7 +260,7 @@ class Avatar(abc.ABC):
         self.logger_control_flow.info(
             f"{{'header': 'Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}'}}"
         )
-        gpus = tf.config.experimental.list_physical_devices(device_type="GPU")
+        gpus = tf.config.list_physical_devices(device_type="GPU")
         tf.config.experimental.set_memory_growth(gpus[0], True)
         self.logger_control_flow.info(f"Tensorflow version: {tf.__version__}")
         tf_sys_details = tf.sysconfig.get_build_info()
@@ -272,7 +271,7 @@ class Avatar(abc.ABC):
         self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logger_control_flow.info(
-            f"{{'header': 'tensorflow device lib:\n{device_lib.list_local_devices()}'}}",
+            f"{{'header': 'tensorflow device lib:\n{tf.config.list_physical_devices()}'}}",
             extra=self.dictLogger,
         )
         self.logger_control_flow.info(

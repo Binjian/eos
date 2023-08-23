@@ -9,7 +9,6 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from keras.utils import pad_sequences  # type: ignore
 from pymongoarrow.monkey import patch_all  # type: ignore
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
