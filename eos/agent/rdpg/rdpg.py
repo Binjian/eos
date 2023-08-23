@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
+from typeguard import check_type
 
 # third-party imports
 import numpy as np
@@ -400,7 +401,7 @@ class RDPG(DPG):
 
         s_n_t, a_n_t, r_n_t, ns_n_t = self.buffer.sample()  # ignore next state for now
         split_num = (
-            s_n_t.shape[1] // self.hyper_param.tbptt_k1
+            s_n_t.shape[1] // check_type(self.hyper_param, HyperParamRDPG).tbptt_k1
             + 1
             # after padding all observations have the same length (the length of  the longest episode)
         )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split

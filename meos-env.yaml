@@ -16,6 +16,7 @@ dependencies:
   - mypy>=1.5.1
   - pylint
   - typing_inspect
+  - typeguard
   - dacite  # for dataclass from_dict
   - poetry
   - tensorflow=2.11.1
