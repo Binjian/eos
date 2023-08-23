@@ -31,7 +31,8 @@ data
 # .env
 
 # Ignore IDE specific files
-#.vscode/
+.vscode/
+.idea/
 *.pyc
 *.xml
 /veos.egg-info/
@@ -53,3 +54,5 @@ data
 /eos.chat
 /eos/classes.png
 /eos/packages.png
+*.iml
+drl-carla-manual.iml

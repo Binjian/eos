@@ -50,6 +50,7 @@ dependencies:
   - pip
   - pip:
     - pydantic==2.2.1
+    - typeguard
     - poetry2conda
     - cuda-python
     - nvidia-cudnn-cu11

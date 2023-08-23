@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import redirect_stdout
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Union
@@ -143,15 +143,15 @@ class DDPG(DPG):
         MongoBuffer()
     )  # cannot have default value, because it precedes _plot in base class DPG
     logger: logging.Logger = logging.Logger('eos.agent.ddpg.ddpg')
-    _episode_start_dt: datetime = datetime.now()
-    _actor_model: tf.keras.Model = tf.keras.Model()
-    _critic_model: tf.keras.Model = tf.keras.Model()
-    _target_actor_model: tf.keras.Model = tf.keras.Model()
-    _target_critic_model: tf.keras.Model = tf.keras.Model()
-    manager_critic: tf.train.CheckpointManager = tf.train.CheckpointManager()
-    ckpt_critic: tf.train.Checkpoint = tf.train.Checkpoint()
-    manager_actor: tf.train.CheckpointManager = tf.train.CheckpointManager()
-    ckpt_actor: tf.train.Checkpoint = tf.train.Checkpoint()
+    _episode_start_dt: datetime = field(default_factory=datetime.now)
+    _actor_model: tf.keras.Model = field(default_factory=tf.keras.Model)
+    _critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
+    _target_actor_model: tf.keras.Model = field(default_factory=tf.keras.Model)
+    _target_critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
+    manager_critic: tf.train.CheckpointManager = field(default_factory=tf.train.CheckpointManager)
+    ckpt_critic: tf.train.Checkpoint = field(default_factory=tf.train.Checkpoint)
+    manager_actor: tf.train.CheckpointManager = field(default_factory=tf.train.CheckpointManager)
+    ckpt_actor: tf.train.Checkpoint = field(default_factory=tf.train.Checkpoint)
     actor_saved_model_path: Path = Path('.')
     critic_saved_model_path: Path = Path('.')
 
