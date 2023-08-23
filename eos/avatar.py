@@ -2456,7 +2456,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-i",
-        "--infer",
+        "--infer_mode",
         default=False,
         help="No model update and training. Only Inference mode",
         action="store_true",
@@ -2470,7 +2470,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-p",
-        "--path",
+        "--data_path",
         type=str,
         default=".",
         help="relative path to be saved, for create sub-folder for different drivers",
@@ -2505,7 +2505,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-o",
-        "--pool",
+        "--pool_key",
         type=str,
         default="mongo_local",
         help="pool selection for data storage, "
@@ -2557,7 +2557,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=args.data_root,
+            _data_folder=args.data_path,
             _infer_mode=args.infer_mode,
         )
     else:  # args.agent == 'rdpg':
@@ -2567,7 +2567,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=args.data_root,
+            _data_folder=args.data_path,
             _infer_mode=args.infer_mode,
         )
 
