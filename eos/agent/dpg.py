@@ -7,13 +7,23 @@ from datetime import datetime
 from typing import ClassVar, Union
 
 import pandas as pd
-from .utils import (HyperParamDDPG, HyperParamRDPG)  # type: ignore
+from .utils import HyperParamDDPG, HyperParamRDPG  # type: ignore
 
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
-from eos.data_io.config import (RE_DBKEY, Driver, Truck, TruckInCloud,
-                                get_db_config, trucks_by_id)
-from eos.data_io.struct import (RE_RECIPEKEY, ObservationMetaCloud,
-                                ObservationMetaECU, get_filemeta_config)
+from eos.data_io.config import (
+    RE_DBKEY,
+    Driver,
+    Truck,
+    TruckInCloud,
+    get_db_config,
+    trucks_by_id,
+)
+from eos.data_io.struct import (
+    RE_RECIPEKEY,
+    ObservationMetaCloud,
+    ObservationMetaECU,
+    get_filemeta_config,
+)
 from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 """Base class for differentiable policy gradient methods."""
@@ -309,9 +319,7 @@ class DPG(abc.ABC):
         return self._observation_meta
 
     @observation_meta.setter
-    def observation_meta(
-        self, value: Union[ObservationMetaCloud, ObservationMetaECU]
-    ):
+    def observation_meta(self, value: Union[ObservationMetaCloud, ObservationMetaECU]):
         self._observation_meta = value
 
     @property

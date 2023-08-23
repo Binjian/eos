@@ -14,9 +14,12 @@ from pymongoarrow.monkey import patch_all  # type: ignore
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
 from eos.data_io.buffer import DaskBuffer, MongoBuffer  # type: ignore
-from eos.data_io.struct import (PoolQuery,  # type: ignore
-                                veos_lifetime_end_date,
-                                veos_lifetime_start_date)
+from eos.data_io.struct import (
+    PoolQuery,  # type: ignore
+    veos_lifetime_end_date,
+    veos_lifetime_start_date,
+)
+
 # local imports
 from eos.utils import dictLogger, logger
 
@@ -43,22 +46,19 @@ Description: Implementing RDPG algorithm on VEOS.
 hyper_param_default = HyperParamRDPG()
 truck_default = DPG.truck_type
 actor_net_default = ActorNet(
-            truck_default.observation_numel,
-            truck_default.torque_flash_numel,
-            hyper_param_default.HiddenDimension,  # 256
-            hyper_param_default.NLayerActor,  # 2
-            hyper_param_default.BatchSize,  # 4
-            hyper_param_default.PaddingValue,  # -10000
-            hyper_param_default.TauActor,  # 0.005
-            hyper_param_default.ActorLR,  # 0.001
-            './actor',
-            hyper_param_default.CkptInterval,  # 5
-        )
-from tensorflow import keras
+    truck_default.observation_numel,
+    truck_default.torque_flash_numel,
+    hyper_param_default.HiddenDimension,  # 256
+    hyper_param_default.NLayerActor,  # 2
+    hyper_param_default.BatchSize,  # 4
+    hyper_param_default.PaddingValue,  # -10000
+    hyper_param_default.TauActor,  # 0.005
+    hyper_param_default.ActorLR,  # 0.001
+    Path('./actor'),
+    hyper_param_default.CkptInterval,  # 5
+)
 
-actor_optimizer_default = tf.keras.optimizers.Adam(
-    hyper_param_default.ActorLR
-)  # 0.001
+actor_optimizer_default = tf.keras.optimizers.Adam(hyper_param_default.ActorLR)  # 0.001
 ckpt_actor_default = tf.train.Checkpoint(
     step=tf.Variable(1),  # type: ignore
     optimizer=actor_optimizer_default,
@@ -77,7 +77,7 @@ critic_net_default = CriticNet(
     hyper_param_default.PaddingValue,  # -10000
     hyper_param_default.TauCritic,  # 0.005
     hyper_param_default.CriticLR,  # 0.001
-    './critic',
+    Path('./critic'),
     hyper_param_default.CkptInterval,  # 5
 )
 critic_optimizer_default = tf.keras.optimizers.Adam(
