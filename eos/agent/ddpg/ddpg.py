@@ -687,8 +687,8 @@ class DDPG(DPG):
         # ignites manual loading of tensorflow library, to guarantee the real-time processing
         # of first data in main thread
         print("touch gpu in DDPG")
-        init_states = tf.random.normal(
-            (self.truck.observation_numel,)
+        init_states = pd.Series(
+            np.random.rand(self.truck.observation_numel),
         )  # state must have 30*5 (speed, throttle, current, voltage) 5 tuple
 
         _ = self.policy(init_states)
