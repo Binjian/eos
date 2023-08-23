@@ -114,6 +114,7 @@ class RDPG(DPG):
             self.truck.torque_flash_numel,
             self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerActor,  # 2
+            self.hyper_param.BatchSize,  # 4
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauActor,  # 0.005
             self.hyper_param.ActorLR,  # 0.001
@@ -126,6 +127,7 @@ class RDPG(DPG):
             self.truck.torque_flash_numel,
             self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerActor,  # 2
+            self.hyper_param.BatchSize,  # 4
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauActor,  # 0.005
             self.hyper_param.ActorLR,  # 0.001
@@ -142,6 +144,7 @@ class RDPG(DPG):
             self.truck.torque_flash_numel,
             self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerCritic,  # 2
+            self.hyper_param.BatchSize,  # 4
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauCritic,  # 0.005
             self.hyper_param.CriticLR,  # 0.002
@@ -154,6 +157,7 @@ class RDPG(DPG):
             self.truck.torque_flash_numel,
             self.hyper_param.HiddenDimension,  # 256
             self.hyper_param.NLayerCritic,  # 2
+            self.hyper_param.BatchSize,  # 4
             self.hyper_param.PaddingValue,  # -10000
             self.hyper_param.TauCritic,  # 0.005
             self.hyper_param.CriticLR,  # 0.002

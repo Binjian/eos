@@ -24,6 +24,7 @@ class CriticNet:
         action_dim: int = 0,
         hidden_dim: int = 0,
         n_layers: int = 0,
+        batch_size: int = 0,
         padding_value: float = 0.0,
         tau: float = 0.0,
         lr: float = 0.0,
@@ -50,9 +51,9 @@ class CriticNet:
         self._tau = tau
         self._padding_value = padding_value
 
-        states = layers.Input(shape=(None, state_dim))
-        last_actions = layers.Input(shape=(None, action_dim))
-        actions = layers.Input(shape=(None, action_dim))
+        states = layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
+        last_actions = layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
+        actions = layers.Input(batch_shape=(batch_size, None, action_dim), name="actions")
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
         inputs_state_action = layers.Concatenate(axis=-1)(
@@ -62,7 +63,7 @@ class CriticNet:
         # the last one is the current action before the env update
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = layers.Masking(mask_value=self.padding_value)(
+        x = layers.Masking(mask_value=self.padding_value, input_shape=(batch_size, None, state_dim+2*action_dim))(
             inputs_state_action
         )  # input (observation) padded with -10000.0
 
@@ -74,13 +75,20 @@ class CriticNet:
         for i in range(n_layers - 1):
             x = layers.LSTM(
                 hidden_dim,
+                batch_input_shape=(batch_size, None, hidden_dim),
                 return_sequences=True,
                 return_state=False,
                 stateful=True,  # stateful for batches of long sequences, and inference with single time step
+                name=f"lstm_{i}",
             )(x)
 
         lstm_output = layers.LSTM(
-            hidden_dim, return_sequences=False, return_state=False, stateful=True
+            hidden_dim,
+            batch_input_shape=(batch_size, None, hidden_dim),
+            return_sequences=False,
+            return_state=False,
+            stateful=True,
+            name=f"lstm_{n_layers - 1}"
         )(
             x
         )  # stateful for batches of long sequences, and inference with single time step
