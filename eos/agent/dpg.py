@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import ClassVar, Union
 
 import pandas as pd
-from utils import HyperParamDDPG, HyperParamRDPG  # type: ignore
+from .utils import (HyperParamDDPG, HyperParamRDPG)  # type: ignore
 
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
 from eos.data_io.config import (RE_DBKEY, Driver, Truck, TruckInCloud,
