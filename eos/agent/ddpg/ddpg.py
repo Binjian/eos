@@ -122,6 +122,30 @@ for the actions taken by the Actor network. We seek to maximize this quantity.
 Hence we update the Actor network so that it produces actions that get
 the maximum predicted value as seen by the Critic, for a given state.
 """
+hyper_param_default = HyperParamDDPG()
+actor_optimizer_default = tf.keras.optimizers.Adam(
+    hyper_param_default.ActorLR
+)  # 0.001
+ckpt_actor_default = tf.train.Checkpoint(
+    step=tf.Variable(1),
+    optimizer=actor_optimizer_default,
+    net=tf.keras.Model(),
+)
+manager_actor_default = tf.train.CheckpointManager(
+    ckpt_actor_default, './actor', max_to_keep=10
+)
+
+critic_optimizer_default = tf.keras.optimizers.Adam(
+    hyper_param_default.CriticLR
+)  # 0.002
+ckpt_critic_default = tf.train.Checkpoint(
+    step=tf.Variable(1),
+    optimizer=critic_optimizer_default,
+    net=tf.keras.Model(),
+)
+manager_critic_default = tf.train.CheckpointManager(
+    ckpt_critic_default, './critic', max_to_keep=10
+)
 
 
 @dataclass
@@ -147,12 +171,12 @@ class DDPG(DPG):
     _critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
     _target_actor_model: tf.keras.Model = field(default_factory=tf.keras.Model)
     _target_critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
-    manager_critic: tf.train.CheckpointManager = field(default_factory=tf.train.CheckpointManager)
-    ckpt_critic: tf.train.Checkpoint = field(default_factory=tf.train.Checkpoint)
-    manager_actor: tf.train.CheckpointManager = field(default_factory=tf.train.CheckpointManager)
-    ckpt_actor: tf.train.Checkpoint = field(default_factory=tf.train.Checkpoint)
-    actor_saved_model_path: Path = Path('.')
-    critic_saved_model_path: Path = Path('.')
+    manager_critic: tf.train.CheckpointManager = manager_critic_default
+    ckpt_critic: tf.train.Checkpoint = ckpt_critic_default
+    manager_actor: tf.train.CheckpointManager = manager_actor_default
+    ckpt_actor: tf.train.Checkpoint = ckpt_actor_default
+    actor_saved_model_path: Path = Path('./actor')
+    critic_saved_model_path: Path = Path('./critic')
 
     def __post_init__(self):
         self.logger = logger.getChild("eos").getChild(self.__str__())
