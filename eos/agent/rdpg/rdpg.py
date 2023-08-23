@@ -40,7 +40,7 @@ Description: Implementing RDPG algorithm on VEOS.
 
 
 hyper_param_default = HyperParamRDPG()
-truck_default = DPG._truck_type
+truck_default = DPG.truck_type
 actor_net_default = ActorNet(
             truck_default.observation_numel,
             truck_default.torque_flash_numel,
@@ -367,11 +367,11 @@ class RDPG(DPG):
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, DPG._truck_type.observation_numel],
+                shape=[None, None, DPG.truck_type.observation_numel],
                 dtype=tf.float32,
             ),  # [None, None, 600] for cloud / [None, None, 90] for kvaser
             tf.TensorSpec(
-                shape=[None, None, DPG._truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[None, None, DPG.truck_type.torque_flash_numel], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser
         ]
     )
@@ -446,14 +446,14 @@ class RDPG(DPG):
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, DPG._truck_type.observation_numel], dtype=tf.float32
+                shape=[None, None, DPG.truck_type.observation_numel], dtype=tf.float32
             ),
             tf.TensorSpec(
-                shape=[None, None, DPG._truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[None, None, DPG.truck_type.torque_flash_numel], dtype=tf.float32
             ),
             tf.TensorSpec(shape=[None, None, 1], dtype=tf.float32),
             tf.TensorSpec(
-                shape=[None, None, DPG._truck_type.observation_numel], dtype=tf.float32
+                shape=[None, None, DPG.truck_type.observation_numel], dtype=tf.float32
             ),
         ]
     )

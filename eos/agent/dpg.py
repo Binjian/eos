@@ -23,9 +23,9 @@ from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 class DPG(abc.ABC):
     """Base class for differentiable policy gradient methods."""
 
-    _truck_type: ClassVar[Truck] = trucks_by_id[
+    truck_type: ClassVar[Truck] = trucks_by_id[
         "default"
-    ]  # class attribute for default truck properties
+    ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
 
     _truck: Truck
     _driver: Driver
