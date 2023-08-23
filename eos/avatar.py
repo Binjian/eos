@@ -594,218 +594,218 @@ class Avatar(abc.ABC):
         with check_type(self.hmi_lock, Lock):
             self.program_start = True
 
-        while not th_exit:  # th_exit is local; program_exit is global
-            with check_type(
-                self.hmi_lock, Lock
-            ):  # wait for tester to kick off or to exit
-                if self.program_exit:  # if program_exit is True, exit thread
-                    logger_kvaser_get.info(
-                        f"{{'header': 'Capture thread exit due to processing request!!!'}}",
-                        extra=self.dictLogger,
-                    )
-                    th_exit = True
-                    continue
-            with capture_conn as s:
-                can_data, addr = s.recvfrom(2048)
-            # self.logger.info('Data received!!!', extra=self.dictLogger)
-            try:
-                pop_data = json.loads(can_data)
-            except TypeError:
-                raise TypeError("udp sending wrong data type!")
-
-            for key, value in pop_data.items():
-                if key == "status":  # state machine chores
-                    # print(can_data)
-                    if value == "begin":
-                        self.get_truck_status_start = True
-                    logger_kvaser_get.info(
-                        f"{{'header': 'Episode will start!!!'}}",
-                        extra=self.dictLogger,
-                    )
-                    th_exit = False
-                    # ts_epi_start = time.time()
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
-                    self.vel_hist_dq.clear()
-                    with check_type(self.hmi_lock, Lock):
-                        self.episode_done = False
-                        self.episode_end = False
-
-                elif value == "end_valid":
-                    # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
-                    # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
-                    self.get_truck_status_start = (
-                        True  # do not stopping data capture immediately
-                    )
-
-                    # set flag for countdown thread
-                    with check_type(self.done_env_lock, Lock):
-                        evt_epi_done.set()
-                    logger_kvaser_get.info(
-                        f"{{'header': 'Episode end starts countdown!'}}"
-                    )
-                    with check_type(self.hmi_lock, Lock):
-                        # self.episode_count += 1  # valid round increments self.epi_countdown = False
-                        self.episode_done = False  # TODO delay episode_done to make main thread keep running
-                        self.episode_end = False
-                elif value == "end_invalid":
-                    self.get_truck_status_start = False
-                    logger_kvaser_get.info(
-                        f"{{'header': 'Episode is interrupted!!!'}}",
-                        extra=self.dictLogger,
-                    )
-                    self.get_truck_status_motion_power_t = []
-                    self.vel_hist_dq.clear()
-                    # motion_power_queue.queue.clear()
-                    # self.logc.info(
-                    #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
-                    #     extra=self.dictLogger,
-                    # )
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
-                    th_exit = False
-                    with check_type(self.hmi_lock, Lock):
-                        self.episode_done = False
-                        self.episode_end = True
-                        self.episode_count += 1  # invalid round increments
-                elif value == "exit":
-                    self.get_truck_status_start = False
-                    self.get_truck_status_motion_power_t = []
-                    self.vel_hist_dq.clear()
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
-                    # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
-                    th_exit = True
-                    # for program exit, need to set episode states
-                    # final change to inform main thread
-                    with check_type(self.hmi_lock, Lock):
-                        self.episode_done = False
-                        self.episode_end = True
-                        self.program_exit = True
-                        self.episode_count += 1
-                    with check_type(self.done_env_lock, Lock):
-                        evt_epi_done.set()
-                    break
-                    # time.sleep(0.1)
-                elif key == "data":
-                    # self.logger.info('Data received before Capture starting!!!',
-                    # extra=self.dictLogger)
-                    # self.logger.info(f'ts:{value["timestamp"]}
-                    # vel:{value["velocity"]}
-                    # ped:{value["pedal"]}',
-                    # extra=self.dictLogger)
-                    # DONE add logic for episode valid and invalid
-                    try:
-                        if self.get_truck_status_start:  # starts episode
-                            ts = datetime.now().timestamp()
-                            velocity = float(value["velocity"])
-                            pedal = float(value["pedal"])
-                            brake = float(value["brake_pressure"])
-                            current = float(value["A"])
-                            voltage = float(value["V"])
-
-                            motion_power = [
-                                ts,
-                                velocity,
-                                pedal,
-                                brake,
-                                current,
-                                voltage,
-                            ]  # 3 +2 : im 5
-
-                            self.get_truck_status_motion_power_t.append(
-                                motion_power
-                            )  # obs_reward [speed, pedal, brake, current, voltage]
-                            self.vel_hist_dq.append(velocity)
-                            vel_cycle_dq.append(velocity)
-
-                            if (
-                                len(self.get_truck_status_motion_power_t)
-                                >= truck_in_field.observation_length
-                            ):
-                                if len(vel_cycle_dq) != vel_cycle_dq.maxlen:
-                                    check_type(
-                                        self.logger_control_flow, logging.Logger
-                                    ).warning(  # the recent 1.5s average velocity
-                                        f"{{'header': 'cycle deque is inconsistent!'}}",
-                                        extra=self.dictLogger,
-                                    )
-
-                                vel_aver = sum(vel_cycle_dq) / vel_cycle_dq.maxlen
-                                vel_min = min(vel_cycle_dq)
-                                vel_max = max(vel_cycle_dq)
-
-                                # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
-                                # average concept
-                                # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
-                                #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
-                                # here upper bound rule adopted
-                                if vel_max < 20:
-                                    self.vcu_calib_table_row_start = 0
-                                elif vel_max < 30:
-                                    self.vcu_calib_table_row_start = 1
-                                elif vel_max < 120:
-                                    self.vcu_calib_table_row_start = (
-                                        math.floor((vel_max - 30) / 10) + 2
-                                    )
-                                else:
-                                    logger_kvaser_get.warning(
-                                        f"{{'header': 'cycle higher than 120km/h!'}}",
-                                        extra=self.dictLogger,
-                                    )
-                                    self.vcu_calib_table_row_start = 16
-                                # get the row of the table
-
-                                logger_kvaser_get.info(
-                                    f"{{'header': 'Cycle velocity', "
-                                    f"'aver': {vel_aver:.2f}, "
-                                    f"'min': {vel_min:.2f}, "
-                                    f"'max': {vel_max:.2f}, "
-                                    f"'start_index': {self.vcu_calib_table_row_start}'}}",
-                                    extra=self.dictLogger,
-                                )
-                                # self.logc.info(
-                                #     f"Producer Queue has {motion_power_queue.qsize()}!", extra=self.dictLogger,
-                                # )
-                                df_motion_power = pd.DataFrame(
-                                    self.get_truck_status_motion_power_t,
-                                    columns=[
-                                        "timestep",
-                                        "velocity",
-                                        "thrust",
-                                        "brake",
-                                        "current",
-                                        "voltage",
-                                    ],
-                                )
-                                # df_motion_power.set_index('timestamp', inplace=True)
-                                df_motion_power.columns.name = "qtuple"
-
-                                check_type(self.motion_power_queue, SimpleQueue).put(
-                                    df_motion_power
-                                )
-                                motion_power_queue_size = check_type(
-                                    self.motion_power_queue, SimpleQueue
-                                ).qsize()
-                                logger_kvaser_get.info(
-                                    f"{{'header': 'motion_power_queue size: {motion_power_queue_size}'}}",
-                                    extra=self.dictLogger,
-                                )
-                                self.get_truck_status_motion_power_t = []
-                    except Exception as exc:
+        with capture_conn as s:
+            while not th_exit:  # th_exit is local; program_exit is global
+                with check_type(
+                    self.hmi_lock, Lock
+                ):  # wait for tester to kick off or to exit
+                    if self.program_exit:  # if program_exit is True, exit thread
                         logger_kvaser_get.info(
-                            f"{{'header': 'kvaser get signal error',"
-                            f"'exception': '{exc}'}}",
-                            # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                            f"{{'header': 'Capture thread exit due to processing request!!!'}}",
                             extra=self.dictLogger,
                         )
-                        break
-                else:
-                    logger_kvaser_get.warning(
-                        f"{{'header': 'udp sending message with key: {key}; value: {value}'}}"
-                    )
+                        th_exit = True
+                        continue
+                can_data, addr = s.recvfrom(2048)
+                # self.logger.info('Data received!!!', extra=self.dictLogger)
+                try:
+                    pop_data = json.loads(can_data)
+                except TypeError:
+                    raise TypeError("udp sending wrong data type!")
 
-                    break
+                for key, value in pop_data.items():
+                    if key == "status":  # state machine chores
+                        # print(can_data)
+                        if value == "begin":
+                            self.get_truck_status_start = True
+                        logger_kvaser_get.info(
+                            f"{{'header': 'Episode will start!!!'}}",
+                            extra=self.dictLogger,
+                        )
+                        th_exit = False
+                        # ts_epi_start = time.time()
+                        while not check_type(self.motion_power_queue, SimpleQueue).empty():
+                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        self.vel_hist_dq.clear()
+                        with check_type(self.hmi_lock, Lock):
+                            self.episode_done = False
+                            self.episode_end = False
+
+                    elif value == "end_valid":
+                        # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                        # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+                        self.get_truck_status_start = (
+                            True  # do not stopping data capture immediately
+                        )
+
+                        # set flag for countdown thread
+                        with check_type(self.done_env_lock, Lock):
+                            evt_epi_done.set()
+                        logger_kvaser_get.info(
+                            f"{{'header': 'Episode end starts countdown!'}}"
+                        )
+                        with check_type(self.hmi_lock, Lock):
+                            # self.episode_count += 1  # valid round increments self.epi_countdown = False
+                            self.episode_done = False  # TODO delay episode_done to make main thread keep running
+                            self.episode_end = False
+                    elif value == "end_invalid":
+                        self.get_truck_status_start = False
+                        logger_kvaser_get.info(
+                            f"{{'header': 'Episode is interrupted!!!'}}",
+                            extra=self.dictLogger,
+                        )
+                        self.get_truck_status_motion_power_t = []
+                        self.vel_hist_dq.clear()
+                        # motion_power_queue.queue.clear()
+                        # self.logc.info(
+                        #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
+                        #     extra=self.dictLogger,
+                        # )
+                        while not check_type(self.motion_power_queue, SimpleQueue).empty():
+                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        th_exit = False
+                        with check_type(self.hmi_lock, Lock):
+                            self.episode_done = False
+                            self.episode_end = True
+                            self.episode_count += 1  # invalid round increments
+                    elif value == "exit":
+                        self.get_truck_status_start = False
+                        self.get_truck_status_motion_power_t = []
+                        self.vel_hist_dq.clear()
+                        while not check_type(self.motion_power_queue, SimpleQueue).empty():
+                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
+                        th_exit = True
+                        # for program exit, need to set episode states
+                        # final change to inform main thread
+                        with check_type(self.hmi_lock, Lock):
+                            self.episode_done = False
+                            self.episode_end = True
+                            self.program_exit = True
+                            self.episode_count += 1
+                        with check_type(self.done_env_lock, Lock):
+                            evt_epi_done.set()
+                        break
+                        # time.sleep(0.1)
+                    elif key == "data":
+                        # self.logger.info('Data received before Capture starting!!!',
+                        # extra=self.dictLogger)
+                        # self.logger.info(f'ts:{value["timestamp"]}
+                        # vel:{value["velocity"]}
+                        # ped:{value["pedal"]}',
+                        # extra=self.dictLogger)
+                        # DONE add logic for episode valid and invalid
+                        try:
+                            if self.get_truck_status_start:  # starts episode
+                                ts = datetime.now().timestamp()
+                                velocity = float(value["velocity"])
+                                pedal = float(value["pedal"])
+                                brake = float(value["brake_pressure"])
+                                current = float(value["A"])
+                                voltage = float(value["V"])
+
+                                motion_power = [
+                                    ts,
+                                    velocity,
+                                    pedal,
+                                    brake,
+                                    current,
+                                    voltage,
+                                ]  # 3 +2 : im 5
+
+                                self.get_truck_status_motion_power_t.append(
+                                    motion_power
+                                )  # obs_reward [speed, pedal, brake, current, voltage]
+                                self.vel_hist_dq.append(velocity)
+                                vel_cycle_dq.append(velocity)
+
+                                if (
+                                    len(self.get_truck_status_motion_power_t)
+                                    >= truck_in_field.observation_length
+                                ):
+                                    if len(vel_cycle_dq) != vel_cycle_dq.maxlen:
+                                        check_type(
+                                            self.logger_control_flow, logging.Logger
+                                        ).warning(  # the recent 1.5s average velocity
+                                            f"{{'header': 'cycle deque is inconsistent!'}}",
+                                            extra=self.dictLogger,
+                                        )
+
+                                    vel_aver = sum(vel_cycle_dq) / vel_cycle_dq.maxlen
+                                    vel_min = min(vel_cycle_dq)
+                                    vel_max = max(vel_cycle_dq)
+
+                                    # 0~20km/h; 7~30km/h; 10~40km/h; 20~50km/h; ...
+                                    # average concept
+                                    # 10; 18; 25; 35; 45; 55; 65; 75; 85; 95; 105
+                                    #   13; 18; 22; 27; 32; 37; 42; 47; 52; 57; 62;
+                                    # here upper bound rule adopted
+                                    if vel_max < 20:
+                                        self.vcu_calib_table_row_start = 0
+                                    elif vel_max < 30:
+                                        self.vcu_calib_table_row_start = 1
+                                    elif vel_max < 120:
+                                        self.vcu_calib_table_row_start = (
+                                            math.floor((vel_max - 30) / 10) + 2
+                                        )
+                                    else:
+                                        logger_kvaser_get.warning(
+                                            f"{{'header': 'cycle higher than 120km/h!'}}",
+                                            extra=self.dictLogger,
+                                        )
+                                        self.vcu_calib_table_row_start = 16
+                                    # get the row of the table
+
+                                    logger_kvaser_get.info(
+                                        f"{{'header': 'Cycle velocity', "
+                                        f"'aver': {vel_aver:.2f}, "
+                                        f"'min': {vel_min:.2f}, "
+                                        f"'max': {vel_max:.2f}, "
+                                        f"'start_index': {self.vcu_calib_table_row_start}'}}",
+                                        extra=self.dictLogger,
+                                    )
+                                    # self.logc.info(
+                                    #     f"Producer Queue has {motion_power_queue.qsize()}!", extra=self.dictLogger,
+                                    # )
+                                    df_motion_power = pd.DataFrame(
+                                        self.get_truck_status_motion_power_t,
+                                        columns=[
+                                            "timestep",
+                                            "velocity",
+                                            "thrust",
+                                            "brake",
+                                            "current",
+                                            "voltage",
+                                        ],
+                                    )
+                                    # df_motion_power.set_index('timestamp', inplace=True)
+                                    df_motion_power.columns.name = "qtuple"
+
+                                    check_type(self.motion_power_queue, SimpleQueue).put(
+                                        df_motion_power
+                                    )
+                                    motion_power_queue_size = check_type(
+                                        self.motion_power_queue, SimpleQueue
+                                    ).qsize()
+                                    logger_kvaser_get.info(
+                                        f"{{'header': 'motion_power_queue size: {motion_power_queue_size}'}}",
+                                        extra=self.dictLogger,
+                                    )
+                                    self.get_truck_status_motion_power_t = []
+                        except Exception as exc:
+                            logger_kvaser_get.info(
+                                f"{{'header': 'kvaser get signal error',"
+                                f"'exception': '{exc}'}}",
+                                # f"Valid episode, Reset data capturing to stop after 3 seconds!",
+                                extra=self.dictLogger,
+                            )
+                            break
+                    else:
+                        logger_kvaser_get.warning(
+                            f"{{'header': 'udp sending message with key: {key}; value: {value}'}}"
+                        )
+
+                        break
 
         logger_kvaser_get.info(
             f"{{'header': 'get_truck_status dies!!!'}}", extra=self.dictLogger
@@ -845,6 +845,7 @@ class Avatar(abc.ABC):
                     f"{{'header': 'E{epi_cnt} step: {step_count}' flash timeout}}",
                     extra=self.dictLogger,
                 )
+                continue
             else:
                 vcu_calib_table_reduced = tf.reshape(
                     table,
