@@ -128,7 +128,7 @@ the maximum predicted value as seen by the Critic, for a given state.
 hyper_param_default = HyperParamDDPG()
 actor_optimizer_default = tf.keras.optimizers.Adam(hyper_param_default.ActorLR)  # 0.001
 ckpt_actor_default = tf.train.Checkpoint(
-    step=tf.Variable(1),
+    step=tf.Variable(1),  # type: ignore
     optimizer=actor_optimizer_default,
     net=tf.keras.Model(),
 )
@@ -140,7 +140,7 @@ critic_optimizer_default = tf.keras.optimizers.Adam(
     hyper_param_default.CriticLR
 )  # 0.002
 ckpt_critic_default = tf.train.Checkpoint(
-    step=tf.Variable(1),
+    step=tf.Variable(1),  # type: ignore
     optimizer=critic_optimizer_default,
     net=tf.keras.Model(),
 )
