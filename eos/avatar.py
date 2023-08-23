@@ -260,7 +260,7 @@ class Avatar(abc.ABC):
             f"{{'header': 'Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}'}}"
         )
         gpus = tf.config.list_physical_devices(device_type="GPU")
-        tf.config.experimental.set_memory_growth(gpus[0], True)
+        # tf.config.experimental.set_memory_growth(gpus[0], True)
         self.logger_control_flow.info(f"Tensorflow version: {tf.__version__}")
         tf_sys_details = tf.sysconfig.get_build_info()
         self.logger_control_flow.info(
