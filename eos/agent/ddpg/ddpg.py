@@ -16,9 +16,12 @@ from tensorflow import keras
 from eos.agent.dpg import DPG
 from eos.agent.utils import HyperParamDDPG, OUActionNoise
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
-from eos.data_io.struct import (PoolQuery,  # type: ignore
-                                veos_lifetime_end_date,
-                                veos_lifetime_start_date)
+from eos.data_io.struct import (
+    PoolQuery,  # type: ignore
+    veos_lifetime_end_date,
+    veos_lifetime_start_date,
+)
+
 # from pymongoarrow.monkey import patch_all
 from eos.utils import dictLogger, logger
 
@@ -123,16 +126,14 @@ Hence we update the Actor network so that it produces actions that get
 the maximum predicted value as seen by the Critic, for a given state.
 """
 hyper_param_default = HyperParamDDPG()
-actor_optimizer_default = tf.keras.optimizers.Adam(
-    hyper_param_default.ActorLR
-)  # 0.001
+actor_optimizer_default = tf.keras.optimizers.Adam(hyper_param_default.ActorLR)  # 0.001
 ckpt_actor_default = tf.train.Checkpoint(
     step=tf.Variable(1),
     optimizer=actor_optimizer_default,
     net=tf.keras.Model(),
 )
 manager_actor_default = tf.train.CheckpointManager(
-    ckpt_actor_default, './actor', max_to_keep=10
+    ckpt_actor_default, "./actor", max_to_keep=10
 )
 
 critic_optimizer_default = tf.keras.optimizers.Adam(
@@ -144,7 +145,7 @@ ckpt_critic_default = tf.train.Checkpoint(
     net=tf.keras.Model(),
 )
 manager_critic_default = tf.train.CheckpointManager(
-    ckpt_critic_default, './critic', max_to_keep=10
+    ckpt_critic_default, "./critic", max_to_keep=10
 )
 
 
@@ -165,7 +166,7 @@ class DDPG(DPG):
     ] = (
         MongoBuffer()
     )  # cannot have default value, because it precedes _plot in base class DPG
-    logger: logging.Logger = logging.Logger('eos.agent.ddpg.ddpg')
+    logger: logging.Logger = logging.Logger("eos.agent.ddpg.ddpg")
     _episode_start_dt: datetime = field(default_factory=datetime.now)
     _actor_model: tf.keras.Model = field(default_factory=tf.keras.Model)
     _critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
@@ -175,8 +176,8 @@ class DDPG(DPG):
     ckpt_critic: tf.train.Checkpoint = ckpt_critic_default
     manager_actor: tf.train.CheckpointManager = manager_actor_default
     ckpt_actor: tf.train.Checkpoint = ckpt_actor_default
-    actor_saved_model_path: Path = Path('./actor')
-    critic_saved_model_path: Path = Path('./critic')
+    actor_saved_model_path: Path = Path("./actor")
+    critic_saved_model_path: Path = Path("./critic")
 
     def __post_init__(self):
         self.logger = logger.getChild("eos").getChild(self.__str__())
@@ -340,23 +341,23 @@ class DDPG(DPG):
         try:
             os.makedirs(checkpoint_actor_dir)
             self.logger.info(
-                f"{{\'header\': \'Actor folder doesn't exist. Created!\'}}",
+                f"{{'header': 'Actor folder doesn't exist. Created!'}}",
                 extra=dictLogger,
             )
         except FileExistsError:
             self.logger.info(
-                f"{{\'header\': \'Actor folder exists, just resume!\'}}",
+                f"{{'header': 'Actor folder exists, just resume!'}}",
                 extra=dictLogger,
             )
         try:
             os.makedirs(checkpoint_critic_dir)
             self.logger.info(
-                f"{{\'header\': \'Critic folder doesn't exist. Created!\'}}",
+                f"{{'header': 'Critic folder doesn't exist. Created!'}}",
                 extra=dictLogger,
             )
         except FileExistsError:
             self.logger.info(
-                f"{{\'header\': \'Critic folder exists, just resume!\'}}",
+                f"{{'header': 'Critic folder exists, just resume!'}}",
                 extra=dictLogger,
             )
 
@@ -372,13 +373,13 @@ class DDPG(DPG):
         self.ckpt_actor.restore(self.manager_actor.latest_checkpoint)
         if self.manager_actor.latest_checkpoint:
             self.logger.info(
-                f"{{\'header\': \'Actor Restored\', "
-                f"\'actor ckpt path\': \'{self.manager_actor.latest_checkpoint}\'}}",
+                f"{{'header': 'Actor Restored', "
+                f"'actor ckpt path': '{self.manager_actor.latest_checkpoint}'}}",
                 extra=dictLogger,
             )
         else:
             self.logger.info(
-                f"{{\'header\': \'Actor Initializing from scratch\'}}", extra=dictLogger
+                f"{{'header': 'Actor Initializing from scratch'}}", extra=dictLogger
             )
 
         self.ckpt_critic = tf.train.Checkpoint(
@@ -393,13 +394,13 @@ class DDPG(DPG):
         self.ckpt_critic.restore(self.manager_critic.latest_checkpoint)
         if self.manager_critic.latest_checkpoint:
             self.logger.info(
-                f"{{\'header\': \'Critic Restored\', "
-                f"\'critic ckpt path\': \'{self.manager_critic.latest_checkpoint}\'}}",
+                f"{{'header': 'Critic Restored', "
+                f"'critic ckpt path': '{self.manager_critic.latest_checkpoint}'}}",
                 extra=dictLogger,
             )
         else:
             self.logger.info(
-                "{{\'header\': \'Critic Initializing from scratch", extra=dictLogger
+                "{{'header': 'Critic Initializing from scratch", extra=dictLogger
             )
 
         # Making the weights equal initially after checkpoints load
@@ -614,8 +615,12 @@ class DDPG(DPG):
     ):
         # State as input
         state_input = keras.layers.Input(shape=(num_states,))
-        state_out = keras.layers.Dense(num_state_input_dense1, activation="relu")(state_input)
-        state_out = keras.layers.Dense(num_state_input_dense2, activation="relu")(state_out)
+        state_out = keras.layers.Dense(num_state_input_dense1, activation="relu")(
+            state_input
+        )
+        state_out = keras.layers.Dense(num_state_input_dense2, activation="relu")(
+            state_out
+        )
 
         # Action as input
         action_input = keras.layers.Input(
