@@ -29,7 +29,7 @@ import math
 
 # system imports
 import os
-from queue import SimpleQueue
+from queue import Queue
 import socket
 import sys
 import threading
@@ -157,8 +157,8 @@ class Avatar(abc.ABC):
     flash_env_lock: Optional[Lock] = None
     get_env_lock: Optional[Lock] = None
     done_env_lock: Optional[Lock] = None
-    tableQueue: Optional[SimpleQueue] = None
-    motion_power_queue: Optional[SimpleQueue] = None
+    tableQueue: Optional[Queue] = None
+    motion_power_queue: Optional[Queue] = None
     episode_done: bool = False
     episode_end: bool = False
     episode_count: int = 0
@@ -478,9 +478,9 @@ class Avatar(abc.ABC):
         self.done_env_lock = Lock()
 
         # tableQueue contains a table which is a list of type float
-        self.tableQueue = SimpleQueue()
+        self.tableQueue = Queue()
         # motion_power_queue contains a vcu states list with N(20) subsequent motion states + reward as observation
-        self.motion_power_queue = SimpleQueue()
+        self.motion_power_queue = Queue()
 
         # initial status of the switches
         self.program_exit = False
@@ -542,8 +542,8 @@ class Avatar(abc.ABC):
                 self.get_truck_status_start = False
             # move clean up under mutex to avoid competetion.
             self.get_truck_status_motion_power_t = []
-            while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                check_type(self.motion_power_queue, SimpleQueue).get()
+            while not check_type(self.motion_power_queue, Queue).empty():
+                check_type(self.motion_power_queue, Queue).get()
 
             # unlock remote_get_handler
             with check_type(self.get_env_lock, Lock):
@@ -624,8 +624,8 @@ class Avatar(abc.ABC):
                         )
                         th_exit = False
                         # ts_epi_start = time.time()
-                        while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        while not check_type(self.motion_power_queue, Queue).empty():
+                            check_type(self.motion_power_queue, Queue).get()
                         self.vel_hist_dq.clear()
                         with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
@@ -661,8 +661,8 @@ class Avatar(abc.ABC):
                         #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
                         #     extra=self.dictLogger,
                         # )
-                        while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        while not check_type(self.motion_power_queue, Queue).empty():
+                            check_type(self.motion_power_queue, Queue).get()
                         th_exit = False
                         with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
@@ -672,8 +672,8 @@ class Avatar(abc.ABC):
                         self.get_truck_status_start = False
                         self.get_truck_status_motion_power_t = []
                         self.vel_hist_dq.clear()
-                        while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        while not check_type(self.motion_power_queue, Queue).empty():
+                            check_type(self.motion_power_queue, Queue).get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
@@ -781,11 +781,11 @@ class Avatar(abc.ABC):
                                     # df_motion_power.set_index('timestamp', inplace=True)
                                     df_motion_power.columns.name = "qtuple"
 
-                                    check_type(self.motion_power_queue, SimpleQueue).put(
+                                    check_type(self.motion_power_queue, Queue).put(
                                         df_motion_power
                                     )
                                     motion_power_queue_size = check_type(
-                                        self.motion_power_queue, SimpleQueue
+                                        self.motion_power_queue, Queue
                                     ).qsize()
                                     logger_kvaser_get.info(
                                         f"{{'header': 'motion_power_queue size: {motion_power_queue_size}'}}",
@@ -837,7 +837,7 @@ class Avatar(abc.ABC):
                     th_exit = True
                     continue
             try:
-                table = check_type(self.tableQueue, SimpleQueue).get(
+                table = check_type(self.tableQueue, Queue).get(
                     block=False, timeout=1
                 )  # default block = True
             except TimeoutError:
@@ -1200,9 +1200,7 @@ class Avatar(abc.ABC):
                             extra=self.dictLogger,
                         )
 
-                        check_type(self.motion_power_queue, SimpleQueue).put(
-                            df_motion_power
-                        )
+                        check_type(self.motion_power_queue, Queue).put(df_motion_power)
 
                         logger_remote_get.info(
                             f"{{'header': 'Get one record, wait for remote_flash!!!'}}",
@@ -1390,8 +1388,8 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
+                    while not check_type(self.motion_power_queue, Queue).empty():
+                        check_type(self.motion_power_queue, Queue).get()
                     with check_type(self.hmi_lock, Lock):
                         self.episode_done = False
                         self.episode_end = False
@@ -1429,8 +1427,8 @@ class Avatar(abc.ABC):
                     #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
                     #     extra=self.dictLogger,
                     # )
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
+                    while not check_type(self.motion_power_queue, Queue).empty():
+                        check_type(self.motion_power_queue, Queue).get()
                     # self.logc.info(
                     #     f"Episode motion_power_queue gets cleared!", extra=self.dictLogger
                     # )
@@ -1463,8 +1461,8 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
+                    while not check_type(self.motion_power_queue, Queue).empty():
+                        check_type(self.motion_power_queue, Queue).get()
                     # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                     th_exit = True
                     # for program exit, need to set episode states
@@ -1559,8 +1557,8 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    while not check_type(self.motion_power_queue, SimpleQueue).empty():
-                        check_type(self.motion_power_queue, SimpleQueue).get()
+                    while not check_type(self.motion_power_queue, Queue).empty():
+                        check_type(self.motion_power_queue, Queue).get()
 
                     self.episode_done = True
                     self.episode_end = True
@@ -1653,10 +1651,8 @@ class Avatar(abc.ABC):
                             f"{{'header': 'Episode start! clear remote_flash and remote_get!'}}",
                             extra=self.dictLogger,
                         )
-                        while not check_type(
-                            self.motion_power_queue, SimpleQueue
-                        ).empty():
-                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        while not check_type(self.motion_power_queue, Queue).empty():
+                            check_type(self.motion_power_queue, Queue).get()
                         with check_type(self.hmi_lock, Lock):
                             self.episode_done = False
                             self.episode_end = False
@@ -1689,10 +1685,8 @@ class Avatar(abc.ABC):
                             extra=self.dictLogger,
                         )
                         self.get_truck_status_motion_power_t = []
-                        while not check_type(
-                            self.motion_power_queue, SimpleQueue
-                        ).empty():
-                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        while not check_type(self.motion_power_queue, Queue).empty():
+                            check_type(self.motion_power_queue, Queue).get()
                         th_exit = False
 
                         # remote_get_handler exit
@@ -1722,10 +1716,8 @@ class Avatar(abc.ABC):
                             extra=self.dictLogger,
                         )
 
-                        while not check_type(
-                            self.motion_power_queue, SimpleQueue
-                        ).empty():
-                            check_type(self.motion_power_queue, SimpleQueue).get()
+                        while not check_type(self.motion_power_queue, Queue).empty():
+                            check_type(self.motion_power_queue, Queue).get()
                         # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
                         th_exit = True
                         # for program exit, need to set episode states
@@ -1791,7 +1783,7 @@ class Avatar(abc.ABC):
 
             # self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
-                table: np.ndarray = check_type(self.tableQueue, SimpleQueue).get(
+                table: np.ndarray = check_type(self.tableQueue, Queue).get(
                     block=False, timeout=1
                 )  # default block = True
 
@@ -2058,7 +2050,10 @@ class Avatar(abc.ABC):
             while True:
                 motion_power = None
                 try:
-                    motion_power = self.motion_power_queue.get(block=True, timeout=1.55)
+                    motion_power = check_type(self.motion_power_queue, Queue).get(
+                        block=True, timeout=1.55
+                    )
+                    check_type(self.motion_power_queue, Queue).task_done()
                     break  # break the while loop if we get the first data
                 except TimeoutError:
                     self.logger_control_flow.info(
@@ -2120,7 +2115,9 @@ class Avatar(abc.ABC):
                         table_start = self.vcu_calib_table_row_start
                         self.step_count = step_count
 
-                    motion_power_queue_size = self.motion_power_queue.qsize()
+                    motion_power_queue_size = check_type(
+                        self.motion_power_queue, Queue
+                    ).qsize()
                     self.logger_control_flow.info(
                         f"motion_power_queue.qsize(): {motion_power_queue_size}"
                     )
@@ -2141,7 +2138,7 @@ class Avatar(abc.ABC):
                         #     f"E{epi_cnt} Wait for an object!!!", extra=self.dictLogger
                         # )
 
-                        motion_power = self.motion_power_queue.get(
+                        motion_power = check_type(self.motion_power_queue, Queue).get(
                             block=True, timeout=1.55
                         )
                     except TimeoutError:
