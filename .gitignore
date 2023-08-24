@@ -3,6 +3,7 @@
 
 # Ignore Logs
 logs
+*.dot
 *.log
 *.svg
 *.index
@@ -11,7 +12,11 @@ logs
 *.pdf
 *.xls
 *.xlsx
+*.iml
 *.xml
+*.pyc
+*.python-version
+*.json
 *.srctrlbm
 *.srctrldb
 *.srctrlprj
@@ -33,26 +38,14 @@ data
 # Ignore IDE specific files
 .vscode/
 .idea/
-*.pyc
-*.xml
 /veos.egg-info/
 /eos/comm/tbox.original/
-*.iml
-*.xml
-*.python-version
-*.iml
-*.json
 /classes.dot
 /eos/utils/.ipynb_checkpoints/
 /eos/utils/test_suite.ipynb
 /example.ini
 /packages.dot
 /recip.ini
-*.dot
-*.dot
-*.dot
 /eos.chat
 /eos/classes.png
 /eos/packages.png
-*.iml
-drl-carla-manual.iml
