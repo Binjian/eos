@@ -29,6 +29,7 @@ import math
 
 # system imports
 import os
+import queue
 from queue import Queue
 import socket
 import sys
@@ -478,9 +479,9 @@ class Avatar(abc.ABC):
         self.done_env_lock = Lock()
 
         # tableQueue contains a table which is a list of type float
-        self.tableQueue = Queue()
+        self.tableQueue = Queue(maxsize=2)
         # motion_power_queue contains a vcu states list with N(20) subsequent motion states + reward as observation
-        self.motion_power_queue = Queue()
+        self.motion_power_queue = Queue(maxsize=2)
 
         # initial status of the switches
         self.program_exit = False
@@ -618,75 +619,81 @@ class Avatar(abc.ABC):
                         # print(can_data)
                         if value == "begin":
                             self.get_truck_status_start = True
-                        logger_kvaser_get.info(
-                            f"{{'header': 'Episode will start!!!'}}",
-                            extra=self.dictLogger,
-                        )
-                        th_exit = False
-                        # ts_epi_start = time.time()
-                        while not check_type(self.motion_power_queue, Queue).empty():
-                            check_type(self.motion_power_queue, Queue).get()
-                        self.vel_hist_dq.clear()
-                        with check_type(self.hmi_lock, Lock):
-                            self.episode_done = False
-                            self.episode_end = False
+                            logger_kvaser_get.info(
+                                f"{{'header': 'Episode will start!!!'}}",
+                                extra=self.dictLogger,
+                            )
+                            th_exit = False
+                            # ts_epi_start = time.time()
+                            while not check_type(
+                                self.motion_power_queue, Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, Queue).get()
+                            self.vel_hist_dq.clear()
+                            with check_type(self.hmi_lock, Lock):
+                                self.episode_done = False
+                                self.episode_end = False
 
-                    elif value == "end_valid":
-                        # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
-                        # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
-                        self.get_truck_status_start = (
-                            True  # do not stopping data capture immediately
-                        )
+                        elif value == "end_valid":
+                            # DONE for valid end wait for another 2 queue objects (3 seconds) to get the last reward!
+                            # cannot sleep the thread since data capturing in the same thread, use signal alarm instead
+                            self.get_truck_status_start = (
+                                True  # do not stopping data capture immediately
+                            )
 
-                        # set flag for countdown thread
-                        with check_type(self.done_env_lock, Lock):
-                            evt_epi_done.set()
-                        logger_kvaser_get.info(
-                            f"{{'header': 'Episode end starts countdown!'}}"
-                        )
-                        with check_type(self.hmi_lock, Lock):
-                            # self.episode_count += 1  # valid round increments self.epi_countdown = False
-                            self.episode_done = False  # TODO delay episode_done to make main thread keep running
-                            self.episode_end = False
-                    elif value == "end_invalid":
-                        self.get_truck_status_start = False
-                        logger_kvaser_get.info(
-                            f"{{'header': 'Episode is interrupted!!!'}}",
-                            extra=self.dictLogger,
-                        )
-                        self.get_truck_status_motion_power_t = []
-                        self.vel_hist_dq.clear()
-                        # motion_power_queue.queue.clear()
-                        # self.logc.info(
-                        #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
-                        #     extra=self.dictLogger,
-                        # )
-                        while not check_type(self.motion_power_queue, Queue).empty():
-                            check_type(self.motion_power_queue, Queue).get()
-                        th_exit = False
-                        with check_type(self.hmi_lock, Lock):
-                            self.episode_done = False
-                            self.episode_end = True
-                            self.episode_count += 1  # invalid round increments
-                    elif value == "exit":
-                        self.get_truck_status_start = False
-                        self.get_truck_status_motion_power_t = []
-                        self.vel_hist_dq.clear()
-                        while not check_type(self.motion_power_queue, Queue).empty():
-                            check_type(self.motion_power_queue, Queue).get()
-                        # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
-                        th_exit = True
-                        # for program exit, need to set episode states
-                        # final change to inform main thread
-                        with check_type(self.hmi_lock, Lock):
-                            self.episode_done = False
-                            self.episode_end = True
-                            self.program_exit = True
-                            self.episode_count += 1
-                        with check_type(self.done_env_lock, Lock):
-                            evt_epi_done.set()
-                        break
-                        # time.sleep(0.1)
+                            # set flag for countdown thread
+                            with check_type(self.done_env_lock, Lock):
+                                evt_epi_done.set()
+                            logger_kvaser_get.info(
+                                f"{{'header': 'Episode end starts countdown!'}}"
+                            )
+                            with check_type(self.hmi_lock, Lock):
+                                # self.episode_count += 1  # valid round increments self.epi_countdown = False
+                                self.episode_done = False  # TODO delay episode_done to make main thread keep running
+                                self.episode_end = False
+                        elif value == "end_invalid":
+                            self.get_truck_status_start = False
+                            logger_kvaser_get.info(
+                                f"{{'header': 'Episode is interrupted!!!'}}",
+                                extra=self.dictLogger,
+                            )
+                            self.get_truck_status_motion_power_t = []
+                            self.vel_hist_dq.clear()
+                            # motion_power_queue.queue.clear()
+                            # self.logc.info(
+                            #     f"Episode motion_power_queue has {motion_power_queue.qsize()} states remaining",
+                            #     extra=self.dictLogger,
+                            # )
+                            while not check_type(
+                                self.motion_power_queue, Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, Queue).get()
+                            th_exit = False
+                            with check_type(self.hmi_lock, Lock):
+                                self.episode_done = False
+                                self.episode_end = True
+                                self.episode_count += 1  # invalid round increments
+                        elif value == "exit":
+                            self.get_truck_status_start = False
+                            self.get_truck_status_motion_power_t = []
+                            self.vel_hist_dq.clear()
+                            while not check_type(
+                                self.motion_power_queue, Queue
+                            ).empty():
+                                check_type(self.motion_power_queue, Queue).get()
+                            # self.logc.info("%s", "Program will exit!!!", extra=self.dictLogger)
+                            th_exit = True
+                            # for program exit, need to set episode states
+                            # final change to inform main thread
+                            with check_type(self.hmi_lock, Lock):
+                                self.episode_done = False
+                                self.episode_end = True
+                                self.program_exit = True
+                                self.episode_count += 1
+                            with check_type(self.done_env_lock, Lock):
+                                evt_epi_done.set()
+                            break
+                            # time.sleep(0.1)
                     elif key == "data":
                         # self.logger.info('Data received before Capture starting!!!',
                         # extra=self.dictLogger)
@@ -840,9 +847,15 @@ class Avatar(abc.ABC):
                 table = check_type(self.tableQueue, Queue).get(
                     block=False, timeout=1
                 )  # default block = True
-            except TimeoutError:
+            except TimeoutError as e:
                 logger_flash.info(
                     f"{{'header': 'E{epi_cnt} step: {step_count}' flash timeout}}",
+                    extra=self.dictLogger,
+                )
+                continue
+            except (TimeoutError, queue.Empty) as e:
+                logger_flash.info(
+                    f"{{'header': 'E{epi_cnt} step: {step_count}' flash queue empty}}",
                     extra=self.dictLogger,
                 )
                 continue
@@ -2053,11 +2066,18 @@ class Avatar(abc.ABC):
                     motion_power = check_type(self.motion_power_queue, Queue).get(
                         block=True, timeout=1.55
                     )
-                    check_type(self.motion_power_queue, Queue).task_done()
+                    # check_type(self.motion_power_queue, Queue).task_done()
                     break  # break the while loop if we get the first data
                 except TimeoutError:
                     self.logger_control_flow.info(
                         f"{{'header': 'No data in the input Queue, Timeout!!!', "
+                        f"'episode': {epi_cnt}}}",
+                        extra=self.dictLogger,
+                    )
+                    continue
+                except queue.Empty as e:
+                    self.logger_control_flow.info(
+                        f"{{'header': 'No data in the input Queue, Empty!!!', "
                         f"'episode': {epi_cnt}}}",
                         extra=self.dictLogger,
                     )
