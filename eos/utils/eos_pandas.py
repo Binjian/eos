@@ -125,7 +125,7 @@ def assemble_action_ser(
     )  # columns order (r0, r1, ..., speed, throttle, timestep)
     action.name = 'action'
     action.index.names = ['rows', 'idx']
-    action.columns.names = []
+    # action.column.names = []
 
     return action
 
