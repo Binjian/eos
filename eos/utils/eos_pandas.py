@@ -543,7 +543,7 @@ def encode_episode_dataframe_from_series(
     episode = pd.concat(
         observations, axis=1
     ).transpose()  # concat along columns and transpose to DataFrame, columns not sorted as (s,a,r,s')
-    episode.columns.name = ["tuple", "rows", "idx"]
+    episode.columns.names = ["tuple", "rows", "idx"]
     episode.set_index(("timestamp", "", 0), append=False, inplace=True)
     episode.index.name = "timestamp"
     # episode.sort_index(inplace=True)
