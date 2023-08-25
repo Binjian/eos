@@ -845,19 +845,22 @@ class Avatar(abc.ABC):
                     continue
             try:
                 table = check_type(self.tableQueue, Queue).get(
-                    block=False, timeout=1
+                    block=True, timeout=60
                 )  # default block = True
-            except TimeoutError as e:
+            except TimeoutError:
                 logger_flash.info(
-                    f"{{'header': 'E{epi_cnt} step: {step_count}' flash timeout}}",
+                    f"{{'header': 'E{epi_cnt} step: {step_count}' TableQueue:w"
+                    f" timeout}}",
                     extra=self.dictLogger,
                 )
                 continue
             except (TimeoutError, queue.Empty) as e:
-                logger_flash.info(
-                    f"{{'header': 'E{epi_cnt} step: {step_count}' flash queue empty}}",
-                    extra=self.dictLogger,
-                )
+                # if idle_count % 1000 == 0:
+                #     logger_flash.info(
+                #         f"{{'header': 'E{epi_cnt} step: {step_count}' TableQueue empty}}",
+                #         extra=self.dictLogger,
+                #     )
+                # idle_count += 1
                 continue
             else:
                 vcu_calib_table_reduced = tf.reshape(
@@ -2064,7 +2067,7 @@ class Avatar(abc.ABC):
                 motion_power = None
                 try:
                     motion_power = check_type(self.motion_power_queue, Queue).get(
-                        block=True, timeout=1.55
+                        block=True, timeout=10
                     )
                     # check_type(self.motion_power_queue, Queue).task_done()
                     break  # break the while loop if we get the first data
