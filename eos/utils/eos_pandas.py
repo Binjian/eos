@@ -546,7 +546,7 @@ def encode_episode_dataframe_from_series(
     episode.columns.names = ["tuple", "rows", "idx"]
     episode.set_index(("timestamp", "", 0), append=False, inplace=True)
     episode.index.name = "timestamp"
-    # episode.sort_index(inplace=True)
+    episode.sort_index(axis=1, inplace=True)
 
     # convert columns types to float where necessary
     state_cols_float = [("state", col) for col in ["brake", "thrust", "velocity"]]
