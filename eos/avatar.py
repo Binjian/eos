@@ -2096,7 +2096,7 @@ class Avatar(abc.ABC):
             )  # s_{-1}
             zero_torque_map_line = np.zeros(
                 shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
-                dtype=tf.float32,
+                dtype=np.float32,
             )  # first zero last_actions is a 3D tensor
             prev_action = assemble_action_ser(
                 zero_torque_map_line,
