@@ -260,7 +260,7 @@ class Avatar(abc.ABC):
         self.logger_control_flow.info(
             f"{{'header': 'Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}'}}"
         )
-        gpus = tf.config.list_physical_devices(device_type="GPU")
+        # gpus = tf.config.list_physical_devices(device_type="GPU")
         # tf.config.experimental.set_memory_growth(gpus[0], True)
         self.logger_control_flow.info(f"Tensorflow version: {tf.__version__}")
         tf_sys_details = tf.sysconfig.get_build_info()
@@ -419,7 +419,7 @@ class Avatar(abc.ABC):
     def init_vehicle(self):
         if self.resume:
             files = sorted(self.data_root.glob("last_table*.csv"))
-            if files == []:
+            if not files:
                 self.logger.info(
                     f"{{'header': 'No last table found, start from default calibration table'}}",
                     extra=self.dictLogger,
@@ -2098,7 +2098,7 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
                     continue
-                except queue.Empty as e:
+                except queue.Empty:
                     self.logger_control_flow.info(
                         f"{{'header': 'No data in the input Queue, Empty!!!', "
                         f"'episode': {epi_cnt}}}",
@@ -2186,7 +2186,14 @@ class Avatar(abc.ABC):
                         )
                     except TimeoutError:
                         self.logger_control_flow.info(
-                            f"{{'header': 'No data in the input Queue!!!', "
+                            f"{{'header': 'No data in the input Queue Timeout!!!', "
+                            f"'episode': {epi_cnt}}}",
+                            extra=self.dictLogger,
+                        )
+                        continue
+                    except queue.Empty:
+                        self.logger_control_flow.info(
+                            f"{{'header': 'No data in the input Queue empty Queue!!!', "
                             f"'episode': {epi_cnt}}}",
                             extra=self.dictLogger,
                         )
