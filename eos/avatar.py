@@ -2269,7 +2269,7 @@ class Avatar(abc.ABC):
                     flash_end_ts = pd.to_datetime(datetime.now())
 
                     action = assemble_action_ser(
-                        torque_map_line.to_numpy(),
+                        torque_map_line.numpy(),
                         self.agent.torque_table_row_names,
                         table_start,
                         flash_start_ts,
