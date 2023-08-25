@@ -664,9 +664,12 @@ class DDPG(DPG):
         # We make sure action is within bounds
         # legal_action = np.clip(sampled_actions, action_lower, action_upper)
         # get flat interleaved (not column-wise stacked) tensor from dataframe
-        state_flat = tf.convert_to_tensor(
-            state.values
-        )  # pd.Series values already flattened.
+        try:
+            state_flat = tf.convert_to_tensor(
+                state.values, dtype=tf.float32
+            )  # pd.Series values already flattened.
+        except Exception as e:
+            print(f"Exception: {e}")
         states = tf.expand_dims(state_flat, 0)  # motion states is 30*3 matrix
         sampled_actions = self.infer_single_sample(states)
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
