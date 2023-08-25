@@ -135,13 +135,14 @@ def nest(d: dict) -> dict:
     Convert a flat dictionary with tuple key to a nested dictionary through to the leaves
     arrays will be converted to dictionaries with the index as the key
     no conversion of pd.Timestamp
+    only for use in mongo records
     """
     result: Dict = {}
     for key, value in d.items():
         target = result
         for k in key[:-1]:
             target = target.setdefault(k, {})
-        target[key[-1]] = value
+        target[str(key[-1])] = value   # for mongo only string keys are allowed.
     return result
 
 
