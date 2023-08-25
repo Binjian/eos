@@ -847,6 +847,20 @@ class Avatar(abc.ABC):
                 table = check_type(self.tableQueue, Queue).get(
                     block=True, timeout=60
                 )  # default block = True
+
+                with check_type(self.hmi_lock, Lock):
+                    th_exit = self.program_exit
+                    episode_end = self.episode_end
+
+                if episode_end is True:
+                    with check_type(self.flash_env_lock, Lock):
+                        evt_remote_flash.set()  # triggered flash by remote_get thread,
+                        # need to reset remote_get waiting evt
+                    logger_flash.info(
+                        f"{{'header': 'Episode ends, skipping remote_flash and continue!'}}",
+                        extra=self.dictLogger,
+                    )
+                    continue
             except TimeoutError:
                 logger_flash.info(
                     f"{{'header': 'E{epi_cnt} step: {step_count}' TableQueue:w"
@@ -854,7 +868,7 @@ class Avatar(abc.ABC):
                     extra=self.dictLogger,
                 )
                 continue
-            except (TimeoutError, queue.Empty) as e:
+            except queue.Empty:
                 # if idle_count % 1000 == 0:
                 #     logger_flash.info(
                 #         f"{{'header': 'E{epi_cnt} step: {step_count}' TableQueue empty}}",
@@ -946,6 +960,9 @@ class Avatar(abc.ABC):
                     )
                     flash_count += 1
                 # watch(flash_count)
+                # flash is done and unlock remote_get
+                with check_type(self.flash_env_lock, Lock):
+                    evt_remote_flash.set()
 
         logger_flash.info(
             f"{{'header': 'Save the last table!!!!'}}", extra=self.dictLogger
@@ -1800,7 +1817,7 @@ class Avatar(abc.ABC):
             # self.logc.info(f"Wait for table!", extra=self.dictLogger)
             try:
                 table: np.ndarray = check_type(self.tableQueue, Queue).get(
-                    block=False, timeout=1
+                    block=True, timeout=60
                 )  # default block = True
 
                 with check_type(self.hmi_lock, Lock):
@@ -1821,6 +1838,9 @@ class Avatar(abc.ABC):
                     f"{{'header': 'E{epi_cnt} step: {step_count}' flash timeout}}",
                     extra=self.dictLogger,
                 )
+                continue
+            except queue.Empty:
+                continue
             else:
                 vcu_calib_table_reduced = table.reshape(
                     (
@@ -1904,8 +1924,8 @@ class Avatar(abc.ABC):
                     extra=self.dictLogger,
                 )
 
-                try:
-                    with flash_conn:
+                with flash_conn:
+                    try:
                         ret_str = check_type(
                             self.remotecan_client, RemoteCanClient
                         ).send_torque_map(
@@ -1918,45 +1938,45 @@ class Avatar(abc.ABC):
                             swap=False,
                             timeout=timeout,
                         )
+                        logger_flash.info(
+                            f"{{'header': 'flash ends', " f"'ret_str': '{ret_str}'}}",
+                            extra=self.dictLogger,
+                        )
+                    except RemoteCanException as exc:
+                        logger_flash.error(
+                            f"{{'header': 'send_torque_map failed and retry', "
+                            f"'ret_code': '{exc.err_code}', "
+                            f"'ret_str': '{exc.codes[exc.err_code]}', "
+                            f"'extra_str': '{exc.extra_msg}'}}",
+                            extra=self.dictLogger,
+                        )
+                        # if the exception is connection related, ping the server to get further information.
+                        if exc.err_code in (
+                            1,
+                            1000,
+                            1002,
+                        ):  # connection related exceptions
+                            response = os.system("ping -c 1 " + self.can_server.Host)
+                            if response == 0:
+                                logger_flash.info(
+                                    f"{{'header': 'Can server is up!', "
+                                    f"'host': '{self.can_server.Host}'}}",
+                                    extra=self.dictLogger,
+                                )
+                            else:
+                                logger_flash.info(
+                                    f"{{'header': 'Can server is down!', "
+                                    f"'host': '{self.can_server.Host}'}}",
+                                    extra=self.dictLogger,
+                                )
+                    except Exception as exc:
+                        raise exc  # raise other exceptions to propagate
+                    # time.sleep(1.0)
                     logger_flash.info(
-                        f"{{'header': 'flash ends', " f"'ret_str': '{ret_str}'}}",
+                        f"{{'header': 'flash done', " f"'count': {flash_count}'}}",
                         extra=self.dictLogger,
                     )
-                except RemoteCanException as exc:
-                    logger_flash.error(
-                        f"{{'header': 'send_torque_map failed and retry', "
-                        f"'ret_code': '{exc.err_code}', "
-                        f"'ret_str': '{exc.codes[exc.err_code]}', "
-                        f"'extra_str': '{exc.extra_msg}'}}",
-                        extra=self.dictLogger,
-                    )
-                    # if the exception is connection related, ping the server to get further information.
-                    if exc.err_code in (
-                        1,
-                        1000,
-                        1002,
-                    ):  # connection related exceptions
-                        response = os.system("ping -c 1 " + self.can_server.Host)
-                        if response == 0:
-                            logger_flash.info(
-                                f"{{'header': 'Can server is up!', "
-                                f"'host': '{self.can_server.Host}'}}",
-                                extra=self.dictLogger,
-                            )
-                        else:
-                            logger_flash.info(
-                                f"{{'header': 'Can server is down!', "
-                                f"'host': '{self.can_server.Host}'}}",
-                                extra=self.dictLogger,
-                            )
-                except Exception as exc:
-                    raise exc  # raise other exceptions to propagate
-                # time.sleep(1.0)
-                logger_flash.info(
-                    f"{{'header': 'flash done', " f"'count': {flash_count}'}}",
-                    extra=self.dictLogger,
-                )
-                flash_count += 1
+                    flash_count += 1
 
                 # flash is done and unlock remote_get
                 with check_type(self.flash_env_lock, Lock):
