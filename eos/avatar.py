@@ -2099,15 +2099,15 @@ class Avatar(abc.ABC):
                 dtype=np.float32,
             )  # first zero last_actions is a 3D tensor
             prev_action = assemble_action_ser(
-                zero_torque_map_line,
-                self.agent.torque_table_row_names,
-                table_start,
-                flash_start_ts,
-                flash_end_ts,
-                self.truck.torque_table_row_num_flash,
-                self.truck.torque_table_col_num,
-                self.truck.speed_scale,
-                self.truck.pedal_scale,
+                torque_map_line=zero_torque_map_line,
+                torque_table_row_names=self.agent.torque_table_row_names,
+                table_start=0,
+                flash_start_ts=prev_timestamp,
+                flash_end_ts=datetime.now(),
+                torque_table_row_num_flash=self.truck.torque_table_row_num_flash,
+                torque_table_col_num=self.truck.torque_table_col_num,
+                speed_scale=self.truck.speed_scale,
+                pedal_scale=self.truck.pedal_scale,
             )  # a_{-1}
             # reward is measured in next step
 
