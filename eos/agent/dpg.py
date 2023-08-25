@@ -190,7 +190,8 @@ class DPG(abc.ABC):
         state_index = [(state.name, *i) for i in state.index]
         reward_index = [(reward.name, *i) for i in reward.index]
         action_index = [(action.name, *i) for i in action.index]
-        nstate_index = [(nstate.name, *i) for i in nstate.index]
+        # nstate.name = 'nstate'  # fix: to distinguish from state
+        nstate_index = [('nstate', *i) for i in nstate.index]
 
         multiindex = pd.MultiIndex.from_tuples(
             [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]
