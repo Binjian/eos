@@ -704,7 +704,7 @@ class Avatar(abc.ABC):
                         # DONE add logic for episode valid and invalid
                         try:
                             if self.get_truck_status_start:  # starts episode
-                                ts = datetime.now().timestamp()
+                                ts = pd.to_datetime(datetime.now())
                                 velocity = float(value["velocity"])
                                 pedal = float(value["pedal"])
                                 brake = float(value["brake_pressure"])
@@ -2122,8 +2122,8 @@ class Avatar(abc.ABC):
                 torque_map_line=zero_torque_map_line,
                 torque_table_row_names=self.agent.torque_table_row_names,
                 table_start=0,
-                flash_start_ts=prev_timestamp,
-                flash_end_ts=datetime.now(),
+                flash_start_ts=pd.to_datetime(prev_timestamp),
+                flash_end_ts=pd.to_datetime(datetime.now()),
                 torque_table_row_num_flash=self.truck.torque_table_row_num_flash,
                 torque_table_col_num=self.truck.torque_table_col_num,
                 speed_scale=self.truck.speed_scale,
