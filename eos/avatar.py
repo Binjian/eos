@@ -2328,9 +2328,10 @@ class Avatar(abc.ABC):
 
             self.agent.end_episode()  # deposit history
 
-            self.logger.info(
-                f"{{'header': 'Episode end.', " f"'episode': {epi_cnt}, ",
-                f"'timestamp': {datetime.now()}}}",
+            self.logger_control_flow.info(
+                f"{{'header': 'Episode end.', "
+                f"'episode': '{epi_cnt}', "
+                f"'timestamp': '{datetime.now()}'}}",
                 extra=self.dictLogger,
             )
 
