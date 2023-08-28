@@ -2441,6 +2441,11 @@ class Avatar(abc.ABC):
         #         step=epi_cnt_local,
         #         profiler_out_dir=self.train_log_dir,
         #     )
+        self.agent.buffer.close()
+
+        self.logger_control_flow.info(
+            f"{{'header': 'Close Buffer, pool!'}}", extra=self.dictLogger
+        )
         self.thr_observe.join()
         if self.cloud:
             self.thr_remote_get.join()
