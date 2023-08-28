@@ -278,6 +278,10 @@ class DDPG(DPG):
         # super().__post_init__()
         self.touch_gpu()
 
+        self.logger.info(
+            f"{{'header': 'GPU Initialization done!'}}",
+            extra=self.dictLogger,
+        )
     # def __del__(self):
     #     if self.db_key:
     #         # for database, exit needs drop interface.

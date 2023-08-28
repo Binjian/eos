@@ -279,12 +279,12 @@ class Avatar(abc.ABC):
         )
 
         self.init_vehicle()
-        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
-        self.vcu_calib_table_row_start = 0
         self.logger_control_flow.info(
-            f"{{'header': 'VCU and GPU Initialization done!'}}",
+            f"{{'header': 'VCU Initialization done!'}}",
             extra=self.dictLogger,
         )
+        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
+        self.vcu_calib_table_row_start = 0
         self.init_threads_data()
         self.logger_control_flow.info(
             f"{{'header': 'Thread data Initialization done!'}}",
