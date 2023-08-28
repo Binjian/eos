@@ -219,11 +219,11 @@ class DPG(abc.ABC):
         """
 
         episode = encode_episode_dataframe_from_series(
-            self.observations,
-            self.torque_table_row_names,
-            self.episode_start_dt,
-            self.truck.vid,
-            self.driver.pid,
+            observations=self.observations,
+            torque_table_row_names=self.torque_table_row_names,
+            episode_start_dt=self.episode_start_dt,
+            driver_str=self.driver.pid,
+            truck_str=self.truck.vid,
         )
         self.buffer.store(episode)
 
