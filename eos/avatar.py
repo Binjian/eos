@@ -133,8 +133,6 @@ class Avatar(abc.ABC):
     resume: bool = True
     infer_mode: bool = False
     record: bool = True
-    path: str = "."
-    proj_root: Path = Path(".")
     data_root: Path = Path(".") / "data"
     table_root: Path = Path(".") / "tables"
     program_start: bool = False
@@ -180,10 +178,10 @@ class Avatar(abc.ABC):
     def __post_init__(
         self,
     ):
-        self.repo = Repo(self.proj_root)
+        self.repo = Repo(proj_root)
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
         print(
-            f"project root: {self.proj_root}, git head: {str(self.repo.head.commit)[:7]}, "
+            f"project root: {proj_root}, git head: {str(self.repo.head.commit)[:7]}, "
             f"author: {self.repo.head.commit.author}, "
             f"git message: {self.repo.head.commit.message}"
         )
@@ -196,21 +194,12 @@ class Avatar(abc.ABC):
         self.dictLogger = dictLogger
         # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
 
-        if self.resume:
-            self.data_root = proj_root.joinpath(
-                "data/" + self.truck.vin + "−" + self.driver.pid
-            ).joinpath(self.path)
-        else:
-            self.data_root = proj_root.joinpath(
-                "data/scratch/" + self.truck.vin + "−" + self.driver.pid
-            ).joinpath(self.path)
-
         self.set_logger()
         self.logger_control_flow.info(
             f"{{'header': 'Start Logging'}}", extra=self.dictLogger
         )
         self.logger_control_flow.info(
-            f"{{'project_root': '{self.proj_root}', "
+            f"{{'project_root': '{proj_root}', "
             f"'git_head': {str(self.repo.head.commit)[:7]}, "
             f"'author': '{self.repo.head.commit.author}', "
             f"'git_message': '{self.repo.head.commit.message}'}}",
@@ -425,7 +414,7 @@ class Avatar(abc.ABC):
                     extra=self.dictLogger,
                 )
                 latest_file = (
-                    self.proj_root / "eos/data_io/config" / "vb7_init_table.csv"
+                    proj_root / "eos/data_io/config" / "vb7_init_table.csv"
                 )
             else:
                 self.logger.info(
@@ -438,7 +427,7 @@ class Avatar(abc.ABC):
                 f"{{'header': 'Use default calibration table'}}",
                 extra=self.dictLogger,
             )
-            latest_file = self.proj_root / "eos/data_io/config" / "vb7_init_table.csv"
+            latest_file = proj_root / "eos/data_io/config" / "vb7_init_table.csv"
 
         self.vcu_calib_table0 = pd.read_csv(latest_file, index_col=0)
 
@@ -2597,6 +2586,16 @@ if __name__ == "__main__":
         logger.info(f"Trip Server found: {trip_server.SRVName}", extra=dictLogger)
 
     assert args.agent in ["ddpg", "rdpg"], "agent must be either ddpg or rdpg"
+
+    if args.resume:
+        data_root = proj_root.joinpath(
+            "data/" + truck.vin + "-" + driver.pid
+        ).joinpath(args.data_path)
+    else:  # from scratch
+        data_root = proj_root.joinpath(
+            "data/scratch" + truck.vin + "-" + driver.pid
+        ).joinpath(args.data_path)
+
     if args.agent == "ddpg":
         agent: DDPG = DDPG(
             _coll_type="RECORD",
@@ -2604,7 +2603,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=args.data_path,
+            _data_folder=data_root,
             _infer_mode=args.infer_mode,
         )
     else:  # args.agent == 'rdpg':
@@ -2614,7 +2613,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=args.data_path,
+            _data_folder=data_root,
             _infer_mode=args.infer_mode,
         )
 
@@ -2630,8 +2629,7 @@ if __name__ == "__main__":
             resume=args.resume,
             infer_mode=args.infer_mode,
             record=args.record_table,
-            path=args.data_path,
-            proj_root=proj_root,
+            data_root=data_root,
             logger=logger,
         )
     except TypeError as e:
