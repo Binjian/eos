@@ -222,24 +222,25 @@ class RDPG(DPG):
         self.touch_gpu()
 
     def __repr__(self):
-        return f"RDPG({self.truck.name}, {self.driver})"
+        return f"RDPG({self.truck.vid}, {self.driver.pid})"
 
     def __str__(self):
         return "RDPG"
+
+    def __hash__(self):
+        return hash(self.__repr__())
 
     def touch_gpu(self):
         # tf.summary.trace_on(graph=true, profiler=true)
         # ignites manual loading of tensorflow library, \
         # to guarantee the real-time processing of first data in main thread
-        init_motion_power = np.random.rand(self.truck.observation_numel)
-        init_states = tf.convert_to_tensor(
-            init_motion_power
+        init_states = pd.Series(
+            np.random.rand(self.truck.observation_numel)
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        input_array = tf.cast(init_states, dtype=tf.float32)
 
         # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
 
-        _ = self.actor_predict(input_array)
+        _ = self.actor_predict(init_states)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor",
             extra=self.dictLogger,
@@ -321,7 +322,8 @@ class RDPG(DPG):
     def actor_predict(self, state: pd.Series) -> np.ndarray:
         """
         evaluate the actors given a single observations.
-        batchsize is 1.
+        batch size cannot be 1.
+        For LSTM to be stateful, batch size must match the training scheme.
         """
 
         # get the current episode so far from self.observations stored by DPG.deposit()
@@ -329,29 +331,36 @@ class RDPG(DPG):
         # self.state_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
 
-        states = tf.expand_dims(
-            tf.expand_dims(
-                tf.convert_to_tensor(state.values),
-                axis=0,  # state is Multi-Indexed Series, its values are flatted
+        # expand states to 3D tensor [4, 1, 600] for cloud / [4, 1, 90] for kvaser
+        states = tf.convert_to_tensor(
+            np.outer(
+                np.ones(self.hyper_param.BatchSize),
+                np.expand_dims(state.values, axis=0),
             ),
-        )  # add batch and time dimension twice at axis 0, so that states is a 3D tensor
+            dtype=tf.float32,
+        )
+
+        # expand actions to 3D tensor [4, 1, 68] for cloud / [4, 1, 68] for kvaser
         idx = pd.IndexSlice
         try:
-            last_actions = tf.expand_dims(
-                tf.expand_dims(
-                    self.observations[-1]  # last observation contains last action!
-                    .sort_index()
-                    .loc[idx['action', self.torque_table_row_names, :]]
-                    .values.astype(np.float32),  # type convert to float32
-                    axis=0,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
-                ),  # get last_actions from last observation,
-                axis=0,  # and add batch and time dimension twice at axis 0
+            last_actions = tf.convert_to_tensor(
+                np.outer(
+                    np.ones(self.hyper_param.BatchSize),
+                    np.expand_dims(
+                        self.observations[-1]  # last observation contains last action!
+                        .sort_index()
+                        .loc[idx["action", self.torque_table_row_names, :]]
+                        .values.astype(np.float32),  # type convert to float32
+                        axis=0,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
+                    )  # get last_actions from last observation,
+                ),
+                dtype=tf.float32,  # and add batch and time dimension twice at axis 0
             )  # so that last_actions is a 3D tensor
         except (
             IndexError
         ):  # if no last action in case of the first step of the episode, then use zeros
             last_actions = tf.zeros(
-                shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
+                shape=(self.hyper_param.BatchSize, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
                 dtype=tf.float32,
             )  # first zero last_actions is a 3D tensor
         self.logger.info(

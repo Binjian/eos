@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Hashable
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -30,11 +31,14 @@ from eos.utils.eos_pandas import encode_episode_dataframe_from_series
 
 
 @dataclass(kw_only=True)
-class DPG(abc.ABC):
+class DPG(Hashable):
     """Base class for differentiable policy gradient methods."""
 
+    # truck_type: ClassVar[Truck] = trucks_by_id[
+    #     "default"
+    # ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
     truck_type: ClassVar[Truck] = trucks_by_id[
-        "default"
+        "VB7_FIELD"
     ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
 
     _truck: Truck
