@@ -1,3 +1,2 @@
-from .hyperparams import (HyperParamDDPG, HyperParamDPG,  # type: ignore
-                         HyperParamRDPG)
+from .hyperparams import HyperParamDDPG, HyperParamDPG, HyperParamRDPG  # type: ignore
 from .ou_noise import OUActionNoise  # type: ignore

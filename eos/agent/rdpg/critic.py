@@ -6,6 +6,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
+
 # local imports
 from eos.utils import dictLogger, logger
 from eos.utils.exception import ReadOnlyError
@@ -28,7 +29,7 @@ class CriticNet:
         padding_value: float = 0.0,
         tau: float = 0.0,
         lr: float = 0.0,
-        ckpt_dir: Path = Path('.'),
+        ckpt_dir: Path = Path("."),
         ckpt_interval: int = 0,
     ):
         """Initialize the critic network.
@@ -51,9 +52,15 @@ class CriticNet:
         self._tau = tau
         self._padding_value = padding_value
 
-        states = keras.layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
-        last_actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
-        actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="actions")
+        states = keras.layers.Input(
+            batch_shape=(batch_size, None, state_dim), name="states"
+        )
+        last_actions = keras.layers.Input(
+            batch_shape=(batch_size, None, action_dim), name="last_actions"
+        )
+        actions = keras.layers.Input(
+            batch_shape=(batch_size, None, action_dim), name="actions"
+        )
         # concatenate state and action along the feature dimension
         # both state and action are from padded minibatch, only for training
         inputs_state_action = keras.layers.Concatenate(axis=-1)(
@@ -63,7 +70,10 @@ class CriticNet:
         # the last one is the current action before the env update
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = keras.layers.Masking(mask_value=self.padding_value, input_shape=(batch_size, None, state_dim+2*action_dim))(
+        x = keras.layers.Masking(
+            mask_value=self.padding_value,
+            input_shape=(batch_size, None, state_dim + 2 * action_dim),
+        )(
             inputs_state_action
         )  # input (observation) padded with -10000.0
 
@@ -88,7 +98,7 @@ class CriticNet:
             return_sequences=False,
             return_state=False,
             stateful=True,
-            name=f"lstm_{n_layers - 1}"
+            name=f"lstm_{n_layers - 1}",
         )(
             x
         )  # stateful for batches of long sequences, and inference with single time step
@@ -141,10 +151,10 @@ class CriticNet:
 
     def save_ckpt(self):
         self.ckpt.step.assign_add(1)  # type: ignore
-        if int(self.ckpt.step) % self.ckpt_interval == 0:   # type: ignore
+        if int(self.ckpt.step) % self.ckpt_interval == 0:  # type: ignore
             save_path = self.ckpt_manager.save()
             logger.info(
-                f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",   # type: ignore
+                f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",  # type: ignore
                 extra=dictLogger,
             )
 

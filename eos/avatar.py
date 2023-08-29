@@ -2120,12 +2120,11 @@ class Avatar(abc.ABC):
             )  # a_{-1}
             # reward is measured in next step
 
-            # self.logger_control_flow.info(
-            #     f"{{'header': 'start', "
-            #     f"'step': {step_count}, "
-            #     f"'episode': {epi_cnt}}}",
-            #     extra=self.dictLogger,
-            # )
+            self.logger_control_flow.info(
+                f"{{'header': 'episode init done!', "
+                f"'episode': {epi_cnt}}}",
+                extra=self.dictLogger,
+            )
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (

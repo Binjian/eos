@@ -4,11 +4,11 @@ from .rdpg.rdpg import RDPG
 from .utils import HyperParamDDPG, HyperParamDPG, HyperParamRDPG, OUActionNoise
 
 __all__ = [
-    'DPG',
-    'DDPG',
-    'RDPG',
-    'OUActionNoise',
-    'HyperParamDPG',
-    'HyperParamDDPG',
-    'HyperParamRDPG',
+    "DPG",
+    "DDPG",
+    "RDPG",
+    "OUActionNoise",
+    "HyperParamDPG",
+    "HyperParamDDPG",
+    "HyperParamRDPG",
 ]

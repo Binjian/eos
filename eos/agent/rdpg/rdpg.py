@@ -54,7 +54,7 @@ actor_net_default = ActorNet(
     hyper_param_default.PaddingValue,  # -10000
     hyper_param_default.TauActor,  # 0.005
     hyper_param_default.ActorLR,  # 0.001
-    Path('./actor'),
+    Path("./actor"),
     hyper_param_default.CkptInterval,  # 5
 )
 
@@ -65,7 +65,7 @@ ckpt_actor_default = tf.train.Checkpoint(
     net=tf.keras.Model(),
 )
 manager_actor_default = tf.train.CheckpointManager(
-    ckpt_actor_default, './actor', max_to_keep=10
+    ckpt_actor_default, "./actor", max_to_keep=10
 )
 
 critic_net_default = CriticNet(
@@ -77,7 +77,7 @@ critic_net_default = CriticNet(
     hyper_param_default.PaddingValue,  # -10000
     hyper_param_default.TauCritic,  # 0.005
     hyper_param_default.CriticLR,  # 0.001
-    Path('./critic'),
+    Path("./critic"),
     hyper_param_default.CkptInterval,  # 5
 )
 critic_optimizer_default = tf.keras.optimizers.Adam(
@@ -89,7 +89,7 @@ ckpt_critic_default = tf.train.Checkpoint(
     net=tf.keras.Model(),
 )
 manager_critic_default = tf.train.CheckpointManager(
-    ckpt_critic_default, './critic', max_to_keep=10
+    ckpt_critic_default, "./critic", max_to_keep=10
 )
 
 
@@ -109,9 +109,9 @@ class RDPG(DPG):
     critic_net: CriticNet = critic_net_default
     target_actor_net: ActorNet = actor_net_default
     target_critic_net: CriticNet = critic_net_default
-    _ckpt_actor_dir: Path = Path('')
-    _ckpt_critic_dir: Path = Path('')
-    logger: logging.Logger = logging.Logger('eos.agent.rdpg.rdpg')
+    _ckpt_actor_dir: Path = Path("")
+    _ckpt_critic_dir: Path = Path("")
+    logger: logging.Logger = logging.Logger("eos.agent.rdpg.rdpg")
 
     def __post_init__(
         self,
@@ -265,9 +265,8 @@ class RDPG(DPG):
     def init_checkpoint(self):
         # actor create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_actor_dir = (
-            self.data_folder
-            + "-"
+        self._ckpt_actor_dir = Path(self.data_folder).joinpath(
+            "tf_ckpts-"
             + self.__str__()
             + "-"
             + self.truck.vid
@@ -293,9 +292,8 @@ class RDPG(DPG):
 
         # critic create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_critic_dir = (
-            self.data_folder
-            + "-"
+        self._ckpt_critic_dir = Path(self.data_folder).joinpath(
+            "tf_ckpts-"
             + self.__str__()
             + "-"
             + self.truck.vid
@@ -415,7 +413,7 @@ class RDPG(DPG):
             # after padding all observations have the same length (the length of  the longest episode)
         )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split
         self.logger.info(
-            f"{{\'header\': \'Batch splitting\', " f"\'split_num\': \'{split_num}\'}}",
+            f"{{'header': 'Batch splitting', " f"'split_num': '{split_num}'}}",
             extra=self.dictLogger,
         )
         if split_num <= 0:

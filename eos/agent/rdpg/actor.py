@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
+
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
 from eos.utils import dictLogger, logger
@@ -53,8 +54,12 @@ class ActorNet:
         self._n_layers = n_layers
         self._tau = tau
 
-        states = keras.layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
-        last_actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
+        states = keras.layers.Input(
+            batch_shape=(batch_size, None, state_dim), name="states"
+        )
+        last_actions = keras.layers.Input(
+            batch_shape=(batch_size, None, action_dim), name="last_actions"
+        )
 
         inputs = [
             states,
@@ -65,7 +70,10 @@ class ActorNet:
         )  # feature dimension would be [states + actions]
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = keras.layers.Masking(mask_value=padding_value, input_shape=(batch_size, None, state_dim+action_dim))(
+        x = keras.layers.Masking(
+            mask_value=padding_value,
+            input_shape=(batch_size, None, state_dim + action_dim),
+        )(
             x
         )  # input (observation) padded with -10000.0, on the time dimension
 
