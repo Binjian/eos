@@ -938,7 +938,7 @@ class Avatar(abc.ABC):
                         )
                         # np.save(last_table_store_path, vcu_calib_table1)
                     logger_flash.info(
-                        f"{{'header': 'E{epi_cnt} done with record instant table: {step_count}'}}",
+                        f"{{'header': 'E{epi_cnt} got record instant table: {step_count}'}}",
                         extra=self.dictLogger,
                     )
 
@@ -2131,12 +2131,12 @@ class Avatar(abc.ABC):
             )  # a_{-1}
             # reward is measured in next step
 
-            self.logger_control_flow.info(
-                f"{{'header': 'start', "
-                f"'step': {step_count}, "
-                f"'episode': {epi_cnt}}}",
-                extra=self.dictLogger,
-            )
+            # self.logger_control_flow.info(
+            #     f"{{'header': 'start', "
+            #     f"'step': {step_count}, "
+            #     f"'episode': {epi_cnt}}}",
+            #     extra=self.dictLogger,
+            # )
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Union
+from typeguard import check_type
 
 import numpy as np
 import pandas as pd
@@ -282,6 +283,7 @@ class DDPG(DPG):
             f"{{'header': 'GPU Initialization done!'}}",
             extra=self.dictLogger,
         )
+
     # def __del__(self):
     #     if self.db_key:
     #         # for database, exit needs drop interface.
@@ -668,14 +670,19 @@ class DDPG(DPG):
         # We make sure action is within bounds
         # legal_action = np.clip(sampled_actions, action_lower, action_upper)
         # get flat interleaved (not column-wise stacked) tensor from dataframe
+        state_flat = None
         try:
             state_flat = tf.convert_to_tensor(
                 state.values, dtype=tf.float32
             )  # pd.Series values already flattened.
         except Exception as e:
             print(f"Exception: {e}")
-        states = tf.expand_dims(state_flat, 0)  # motion states is 30*3 matrix
+
+        states = tf.expand_dims(
+            check_type(state_flat, tf.Tensor), 0
+        )  # motion states is 30*3 matrix
         sampled_actions = self.infer_single_sample(states)
+        self.logger.info(f"Inference DDPG done!", extra=dictLogger)
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
