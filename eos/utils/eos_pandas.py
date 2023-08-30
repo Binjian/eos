@@ -1,10 +1,10 @@
 from datetime import datetime
 from functools import reduce
 from typing import Dict, List, Union, cast
-
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+from itertools import accumulate
+import operator
 from tensorflow import keras
 
 
@@ -31,7 +31,7 @@ def assemble_state_ser(state_columns: pd.DataFrame) -> pd.Series:
 
 
 def assemble_reward_ser(
-    power_columns: pd.DataFrame, obs_sampling_rate: int
+        power_columns: pd.DataFrame, obs_sampling_rate: int
 ) -> pd.Series:
     """
     assemble reward df from motion_power df
@@ -43,7 +43,7 @@ def assemble_reward_ser(
 
     ui_sum = power_columns.prod(axis=1).sum()
     wh = (
-        ui_sum / 3600.0 / obs_sampling_rate
+            ui_sum / 3600.0 / obs_sampling_rate
     )  # rate 0.05 for kvaser, 0.02 remote # negative wh
     work = wh * (-1.0)
     reward_ts = pd.to_datetime(datetime.now())
@@ -62,15 +62,15 @@ def assemble_reward_ser(
 
 
 def assemble_action_ser(
-    torque_map_line: np.ndarray,
-    torque_table_row_names: list[str],
-    table_start: int,
-    flash_start_ts: pd.Timestamp,
-    flash_end_ts: pd.Timestamp,
-    torque_table_row_num_flash: int,
-    torque_table_col_num: int,
-    speed_scale: tuple,
-    pedal_scale: tuple,
+        torque_map_line: np.ndarray,
+        torque_table_row_names: list[str],
+        table_start: int,
+        flash_start_ts: pd.Timestamp,
+        flash_end_ts: pd.Timestamp,
+        torque_table_row_num_flash: int,
+        torque_table_col_num: int,
+        speed_scale: tuple,
+        pedal_scale: tuple,
 ) -> pd.Series:
     """
     generate action df from torque_map_line
@@ -81,7 +81,7 @@ def assemble_action_ser(
     # assemble_action_df
     row_num = torque_table_row_num_flash
     speed_ser = pd.Series(
-        speed_scale[table_start : table_start + torque_table_row_num_flash],
+        speed_scale[table_start: table_start + torque_table_row_num_flash],
         name='speed',
     )
     throttle_ser = pd.Series(pedal_scale, name='throttle')
@@ -142,7 +142,7 @@ def nest(d: dict) -> dict:
         target = result
         for k in key[:-1]:
             target = target.setdefault(k, {})
-        target[str(key[-1])] = value   # for mongo only string keys are allowed.
+        target[str(key[-1])] = value  # for mongo only string keys are allowed.
     return result
 
 
@@ -229,7 +229,7 @@ def avro_ep_encoding(episode: pd.DataFrame) -> list[Dict]:
     array_of_dict = [
         {
             'timestamp': idx['timestamp'].timestamp()
-            * 1e6,  # convert to microsecond long integer
+                         * 1e6,  # convert to microsecond long integer
             **dict_nested[
                 key
             ],  # merge the nested dict with the timestamp, as flat as possible
@@ -292,8 +292,8 @@ def avro_ep_decoding(episodes: list[Dict]) -> list[pd.DataFrame]:
 
 
 def decode_mongo_records(
-    df: pd.DataFrame,
-    torque_table_row_names: list[str],
+        df: pd.DataFrame,
+        torque_table_row_names: list[str],
 ) -> tuple[
     list[pd.DataFrame], list[pd.DataFrame], list[pd.DataFrame], list[pd.DataFrame]
 ]:
@@ -401,42 +401,57 @@ def decode_mongo_records(
 
 
 def decode_mongo_episodes(
-    df: pd.DataFrame,
-) -> pd.DataFrame:
+        df: pd.DataFrame,
+) -> (pd.DataFrame, list[int]):
     """
     decoding the batch RECORD observations from mongodb nested dicts to pandas dataframe
     (EPISODE doesn't need decoding, it is already a dataframe)
     TODO need to check whether sort_index is necessary"""
+    decoded_list = []
+    idx_len_list = []
+    for i in df.index:
+        dict_observations = {
+            (
+                meta['vehicle'],
+                meta['driver'],
+                meta['episodestart'],
+                timestamp,
+                qtuple,
+                rows,
+                idx,
+            ): value
+            for meta, obs in zip(df['meta'], df['observation'])
+            for timestamp, obs1 in obs.items()
+            for qtuple, obs2 in obs1.items()  # (state, action, reward, next_state)
+            for rows, obs3 in obs2.items()  # (velocity, thrust, brake), (r0, r1, r2, ...),
+            for idx, value in obs3.items()  # (0, 1, 2, ...)
+        }
 
-    dict_observations = {
-        (
-            meta['vehicle'],
-            meta['driver'],
-            meta['episodestart'],
-            timestamp,
-            qtuple,
-            rows,
-            idx,
-        ): value
-        for meta, obs in zip(df['meta'], df['observation'])
-        for timestamp, obs1 in obs.items()
-        for qtuple, obs2 in obs1.items()  # (state, action, reward, next_state)
-        for rows, obs3 in obs2.items()  # (velocity, thrust, brake), (r0, r1, r2, ...),
-        for idx, value in obs3.items()  # (0, 1, 2, ...)
-    }
-    ser_decoded = pd.Series(dict_observations)
-    ser_decoded.index.names = [
-        'vehicle',
-        'driver',
-        'episodestart',
-        'timestamp',
-        'qtuple',
-        'rows',
-        'idx',
-    ]
-    batch = ser_decoded.unstack(level=['qtuple', 'rows', 'idx'])  # type: ignore
+        ser_decoded = pd.Series(dict_observations)
+        ser_decoded.index.names = [
+            'vehicle',
+            'driver',
+            'episodestart',
+            'timestamp',
+            'qtuple',
+            'rows',
+            'idx',
+        ]
+        decoded = ser_decoded.unstack(level=['qtuple', 'rows', 'idx'])  # type: ignore
+        idx_len_list.append(len(decoded.index))  # type: ignore
+        decoded_list.append(decoded)
 
-    return batch
+    try:
+        batch = reduce(
+            lambda left, right: pd.concat([left, right], axis=0), decoded_list
+        )
+    except Exception as e:
+        raise e
+
+    # batch.sort_index(inplace=True, axis=0)
+    # must not sort_index, otherwise the order of the columns will be changed, if there were duplicated episodes
+
+    return batch, idx_len_list
 
 
 def encode_dataframe_from_parquet(df: pd.DataFrame):
@@ -472,8 +487,8 @@ def encode_dataframe_from_parquet(df: pd.DataFrame):
     return df
 
 
-def decode_episode_dataframes_to_padded_arrays(
-    batch: pd.DataFrame, padding_value: float = -10000.0
+def decode_episode_dataframes_to_padded_arrays_dask(
+        batch: pd.DataFrame, padding_value: float = -10000.0
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
@@ -497,8 +512,8 @@ def decode_episode_dataframes_to_padded_arrays(
 
     # array of states for minibatch
     df_states = batch.loc[
-        :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
-    ]  # same order as inference !!!
+                :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
+                ]  # same order as inference !!!
     states_list = [
         df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
@@ -530,12 +545,76 @@ def decode_episode_dataframes_to_padded_arrays(
     return s_n_t, a_n_t, r_n_t, ns_n_t
 
 
+def decode_episode_dataframes_to_padded_arrays_mongo(
+        batch: pd.DataFrame, idx_len_list: list, padding_value: float = -10000.0
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
+    episodes with variable lengths will turn into ragged arrays with the same raggedness, thus the same maximum length
+    after padding the arrays will have the same shape and padding pattern.
+
+    batch is not sorted and its internal index keeps the index order of the original episodes, not interleaved!
+    idx_len_list: list of lengths of each episode in the batch, use explicit segmentation to avoid the bug,
+    when the batch has duplicated episodes
+    """
+
+    # episodestart_index = batch.index.unique(level='episode_start')
+    # batch.sort_index(inplace=False, axis=0).sort_index(inplace=True, axis=1)
+
+    row_ind_r = list(accumulate(idx_len_list, operator.add))  # get the segmentation in implicit row index
+    row_ind_l = [0] + row_ind_r[:-1]
+    # array of rewards for minibatch
+    idx = pd.IndexSlice
+    df_rewards = batch.loc[:, idx['reward', 'work']]  # type: ignore
+    rewards_list = [
+        df_rewards.iloc[l:r, :].values.tolist()  # type: ignore
+        for l, r in zip(row_ind_l, row_ind_r)
+    ]
+    r_n_t = keras.utils.pad_sequences(
+        rewards_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    # array of states for minibatch
+    df_states = batch.loc[
+                :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
+                ]  # same order as inference !!!
+    states_list = [
+        df_states.iloc[l:r, :].values.tolist()  # type: ignore
+        for l, r in zip(row_ind_l, row_ind_r)
+    ]
+    s_n_t = keras.utils.pad_sequences(
+        states_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    # array of actions for minibatch
+    df_actions = batch.loc[:, idx['action', self.torque_table_row_names]]  # type: ignore
+    actions_list = [
+        df_actions.iloc[l:r, :].values.tolist()  # type: ignore
+        for l, r in zip(row_ind_l, row_ind_r)
+    ]
+    a_n_t = keras.utils.pad_sequences(
+        actions_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    # array of next_states for minibatch
+    df_nstates = batch.loc[:, idx['nstate', ['velocity', 'thrust', 'brake']]]  # type: ignore
+    nstates_list = [
+        df_nstates.iloc[l:r, :].values.tolist()  # type: ignore
+        for l, r in zip(row_ind_l, row_ind_r)
+    ]
+    ns_n_t = keras.utils.pad_sequences(
+        nstates_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    return s_n_t, a_n_t, r_n_t, ns_n_t
+
+
 def encode_episode_dataframe_from_series(
-    observations: List[pd.Series],
-    torque_table_row_names: List[str],
-    episode_start_dt: datetime,
-    driver_str: str,
-    truck_str: str,
+        observations: List[pd.Series],
+        torque_table_row_names: List[str],
+        episode_start_dt: datetime,
+        driver_str: str,
+        truck_str: str,
 ) -> pd.DataFrame:
     """
     encode the list of observations as a dataframe with multi-indexed columns
@@ -556,7 +635,7 @@ def encode_episode_dataframe_from_series(
     reward_cols_float = [("reward", "work")]
     nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
     for col in (
-        action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
+            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
     ):
         episode[col[0], col[1]] = episode[col[0], col[1]].astype(
             "float"
