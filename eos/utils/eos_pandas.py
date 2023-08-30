@@ -488,7 +488,7 @@ def encode_dataframe_from_parquet(df: pd.DataFrame):
 
 
 def decode_episode_dataframes_to_padded_arrays_dask(
-        batch: pd.DataFrame, padding_value: float = -10000.0
+        batch: pd.DataFrame, torque_table_row_names: list[str], padding_value: float = -10000.0
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
@@ -523,7 +523,7 @@ def decode_episode_dataframes_to_padded_arrays_dask(
     )
 
     # array of actions for minibatch
-    df_actions = batch.loc[:, idx['action', self.torque_table_row_names]]  # type: ignore
+    df_actions = batch.loc[:, idx['action', torque_table_row_names]]  # type: ignore
     actions_list = [
         df_actions.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
@@ -546,7 +546,7 @@ def decode_episode_dataframes_to_padded_arrays_dask(
 
 
 def decode_episode_dataframes_to_padded_arrays_mongo(
-        batch: pd.DataFrame, idx_len_list: list, padding_value: float = -10000.0
+        batch: pd.DataFrame, idx_len_list: list, torque_table_row_names: list[str], padding_value: float = -10000.0
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
@@ -565,6 +565,7 @@ def decode_episode_dataframes_to_padded_arrays_mongo(
     row_ind_l = [0] + row_ind_r[:-1]
     # array of rewards for minibatch
     idx = pd.IndexSlice
+    batch.sort_index(inplace=True, axis=1)
     df_rewards = batch.loc[:, idx['reward', 'work']]  # type: ignore
     rewards_list = [
         df_rewards.iloc[l:r, :].values.tolist()  # type: ignore
@@ -587,7 +588,7 @@ def decode_episode_dataframes_to_padded_arrays_mongo(
     )
 
     # array of actions for minibatch
-    df_actions = batch.loc[:, idx['action', self.torque_table_row_names]]  # type: ignore
+    df_actions = batch.loc[:, idx['action', torque_table_row_names]]  # type: ignore
     actions_list = [
         df_actions.iloc[l:r, :].values.tolist()  # type: ignore
         for l, r in zip(row_ind_l, row_ind_r)
