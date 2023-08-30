@@ -331,9 +331,11 @@ class RDPG(DPG):
 
         # expand states to 3D tensor [4, 1, 600] for cloud / [4, 1, 90] for kvaser
         states = tf.convert_to_tensor(
-            np.outer(
-                np.ones(self.hyper_param.BatchSize),
-                np.expand_dims(state.values, axis=0),
+            np.expand_dims(
+                np.outer(
+                    np.ones((self.hyper_param.BatchSize, 1)),
+                    state.values),
+                axis=1,
             ),
             dtype=tf.float32,
         )
@@ -342,16 +344,16 @@ class RDPG(DPG):
         idx = pd.IndexSlice
         try:
             last_actions = tf.convert_to_tensor(
-                np.outer(
-                    np.ones(self.hyper_param.BatchSize),
-                    np.expand_dims(
+                np.expand_dims(
+                    np.outer(
+                        np.ones(self.hyper_param.BatchSize),
                         self.observations[-1]  # last observation contains last action!
                         .sort_index()
                         .loc[idx["action", self.torque_table_row_names, :]]
                         .values.astype(np.float32),  # type convert to float32
-                        axis=0,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
-                    )  # get last_actions from last observation,
-                ),
+                    ),
+                    axis=1,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
+                ),  # get last_actions from last observation,
                 dtype=tf.float32,  # and add batch and time dimension twice at axis 0
             )  # so that last_actions is a 3D tensor
         except (
