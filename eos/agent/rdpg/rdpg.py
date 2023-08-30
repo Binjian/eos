@@ -368,11 +368,12 @@ class RDPG(DPG):
             extra=self.dictLogger,
         )
         # action = self.actor_net.predict(input_array)
-        action = self.actor_predict_step(
+        actions = self.actor_predict_step(
             states, last_actions
         )  # both states and last_actions are 3d tensors [B,T,D]
+        action = actions.numpy()[0, :]   # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
-        return action.numpy()
+        return action
 
     @tf.function(
         input_signature=[
