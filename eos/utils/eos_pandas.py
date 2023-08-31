@@ -410,6 +410,7 @@ def decode_mongo_episodes(
     decoded_list = []
     idx_len_list = []
     for i in df.index:
+        df_row = df.loc[i, :]
         dict_observations = {
             (
                 meta['vehicle'],
@@ -420,7 +421,7 @@ def decode_mongo_episodes(
                 rows,
                 idx,
             ): value
-            for meta, obs in zip(df['meta'], df['observation'])
+            for meta, obs in zip(df_row['meta'], df_row['observation'])
             for timestamp, obs1 in obs.items()
             for qtuple, obs2 in obs1.items()  # (state, action, reward, next_state)
             for rows, obs3 in obs2.items()  # (velocity, thrust, brake), (r0, r1, r2, ...),

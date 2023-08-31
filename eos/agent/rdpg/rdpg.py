@@ -449,7 +449,7 @@ class RDPG(DPG):
                 s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub
             )
             self.logger.info(
-                f"batch actor loss: {actor_loss.numpy()[0]}; batch critic loss: {critic_loss.numpy()[0]}",
+                f"batch actor loss: {actor_loss.numpy()}; batch critic loss: {critic_loss.numpy()}",
                 extra=self.dictLogger,
             )
 
