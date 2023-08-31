@@ -95,7 +95,7 @@ class CriticNet:
         lstm_output = keras.layers.LSTM(
             hidden_dim,
             batch_input_shape=(batch_size, None, hidden_dim),
-            return_sequences=False,
+            return_sequences=True,
             return_state=False,
             stateful=True,
             name=f"lstm_{n_layers - 1}",
@@ -167,7 +167,7 @@ class CriticNet:
                 shape=[None, None, _hyperparams.NActions], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser  last_actions
             tf.TensorSpec(
-                shape=[None, None, _hyperparams.HiddenDimension], dtype=tf.float32
+                shape=[None, None, _hyperparams.NActions], dtype=tf.float32
             ),  # [None, None, 68] for both cloud and kvaser  actions
         ]
     )

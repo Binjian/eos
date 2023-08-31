@@ -474,6 +474,8 @@ class RDPG(DPG):
         self.logger.info(f"start train_step with tracing")
         # logger.info(f"start train_step")
 
+        gamma = tf.convert_to_tensor(self.hyper_param.Gamma, dtype=tf.float32)
+
         with tf.GradientTape() as tape:
             # actions at h_t+1
             self.logger.info(f"start evaluate_actions")
@@ -481,6 +483,7 @@ class RDPG(DPG):
                 ns_n_t[:, 1:, :],  # s_1, s_2, ..., s_n, ...
                 a_n_t[:, 1:, :],  # a_0, a_1, ..., a_{n-1}, ...
             )  # t_actor(h_{t+1}): [h_1(a_0, s_1), h_2(a_1, s_2), ..., h_n(a_{n-1}, s_n), ...]
+            print(f"t_a_ht1.shape: {t_a_ht1.shape}, type: {t_a_ht1.dtype}")
 
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
@@ -489,14 +492,17 @@ class RDPG(DPG):
             t_q_ht1 = self.target_critic_net.evaluate_q(
                 ns_n_t[:, 1:, :], a_n_t[:, 1:, :], t_a_ht1
             )  # t_critic(h_{t+1}, t_actor(h_{t+1})): [h_1(s_1, a_0), h_2(s_2, a_1), ..., h_n(s_n, a_{n-1}), ...]
-            self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
+            # self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
+            print(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1[:, :-1,:].shape}, type: {t_q_ht1.dtype}")
+            print(f"r_n_t.shape: {r_n_t[:,1:,:].shape}, type: {r_n_t.dtype}")
 
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1), target value
             y_n_t = (
-                r_n_t[:, 1:, :] + self.hyper_param.Gamma * t_q_ht1
+                r_n_t[:, 1:, :] + gamma * t_q_ht1[:, :-1, :]
             )  # y0(r_0, Q(h_1,mu(h_1))), y1(r_1, Q(h_2,mu(h_2)), ...)
-            self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
+            # self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
+            print(f"y_n_t.shape: {y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
@@ -511,23 +517,27 @@ class RDPG(DPG):
         self.critic_net.optimizer.apply_gradients(
             zip(critic_grad, self.critic_net.eager_model.trainable_variables)
         )
-        self.logger.info(f"applied critic gradient", extra=dictLogger)
+        # self.logger.info(f"applied critic gradient", extra=dictLogger)
+        print(f"applied critic gradient")
 
         # train actor using bptt
         with tf.GradientTape() as tape:
-            self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
+            # self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
+            print(f"start actor evaluate_actions")
             a_ht = self.actor_net.evaluate_actions(
                 s_n_t[:, 1:, :], a_n_t[:, :-1, :]
             )  # states, last actions: (s_0, a_-1), (s_1, a_0), ..., (s_n, a_{n-1})
-            self.logger.info(
-                f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
-                extra=dictLogger,
-            )
+            # self.logger.info(
+            #     f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
+            #     extra=dictLogger,
+            # )
+            print(f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}")
             q_ht = self.critic_net.evaluate_q(s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_ht)
-            self.logger.info(
-                f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
-                extra=dictLogger,
-            )
+            # self.logger.info(
+            #     f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
+            #     extra=dictLogger,
+            # )
+            print(f"actor evaluate_q done, q_ht.shape: {q_ht.shape}")
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
             # logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht
@@ -543,7 +553,8 @@ class RDPG(DPG):
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
-        self.logger.info(f"applied actor gradient", extra=dictLogger)
+        # self.logger.info(f"applied actor gradient", extra=dictLogger)
+        print(f"applied actor gradient")
 
         return actor_loss, critic_loss
 
