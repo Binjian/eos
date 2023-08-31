@@ -2602,7 +2602,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=data_root,
+            _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
         )
     else:  # args.agent == 'rdpg':
@@ -2612,7 +2612,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=data_root,
+            _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
         )
 

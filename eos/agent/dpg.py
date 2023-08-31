@@ -40,6 +40,7 @@ class DPG(Hashable):
     truck_type: ClassVar[Truck] = trucks_by_id[
         "VB7_FIELD"
     ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
+    hyper_type: ClassVar[HyperParamRDPG] = HyperParamRDPG()
 
     _truck: Truck
     _driver: Driver
@@ -48,16 +49,18 @@ class DPG(Hashable):
     _coll_type: str = (
         "RECORD"  # or 'EPISODE', used for create different buffer and pool
     )
-    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = HyperParamDDPG()
+    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = field(
+        default_factory=HyperParamDDPG
+    )
     _pool_key: str = "mongo_local"  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
     _data_folder: str = "./"
     _infer_mode: bool = False
     # Following are derived from above
-    _observation_meta: Union[
-        ObservationMetaCloud, ObservationMetaECU
-    ] = ObservationMetaCloud()
+    _observation_meta: Union[ObservationMetaCloud, ObservationMetaECU] = field(
+        default_factory=ObservationMetaCloud
+    )
     _episode_start_dt: datetime = datetime.now()
     _resume: bool = True
     _observations: list[pd.Series] = field(default_factory=list[pd.Series])

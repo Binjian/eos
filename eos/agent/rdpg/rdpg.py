@@ -371,7 +371,9 @@ class RDPG(DPG):
         actions = self.actor_predict_step(
             states, last_actions
         )  # both states and last_actions are 3d tensors [B,T,D]
-        action = actions.numpy()[0, :]   # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
+        action = actions.numpy()[
+            0, :
+        ]  # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
         return action
 
@@ -452,19 +454,35 @@ class RDPG(DPG):
             )
 
         # return the last actor and critic loss
-        return actor_loss.numpy()[0], critic_loss.numpy()[0]
+        # return actor_loss.numpy()[0], critic_loss.numpy()[0]
+        return actor_loss.numpy(), critic_loss.numpy()
 
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, DPG.truck_type.observation_numel], dtype=tf.float32
+                shape=[
+                    DPG.hyper_type.BatchSize,
+                    None,
+                    DPG.truck_type.observation_numel,
+                ],
+                dtype=tf.float32,
             ),
             tf.TensorSpec(
-                shape=[None, None, DPG.truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[
+                    DPG.hyper_type.BatchSize,
+                    None,
+                    DPG.truck_type.torque_flash_numel,
+                ],
+                dtype=tf.float32,
             ),
-            tf.TensorSpec(shape=[None, None, 1], dtype=tf.float32),
+            tf.TensorSpec(shape=[DPG.hyper_type.BatchSize, None, 1], dtype=tf.float32),
             tf.TensorSpec(
-                shape=[None, None, DPG.truck_type.observation_numel], dtype=tf.float32
+                shape=[
+                    DPG.hyper_type.BatchSize,
+                    None,
+                    DPG.truck_type.observation_numel,
+                ],
+                dtype=tf.float32,
             ),
         ]
     )
@@ -499,7 +517,7 @@ class RDPG(DPG):
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1), target value
             y_n_t = (
-                r_n_t[:, 1:, :] + gamma * t_q_ht1[:, :-1, :]
+                r_n_t[:, 1:, :] + gamma * t_q_ht1  # fix t_q_ht1[:, :-1, :]!
             )  # y0(r_0, Q(h_1,mu(h_1))), y1(r_1, Q(h_2,mu(h_2)), ...)
             # self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
             print(f"y_n_t.shape: {y_n_t.shape}")
