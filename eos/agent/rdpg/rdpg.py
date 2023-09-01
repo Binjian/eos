@@ -333,8 +333,8 @@ class RDPG(DPG):
         states = tf.convert_to_tensor(
             np.expand_dims(
                 np.outer(
-                    np.ones((self.hyper_param.BatchSize, 1)),
-                    state.values),
+                    np.ones((self.hyper_param.BatchSize, 1)),  # type: ignore
+                    state.values),   # type: ignore
                 axis=1,
             ),
             dtype=tf.float32,

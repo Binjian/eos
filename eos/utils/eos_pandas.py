@@ -31,7 +31,7 @@ def assemble_state_ser(state_columns: pd.DataFrame) -> pd.Series:
 
 
 def assemble_reward_ser(
-        power_columns: pd.DataFrame, obs_sampling_rate: int
+    power_columns: pd.DataFrame, obs_sampling_rate: int
 ) -> pd.Series:
     """
     assemble reward df from motion_power df
@@ -43,7 +43,7 @@ def assemble_reward_ser(
 
     ui_sum = power_columns.prod(axis=1).sum()
     wh = (
-            ui_sum / 3600.0 / obs_sampling_rate
+        ui_sum / 3600.0 / obs_sampling_rate
     )  # rate 0.05 for kvaser, 0.02 remote # negative wh
     work = wh * (-1.0)
     reward_ts = pd.to_datetime(datetime.now())
@@ -62,15 +62,15 @@ def assemble_reward_ser(
 
 
 def assemble_action_ser(
-        torque_map_line: np.ndarray,
-        torque_table_row_names: list[str],
-        table_start: int,
-        flash_start_ts: pd.Timestamp,
-        flash_end_ts: pd.Timestamp,
-        torque_table_row_num_flash: int,
-        torque_table_col_num: int,
-        speed_scale: tuple,
-        pedal_scale: tuple,
+    torque_map_line: np.ndarray,
+    torque_table_row_names: list[str],
+    table_start: int,
+    flash_start_ts: pd.Timestamp,
+    flash_end_ts: pd.Timestamp,
+    torque_table_row_num_flash: int,
+    torque_table_col_num: int,
+    speed_scale: tuple,
+    pedal_scale: tuple,
 ) -> pd.Series:
     """
     generate action df from torque_map_line
@@ -81,7 +81,7 @@ def assemble_action_ser(
     # assemble_action_df
     row_num = torque_table_row_num_flash
     speed_ser = pd.Series(
-        speed_scale[table_start: table_start + torque_table_row_num_flash],
+        speed_scale[table_start : table_start + torque_table_row_num_flash],
         name='speed',
     )
     throttle_ser = pd.Series(pedal_scale, name='throttle')
@@ -229,7 +229,7 @@ def avro_ep_encoding(episode: pd.DataFrame) -> list[Dict]:
     array_of_dict = [
         {
             'timestamp': idx['timestamp'].timestamp()
-                         * 1e6,  # convert to microsecond long integer
+            * 1e6,  # convert to microsecond long integer
             **dict_nested[
                 key
             ],  # merge the nested dict with the timestamp, as flat as possible
@@ -292,8 +292,8 @@ def avro_ep_decoding(episodes: list[Dict]) -> list[pd.DataFrame]:
 
 
 def decode_mongo_records(
-        df: pd.DataFrame,
-        torque_table_row_names: list[str],
+    df: pd.DataFrame,
+    torque_table_row_names: list[str],
 ) -> tuple[
     list[pd.DataFrame], list[pd.DataFrame], list[pd.DataFrame], list[pd.DataFrame]
 ]:
@@ -480,7 +480,9 @@ def encode_dataframe_from_parquet(df: pd.DataFrame):
 
 
 def decode_episode_dataframes_to_padded_arrays_dask(
-        batch: pd.DataFrame, torque_table_row_names: list[str], padding_value: float = -10000.0
+    batch: pd.DataFrame,
+    torque_table_row_names: list[str],
+    padding_value: float = -10000.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
@@ -504,8 +506,8 @@ def decode_episode_dataframes_to_padded_arrays_dask(
 
     # array of states for minibatch
     df_states = batch.loc[
-                :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
-                ]  # same order as inference !!!
+        :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
+    ]  # same order as inference !!!
     states_list = [
         df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
@@ -592,11 +594,11 @@ def decode_episode_dataframes_to_padded_arrays_mongo(
 
 
 def encode_episode_dataframe_from_series(
-        observations: List[pd.Series],
-        torque_table_row_names: List[str],
-        episode_start_dt: datetime,
-        driver_str: str,
-        truck_str: str,
+    observations: List[pd.Series],
+    torque_table_row_names: List[str],
+    episode_start_dt: datetime,
+    driver_str: str,
+    truck_str: str,
 ) -> pd.DataFrame:
     """
     encode the list of observations as a dataframe with multi-indexed columns
@@ -617,7 +619,7 @@ def encode_episode_dataframe_from_series(
     reward_cols_float = [("reward", "work")]
     nstate_cols_float = [("nstate", col) for col in ["brake", "thrust", "velocity"]]
     for col in (
-            action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
+        action_cols_float + state_cols_float + reward_cols_float + nstate_cols_float
     ):
         episode[col[0], col[1]] = episode[col[0], col[1]].astype(
             "float"
