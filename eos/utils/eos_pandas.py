@@ -4,7 +4,6 @@ from typing import Dict, List, Union, cast
 
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 from tensorflow import keras
 
 
@@ -399,44 +398,51 @@ def decode_mongo_records(
 
     return df_states, df_actions, ser_rewards, df_nstates
 
-
 def decode_mongo_episodes(
     df: pd.DataFrame,
-) -> pd.DataFrame:
+) -> list[pd.DataFrame]:
     """
     decoding the batch RECORD observations from mongodb nested dicts to pandas dataframe
     (EPISODE doesn't need decoding, it is already a dataframe)
     TODO need to check whether sort_index is necessary"""
-
-    dict_observations = {
-        (
-            meta['vehicle'],
-            meta['driver'],
-            meta['episodestart'],
-            timestamp,
-            qtuple,
-            rows,
-            idx,
-        ): value
+    dict_observations = [
+        {
+            (
+                meta['vehicle'],
+                meta['driver'],
+                meta['episodestart'],
+                timestamp,
+                qtuple,
+                rows,
+                idx,
+            ): value
+            for timestamp, obs1 in obs.items()
+            for qtuple, obs2 in obs1.items()  # (state, action, reward, next_state)
+            for rows, obs3 in obs2.items()  # (velocity, thrust, brake), (r0, r1, r2, ...),
+            for idx, value in obs3.items()  # (0, 1, 2, ...)
+        }
         for meta, obs in zip(df['meta'], df['observation'])
-        for timestamp, obs1 in obs.items()
-        for qtuple, obs2 in obs1.items()  # (state, action, reward, next_state)
-        for rows, obs3 in obs2.items()  # (velocity, thrust, brake), (r0, r1, r2, ...),
-        for idx, value in obs3.items()  # (0, 1, 2, ...)
-    }
-    ser_decoded = pd.Series(dict_observations)
-    ser_decoded.index.names = [
-        'vehicle',
-        'driver',
-        'episodestart',
-        'timestamp',
-        'qtuple',
-        'rows',
-        'idx',
     ]
-    batch = ser_decoded.unstack(level=['qtuple', 'rows', 'idx'])  # type: ignore
+
+    batch = []
+    for dict_obs in dict_observations:
+        ser_decoded = pd.Series(dict_obs)
+        ser_decoded.index.names = [
+            'vehicle',
+            'driver',
+            'episodestart',
+            'timestamp',
+            'qtuple',
+            'rows',
+            'idx',
+        ]
+        batch.append(ser_decoded.unstack(level=[-3, -2, -1]))   # type: ignore  # qtuple, rows, index
+
+    # batch.sort_index(inplace=True, axis=0)
+    # must not sort_index, otherwise the order of the columns will be changed, if there were duplicated episodes
 
     return batch
+
 
 
 def encode_dataframe_from_parquet(df: pd.DataFrame):
@@ -471,9 +477,8 @@ def encode_dataframe_from_parquet(df: pd.DataFrame):
 
     return df
 
-
-def decode_episode_dataframes_to_padded_arrays(
-    batch: pd.DataFrame, padding_value: float = -10000.0
+def decode_episode_dataframes_to_padded_arrays_dask(
+        batch: pd.DataFrame, torque_table_row_names: list[str], padding_value: float = -10000.0
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
@@ -497,8 +502,8 @@ def decode_episode_dataframes_to_padded_arrays(
 
     # array of states for minibatch
     df_states = batch.loc[
-        :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
-    ]  # same order as inference !!!
+                :, idx['state', ['velocity', 'thrust', 'brake']]  # type: ignore
+                ]  # same order as inference !!!
     states_list = [
         df_states.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
@@ -508,7 +513,7 @@ def decode_episode_dataframes_to_padded_arrays(
     )
 
     # array of actions for minibatch
-    df_actions = batch.loc[:, idx['action', self.torque_table_row_names]]  # type: ignore
+    df_actions = batch.loc[:, idx['action', torque_table_row_names]]  # type: ignore
     actions_list = [
         df_actions.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
@@ -522,6 +527,60 @@ def decode_episode_dataframes_to_padded_arrays(
     nstates_list = [
         df_nstates.loc[idx[:, :, ep_start, :]].values.tolist()  # type: ignore
         for ep_start in episodestart_index
+    ]
+    ns_n_t = keras.utils.pad_sequences(
+        nstates_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    return s_n_t, a_n_t, r_n_t, ns_n_t
+
+
+def decode_episode_dataframes_to_padded_arrays_mongo(
+    batch: list[pd.DataFrame],
+    torque_table_row_names: list[str],
+    padding_value: float = -10000.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    decode the dataframes to 3D numpy arrays [B, T, F] for states, actions, rewards, next_states
+    episodes with variable lengths will turn into ragged arrays with the same raggedness, thus the same maximum length
+    after padding the arrays will have the same shape and padding pattern.
+
+    batch is not sorted and its internal index keeps the index order of the original episodes, not interleaved!
+    idx_len_list: list of lengths of each episode in the batch, use explicit segmentation to avoid the bug,
+    when the batch has duplicated episodes
+    """
+
+    # episodestart_index = batch.index.unique(level='episode_start')
+    # batch.sort_index(inplace=False, axis=0).sort_index(inplace=True, axis=1)
+    # array of rewards for minibatch
+    idx = pd.IndexSlice
+    rewards_list = [ep.loc[:, idx['reward', 'work']].values.tolist() for ep in batch]  # type: ignore
+    r_n_t = keras.utils.pad_sequences(
+        rewards_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    # array of states for minibatch
+    states_list = [
+        ep.loc[:, idx['state', ['velocity', 'thrust', 'brake']]].values.tolist() for ep in batch  # type: ignore
+    ]
+    s_n_t = keras.utils.pad_sequences(
+        states_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    # array of actions for minibatch
+    actions_list = [
+        ep.loc[:, idx['action', torque_table_row_names]].values.tolist()  # type: ignore
+        for ep in batch
+    ]
+    a_n_t = keras.utils.pad_sequences(
+        actions_list, padding='post', dtype=np.float32, value=padding_value
+    )
+
+    # array of next_states for minibatch
+    df_nstates = batch  # type: ignore
+    nstates_list = [
+        ep.loc[:, idx['nstate', ['velocity', 'thrust', 'brake']]].values.tolist()  # type: ignore
+        for ep in batch
     ]
     ns_n_t = keras.utils.pad_sequences(
         nstates_list, padding='post', dtype=np.float32, value=padding_value
