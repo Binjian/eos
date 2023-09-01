@@ -88,12 +88,14 @@ from eos.data_io.config import (
 from eos.data_io.conn import udp_context, tcp_context
 from eos.utils import (
     GracefulKiller,
-    assemble_action_ser,
-    assemble_reward_ser,
-    assemble_state_ser,
     dictLogger,
     logger,
     ragged_nparray_list_interp,
+)
+from eos.data_io.utils import (
+    assemble_action_ser,
+    assemble_reward_ser,
+    assemble_state_ser,
 )
 from eos.visualization import plot_3d_figure, plot_to_image
 
@@ -220,10 +222,10 @@ class Avatar(abc.ABC):
             # reset proxy (internal site force no proxy)
             self.init_cloud()
             assert self.ui in [
-                "cloud",
-                "local",
-                "mobile",
-            ], f"ui must be cloud, local or mobile, not {self.ui}"
+                "RMQ",
+                "TCP",
+                "NUMB",
+            ], f"ui must be RMQ, TCP or NUMB, not {self.ui}"
             if self.ui == "RMQ":
                 self.logger.info(f"{{'header': 'Use phone UI'}}", extra=self.dictLogger)
                 self.get_truck_status = self.remote_hmi_rmq_state_machine
@@ -413,9 +415,7 @@ class Avatar(abc.ABC):
                     f"{{'header': 'No last table found, start from default calibration table'}}",
                     extra=self.dictLogger,
                 )
-                latest_file = (
-                    proj_root / "eos/data_io/config" / "vb7_init_table.csv"
-                )
+                latest_file = proj_root / "eos/data_io/config" / "vb7_init_table.csv"
             else:
                 self.logger.info(
                     f"{{'header': 'Resume last table'}}", extra=self.dictLogger
@@ -2121,8 +2121,7 @@ class Avatar(abc.ABC):
             # reward is measured in next step
 
             self.logger_control_flow.info(
-                f"{{'header': 'episode init done!', "
-                f"'episode': {epi_cnt}}}",
+                f"{{'header': 'episode init done!', " f"'episode': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
             tf.debugging.set_log_device_placement(True)
@@ -2587,9 +2586,9 @@ if __name__ == "__main__":
     assert args.agent in ["ddpg", "rdpg"], "agent must be either ddpg or rdpg"
 
     if args.resume:
-        data_root = proj_root.joinpath(
-            "data/" + truck.vin + "-" + driver.pid
-        ).joinpath(args.data_path)
+        data_root = proj_root.joinpath("data/" + truck.vin + "-" + driver.pid).joinpath(
+            args.data_path
+        )
     else:  # from scratch
         data_root = proj_root.joinpath(
             "data/scratch" + truck.vin + "-" + driver.pid
