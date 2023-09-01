@@ -438,7 +438,9 @@ def decode_mongo_episodes(
             'rows',
             'idx',
         ]
-        batch.append(ser_decoded.unstack(level=[-3, -2, -1]))  # qtuple, rows, index
+        df_decoded = ser_decoded.unstack(level=[-3, -2, -1])
+        # df_decoded.sort_index(inplace=True, axis=1)
+        batch.append(df_decoded)  # qtuple, rows, index
 
     # batch.sort_index(inplace=True, axis=0)
     # must not sort_index, otherwise the order of the columns will be changed, if there were duplicated episodes
@@ -558,6 +560,8 @@ def decode_episode_dataframes_to_padded_arrays_mongo(
     # batch.sort_index(inplace=False, axis=0).sort_index(inplace=True, axis=1)
     # array of rewards for minibatch
     idx = pd.IndexSlice
+    for ep in batch:
+        ep.sort_index(inplace=True, axis=1)
     rewards_list = [ep.loc[:, idx['reward', 'work']].values.tolist() for ep in batch]  # type: ignore
     r_n_t = keras.utils.pad_sequences(
         rewards_list, padding='post', dtype=np.float32, value=padding_value
