@@ -88,12 +88,14 @@ from eos.data_io.config import (
 from eos.data_io.conn import udp_context, tcp_context
 from eos.utils import (
     GracefulKiller,
-    assemble_action_ser,
-    assemble_reward_ser,
-    assemble_state_ser,
     dictLogger,
     logger,
     ragged_nparray_list_interp,
+)
+from eos.data_io.utils import (
+    assemble_action_ser,
+    assemble_reward_ser,
+    assemble_state_ser,
 )
 from eos.visualization import plot_3d_figure, plot_to_image
 
@@ -413,9 +415,7 @@ class Avatar(abc.ABC):
                     f"{{'header': 'No last table found, start from default calibration table'}}",
                     extra=self.dictLogger,
                 )
-                latest_file = (
-                    proj_root / "eos/data_io/config" / "vb7_init_table.csv"
-                )
+                latest_file = proj_root / "eos/data_io/config" / "vb7_init_table.csv"
             else:
                 self.logger.info(
                     f"{{'header': 'Resume last table'}}", extra=self.dictLogger
@@ -2588,9 +2588,9 @@ if __name__ == "__main__":
     assert args.agent in ["ddpg", "rdpg"], "agent must be either ddpg or rdpg"
 
     if args.resume:
-        data_root = proj_root.joinpath(
-            "data/" + truck.vin + "-" + driver.pid
-        ).joinpath(args.data_path)
+        data_root = proj_root.joinpath("data/" + truck.vin + "-" + driver.pid).joinpath(
+            args.data_path
+        )
     else:  # from scratch
         data_root = proj_root.joinpath(
             "data/scratch" + truck.vin + "-" + driver.pid
@@ -2603,7 +2603,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=data_root,
+            _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
         )
     else:  # args.agent == 'rdpg':
@@ -2613,7 +2613,7 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _pool_key=args.pool_key,
-            _data_folder=data_root,
+            _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
         )
 
