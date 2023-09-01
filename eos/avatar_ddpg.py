@@ -6,10 +6,14 @@ from agent.ddpg.ddpg import DDPG  # type: ignore
 from agent.utils import HyperParamDDPG  # type: ignore
 from avatar import Avatar  # type: ignore
 
-from eos import proj_root
-from eos.data_io.config import (Driver, Truck, str_to_can_server,
-                                str_to_driver, str_to_trip_server,
-                                str_to_truck)
+from eos.data_io.config import (
+    Driver,
+    Truck,
+    str_to_can_server,
+    str_to_driver,
+    str_to_trip_server,
+    str_to_truck,
+)
 from eos.utils import dictLogger, logger
 
 
@@ -23,7 +27,6 @@ class AvatarDDPG(Avatar):
             _hyper_param=self.hyper_param,
             _truck=self.truck,
             _driver=self.driver,
-            _pool_key=self.pool_key,
             _data_folder=str(self.data_root),
             _infer_mode=self.infer_mode,
         )
@@ -189,9 +192,7 @@ if __name__ == '__main__':
             resume=args.resume,
             infer_mode=args.infer,
             record=args.record_table,
-            path=args.path,
-            pool_key=args.pool,
-            proj_root=proj_root,
+            data_root=args.path,
             logger=logger,
         )
     except TypeError as e:

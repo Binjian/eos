@@ -3,9 +3,14 @@ import sys
 from dataclasses import dataclass
 
 from eos import proj_root
-from eos.data_io.config import (Driver, Truck, str_to_can_server,
-                                str_to_driver, str_to_trip_server,
-                                str_to_truck)
+from eos.data_io.config import (
+    Driver,
+    Truck,
+    str_to_can_server,
+    str_to_driver,
+    str_to_trip_server,
+    str_to_truck,
+)
 from eos.utils import dictLogger, logger
 
 from .agent.rdpg import RDPG  # type: ignore
@@ -188,9 +193,7 @@ if __name__ == '__main__':
             resume=args.resume,
             infer_mode=args.infer,
             record=args.record_table,
-            path=args.path,
-            pool_key=args.pool,
-            proj_root=proj_root,
+            data_root=args.path,
             logger=logger,
         )
     except TypeError as e:
