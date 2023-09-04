@@ -2335,20 +2335,20 @@ class Avatar(abc.ABC):
                 self.logger_control_flow.info(
                     "{{'header': 'Learning and updating 6 times!'}}"
                 )
-                for k in range(6):
-                    # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    if self.agent.buffer.count() > 0:
+
+                # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
+                if self.agent.buffer.count() > 0:
+                    for k in range(6):
                         (critic_loss, actor_loss) = self.agent.train()
                         self.agent.soft_update_target()
-                    else:
-                        self.logger_control_flow.info(
-                            f"{{'header': 'Buffer empty, no learning!'}}",
-                            extra=self.dictLogger,
-                        )
-                        self.logger_control_flow.info(
-                            "++++++++++++++++++++++++", extra=self.dictLogger
-                        )
-                        break
+                else:
+                    self.logger_control_flow.info(
+                        f"{{'header': 'Buffer empty, no learning!'}}",
+                        extra=self.dictLogger,
+                    )
+                    self.logger_control_flow.info(
+                        "++++++++++++++++++++++++", extra=self.dictLogger
+                    )
                 # Checkpoint manager save model
                 self.agent.save_ckpt()
 
