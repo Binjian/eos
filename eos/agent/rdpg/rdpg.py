@@ -333,7 +333,8 @@ class RDPG(DPG):
             np.expand_dims(
                 np.outer(
                     np.ones((self.hyper_param.BatchSize, 1)),  # type: ignore
-                    state.values),   # type: ignore
+                    state.values,  # type: ignore
+                ),
                 axis=1,
             ),
             dtype=tf.float32,
@@ -359,7 +360,11 @@ class RDPG(DPG):
             IndexError
         ):  # if no last action in case of the first step of the episode, then use zeros
             last_actions = tf.zeros(
-                shape=(self.hyper_param.BatchSize, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
+                shape=(
+                    self.hyper_param.BatchSize,
+                    1,
+                    self.truck.torque_flash_numel,
+                ),  # [1, 1, 4*17]
                 dtype=tf.float32,
             )  # first zero last_actions is a 3D tensor
         self.logger.info(
@@ -392,7 +397,7 @@ class RDPG(DPG):
     ) -> tf.Tensor:
         """
         evaluate the actors given a single observations.
-        batchsize is 1.
+        batch size is 1.
         """
         # logger.info(f"tracing", extra=self.dictLogger)
         print("tracing!")
@@ -460,7 +465,7 @@ class RDPG(DPG):
         input_signature=[
             tf.TensorSpec(
                 shape=[
-                    DPG.hyper_type.BatchSize,
+                    DPG.rdpg_hyper_type.BatchSize,
                     None,
                     DPG.truck_type.observation_numel,
                 ],
@@ -468,16 +473,18 @@ class RDPG(DPG):
             ),
             tf.TensorSpec(
                 shape=[
-                    DPG.hyper_type.BatchSize,
+                    DPG.rdpg_hyper_type.BatchSize,
                     None,
                     DPG.truck_type.torque_flash_numel,
                 ],
                 dtype=tf.float32,
             ),
-            tf.TensorSpec(shape=[DPG.hyper_type.BatchSize, None, 1], dtype=tf.float32),
+            tf.TensorSpec(
+                shape=[DPG.rdpg_hyper_type.BatchSize, None, 1], dtype=tf.float32
+            ),
             tf.TensorSpec(
                 shape=[
-                    DPG.hyper_type.BatchSize,
+                    DPG.rdpg_hyper_type.BatchSize,
                     None,
                     DPG.truck_type.observation_numel,
                 ],
@@ -510,7 +517,9 @@ class RDPG(DPG):
                 ns_n_t[:, 1:, :], a_n_t[:, 1:, :], t_a_ht1
             )  # t_critic(h_{t+1}, t_actor(h_{t+1})): [h_1(s_1, a_0), h_2(s_2, a_1), ..., h_n(s_n, a_{n-1}), ...]
             # self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
-            print(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1[:, :-1,:].shape}, type: {t_q_ht1.dtype}")
+            print(
+                f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1[:, :-1,:].shape}, type: {t_q_ht1.dtype}"
+            )
             print(f"r_n_t.shape: {r_n_t[:,1:,:].shape}, type: {r_n_t.dtype}")
 
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")

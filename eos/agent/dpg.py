@@ -40,7 +40,7 @@ class DPG(Hashable):
     truck_type: ClassVar[Truck] = trucks_by_id[
         "VB7_FIELD"
     ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
-    hyper_type: ClassVar[HyperParamRDPG] = HyperParamRDPG()
+    rdpg_hyper_type: ClassVar[HyperParamRDPG] = HyperParamRDPG()
 
     _truck: Truck
     _driver: Driver
