@@ -25,7 +25,7 @@ from eos.data_io.struct import (
     ObservationMetaECU,
     get_filemeta_config,
 )
-from eos.utils.eos_pandas import encode_episode_dataframe_from_series
+from eos.data_io.utils.eos_pandas import encode_episode_dataframe_from_series
 
 """Base class for differentiable policy gradient methods."""
 
