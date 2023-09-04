@@ -132,8 +132,8 @@ class RDPG(DPG):
         self.hyper_param = HyperParamRDPG(
             HiddenDimension=256,
             PaddingValue=-10000,
-            tbptt_k1=20,
-            tbptt_k2=20,
+            tbptt_k1=200,
+            tbptt_k2=200,
             BatchSize=4,
             NStates=self.truck.observation_numel,
             NActions=self.truck.torque_flash_numel,
@@ -153,11 +153,10 @@ class RDPG(DPG):
             driver=self.driver.pid,
             episodestart_start=veos_lifetime_start_date,
             episodestart_end=veos_lifetime_end_date,
-            seq_len_from=(
-                self.hyper_param.tbptt_k1 - 5  # from 15
-            ),  # sample sequence with a length from 1 to 4*200
-            seq_len_to=self.hyper_param.tbptt_k1 * 2,  # to 40
+            seq_len_from=10,  # from 10  # sample sequence with a length from 1 to 200
+            seq_len_to=self.hyper_param.tbptt_k1 + 100,  # to 300
         )
+        self.buffer.pool.query = self.buffer.query
 
         # actor network (w/ target network)
         self.init_checkpoint()
