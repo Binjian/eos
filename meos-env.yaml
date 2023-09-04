@@ -27,7 +27,7 @@ dependencies:
   - python-json-logger
   - plotly
   - Pillow
-  - pandas=2.0
+  - pandas=2.1
   - ordered-set
   - opt-einsum
   - jupyterlab

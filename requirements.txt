@@ -53,3 +53,10 @@ traitlets
 typing_extensions
 urllib3
 virtualenv
+typeguard
+dask
+pydantic
+ordered-set
+dacite
+onnx
+```

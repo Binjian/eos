@@ -54,7 +54,7 @@ actor_net_default = ActorNet(
     hyper_param_default.PaddingValue,  # -10000
     hyper_param_default.TauActor,  # 0.005
     hyper_param_default.ActorLR,  # 0.001
-    Path('./actor'),
+    Path("./actor"),
     hyper_param_default.CkptInterval,  # 5
 )
 
@@ -65,7 +65,7 @@ ckpt_actor_default = tf.train.Checkpoint(
     net=tf.keras.Model(),
 )
 manager_actor_default = tf.train.CheckpointManager(
-    ckpt_actor_default, './actor', max_to_keep=10
+    ckpt_actor_default, "./actor", max_to_keep=10
 )
 
 critic_net_default = CriticNet(
@@ -77,7 +77,7 @@ critic_net_default = CriticNet(
     hyper_param_default.PaddingValue,  # -10000
     hyper_param_default.TauCritic,  # 0.005
     hyper_param_default.CriticLR,  # 0.001
-    Path('./critic'),
+    Path("./critic"),
     hyper_param_default.CkptInterval,  # 5
 )
 critic_optimizer_default = tf.keras.optimizers.Adam(
@@ -89,7 +89,7 @@ ckpt_critic_default = tf.train.Checkpoint(
     net=tf.keras.Model(),
 )
 manager_critic_default = tf.train.CheckpointManager(
-    ckpt_critic_default, './critic', max_to_keep=10
+    ckpt_critic_default, "./critic", max_to_keep=10
 )
 
 
@@ -109,9 +109,9 @@ class RDPG(DPG):
     critic_net: CriticNet = critic_net_default
     target_actor_net: ActorNet = actor_net_default
     target_critic_net: CriticNet = critic_net_default
-    _ckpt_actor_dir: Path = Path('')
-    _ckpt_critic_dir: Path = Path('')
-    logger: logging.Logger = logging.Logger('eos.agent.rdpg.rdpg')
+    _ckpt_actor_dir: Path = Path("")
+    _ckpt_critic_dir: Path = Path("")
+    logger: logging.Logger = logging.Logger("eos.agent.rdpg.rdpg")
 
     def __post_init__(
         self,
@@ -132,8 +132,8 @@ class RDPG(DPG):
         self.hyper_param = HyperParamRDPG(
             HiddenDimension=256,
             PaddingValue=-10000,
-            tbptt_k1=20,
-            tbptt_k2=20,
+            tbptt_k1=200,
+            tbptt_k2=200,
             BatchSize=4,
             NStates=self.truck.observation_numel,
             NActions=self.truck.torque_flash_numel,
@@ -153,11 +153,10 @@ class RDPG(DPG):
             driver=self.driver.pid,
             episodestart_start=veos_lifetime_start_date,
             episodestart_end=veos_lifetime_end_date,
-            seq_len_from=(
-                self.hyper_param.tbptt_k1 - 5  # from 15
-            ),  # sample sequence with a length from 1 to 4*200
-            seq_len_to=self.hyper_param.tbptt_k1 * 2,  # to 40
+            seq_len_from=10,  # from 10  # sample sequence with a length from 1 to 200
+            seq_len_to=self.hyper_param.tbptt_k1 + 100,  # to 300
         )
+        self.buffer.pool.query = self.buffer.query
 
         # actor network (w/ target network)
         self.init_checkpoint()
@@ -222,24 +221,25 @@ class RDPG(DPG):
         self.touch_gpu()
 
     def __repr__(self):
-        return f"RDPG({self.truck.name}, {self.driver})"
+        return f"RDPG({self.truck.vid}, {self.driver.pid})"
 
     def __str__(self):
         return "RDPG"
+
+    def __hash__(self):
+        return hash(self.__repr__())
 
     def touch_gpu(self):
         # tf.summary.trace_on(graph=true, profiler=true)
         # ignites manual loading of tensorflow library, \
         # to guarantee the real-time processing of first data in main thread
-        init_motion_power = np.random.rand(self.truck.observation_numel)
-        init_states = tf.convert_to_tensor(
-            init_motion_power
+        init_states = pd.Series(
+            np.random.rand(self.truck.observation_numel)
         )  # state must have 30 (speed, throttle, current, voltage) 5 tuple
-        input_array = tf.cast(init_states, dtype=tf.float32)
 
         # init_states = tf.expand_dims(input_array, 0)  # motion states is 30*2 matrix
 
-        _ = self.actor_predict(input_array)
+        _ = self.actor_predict(init_states)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor",
             extra=self.dictLogger,
@@ -264,9 +264,8 @@ class RDPG(DPG):
     def init_checkpoint(self):
         # actor create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_actor_dir = (
-            self.data_folder
-            + "-"
+        self._ckpt_actor_dir = Path(self.data_folder).joinpath(
+            "tf_ckpts-"
             + self.__str__()
             + "-"
             + self.truck.vid
@@ -292,9 +291,8 @@ class RDPG(DPG):
 
         # critic create or restore from checkpoint
         # add checkpoints manager
-        self._ckpt_critic_dir = (
-            self.data_folder
-            + "-"
+        self._ckpt_critic_dir = Path(self.data_folder).joinpath(
+            "tf_ckpts-"
             + self.__str__()
             + "-"
             + self.truck.vid
@@ -321,7 +319,8 @@ class RDPG(DPG):
     def actor_predict(self, state: pd.Series) -> np.ndarray:
         """
         evaluate the actors given a single observations.
-        batchsize is 1.
+        batch size cannot be 1.
+        For LSTM to be stateful, batch size must match the training scheme.
         """
 
         # get the current episode so far from self.observations stored by DPG.deposit()
@@ -329,29 +328,43 @@ class RDPG(DPG):
         # self.state_t[0, 0, :] = obs
         # expand the batch dimension and turn obs_t into a numpy array
 
-        states = tf.expand_dims(
-            tf.expand_dims(
-                tf.convert_to_tensor(state.values),
-                axis=0,  # state is Multi-Indexed Series, its values are flatted
+        # expand states to 3D tensor [4, 1, 600] for cloud / [4, 1, 90] for kvaser
+        states = tf.convert_to_tensor(
+            np.expand_dims(
+                np.outer(
+                    np.ones((self.hyper_param.BatchSize, 1)),  # type: ignore
+                    state.values,  # type: ignore
+                ),
+                axis=1,
             ),
-        )  # add batch and time dimension twice at axis 0, so that states is a 3D tensor
+            dtype=tf.float32,
+        )
+
+        # expand actions to 3D tensor [4, 1, 68] for cloud / [4, 1, 68] for kvaser
         idx = pd.IndexSlice
         try:
-            last_actions = tf.expand_dims(
-                tf.expand_dims(
-                    self.observations[-1]  # last observation contains last action!
-                    .sort_index()
-                    .loc[idx['action', self.torque_table_row_names, :]]
-                    .values.astype(np.float32),  # type convert to float32
-                    axis=0,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
+            last_actions = tf.convert_to_tensor(
+                np.expand_dims(
+                    np.outer(
+                        np.ones(self.hyper_param.BatchSize),
+                        self.observations[-1]  # last observation contains last action!
+                        .sort_index()
+                        .loc[idx["action", self.torque_table_row_names, :]]
+                        .values.astype(np.float32),  # type convert to float32
+                    ),
+                    axis=1,  # observation (with subpart action is Multi-Indexed Series, its values are flatted
                 ),  # get last_actions from last observation,
-                axis=0,  # and add batch and time dimension twice at axis 0
+                dtype=tf.float32,  # and add batch and time dimension twice at axis 0
             )  # so that last_actions is a 3D tensor
         except (
             IndexError
         ):  # if no last action in case of the first step of the episode, then use zeros
             last_actions = tf.zeros(
-                shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
+                shape=(
+                    self.hyper_param.BatchSize,
+                    1,
+                    self.truck.torque_flash_numel,
+                ),  # [1, 1, 4*17]
                 dtype=tf.float32,
             )  # first zero last_actions is a 3D tensor
         self.logger.info(
@@ -359,11 +372,14 @@ class RDPG(DPG):
             extra=self.dictLogger,
         )
         # action = self.actor_net.predict(input_array)
-        action = self.actor_predict_step(
+        actions = self.actor_predict_step(
             states, last_actions
         )  # both states and last_actions are 3d tensors [B,T,D]
+        action = actions.numpy()[
+            0, :
+        ]  # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
         self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
-        return action.numpy()
+        return action
 
     @tf.function(
         input_signature=[
@@ -381,7 +397,7 @@ class RDPG(DPG):
     ) -> tf.Tensor:
         """
         evaluate the actors given a single observations.
-        batchsize is 1.
+        batch size is 1.
         """
         # logger.info(f"tracing", extra=self.dictLogger)
         print("tracing!")
@@ -406,7 +422,7 @@ class RDPG(DPG):
             # after padding all observations have the same length (the length of  the longest episode)
         )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split
         self.logger.info(
-            f"{{\'header\': \'Batch splitting\', " f"\'split_num\': \'{split_num}\'}}",
+            f"{{'header': 'Batch splitting', " f"'split_num': '{split_num}'}}",
             extra=self.dictLogger,
         )
         if split_num <= 0:
@@ -437,24 +453,42 @@ class RDPG(DPG):
                 s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub
             )
             self.logger.info(
-                f"batch actor loss: {actor_loss.numpy()[0]}; batch critic loss: {critic_loss.numpy()[0]}",
+                f"batch actor loss: {actor_loss.numpy()}; batch critic loss: {critic_loss.numpy()}",
                 extra=self.dictLogger,
             )
 
         # return the last actor and critic loss
-        return actor_loss.numpy()[0], critic_loss.numpy()[0]
+        # return actor_loss.numpy()[0], critic_loss.numpy()[0]
+        return actor_loss.numpy(), critic_loss.numpy()
 
     @tf.function(
         input_signature=[
             tf.TensorSpec(
-                shape=[None, None, DPG.truck_type.observation_numel], dtype=tf.float32
+                shape=[
+                    DPG.rdpg_hyper_type.BatchSize,
+                    None,
+                    DPG.truck_type.observation_numel,
+                ],
+                dtype=tf.float32,
             ),
             tf.TensorSpec(
-                shape=[None, None, DPG.truck_type.torque_flash_numel], dtype=tf.float32
+                shape=[
+                    DPG.rdpg_hyper_type.BatchSize,
+                    None,
+                    DPG.truck_type.torque_flash_numel,
+                ],
+                dtype=tf.float32,
             ),
-            tf.TensorSpec(shape=[None, None, 1], dtype=tf.float32),
             tf.TensorSpec(
-                shape=[None, None, DPG.truck_type.observation_numel], dtype=tf.float32
+                shape=[DPG.rdpg_hyper_type.BatchSize, None, 1], dtype=tf.float32
+            ),
+            tf.TensorSpec(
+                shape=[
+                    DPG.rdpg_hyper_type.BatchSize,
+                    None,
+                    DPG.truck_type.observation_numel,
+                ],
+                dtype=tf.float32,
             ),
         ]
     )
@@ -464,6 +498,8 @@ class RDPG(DPG):
         self.logger.info(f"start train_step with tracing")
         # logger.info(f"start train_step")
 
+        gamma = tf.convert_to_tensor(self.hyper_param.Gamma, dtype=tf.float32)
+
         with tf.GradientTape() as tape:
             # actions at h_t+1
             self.logger.info(f"start evaluate_actions")
@@ -471,6 +507,7 @@ class RDPG(DPG):
                 ns_n_t[:, 1:, :],  # s_1, s_2, ..., s_n, ...
                 a_n_t[:, 1:, :],  # a_0, a_1, ..., a_{n-1}, ...
             )  # t_actor(h_{t+1}): [h_1(a_0, s_1), h_2(a_1, s_2), ..., h_n(a_{n-1}, s_n), ...]
+            print(f"t_a_ht1.shape: {t_a_ht1.shape}, type: {t_a_ht1.dtype}")
 
             # state action value at h_t+1
             # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
@@ -479,14 +516,19 @@ class RDPG(DPG):
             t_q_ht1 = self.target_critic_net.evaluate_q(
                 ns_n_t[:, 1:, :], a_n_t[:, 1:, :], t_a_ht1
             )  # t_critic(h_{t+1}, t_actor(h_{t+1})): [h_1(s_1, a_0), h_2(s_2, a_1), ..., h_n(s_n, a_{n-1}), ...]
-            self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
+            # self.logger.info(f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1.shape}")
+            print(
+                f"critic evaluate_q done, t_q_ht1.shape: {t_q_ht1[:, :-1,:].shape}, type: {t_q_ht1.dtype}"
+            )
+            print(f"r_n_t.shape: {r_n_t[:,1:,:].shape}, type: {r_n_t.dtype}")
 
             # logger.info(f"t_q_ht_bl.shape: {t_q_ht_bl.shape}")
             # y_n_t shape (batch_size, seq_len, 1), target value
             y_n_t = (
-                r_n_t[:, 1:, :] + self.hyper_param.Gamma * t_q_ht1
+                r_n_t[:, 1:, :] + gamma * t_q_ht1  # fix t_q_ht1[:, :-1, :]!
             )  # y0(r_0, Q(h_1,mu(h_1))), y1(r_1, Q(h_2,mu(h_2)), ...)
-            self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
+            # self.logger.info(f"y_n_t.shape: {y_n_t.shape}")
+            print(f"y_n_t.shape: {y_n_t.shape}")
 
             # scalar value, average over the batch, time steps
             critic_loss = tf.math.reduce_mean(
@@ -501,23 +543,27 @@ class RDPG(DPG):
         self.critic_net.optimizer.apply_gradients(
             zip(critic_grad, self.critic_net.eager_model.trainable_variables)
         )
-        self.logger.info(f"applied critic gradient", extra=dictLogger)
+        # self.logger.info(f"applied critic gradient", extra=dictLogger)
+        print(f"applied critic gradient")
 
         # train actor using bptt
         with tf.GradientTape() as tape:
-            self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
+            # self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
+            print(f"start actor evaluate_actions")
             a_ht = self.actor_net.evaluate_actions(
                 s_n_t[:, 1:, :], a_n_t[:, :-1, :]
             )  # states, last actions: (s_0, a_-1), (s_1, a_0), ..., (s_n, a_{n-1})
-            self.logger.info(
-                f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
-                extra=dictLogger,
-            )
+            # self.logger.info(
+            #     f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
+            #     extra=dictLogger,
+            # )
+            print(f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}")
             q_ht = self.critic_net.evaluate_q(s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_ht)
-            self.logger.info(
-                f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
-                extra=dictLogger,
-            )
+            # self.logger.info(
+            #     f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
+            #     extra=dictLogger,
+            # )
+            print(f"actor evaluate_q done, q_ht.shape: {q_ht.shape}")
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
             # logger.info(f"q_ht.shape: {self.q_ht.shape}")
             # -1 because we want to maximize the q_ht
@@ -533,7 +579,8 @@ class RDPG(DPG):
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
-        self.logger.info(f"applied actor gradient", extra=dictLogger)
+        # self.logger.info(f"applied actor gradient", extra=dictLogger)
+        print(f"applied actor gradient")
 
         return actor_loss, critic_loss
 

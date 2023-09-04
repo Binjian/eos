@@ -10,7 +10,18 @@ class CriticNet:
     ckpt_dir: Incomplete
     ckpt: Incomplete
     ckpt_manager: Incomplete
-    def __init__(self, state_dim, action_dim, hidden_dim, n_layers, padding_value, tau, lr, ckpt_dir, ckpt_interval) -> None: ...
+    def __init__(
+        self,
+        state_dim,
+        action_dim,
+        hidden_dim,
+        n_layers,
+        padding_value,
+        tau,
+        lr,
+        ckpt_dir,
+        ckpt_interval,
+    ) -> None: ...
     def clone_weights(self, moving_net) -> None: ...
     def soft_update(self, moving_net) -> None: ...
     def save_ckpt(self) -> None: ...

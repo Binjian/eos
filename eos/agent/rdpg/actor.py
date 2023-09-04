@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow import keras
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
+
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
 from eos.utils import dictLogger, logger
@@ -53,8 +54,12 @@ class ActorNet:
         self._n_layers = n_layers
         self._tau = tau
 
-        states = keras.layers.Input(batch_shape=(batch_size, None, state_dim), name="states")
-        last_actions = keras.layers.Input(batch_shape=(batch_size, None, action_dim), name="last_actions")
+        states = keras.layers.Input(
+            batch_shape=(batch_size, None, state_dim), name="states"
+        )
+        last_actions = keras.layers.Input(
+            batch_shape=(batch_size, None, action_dim), name="last_actions"
+        )
 
         inputs = [
             states,
@@ -65,7 +70,10 @@ class ActorNet:
         )  # feature dimension would be [states + actions]
 
         # attach mask to the inputs, & apply recursive lstm layer to the output
-        x = keras.layers.Masking(mask_value=padding_value, input_shape=(batch_size, None, state_dim+action_dim))(
+        x = keras.layers.Masking(
+            mask_value=padding_value,
+            input_shape=(batch_size, None, state_dim + action_dim),
+        )(
             x
         )  # input (observation) padded with -10000.0, on the time dimension
 
@@ -90,7 +98,7 @@ class ActorNet:
         lstm_output = keras.layers.LSTM(
             hidden_dim,
             batch_input_shape=(batch_size, None, hidden_dim),
-            return_sequences=False,
+            return_sequences=True,
             return_state=False,  # return hidden and cell states for inference of each time step,
             stateful=True,  # stateful for batches of long sequences split into batches of shorter sequences
             name=f"lstm_{n_layers - 1}",
@@ -201,11 +209,13 @@ class ActorNet:
         Returns:
             np.array: Action, ditch the batch dimension
         """
-        action_seq = self.eager_model([states, last_actions])
+        action_seq = self.eager_model([states, last_actions])  # actor output sequences
 
         # get the last step action and squeeze the time dimension,
         # since Batch is one when inferring, squeeze also the batch dimension by tf.squeeze default
-        action = tf.squeeze(action_seq[:, -1, :])
+        # action = tf.squeeze(action_seq[:, -1, :])
+        # action = tf.squeeze(action_seq)
+        action = action_seq[:,-1,:] # get the last step action
         return action
 
     @tf.function(

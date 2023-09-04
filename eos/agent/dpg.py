@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Hashable
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -30,12 +31,16 @@ from eos.data_io.utils.eos_pandas import encode_episode_dataframe_from_series
 
 
 @dataclass(kw_only=True)
-class DPG(abc.ABC):
+class DPG(Hashable):
     """Base class for differentiable policy gradient methods."""
 
+    # truck_type: ClassVar[Truck] = trucks_by_id[
+    #     "default"
+    # ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
     truck_type: ClassVar[Truck] = trucks_by_id[
-        "default"
+        "VB7_FIELD"
     ]  # class attribute for default truck properties, used for rdpg input_signature spec of tf.function
+    rdpg_hyper_type: ClassVar[HyperParamRDPG] = HyperParamRDPG()
 
     _truck: Truck
     _driver: Driver
@@ -44,16 +49,18 @@ class DPG(abc.ABC):
     _coll_type: str = (
         "RECORD"  # or 'EPISODE', used for create different buffer and pool
     )
-    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = HyperParamDDPG()
+    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = field(
+        default_factory=HyperParamDDPG
+    )
     _pool_key: str = "mongo_local"  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
     _data_folder: str = "./"
     _infer_mode: bool = False
     # Following are derived from above
-    _observation_meta: Union[
-        ObservationMetaCloud, ObservationMetaECU
-    ] = ObservationMetaCloud()
+    _observation_meta: Union[ObservationMetaCloud, ObservationMetaECU] = field(
+        default_factory=ObservationMetaCloud
+    )
     _episode_start_dt: datetime = datetime.now()
     _resume: bool = True
     _observations: list[pd.Series] = field(default_factory=list[pd.Series])
@@ -191,7 +198,7 @@ class DPG(abc.ABC):
         reward_index = [(reward.name, *i) for i in reward.index]
         action_index = [(action.name, *i) for i in action.index]
         # nstate.name = 'nstate'  # fix: to distinguish from state
-        nstate_index = [('nstate', *i) for i in nstate.index]
+        nstate_index = [("nstate", *i) for i in nstate.index]
 
         multiindex = pd.MultiIndex.from_tuples(
             [timestamp_index, *state_index, *action_index, *reward_index, *nstate_index]

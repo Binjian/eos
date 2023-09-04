@@ -222,10 +222,10 @@ class Avatar(abc.ABC):
             # reset proxy (internal site force no proxy)
             self.init_cloud()
             assert self.ui in [
-                "cloud",
-                "local",
-                "mobile",
-            ], f"ui must be cloud, local or mobile, not {self.ui}"
+                "RMQ",
+                "TCP",
+                "NUMB",
+            ], f"ui must be RMQ, TCP or NUMB, not {self.ui}"
             if self.ui == "RMQ":
                 self.logger.info(f"{{'header': 'Use phone UI'}}", extra=self.dictLogger)
                 self.get_truck_status = self.remote_hmi_rmq_state_machine
@@ -2120,12 +2120,10 @@ class Avatar(abc.ABC):
             )  # a_{-1}
             # reward is measured in next step
 
-            # self.logger_control_flow.info(
-            #     f"{{'header': 'start', "
-            #     f"'step': {step_count}, "
-            #     f"'episode': {epi_cnt}}}",
-            #     extra=self.dictLogger,
-            # )
+            self.logger_control_flow.info(
+                f"{{'header': 'episode init done!', " f"'episode': {epi_cnt}}}",
+                extra=self.dictLogger,
+            )
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
@@ -2265,7 +2263,7 @@ class Avatar(abc.ABC):
                     flash_end_ts = pd.to_datetime(datetime.now())
 
                     action = assemble_action_ser(
-                        torque_map_line.numpy(),
+                        torque_map_line,
                         self.agent.torque_table_row_names,
                         table_start,
                         flash_start_ts,
@@ -2337,20 +2335,20 @@ class Avatar(abc.ABC):
                 self.logger_control_flow.info(
                     "{{'header': 'Learning and updating 6 times!'}}"
                 )
-                for k in range(6):
-                    # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                    if self.agent.buffer.count() > 0:
+
+                # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
+                if self.agent.buffer.count() > 0:
+                    for k in range(6):
                         (critic_loss, actor_loss) = self.agent.train()
                         self.agent.soft_update_target()
-                    else:
-                        self.logger_control_flow.info(
-                            f"{{'header': 'Buffer empty, no learning!'}}",
-                            extra=self.dictLogger,
-                        )
-                        self.logger_control_flow.info(
-                            "++++++++++++++++++++++++", extra=self.dictLogger
-                        )
-                        break
+                else:
+                    self.logger_control_flow.info(
+                        f"{{'header': 'Buffer empty, no learning!'}}",
+                        extra=self.dictLogger,
+                    )
+                    self.logger_control_flow.info(
+                        "++++++++++++++++++++++++", extra=self.dictLogger
+                    )
                 # Checkpoint manager save model
                 self.agent.save_ckpt()
 

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
 from pydantic import BaseModel
 
 from eos.data_io.config import trucks_by_id
 
-default_truck = trucks_by_id['default']
+
+# default_truck = trucks_by_id['default']
+default_truck = trucks_by_id["VB7_FIELD"]
 
 
 class HyperParamDPG(BaseModel):
@@ -71,3 +75,6 @@ class HyperParamRDPG(HyperParamDPG):
     # example: 100*4s=400s (6min40s), 200*4s=800s (13min20s) 400*4s=1600s (26min40s)
     tbptt_k2: int = 200  # truncated backpropagation through time: backward steps,
     # Note: keras only support k1=k2, ignite support k1!=k2
+
+
+HyperParam = TypeVar('HyperParam', HyperParamDDPG, HyperParamRDPG)

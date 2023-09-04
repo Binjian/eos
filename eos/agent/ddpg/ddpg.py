@@ -162,10 +162,8 @@ class DDPG(DPG):
             - critic network
     """
 
-    _buffer: Union[
-        MongoBuffer, DaskBuffer
-    ] = (
-        MongoBuffer()
+    _buffer: Union[MongoBuffer, DaskBuffer] = field(
+        default_factory=MongoBuffer
     )  # cannot have default value, because it precedes _plot in base class DPG
     logger: logging.Logger = logging.Logger("eos.agent.ddpg.ddpg")
     _episode_start_dt: datetime = field(default_factory=datetime.now)
