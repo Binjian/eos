@@ -367,10 +367,10 @@ class RDPG(DPG):
                 ),  # [1, 1, 4*17]
                 dtype=tf.float32,
             )  # first zero last_actions is a 3D tensor
-        self.logger.info(
-            f"states.shape: {states.shape}; last_actions.shape: {last_actions.shape}",
-            extra=self.dictLogger,
-        )
+        # self.logger.info(
+        #     f"states.shape: {states.shape}; last_actions.shape: {last_actions.shape}",
+        #     extra=self.dictLogger,
+        # )
         # action = self.actor_net.predict(input_array)
         actions = self.actor_predict_step(
             states, last_actions
@@ -378,7 +378,7 @@ class RDPG(DPG):
         action = actions.numpy()[
             0, :
         ]  # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
-        self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
+        # self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
         return action
 
     @tf.function(
@@ -415,19 +415,6 @@ class RDPG(DPG):
             tuple: (actor_loss, critic_loss)
         """
 
-        s_n_t, a_n_t, r_n_t, ns_n_t = self.buffer.sample()  # ignore next state for now
-        split_num = (
-            s_n_t.shape[1] // check_type(self.hyper_param, HyperParamRDPG).tbptt_k1
-            + 1
-            # after padding all observations have the same length (the length of  the longest episode)
-        )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split
-        self.logger.info(
-            f"{{'header': 'Batch splitting', " f"'split_num': '{split_num}'}}",
-            extra=self.dictLogger,
-        )
-        if split_num <= 0:
-            raise ValueError("split_num <= 0, check tbptt_k1 and episode length")
-
         # reset the states of the stateful moving and target networks at the beginning of the training
         self.actor_net.eager_model.reset_states()
         self.critic_net.eager_model.reset_states()
@@ -435,20 +422,69 @@ class RDPG(DPG):
         self.target_critic_net.eager_model.reset_states()
         actor_loss = tf.constant(0.0)
         critic_loss = tf.constant(0.0)
-        for i, batch_t in enumerate(
+        s_n_t, a_n_t, r_n_t, ns_n_t = self.buffer.sample()  # ignore next state for now
+        # split_num = (
+        #     s_n_t.shape[1] // check_type(self.hyper_param, HyperParamRDPG).tbptt_k1
+        #     + 1
+        #     # after padding all observations have the same length (the length of  the longest episode)
+        # )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split
+        # self.logger.info(
+        #     f"{{'header': 'Batch splitting', " f"'split_num': '{split_num}'}}",
+        #     extra=self.dictLogger,
+        # )
+        # if split_num <= 0:
+        #     raise ValueError("split_num <= 0, check tbptt_k1 and episode length")
+        # for i, batch_t in enumerate(
+        #         zip(
+        #             np.array_split(
+        #                 s_n_t, split_num, axis=1
+        #             ),  # split on the time axis (axis=1)
+        #             np.array_split(a_n_t, split_num, axis=1),
+        #             np.array_split(r_n_t, split_num, axis=1),
+        #             np.array_split(ns_n_t, split_num, axis=1),
+        #         )
+        # ):  # all actor critic have stateful LSTMs so that the LSTM states are kept between sub-batches,
+        # # while trainings extend only to the end of each sub-batch by default of train_step
+        # # out of tf.GradientTape() context, the tensors are detached like .detach() in pytorch
+
+        # if s_n_t.shape[1] > check_type(self.hyper_param, HyperParamRDPG).tbptt_k1:
+        ind_split = (
+            np.arange(
+                s_n_t.shape[1] // check_type(self.hyper_param, HyperParamRDPG).tbptt_k1
+            )
+            + 1
+        ) * check_type(
+            self.hyper_param, HyperParamRDPG
+        ).tbptt_k1  # split index is np.arange(l//s)[1:]*s
+        # else: for l==s, split in original array and np.array([])
+        # for l<s    ind_split = np.array([])  # no split for l <= split size
+
+        self.logger.info(
+            f"{{'header': 'Batch splitting', " f"'split_num': '{ind_split}'}}",
+            extra=self.dictLogger,
+        )
+
+        for i, batch_t in enumerate(  # split on the time axis (axis=1)
             zip(
-                np.array_split(
-                    s_n_t, split_num, axis=1
-                ),  # split on the time axis (axis=1)
-                np.array_split(a_n_t, split_num, axis=1),
-                np.array_split(r_n_t, split_num, axis=1),
-                np.array_split(ns_n_t, split_num, axis=1),
+                np.array_split(s_n_t, ind_split, axis=1),
+                np.array_split(a_n_t, ind_split, axis=1),
+                np.array_split(r_n_t, ind_split, axis=1),
+                np.array_split(ns_n_t, ind_split, axis=1),
             )
         ):  # all actor critic have stateful LSTMs so that the LSTM states are kept between sub-batches,
             # while trainings extend only to the end of each sub-batch by default of train_step
             # out of tf.GradientTape() context, the tensors are detached like .detach() in pytorch
-            self.logger.info(f"batch sub sequence: {i}", extra=self.dictLogger)
             s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub = batch_t
+            if s_n_t_sub is np.array([]):
+                self.logger.warning(
+                    f"batch sub sequence s_n_t: {i} is empty!", extra=self.dictLogger
+                )
+                continue
+            else:
+                self.logger.info(
+                    f"batch sub sequences s_n_t: {i} is valid. ", extra=self.dictLogger
+                )
+
             actor_loss, critic_loss = self.train_step(
                 s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub
             )
