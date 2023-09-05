@@ -787,6 +787,7 @@ class Avatar(abc.ABC):
                                         f"{{'header': 'motion_power_queue size: {motion_power_queue_size}'}}",
                                         extra=self.dictLogger,
                                     )
+                                    evt_remote_flash.wait()  # wait for flashing to finish
                                     self.get_truck_status_motion_power_t = []
                         except Exception as exc:
                             logger_kvaser_get.info(
@@ -833,6 +834,9 @@ class Avatar(abc.ABC):
                     th_exit = True
                     continue
             try:
+                with check_type(self.flash_env_lock, Lock):
+                    evt_remote_flash.clear()  # clear the evt to wait for remote_get thread before entering into waiting for Queue
+
                 table = check_type(self.tableQueue, Queue).get(
                     block=True, timeout=60
                 )  # default block = True
@@ -930,7 +934,6 @@ class Avatar(abc.ABC):
                         f"{{'header': 'E{epi_cnt} got record instant table: {step_count}'}}",
                         extra=self.dictLogger,
                     )
-
                 logger_flash.info(
                     f"{{'header': 'flash starts'}}", extra=self.dictLogger
                 )
@@ -2002,8 +2005,10 @@ class Avatar(abc.ABC):
     def run(self):
         # Start thread for flashing vcu, flash first
         evt_epi_done = threading.Event()
+        evt_epi_done.clear()
         evt_remote_get = threading.Event()
         evt_remote_flash = threading.Event()
+        evt_remote_flash.clear()  # initially false, explicitly set the remote flash event to False to start with
         self.thr_countdown = Thread(
             target=self.capture_countdown_handler,
             name="countdown",
@@ -2124,6 +2129,7 @@ class Avatar(abc.ABC):
                 f"{{'header': 'episode init done!', " f"'episode': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
+            evt_remote_flash.set()  # kick off the episode capturing
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
@@ -2149,7 +2155,7 @@ class Avatar(abc.ABC):
                         self.motion_power_queue, Queue
                     ).qsize()
                     self.logger_control_flow.info(
-                        f"motion_power_queue.qsize(): {motion_power_queue_size}"
+                        f"run get one item, motion_power_queue.qsize(): {motion_power_queue_size}"
                     )
                     if epi_end and done and (motion_power_queue_size > 2):
                         # self.logc.info(f"motion_power_queue.qsize(): {self.motion_power_queue.qsize()}")
