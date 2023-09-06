@@ -538,8 +538,8 @@ class Avatar(abc.ABC):
             # unlock remote_get_handler
             with check_type(self.get_env_lock, Lock):
                 evt_remote_get.set()
-            with check_type(self.flash_env_lock, Lock):
-                evt_remote_flash.set()
+            # with check_type(self.flash_env_lock, Lock):
+            evt_remote_flash.set()
             logger_countdown.info(
                 f"{{'header': 'Episode done! free remote_flash and remote_get!'}}",
                 extra=self.dictLogger,
@@ -693,6 +693,8 @@ class Avatar(abc.ABC):
                         # DONE add logic for episode valid and invalid
                         try:
                             if self.get_truck_status_start:  # starts episode
+                                # logger_kvaser_get.info(f"Can loop start!")
+
                                 ts = pd.to_datetime(datetime.now())
                                 velocity = float(value["velocity"])
                                 pedal = float(value["pedal"])
@@ -719,6 +721,10 @@ class Avatar(abc.ABC):
                                     len(self.get_truck_status_motion_power_t)
                                     >= truck_in_field.observation_length
                                 ):
+                                    # logger_kvaser_get.info(
+                                    #     f"{{'header': 'kvaser get one item!'}}",
+                                    #     extra=self.dictLogger,
+                                    # )
                                     if len(vel_cycle_dq) != vel_cycle_dq.maxlen:
                                         check_type(
                                             self.logger_control_flow, logging.Logger
@@ -787,6 +793,8 @@ class Avatar(abc.ABC):
                                         f"{{'header': 'motion_power_queue size: {motion_power_queue_size}'}}",
                                         extra=self.dictLogger,
                                     )
+                                    # with check_type(self.flash_env_lock, Lock):
+                                    evt_remote_flash.clear()  # clear flashing evt lock and
                                     evt_remote_flash.wait()  # wait for flashing to finish
                                     self.get_truck_status_motion_power_t = []
                         except Exception as exc:
@@ -834,8 +842,12 @@ class Avatar(abc.ABC):
                     th_exit = True
                     continue
             try:
-                with check_type(self.flash_env_lock, Lock):
-                    evt_remote_flash.clear()  # clear the evt to wait for remote_get thread before entering into waiting for Queue
+                # with check_type(self.flash_env_lock, Lock):
+                #     evt_remote_flash.clear()  # clear the evt to wait for remote_get thread before entering into waiting for Queue
+                logger_flash.info(
+                    f"{{'header': 'Flash loop start!'}}",
+                    extra=self.dictLogger,
+                )
 
                 table = check_type(self.tableQueue, Queue).get(
                     block=True, timeout=60
@@ -846,9 +858,9 @@ class Avatar(abc.ABC):
                     episode_end = self.episode_end
 
                 if episode_end is True:
-                    with check_type(self.flash_env_lock, Lock):
-                        evt_remote_flash.set()  # triggered flash by remote_get thread,
-                        # need to reset remote_get waiting evt
+                    # with check_type(self.flash_env_lock, Lock):
+                    evt_remote_flash.set()  # triggered flash by remote_get thread,
+                    # need to reset remote_get waiting evt
                     logger_flash.info(
                         f"{{'header': 'Episode ends, skipping remote_flash and continue!'}}",
                         extra=self.dictLogger,
@@ -953,8 +965,10 @@ class Avatar(abc.ABC):
                     flash_count += 1
                 # watch(flash_count)
                 # flash is done and unlock remote_get
-                with check_type(self.flash_env_lock, Lock):
-                    evt_remote_flash.set()
+                logger_flash.info("before flash lock set")
+                # with check_type(self.flash_env_lock, Lock):
+                evt_remote_flash.set()
+                logger_flash.info("after flash lock set")
 
         logger_flash.info(
             f"{{'header': 'Save the last table!!!!'}}", extra=self.dictLogger
@@ -2155,7 +2169,7 @@ class Avatar(abc.ABC):
                         self.motion_power_queue, Queue
                     ).qsize()
                     self.logger_control_flow.info(
-                        f"run get one item, motion_power_queue.qsize(): {motion_power_queue_size}"
+                        f" motion_power_queue.qsize(): {motion_power_queue_size}"
                     )
                     if epi_end and done and (motion_power_queue_size > 2):
                         # self.logc.info(f"motion_power_queue.qsize(): {self.motion_power_queue.qsize()}")
@@ -2166,7 +2180,8 @@ class Avatar(abc.ABC):
                             False  # this local done is true done with data exploitation
                         )
 
-                    if epi_end:  # stop observing and inferring
+                    if epi_end:  # stop observin
+                        # g and inferring
                         continue
 
                     try:
@@ -2265,7 +2280,12 @@ class Avatar(abc.ABC):
                     )
 
                     # wait for remote flash to finish
+                    # with check_type(self.flash_env_lock, Lock):
                     evt_remote_flash.wait()
+                    self.logger_control_flow.info(
+                        f"{{'header': 'after flash lock wait!",
+                        extra=self.dictLogger,
+                    )
                     flash_end_ts = pd.to_datetime(datetime.now())
 
                     action = assemble_action_ser(
