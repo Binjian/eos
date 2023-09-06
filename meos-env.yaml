@@ -48,9 +48,12 @@ dependencies:
   - gitpython
   - jupytext
   - tqdm
+  - pandas-stubs
   - pip
   - pip:
     - pydantic==2.2.1
+    - matplotlib-stubs
+    - types-tensorflow
     - typeguard
     - poetry2conda
     - cuda-python
