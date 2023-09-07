@@ -794,8 +794,8 @@ class Avatar(abc.ABC):
                                         extra=self.dictLogger,
                                     )
                                     # with check_type(self.flash_env_lock, Lock):
-                                    evt_remote_flash.clear()  # clear flashing evt lock and
-                                    evt_remote_flash.wait()  # wait for flashing to finish
+                                    # evt_remote_flash.clear()
+                                    # evt_remote_flash.wait()  # wait for flashing to finish
                                     self.get_truck_status_motion_power_t = []
                         except Exception as exc:
                             logger_kvaser_get.info(
@@ -843,7 +843,7 @@ class Avatar(abc.ABC):
                     continue
             try:
                 # with check_type(self.flash_env_lock, Lock):
-                #     evt_remote_flash.clear()  # clear the evt to wait for remote_get thread before entering into waiting for Queue
+                evt_remote_flash.clear()  # clear the evt to wait for remote_get thread before entering into waiting for Queue
                 logger_flash.info(
                     f"{{'header': 'Flash loop start!'}}",
                     extra=self.dictLogger,
@@ -2137,6 +2137,7 @@ class Avatar(abc.ABC):
                 speed_scale=self.truck.speed_scale,
                 pedal_scale=self.truck.pedal_scale,
             )  # a_{-1}
+            step_reward = 0
             # reward is measured in next step
 
             self.logger_control_flow.info(
@@ -2144,6 +2145,7 @@ class Avatar(abc.ABC):
                 extra=self.dictLogger,
             )
             evt_remote_flash.set()  # kick off the episode capturing
+            b_flashed = False
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
                 while (
@@ -2245,64 +2247,72 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
 
-                    #  at step 0: [ep_start, None (use zeros), a=0, r=0, s=s_0]
-                    #  at step n: [t=t_{n-1}, s=s_{n-1}, a=a_{n-1}, r=r_{n-1}, s'=s_n]
-                    #  at step N: [t=t_{N-1}, s=s_{N-1}, a=a_{N-1}, r=r_{N-1}, s'=s_N]
-                    self.agent.deposit(
-                        prev_timestamp,
-                        prev_state,
-                        prev_action,
-                        reward,  # reward from last action
-                        state,
-                    )  # (s_{-1}, a_{-1}, r_{-1}, s_0), (s_0, a_0, r_0, s_1), ..., (s_{N-1}, a_{N-1}, r_{N-1}, s_N)
+                    #  separate the inference and flash in order to avoid the action change incurred reward noise
+                    if b_flashed is False:  # the active half step
+                        #  at step 0: [ep_start, None (use zeros), a=0, r=0, s=s_0]
+                        #  at step n: [t=t_{n-1}, s=s_{n-1}, a=a_{n-1}, r=r_{n-1}, s'=s_n]
+                        #  at step N: [t=t_{N-1}, s=s_{N-1}, a=a_{N-1}, r=r_{N-1}, s'=s_N]
+                        reward[("work", 0)] = work + step_reward  # reward is the sum of flashed and not flashed step
+                        self.agent.deposit(
+                            prev_timestamp,
+                            prev_state,
+                            prev_action,
+                            reward,  # reward from last action
+                            state,
+                        )  # (s_{-1}, a_{-1}, r_{-1}, s_0), (s_0, a_0, r_0, s_1), ..., (s_{N-1}, a_{N-1}, r_{N-1}, s_N)
 
-                    # Inference !!!
-                    # stripping timestamps from state, (later flatten and convert to tensor)
-                    # agent return the inferred action sequence without batch and time dimension
-                    torque_map_line = self.agent.actor_predict(
-                        state[["velocity", "thrust", "brake"]]
-                    )  # model input requires fixed order velocity col -> thrust col -> brake col
-                    #  !!! training with samples of the same order!!!
+                        # Inference !!!
+                        # stripping timestamps from state, (later flatten and convert to tensor)
+                        # agent return the inferred action sequence without batch and time dimension
+                        torque_map_line = self.agent.actor_predict(
+                            state[["velocity", "thrust", "brake"]]
+                        )  # model input requires fixed order velocity col -> thrust col -> brake col
+                        #  !!! training with samples of the same order!!!
 
-                    self.logger_control_flow.info(
-                        f"{{'header': 'inference done with reduced action space!', "
-                        f"'episode': {epi_cnt}}}",
-                        extra=self.dictLogger,
-                    )
-                    # flash the vcu calibration table and assemble action
-                    flash_start_ts = pd.to_datetime(datetime.now())
-                    self.tableQueue.put(torque_map_line)
-                    self.logger_control_flow.info(
-                        f"{{'header': 'Action Push table', "
-                        f"'StartIndex': {table_start}, "
-                        f"'qsize': {self.tableQueue.qsize()}}}",
-                        extra=self.dictLogger,
-                    )
+                        self.logger_control_flow.info(
+                            f"{{'header': 'inference done with reduced action space!', "
+                            f"'episode': {epi_cnt}}}",
+                            extra=self.dictLogger,
+                        )
+                        # flash the vcu calibration table and assemble action
+                        flash_start_ts = pd.to_datetime(datetime.now())
+                        self.tableQueue.put(torque_map_line)
+                        self.logger_control_flow.info(
+                            f"{{'header': 'Action Push table', "
+                            f"'StartIndex': {table_start}, "
+                            f"'qsize': {self.tableQueue.qsize()}}}",
+                            extra=self.dictLogger,
+                        )
 
-                    # wait for remote flash to finish
-                    # with check_type(self.flash_env_lock, Lock):
-                    evt_remote_flash.wait()
-                    self.logger_control_flow.info(
-                        f"{{'header': 'after flash lock wait!",
-                        extra=self.dictLogger,
-                    )
-                    flash_end_ts = pd.to_datetime(datetime.now())
+                        # wait for remote flash to finish
+                        # with check_type(self.flash_env_lock, Lock):
+                        evt_remote_flash.wait()
+                        self.logger_control_flow.info(
+                            f"{{'header': 'after flash lock wait!",
+                            extra=self.dictLogger,
+                        )
+                        flash_end_ts = pd.to_datetime(datetime.now())
 
-                    action = assemble_action_ser(
-                        torque_map_line,
-                        self.agent.torque_table_row_names,
-                        table_start,
-                        flash_start_ts,
-                        flash_end_ts,
-                        self.truck.torque_table_row_num_flash,
-                        self.truck.torque_table_col_num,
-                        self.truck.speed_scale,
-                        self.truck.pedal_scale,
-                    )
+                        action = assemble_action_ser(
+                            torque_map_line,
+                            self.agent.torque_table_row_names,
+                            table_start,
+                            flash_start_ts,
+                            flash_end_ts,
+                            self.truck.torque_table_row_num_flash,
+                            self.truck.torque_table_col_num,
+                            self.truck.speed_scale,
+                            self.truck.pedal_scale,
+                        )
 
-                    prev_timestamp = timestamp
-                    prev_state = state
-                    prev_action = action
+                        prev_timestamp = timestamp
+                        prev_state = state
+                        prev_action = action
+                        b_flashed = True
+                    else:  # if bFlashed is True, the dummy half step
+                        step_reward = work  # reward from the step without flashing action
+                        b_flashed = False
+
 
                     # TODO add speed sum as positive reward
                     self.logger_control_flow.info(
