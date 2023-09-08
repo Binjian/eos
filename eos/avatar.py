@@ -177,6 +177,9 @@ class Avatar(abc.ABC):
     thr_observe: Optional[Thread] = None
     thr_remote_get: Optional[Thread] = None
     thr_flash: Optional[Thread] = None
+    evt_epi_done: Optional[Event] = None
+    evt_remote_get: Optional[Event] = None
+    evt_remote_flash: Optional[Event] = None
 
     def __post_init__(
         self,
@@ -270,15 +273,18 @@ class Avatar(abc.ABC):
             extra=self.dictLogger,
         )
 
-    def start_threads(
-        self, evt_epi_done: Event, evt_remote_get: Event, evt_remote_flash: Event
-    ) -> None:
-        evt_epi_done.clear()
-        evt_remote_flash.clear()  # initially false, explicitly set the remote flash event to 'False' to start with
+    def start_threads(self) -> None:
+
+        self.evt_epi_done = Event()
+        self.evt_remote_get = Event()
+        self.evt_remote_flash = Event()
+
+        self.evt_epi_done.clear()
+        self.evt_remote_flash.clear()  # initially false, explicitly set the remote flash event to 'False' to start with
         self.thr_countdown = Thread(
             target=self.capture_countdown_handler,
             name="countdown",
-            args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+            args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
         )
         self.thr_countdown.start()
 
@@ -288,7 +294,7 @@ class Avatar(abc.ABC):
                 self.thr_observe = Thread(
                     target=self.remote_hmi_rmq_state_machine,
                     name="observe",
-                    args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+                    args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
                 )
                 self.thr_observe.start()
             elif self.ui == "TCP":
@@ -296,7 +302,7 @@ class Avatar(abc.ABC):
                 self.thr_observe = Thread(
                     target=self.remote_hmi_tcp_state_machine,
                     name="observe",
-                    args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+                    args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
                 )
                 self.thr_observe.start()
             elif self.ui == "NUMB":
@@ -304,7 +310,7 @@ class Avatar(abc.ABC):
                 self.thr_observe = Thread(
                     target=self.remote_hmi_no_state_machine,
                     name="observe",
-                    args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+                    args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
                 )
                 self.thr_observe.start()
             else:
@@ -313,23 +319,23 @@ class Avatar(abc.ABC):
             self.thr_remote_get = Thread(
                 target=self.remote_get_handler,
                 name="remoteget",
-                args=[evt_remote_get, evt_remote_flash],
+                args=[self.evt_remote_get, self.evt_remote_flash],
             )
             self.thr_remote_get.start()
 
             self.thr_flash = Thread(
-                target=self.remote_flash_vcu, name="flash", args=[evt_remote_flash]
+                target=self.remote_flash_vcu, name="flash", args=[self.evt_remote_flash]
             )
             self.thr_flash.start()
         else:
             self.thr_observe = Thread(
                 target=self.kvaser_get_truck_status,
                 name="observe",
-                args=[evt_epi_done],
+                args=[self.evt_epi_done],
             )
             self.thr_observe.start()
             self.thr_flash = Thread(
-                target=self.kvaser_flash_vcu, name="flash", args=[evt_remote_flash]
+                target=self.kvaser_flash_vcu, name="flash", args=[self.evt_remote_flash]
             )
             self.thr_flash.start()
 
@@ -893,7 +899,6 @@ class Avatar(abc.ABC):
             try:
                 # with check_type(self.flash_env_lock, Lock):
                 # clear the evt to wait for remote_get thread before entering into waiting for Queue
-                evt_remote_flash.clear()
                 logger_flash.info(
                     f"{{'header': 'Flash loop start!'}}",
                     extra=self.dictLogger,
@@ -2068,11 +2073,8 @@ class Avatar(abc.ABC):
     def run(self) -> None:
         # Start threads for getting observation, flashing vcu and HMI
 
-        evt_epi_done = Event()
-        evt_remote_get = Event()
-        evt_remote_flash = Event()
 
-        self.start_threads(evt_epi_done, evt_remote_get, evt_remote_flash)
+        self.start_threads()
 
         """
         ## train
@@ -2080,6 +2082,7 @@ class Avatar(abc.ABC):
         running_reward = 0.0
         th_exit = False
         epi_cnt_local = 0
+        fig = None
 
         # Gracefulkiller only in the main thread!
         killer = GracefulKiller()
@@ -2168,7 +2171,7 @@ class Avatar(abc.ABC):
                 f"{{'header': 'episode init done!', " f"'episode': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
-            evt_remote_flash.set()  # kick off the episode capturing
+            self.evt_remote_flash.set()  # kick off the episode capturing
             b_flashed = False
             tf.debugging.set_log_device_placement(True)
             with tf.device("/GPU:0"):
@@ -2312,7 +2315,8 @@ class Avatar(abc.ABC):
 
                         # wait for remote flash to finish
                         # with check_type(self.flash_env_lock, Lock):
-                        evt_remote_flash.wait()
+                        self.evt_remote_flash.clear()
+                        self.evt_remote_flash.wait()
                         self.logger_control_flow.info(
                             f"{{'header': 'after flash lock wait!",
                             extra=self.dictLogger,
