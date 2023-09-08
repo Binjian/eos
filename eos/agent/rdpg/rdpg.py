@@ -139,7 +139,7 @@ class RDPG(DPG):
             NActions=self.truck.torque_flash_numel,
             ActionBias=self.truck.torque_bias,
             NLayerActor=2,
-            NLayersCritic=2,
+            NLayerCritic=2,
             Gamma=0.99,
             TauActor=0.005,
             TauCritic=0.005,
