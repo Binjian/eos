@@ -39,17 +39,17 @@ import warnings
 
 # third party imports
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
-from threading import Lock, Thread
+from threading import Lock, Thread, Event
 from typing import Optional, Union, cast
 from typeguard import check_type  # type: ignore
 
 import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
-import pandas as pd   # type: ignore
+import pandas as pd  # type: ignore
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -129,16 +129,17 @@ class Avatar(abc.ABC):
     can_server: CANMessenger
     trip_server: TripMessenger
     _agent: DPG  # set by derived Avatar like AvatarDDPG
-    cloud: bool  # determined by truck type
     ui: str
     logger: logging.Logger
     resume: bool = True
     infer_mode: bool = False
     record: bool = True
-    data_root: Path = Path(".") / "data"
-    table_root: Path = Path(".") / "tables"
-    program_start: bool = False
-    program_exit: bool = False
+    # Following are derived
+    data_root: Optional[Path] = None
+    table_root: Optional[Path] = None
+    program_start: Optional[bool] = None
+    program_exit: Optional[bool] = None
+    cloud: Optional[bool] = None
     vel_hist_dq: Optional[deque] = None
     train_summary_writer: Optional[SummaryWriter] = None
     remotecan_client: Optional[RemoteCanClient] = None
@@ -160,18 +161,18 @@ class Avatar(abc.ABC):
     done_env_lock: Optional[Lock] = None
     tableQueue: Optional[Queue] = None
     motion_power_queue: Optional[Queue] = None
-    episode_done: bool = False
-    episode_end: bool = False
-    episode_count: int = 0
-    step_count: int = 0
-    epi_countdown_time: float = 0.0
-    get_truck_status_start: bool = False
-    epi_countdown: bool = False
-    get_truck_status_motion_power_t: list = field(default_factory=list)
-    get_truck_status_myHost: str = "127.0.0.1"
-    get_truck_status_myPort: int = 8002
-    get_truck_status_qobject_len: int = 12
-    vcu_calib_table_row_start: int = 0
+    episode_done: Optional[bool] = None
+    episode_end: Optional[bool] = None
+    episode_count: Optional[int] = None
+    step_count: Optional[int] = None
+    epi_countdown_time: Optional[float] = None
+    get_truck_status_start: Optional[bool] = None
+    epi_countdown: Optional[bool] = None
+    get_truck_status_motion_power_t: Optional[list] = None
+    get_truck_status_myHost: Optional[str] = "127.0.0.1"
+    get_truck_status_myPort: Optional[int] = 8002
+    get_truck_status_queue_object_len: Optional[int] = 12
+    vcu_calib_table_row_start: Optional[int] = None
     thr_countdown: Optional[Thread] = None
     thr_observe: Optional[Thread] = None
     thr_remote_get: Optional[Thread] = None
@@ -179,12 +180,14 @@ class Avatar(abc.ABC):
 
     def __post_init__(
         self,
-    ):
+    ) -> None:
         self.repo = Repo(proj_root)
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
+        short_sha = self.repo.git.rev_parse(self.repo.head.commit.hexsha, short=7)
         print(
-            f"project root: {proj_root}, git head: {str(self.repo.head.commit)[:7]}, "
-            f"author: {self.repo.head.commit.author}, "
+            f"Project root: {proj_root}, "  # type: ignore
+            f"git head: {short_sha}, "
+            f"author: {self.repo.head.commit.author.name}, "
             f"git message: {self.repo.head.commit.message}"
         )
 
@@ -201,9 +204,9 @@ class Avatar(abc.ABC):
             f"{{'header': 'Start Logging'}}", extra=self.dictLogger
         )
         self.logger_control_flow.info(
-            f"{{'project_root': '{proj_root}', "
-            f"'git_head': {str(self.repo.head.commit)[:7]}, "
-            f"'author': '{self.repo.head.commit.author}', "
+            f"{{'project_root': '{proj_root}', "  # type: ignore
+            f"'git_head': {short_sha}, "
+            f"'author': '{self.repo.head.commit.author.name}', "
             f"'git_message': '{self.repo.head.commit.message}'}}",
             extra=self.dictLogger,
         )
@@ -226,21 +229,6 @@ class Avatar(abc.ABC):
                 "TCP",
                 "NUMB",
             ], f"ui must be RMQ, TCP or NUMB, not {self.ui}"
-            if self.ui == "RMQ":
-                self.logger.info(f"{{'header': 'Use phone UI'}}", extra=self.dictLogger)
-                self.get_truck_status = self.remote_hmi_rmq_state_machine
-            elif self.ui == "TCP":
-                self.logger.info(f"{{'header': 'Use local UI'}}", extra=self.dictLogger)
-                self.get_truck_status = self.remote_hmi_tcp_state_machine
-            elif self.ui == "NUMB":
-                self.logger.info(f"{{'header': 'Use cloud UI'}}", extra=self.dictLogger)
-                self.get_truck_status = self.remote_hmi_no_state_machine
-            else:
-                raise ValueError("Unknown HMI type")
-            self.flash_vcu = self.remote_flash_vcu
-        else:
-            self.get_truck_status = self.kvaser_get_truck_status
-            self.flash_vcu = self.kvaser_flash_vcu
 
         # misc variables required for the class and its methods
         # self.vel_hist_dq: deque = deque(maxlen=20)  # type: ignore
@@ -282,6 +270,69 @@ class Avatar(abc.ABC):
             extra=self.dictLogger,
         )
 
+    def start_threads(
+        self, evt_epi_done: Event, evt_remote_get: Event, evt_remote_flash: Event
+    ) -> None:
+        evt_epi_done.clear()
+        evt_remote_flash.clear()  # initially false, explicitly set the remote flash event to 'False' to start with
+        self.thr_countdown = Thread(
+            target=self.capture_countdown_handler,
+            name="countdown",
+            args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+        )
+        self.thr_countdown.start()
+
+        if self.cloud:
+            if self.ui == "RMQ":
+                self.logger.info(f"{{'header': 'Use phone UI'}}", extra=self.dictLogger)
+                self.thr_observe = Thread(
+                    target=self.remote_hmi_rmq_state_machine,
+                    name="observe",
+                    args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+                )
+                self.thr_observe.start()
+            elif self.ui == "TCP":
+                self.logger.info(f"{{'header': 'Use local UI'}}", extra=self.dictLogger)
+                self.thr_observe = Thread(
+                    target=self.remote_hmi_tcp_state_machine,
+                    name="observe",
+                    args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+                )
+                self.thr_observe.start()
+            elif self.ui == "NUMB":
+                self.logger.info(f"{{'header': 'Use cloud UI'}}", extra=self.dictLogger)
+                self.thr_observe = Thread(
+                    target=self.remote_hmi_no_state_machine,
+                    name="observe",
+                    args=[evt_epi_done, evt_remote_get, evt_remote_flash],
+                )
+                self.thr_observe.start()
+            else:
+                raise ValueError("Unknown HMI type")
+
+            self.thr_remote_get = Thread(
+                target=self.remote_get_handler,
+                name="remoteget",
+                args=[evt_remote_get, evt_remote_flash],
+            )
+            self.thr_remote_get.start()
+
+            self.thr_flash = Thread(
+                target=self.remote_flash_vcu, name="flash", args=[evt_remote_flash]
+            )
+            self.thr_flash.start()
+        else:
+            self.thr_observe = Thread(
+                target=self.kvaser_get_truck_status,
+                name="observe",
+                args=[evt_epi_done],
+            )
+            self.thr_observe.start()
+            self.thr_flash = Thread(
+                target=self.kvaser_flash_vcu, name="flash", args=[evt_remote_flash]
+            )
+            self.thr_flash.start()
+
     @property
     def agent(self) -> Union[DPG, None]:
         return self._agent
@@ -290,7 +341,7 @@ class Avatar(abc.ABC):
     def agent(self, value: DPG) -> None:
         self._agent = value
 
-    def init_cloud(self):
+    def init_cloud(self) -> None:
         os.environ["http_proxy"] = ""
 
         if self.ui == "mobile":
@@ -314,7 +365,7 @@ class Avatar(abc.ABC):
                 self.trip_server.Host + ":" + self.trip_server.Port
             )
 
-    def set_logger(self):
+    def set_logger(self) -> None:
         self.log_root = self.data_root / "py_logs"
         try:
             os.makedirs(self.log_root)
@@ -382,7 +433,7 @@ class Avatar(abc.ABC):
         except FileExistsError:
             print("Table folder exists, just resume!")
 
-    def set_data_path(self):
+    def set_data_path(self) -> None:
         # Create folder for ckpts logs.
         current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
         train_log_dir = self.data_root.joinpath(
@@ -407,7 +458,7 @@ class Avatar(abc.ABC):
                 f"{{'header': 'Start from scratch'}}", extra=self.dictLogger
             )
 
-    def init_vehicle(self):
+    def init_vehicle(self) -> None:
         if self.resume:
             files = sorted(self.data_root.glob("last_table*.csv"))
             if not files:
@@ -459,7 +510,7 @@ class Avatar(abc.ABC):
 
     # tracer.start()
 
-    def init_threads_data(self):
+    def init_threads_data(self) -> None:
         # multithreading initialization
         self.hmi_lock = Lock()
         self.state_machine_lock = Lock()
@@ -493,14 +544,14 @@ class Avatar(abc.ABC):
         self.get_truck_status_motion_power_t = []
         self.get_truck_status_myHost = "127.0.0.1"
         self.get_truck_status_myPort = 8002
-        self.get_truck_status_qobject_len = 12  # sequence length 1.5*12s
+        self.get_truck_status_queue_object_len = 12  # sequence length 1.5*12s
 
     def capture_countdown_handler(
         self,
         evt_epi_done: threading.Event,
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
-    ):
+    ) -> None:
         logger_countdown = self.logger.getChild("countdown")
         logger_countdown.propagate = True
         th_exit = False
@@ -554,9 +605,7 @@ class Avatar(abc.ABC):
     def kvaser_get_truck_status(
         self,
         evt_epi_done: threading.Event,
-        evt_remote_get: threading.Event,  # type: ignore
-        evt_remote_flash: threading.Event,  # type: ignore
-    ):
+    ) -> None:
         """
         This function is used to get the truck status
         from the onboard udp socket server of CAN capture module Kvaser
@@ -818,7 +867,7 @@ class Avatar(abc.ABC):
 
     # this is the calibration table consumer for flashing
     # @eye
-    def kvaser_flash_vcu(self, evt_remote_flash: threading.Event):
+    def kvaser_flash_vcu(self, evt_remote_flash: threading.Event) -> None:
         flash_count = 0
         th_exit = False
 
@@ -843,7 +892,8 @@ class Avatar(abc.ABC):
                     continue
             try:
                 # with check_type(self.flash_env_lock, Lock):
-                evt_remote_flash.clear()  # clear the evt to wait for remote_get thread before entering into waiting for Queue
+                # clear the evt to wait for remote_get thread before entering into waiting for Queue
+                evt_remote_flash.clear()
                 logger_flash.info(
                     f"{{'header': 'Flash loop start!'}}",
                     extra=self.dictLogger,
@@ -876,9 +926,8 @@ class Avatar(abc.ABC):
             except queue.Empty:
                 # if idle_count % 1000 == 0:
                 #     logger_flash.info(
-                #         f"{{'header': 'E{epi_cnt} step: {step_count}' TableQueue empty}}",
-                #         extra=self.dictLogger,
-                #     )
+                #         f"{{'header': 'E{epi_cnt} step: {step_count}' TableQueue empty.}}",
+                #         extra=self.dictLogger)))  # type: ignore
                 # idle_count += 1
                 continue
             else:
@@ -996,7 +1045,7 @@ class Avatar(abc.ABC):
         self,
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
-    ):
+    ) -> None:
         th_exit = False
         logger_remote_get = self.logger.getChild("remote_get")
         logger_remote_get.propagate = True
@@ -1285,7 +1334,7 @@ class Avatar(abc.ABC):
         evt_epi_done: threading.Event,
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
-    ):
+    ) -> None:
         """
         This function is used to get the truck status from RockeMQ
         from remote can module
@@ -1537,7 +1586,7 @@ class Avatar(abc.ABC):
         evt_epi_done: threading.Event,
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
-    ):
+    ) -> None:
         """
         This function is used to get the truck status
         from cloud state management and remote can module
@@ -1622,7 +1671,7 @@ class Avatar(abc.ABC):
         evt_epi_done: threading.Event,
         evt_remote_get: threading.Event,
         evt_remote_flash: threading.Event,
-    ):
+    ) -> None:
         """
         This function is used to get the truck status
         from remote can module
@@ -1789,7 +1838,7 @@ class Avatar(abc.ABC):
         s.close()
         logger_hmi_sm.info(f"{{'header': 'remote hmi dies!!!'}}", extra=self.dictLogger)
 
-    def remote_flash_vcu(self, evt_remote_flash: threading.Event):
+    def remote_flash_vcu(self, evt_remote_flash: threading.Event) -> None:
         """
         trigger 1: tableQueue is not empty
         trigger 2: remote client is available as signaled by the remote_get thread
@@ -2016,44 +2065,19 @@ class Avatar(abc.ABC):
             f"{{'header': 'remote_flash_vcu dies!!!'}}", extra=self.dictLogger
         )
 
-    def run(self):
-        # Start thread for flashing vcu, flash first
-        evt_epi_done = threading.Event()
-        evt_epi_done.clear()
-        evt_remote_get = threading.Event()
-        evt_remote_flash = threading.Event()
-        evt_remote_flash.clear()  # initially false, explicitly set the remote flash event to False to start with
-        self.thr_countdown = Thread(
-            target=self.capture_countdown_handler,
-            name="countdown",
-            args=[evt_epi_done, evt_remote_get, evt_remote_flash],
-        )
-        self.thr_countdown.start()
+    def run(self) -> None:
+        # Start threads for getting observation, flashing vcu and HMI
 
-        self.thr_observe = Thread(
-            target=self.get_truck_status,
-            name="observe",
-            args=[evt_epi_done, evt_remote_get, evt_remote_flash],
-        )
-        self.thr_observe.start()
+        evt_epi_done = Event()
+        evt_remote_get = Event()
+        evt_remote_flash = Event()
 
-        if self.cloud:
-            self.thr_remote_get = Thread(
-                target=self.remote_get_handler,
-                name="remoteget",
-                args=[evt_remote_get, evt_remote_flash],
-            )
-            self.thr_remote_get.start()
-
-        self.thr_flash = Thread(
-            target=self.flash_vcu, name="flash", args=[evt_remote_flash]
-        )
-        self.thr_flash.start()
+        self.start_threads(evt_epi_done, evt_remote_get, evt_remote_flash)
 
         """
         ## train
         """
-        running_reward = 0
+        running_reward = 0.0
         th_exit = False
         epi_cnt_local = 0
 
@@ -2116,7 +2140,7 @@ class Avatar(abc.ABC):
 
             self.agent.start_episode(datetime.now())
             step_count = 0
-            episode_reward = 0
+            episode_reward = 0.0
             prev_timestamp = self.agent.episode_start_dt
             check_type(motion_power, pd.DataFrame)
             prev_state = assemble_state_ser(
@@ -2137,7 +2161,7 @@ class Avatar(abc.ABC):
                 speed_scale=self.truck.speed_scale,
                 pedal_scale=self.truck.pedal_scale,
             )  # a_{-1}
-            step_reward = 0
+            step_reward = 0.0
             # reward is measured in next step
 
             self.logger_control_flow.info(
@@ -2182,7 +2206,7 @@ class Avatar(abc.ABC):
                             False  # this local done is true done with data exploitation
                         )
 
-                    if epi_end:  # stop observin
+                    if epi_end:  # stop observing
                         # g and inferring
                         continue
 
@@ -2239,7 +2263,7 @@ class Avatar(abc.ABC):
                         self.truck.observation_sampling_rate,
                     )
                     work = reward[("work", 0)]
-                    episode_reward += work
+                    episode_reward += float(work)
 
                     self.logger_control_flow.info(
                         f"{{'header': 'assembling state and reward!', "
@@ -2252,9 +2276,11 @@ class Avatar(abc.ABC):
                         #  at step 0: [ep_start, None (use zeros), a=0, r=0, s=s_0]
                         #  at step n: [t=t_{n-1}, s=s_{n-1}, a=a_{n-1}, r=r_{n-1}, s'=s_n]
                         #  at step N: [t=t_{N-1}, s=s_{N-1}, a=a_{N-1}, r=r_{N-1}, s'=s_N]
-                        reward[("work", 0)] = work + step_reward  # reward is the sum of flashed and not flashed step
+                        reward[("work", 0)] = (
+                            work + step_reward
+                        )  # reward is the sum of flashed and not flashed step
                         self.agent.deposit(
-                            prev_timestamp,
+                            pd.Timestamp(prev_timestamp.timestamp()),
                             prev_state,
                             prev_action,
                             reward,  # reward from last action
@@ -2310,9 +2336,10 @@ class Avatar(abc.ABC):
                         prev_action = action
                         b_flashed = True
                     else:  # if bFlashed is True, the dummy half step
-                        step_reward = work  # reward from the step without flashing action
+                        step_reward = float(
+                            work
+                        )  # reward from the step without flashing action
                         b_flashed = False
-
 
                     # TODO add speed sum as positive reward
                     self.logger_control_flow.info(
@@ -2639,6 +2666,7 @@ if __name__ == "__main__":
             _pool_key=args.pool_key,
             _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
+            _resume=args.resume,
         )
     else:  # args.agent == 'rdpg':
         agent: RDPG = RDPG(  # type: ignore
@@ -2649,6 +2677,7 @@ if __name__ == "__main__":
             _pool_key=args.pool_key,
             _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
+            _resume=args.resume,
         )
 
     try:

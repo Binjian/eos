@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import redirect_stdout
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 from typeguard import check_type
 
 import numpy as np
@@ -126,28 +126,6 @@ for the actions taken by the Actor network. We seek to maximize this quantity.
 Hence we update the Actor network so that it produces actions that get
 the maximum predicted value as seen by the Critic, for a given state.
 """
-hyper_param_default = HyperParamDDPG()
-actor_optimizer_default = tf.keras.optimizers.Adam(hyper_param_default.ActorLR)  # 0.001
-ckpt_actor_default = tf.train.Checkpoint(
-    step=tf.Variable(1),  # type: ignore
-    optimizer=actor_optimizer_default,
-    net=tf.keras.Model(),
-)
-manager_actor_default = tf.train.CheckpointManager(
-    ckpt_actor_default, "./actor", max_to_keep=10
-)
-
-critic_optimizer_default = tf.keras.optimizers.Adam(
-    hyper_param_default.CriticLR
-)  # 0.002
-ckpt_critic_default = tf.train.Checkpoint(
-    step=tf.Variable(1),  # type: ignore
-    optimizer=critic_optimizer_default,
-    net=tf.keras.Model(),
-)
-manager_critic_default = tf.train.CheckpointManager(
-    ckpt_critic_default, "./critic", max_to_keep=10
-)
 
 
 @dataclass
@@ -162,21 +140,32 @@ class DDPG(DPG):
             - critic network
     """
 
-    _buffer: Union[MongoBuffer, DaskBuffer] = field(
-        default_factory=MongoBuffer
-    )  # cannot have default value, because it precedes _plot in base class DPG
-    logger: logging.Logger = logging.Logger("eos.agent.ddpg.ddpg")
-    _episode_start_dt: datetime = field(default_factory=datetime.now)
-    _actor_model: tf.keras.Model = field(default_factory=tf.keras.Model)
-    _critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
-    _target_actor_model: tf.keras.Model = field(default_factory=tf.keras.Model)
-    _target_critic_model: tf.keras.Model = field(default_factory=tf.keras.Model)
-    manager_critic: tf.train.CheckpointManager = manager_critic_default
-    ckpt_critic: tf.train.Checkpoint = ckpt_critic_default
-    manager_actor: tf.train.CheckpointManager = manager_actor_default
-    ckpt_actor: tf.train.Checkpoint = ckpt_actor_default
-    actor_saved_model_path: Path = Path("./actor")
-    critic_saved_model_path: Path = Path("./critic")
+    # Following are derived
+    _episode_start_dt: Optional[datetime] = None  # field(default_factory=datetime.now)
+    _buffer: Optional[
+        Union[MongoBuffer, DaskBuffer]
+    ] = None  # cannot have default value, because it precedes _plot in base class DPG
+    _actor_model: Optional[
+        tf.keras.Model
+    ] = None  # field(default_factory=tf.keras.Model)
+    _critic_model: Optional[
+        tf.keras.Model
+    ] = None  # field(default_factory=tf.keras.Model)
+    _target_actor_model: Optional[
+        tf.keras.Model
+    ] = None  # field(default_factory=tf.keras.Model)
+    _target_critic_model: Optional[
+        tf.keras.Model
+    ] = None  # field(default_factory=tf.keras.Model)
+    manager_critic: Optional[
+        tf.train.CheckpointManager
+    ] = None  # manager_critic_default
+    ckpt_critic: Optional[tf.train.Checkpoint] = None  # ckpt_critic_default
+    manager_actor: Optional[tf.train.CheckpointManager] = None  # manager_actor_default
+    ckpt_actor: Optional[tf.train.Checkpoint] = None  # ckpt_actor_default
+    actor_saved_model_path: Optional[Path] = None  # Path("./actor")
+    critic_saved_model_path: Optional[Path] = None  # Path("./critic")
+    logger: Optional[logging.Logger] = None  # logging.Logger("eos.agent.ddpg.ddpg")
 
     def __post_init__(self):
         self.logger = logger.getChild("eos").getChild(self.__str__())
@@ -198,7 +187,7 @@ class DDPG(DPG):
             NActions=self.truck.torque_flash_numel,  # 68
             ActionBias=self.truck.torque_bias,  # 0.0
             NLayerActor=2,
-            NLayersCritic=2,
+            NLayerCritic=2,
             Gamma=0.99,
             TauActor=0.005,
             TauCritic=0.005,

@@ -3,7 +3,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Optional
 from typeguard import check_type
 
 # third-party imports
@@ -43,56 +43,6 @@ Description: Implementing RDPG algorithm on VEOS.
 """
 
 
-hyper_param_default = HyperParamRDPG()
-truck_default = DPG.truck_type
-actor_net_default = ActorNet(
-    truck_default.observation_numel,
-    truck_default.torque_flash_numel,
-    hyper_param_default.HiddenDimension,  # 256
-    hyper_param_default.NLayerActor,  # 2
-    hyper_param_default.BatchSize,  # 4
-    hyper_param_default.PaddingValue,  # -10000
-    hyper_param_default.TauActor,  # 0.005
-    hyper_param_default.ActorLR,  # 0.001
-    Path("./actor"),
-    hyper_param_default.CkptInterval,  # 5
-)
-
-actor_optimizer_default = tf.keras.optimizers.Adam(hyper_param_default.ActorLR)  # 0.001
-ckpt_actor_default = tf.train.Checkpoint(
-    step=tf.Variable(1),  # type: ignore
-    optimizer=actor_optimizer_default,
-    net=tf.keras.Model(),
-)
-manager_actor_default = tf.train.CheckpointManager(
-    ckpt_actor_default, "./actor", max_to_keep=10
-)
-
-critic_net_default = CriticNet(
-    truck_default.observation_numel,
-    truck_default.torque_flash_numel,
-    hyper_param_default.HiddenDimension,  # 256
-    hyper_param_default.NLayerCritic,  # 2
-    hyper_param_default.BatchSize,  # 4
-    hyper_param_default.PaddingValue,  # -10000
-    hyper_param_default.TauCritic,  # 0.005
-    hyper_param_default.CriticLR,  # 0.001
-    Path("./critic"),
-    hyper_param_default.CkptInterval,  # 5
-)
-critic_optimizer_default = tf.keras.optimizers.Adam(
-    hyper_param_default.CriticLR
-)  # 0.002
-ckpt_critic_default = tf.train.Checkpoint(
-    step=tf.Variable(1),  # type: ignore
-    optimizer=critic_optimizer_default,
-    net=tf.keras.Model(),
-)
-manager_critic_default = tf.train.CheckpointManager(
-    ckpt_critic_default, "./critic", max_to_keep=10
-)
-
-
 @dataclass
 class RDPG(DPG):
     """
@@ -105,13 +55,14 @@ class RDPG(DPG):
             - critic network
     """
 
-    actor_net: ActorNet = actor_net_default
-    critic_net: CriticNet = critic_net_default
-    target_actor_net: ActorNet = actor_net_default
-    target_critic_net: CriticNet = critic_net_default
-    _ckpt_actor_dir: Path = Path("")
-    _ckpt_critic_dir: Path = Path("")
-    logger: logging.Logger = logging.Logger("eos.agent.rdpg.rdpg")
+    # Following are derived
+    actor_net: Optional[ActorNet] = None  # actor_net_default
+    critic_net: Optional[CriticNet] = None  # critic_net_default
+    target_actor_net: Optional[ActorNet] = None  # actor_net_default
+    target_critic_net: Optional[CriticNet] = None  # critic_net_default
+    _ckpt_actor_dir: Optional[Path] = None  # Path("")
+    _ckpt_critic_dir: Optional[Path] = None  # Path("")
+    logger: Optional[logging.Logger] = None  # logging.Logger("eos.agent.rdpg.rdpg")
 
     def __post_init__(
         self,
@@ -139,7 +90,7 @@ class RDPG(DPG):
             NActions=self.truck.torque_flash_numel,
             ActionBias=self.truck.torque_bias,
             NLayerActor=2,
-            NLayersCritic=2,
+            NLayerCritic=2,
             Gamma=0.99,
             TauActor=0.005,
             TauCritic=0.005,
@@ -379,6 +330,9 @@ class RDPG(DPG):
             0, :
         ]  # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
         # self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
+        assert (
+            type(action) == np.ndarray
+        ), f"action type {type(action)} is not np.ndarray"
         return action
 
     @tf.function(
@@ -404,6 +358,7 @@ class RDPG(DPG):
         action = self.actor_net.predict(
             states, last_actions
         )  # already un-squeezed inside Actor function
+        assert type(action) == tf.Tensor, f"action type {type(action)} is not tf.Tensor"
         return action
 
     def train(self) -> Tuple[float, float]:

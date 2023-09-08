@@ -3,16 +3,16 @@ from __future__ import annotations
 import abc
 from collections.abc import Hashable
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import ClassVar, Union
+from typing import ClassVar, Union, Optional
 
 import pandas as pd
 from .utils import HyperParamDDPG, HyperParamRDPG  # type: ignore
 
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
 from eos.data_io.config import (
-    RE_DBKEY,
+    RE_DB_KEY,
     Driver,
     Truck,
     TruckInCloud,
@@ -24,6 +24,10 @@ from eos.data_io.struct import (
     ObservationMetaCloud,
     ObservationMetaECU,
     get_filemeta_config,
+    StateSpecsCloud,
+    StateSpecsECU,
+    ActionSpecs,
+    RewardSpecs,
 )
 from eos.data_io.utils.eos_pandas import encode_episode_dataframe_from_series
 
@@ -44,28 +48,32 @@ class DPG(Hashable):
 
     _truck: Truck
     _driver: Driver
-    _buffer: Union[MongoBuffer, DaskBuffer] = field(default_factory=MongoBuffer)
+    _resume: bool  # True
     # as last of non-default parameters, so that derived class can override with default
-    _coll_type: str = (
-        "RECORD"  # or 'EPISODE', used for create different buffer and pool
-    )
-    _hyper_param: Union[HyperParamDDPG, HyperParamRDPG] = field(
-        default_factory=HyperParamDDPG
-    )
-    _pool_key: str = "mongo_local"  # 'mongo_***'
+    _coll_type: str  # "RECORD"  # or 'EPISODE', used for create different buffer and pool
+    _hyper_param: Union[
+        HyperParamDDPG, HyperParamRDPG
+    ]  # field(default_factory=HyperParamDDPG)
+    _pool_key: str  # "mongo_local"  # 'mongo_***'
     # or 'veos:asdf@localhost:27017' for database access
     # or 'recipe.ini': when combined with _data_folder, indicate the configparse ini file for local file access
-    _data_folder: str = "./"
-    _infer_mode: bool = False
+    _data_folder: str  # "./"
+    _infer_mode: bool  # False
     # Following are derived from above
-    _observation_meta: Union[ObservationMetaCloud, ObservationMetaECU] = field(
-        default_factory=ObservationMetaCloud
-    )
-    _episode_start_dt: datetime = datetime.now()
-    _resume: bool = True
-    _observations: list[pd.Series] = field(default_factory=list[pd.Series])
-    _torque_table_row_names: list[str] = field(default_factory=list[str])
-    _epi_no: int = 0
+    _buffer: Optional[
+        Union[MongoBuffer, DaskBuffer]
+    ] = None  # field(default_factory=MongoBuffer)
+    _episode_start_dt: Optional[datetime] = None  # datetime.now()
+    _observation_meta: Optional[
+        Union[ObservationMetaCloud, ObservationMetaECU]
+    ] = None  # field(default_factory=ObservationMetaCloud)
+    _torque_table_row_names: Optional[
+        list[str]
+    ] = None  # field(default_factory=list[str])
+    _observations: Optional[
+        list[pd.Series]
+    ] = None  # field(default_factory=list[pd.Series])
+    _epi_no: Optional[int] = None
 
     def __post_init__(self):
         """
@@ -83,10 +91,29 @@ class DPG(Hashable):
         #  init observation meta info object,
         #  episode start time will be updated for each episode, for now it is the time when the algo is created
 
+        # connect truck interface and Cloud or Ecu interface
         if isinstance(self.truck, TruckInCloud):
-            self.observation_meta = ObservationMetaCloud()  # use default
+            self.observation_meta = ObservationMetaCloud(
+                state_specs=StateSpecsCloud(),
+                action_specs=ActionSpecs(
+                    action_unit_code="nm",
+                    action_row_number=self.truck.torque_table_row_num_flash,
+                    action_column_number=self.truck.torque_table_col_num,
+                ),
+                reward_specs=RewardSpecs(reward_unit_code="wh", reward_number=1),
+                site=self.truck.site,
+            )
         else:  # Kvaser
-            self.observation_meta = ObservationMetaECU()  # use default
+            self.observation_meta = ObservationMetaECU(
+                state_specs=StateSpecsECU(),
+                action_specs=ActionSpecs(
+                    action_unit_code="nm",
+                    action_row_number=self.truck.torque_table_row_num_flash,
+                    action_column_number=self.truck.torque_table_col_num,
+                ),
+                reward_specs=RewardSpecs(reward_unit_code="wh", reward_number=1),
+                site=self.truck.site,
+            )  # use default
 
         (
             self.truck.observation_numel,
@@ -96,12 +123,12 @@ class DPG(Hashable):
         self.torque_table_row_names = (
             self.observation_meta.get_torque_table_row_names()
         )  # part of the action MultiIndex
-        login_pattern = re.compile(RE_DBKEY)
+        login_pattern = re.compile(RE_DB_KEY)
         recipe_pattern = re.compile(RE_RECIPEKEY)
         # if pool_key is an url or a mongodb name
         if "mongo" in self.pool_key.lower() or login_pattern.match(self.pool_key):
             # TODO coll_type needs to be passed in for differentiation between RECORD and EPISODE
-            db_config = get_db_config(self.pool_key, self.coll_type)
+            db_config = get_db_config(self.pool_key)
             self.buffer = MongoBuffer(  # choose item type: Record/Episode
                 db_config=db_config,
                 batch_size=self.hyper_param.BatchSize,
@@ -208,8 +235,12 @@ class DPG(Hashable):
             observation_list
         )  # concat Series along MultiIndex, still a Series
         observation.index = multiindex  # each observation is a series for the quadruple (s,a,r,s') with a MultiIndex
+
+        assert (
+            type(observation) is pd.Series
+        ), f"observation is not a Series, but {type(observation)}"
         self.observations.append(
-            observation
+            observation  # type: ignore
         )  # each observation is a series for the quadruple (s,a,r,s')
 
     # @abc.abstractmethod
