@@ -49,6 +49,7 @@ dependencies:
   - jupytext
   - tqdm
   - pandas-stubs
+  - scipy-stubs
   - pip
   - pip:
     - pydantic==2.2.1
