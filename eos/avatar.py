@@ -2114,12 +2114,21 @@ class Avatar(abc.ABC):
                 f"{{'header': 'episode starts!', " f"'episode': {epi_cnt}}}",
                 extra=self.dictLogger,
             )
-
             # mongodb default to UTC time
 
             # Get the initial motion_power data for the initial quadruple (s, a, r, s')_{-1}
             while True:
                 motion_power = None
+                with self.hmi_lock:  # wait for tester to kick off or to exit
+                    th_exit = self.program_exit  # if program_exit is False,
+
+                if th_exit:
+                    self.logger_control_flow.info(
+                        f"{{'header': 'Program exit!!!', ",
+                        extra=self.dictLogger,
+                    )
+                    break
+
                 try:
                     motion_power = check_type(self.motion_power_queue, Queue).get(
                         block=True, timeout=10
@@ -2140,6 +2149,9 @@ class Avatar(abc.ABC):
                         extra=self.dictLogger,
                     )
                     continue
+
+            if th_exit:
+                continue
 
             self.agent.start_episode(datetime.now())
             step_count = 0
