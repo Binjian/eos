@@ -2508,6 +2508,8 @@ class Avatar(abc.ABC):
         #         profiler_out_dir=self.train_log_dir,
         #     )
         self.agent.buffer.close()
+        plt.close(fig='all')
+
 
         self.logger_control_flow.info(
             f"{{'header': 'Close Buffer, pool!'}}", extra=self.dictLogger
