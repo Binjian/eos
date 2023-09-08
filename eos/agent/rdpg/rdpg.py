@@ -308,7 +308,7 @@ class RDPG(DPG):
                 dtype=tf.float32,  # and add batch and time dimension twice at axis 0
             )  # so that last_actions is a 3D tensor
         except (
-            IndexError
+            IndexError, TypeError
         ):  # if no last action in case of the first step of the episode, then use zeros
             last_actions = tf.zeros(
                 shape=(
