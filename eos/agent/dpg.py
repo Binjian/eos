@@ -84,6 +84,7 @@ class DPG(Hashable):
         # Number of "experiences" to store     at max
         # Num of tuples to train on.
 
+        self.epi_no = 0
         dt = datetime.now()
         dt_milliseconds = int(dt.microsecond / 1000) * 1000
         self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
