@@ -1,5 +1,5 @@
 """
-Title: agent
+Title: avatar
 Author: [Binjian Xin](https://www.newrizon.com)
 Date created: 2022/12/14
 Last modified: 2022/12/14
@@ -13,9 +13,6 @@ This script shows an implementation of rl agent on EC1 truck real environment.
 An Ego Vehicle drives through a fixed track and collect loss (negative reward) defined
 as energy consumption
 
-### References
-
-- [DDPG ](https://keras.io/examples/rl/ddpg_pendulum/)
 """
 from __future__ import annotations
 
@@ -29,9 +26,6 @@ import math
 
 # system imports
 import os
-import queue
-from queue import Queue
-import socket
 import sys
 import threading
 import time
@@ -39,12 +33,10 @@ import warnings
 import concurrent.futures
 
 # third party imports
-from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
-from threading import Lock, Thread, Event
 from typing import Optional, Union, cast
 from typeguard import check_type  # type: ignore
 
@@ -54,8 +46,6 @@ import pandas as pd  # type: ignore
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
-# from rocketmq.client import Message, Producer  # type: ignore
-import rocketmq.client as rmq_client  # type: ignore
 
 # tf.debugging.set_log_device_placement(True)
 # visualization import
@@ -67,59 +57,32 @@ from tensorflow.summary import SummaryWriter, create_file_writer, scalar  # type
 from eos import proj_root
 from eos.agent import DDPG, DPG, RDPG
 from eos.agent.utils import HyperParamDDPG, HyperParamRDPG
-from eos.comm import (
-    ClearablePullConsumer,
-    RemoteCanClient,
-    RemoteCanException,
-    kvaser_send_float_array,
-)
 from eos.data_io.config import (
-    CANMessenger,
     Driver,
-    TripMessenger,
     Truck,
     TruckInCloud,
-    TruckInField,
     str_to_can_server,
     str_to_driver,
     str_to_trip_server,
     str_to_truck,
 )
 
-from eos.data_io.conn import udp_context, tcp_context
 from eos.utils import (
     GracefulKiller,
     dictLogger,
     logger,
-    ragged_nparray_list_interp,
 )
-from eos.data_io.utils import (
-    assemble_action_ser,
-    assemble_reward_ser,
-    assemble_state_ser,
-)
-from eos.visualization import plot_3d_figure, plot_to_image
 
-# from bson import ObjectId
+from eos.data_io.dataflow import EcuPipeline, CloudPipeline
+
+from eos.visualization import plot_3d_figure, plot_to_image
 
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
-
 # os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
-
-
-# local imports
-
-
-# from utils import get_logger, get_truck_status, flash_vcu, plot_3d_figure
-# value = [99.0] * 21 * 17
-# send_float_array('TQD_trqTrqSetECO_MAP_v', value)
 
 # system warnings and numpy warnings handling
 warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
-
-
 # np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
@@ -127,26 +90,19 @@ warnings.filterwarnings("ignore", message="currentThread", category=DeprecationW
 class Avatar(abc.ABC):
     truck: Truck
     driver: Driver
-    can_server: CANMessenger
-    trip_server: TripMessenger
     _agent: DPG  # set by derived Avatar like AvatarDDPG
+    pipeline: EcuPipeline
+    cloud: bool  # determined by truck type
     ui: str
     logger: logging.Logger
     resume: bool = True
     infer_mode: bool = False
     record: bool = True
-    # Following are derived
-    data_root: Optional[Path] = None
-    table_root: Optional[Path] = None
-    program_start: Optional[bool] = None
-    program_exit: Optional[bool] = None
-    cloud: Optional[bool] = None
-    vel_hist_dq: Optional[deque] = None
+    data_root: Path = Path(".") / "data"
+    table_root: Path = Path(".") / "tables"
+    program_start: bool = False
+    program_exit: bool = False
     train_summary_writer: Optional[SummaryWriter] = None
-    remotecan_client: Optional[RemoteCanClient] = None
-    rmq_consumer: Optional[ClearablePullConsumer] = None
-    rmq_message_ready: rmq_client.Message = None
-    rmq_producer: Optional[rmq_client.Producer] = None
     log_root: Path = Path(".") / "py_log"
     logger_control_flow: Optional[logging.Logger] = None
     tflog: Optional[logging.Logger] = None
@@ -199,13 +155,10 @@ class Avatar(abc.ABC):
         ).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
         if self.cloud:
+            self.pipeline = CloudPipeline()
             # reset proxy (internal site force no proxy)
-            self.init_cloud()
-            assert self.ui in [
-                "RMQ",
-                "TCP",
-                "NUMB",
-            ], f"ui must be RMQ, TCP or NUMB, not {self.ui}"
+        else:
+            self.pipeline = EcuPipeline()
 
         # misc variables required for the class and its methods
         # self.vel_hist_dq: deque = deque(maxlen=20)  # type: ignore
@@ -332,31 +285,7 @@ class Avatar(abc.ABC):
     def agent(self, value: DPG) -> None:
         self._agent = value
 
-    def init_cloud(self) -> None:
-        os.environ["http_proxy"] = ""
-
-        if self.ui == "mobile":
-            # Create RocketMQ consumer
-            self.rmq_consumer = ClearablePullConsumer("CID_EPI_ROCKET")
-            self.rmq_consumer.set_namesrv_addr(
-                self.trip_server.Host + ":" + self.trip_server.Port
-            )
-
-            # Create RocketMQ producer
-            self.rmq_message_ready = rmq_client.Message("update_ready_state")
-            self.rmq_message_ready.set_keys("what is keys mean")
-            self.rmq_message_ready.set_tags("tags ------")
-            self.rmq_message_ready.set_body(
-                json.dumps({"vin": self.truck.vin, "is_ready": True})
-            )
-            # self.rmq_message_ready.set_keys('trip_server')
-            # self.rmq_message_ready.set_tags('tags')
-            self.rmq_producer = rmq_client.Producer("PID-EPI_ROCKET")
-            self.rmq_producer.set_namesrv_addr(
-                self.trip_server.Host + ":" + self.trip_server.Port
-            )
-
-    def set_logger(self) -> None:
+    def set_logger(self):
         self.log_root = self.data_root / "py_logs"
         try:
             os.makedirs(self.log_root)
@@ -480,7 +409,7 @@ class Avatar(abc.ABC):
         )
         # time.sleep(1.0)
         if self.cloud:
-            ret_code, ret_str = self.remotecan_client.send_torque_map(
+            ret_code, ret_str = self.pipeline.send_torque_map(
                 pedalmap=self.vcu_calib_table1, swap=False
             )  # 14 rows for whole map
             self.logger.info(
@@ -490,7 +419,9 @@ class Avatar(abc.ABC):
                 extra=self.dictLogger,
             )
         else:
-            ret_code = kvaser_send_float_array(self.vcu_calib_table1, sw_diff=False)
+            ret_code = self.pipeline.kvaser_send_float_array(
+                self.vcu_calib_table1, sw_diff=False
+            )
             self.logger.info(
                 f"{{'header': 'Done flash initial table', "
                 f"'ret_code': {ret_code}'}}",
@@ -500,42 +431,6 @@ class Avatar(abc.ABC):
         # TQD_trqTrqSetECO_MAP_v
 
     # tracer.start()
-
-    def init_threads_data(self) -> None:
-        # multithreading initialization
-        self.hmi_lock = Lock()
-        self.state_machine_lock = Lock()
-        self.flash_env_lock = Lock()
-        self.get_env_lock = Lock()
-        self.done_env_lock = Lock()
-
-        # tableQueue contains a table which is a list of type float
-        self.tableQueue = Queue(maxsize=2)
-        # motion_power_queue contains a vcu states list with N(20) subsequent motion states + reward as observation
-        self.motion_power_queue = Queue(maxsize=2)
-
-        # initial status of the switches
-        self.program_exit = False
-        self.program_start = False
-        self.episode_done = False
-        self.episode_end = False
-        self.episode_count = 0
-        self.step_count = 0
-        self.epi_countdown_time = (
-            self.truck.observation_duration
-        )  # extend capture time after valid episode termination, equal to an extra observation duration
-
-        # use timer object
-        # self.timer_capture_countdown = threading.Timer(
-        #     self.capture_countdown, self.capture_countdown_handler
-        # )
-        # signal.signal(signal.SIGALRM, self.reset_capture_handler)
-        self.get_truck_status_start = False
-        self.epi_countdown = False
-        self.get_truck_status_motion_power_t = []
-        self.get_truck_status_myHost = "127.0.0.1"
-        self.get_truck_status_myPort = 8002
-        self.get_truck_status_queue_object_len = 12  # sequence length 1.5*12s
 
     def train(self):
         # Start thread for flashing vcu, flash first
