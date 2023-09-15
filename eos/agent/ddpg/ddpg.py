@@ -141,7 +141,6 @@ class DDPG(DPG):
     """
 
     # Following are derived
-    _episode_start_dt: Optional[datetime] = None  # field(default_factory=datetime.now)
     _buffer: Optional[
         Union[MongoBuffer, DaskBuffer]
     ] = None  # cannot have default value, because it precedes _plot in base class DPG
@@ -319,7 +318,7 @@ class DDPG(DPG):
                 + "-"
                 + self.driver.pid
                 + "_actor"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + pd.Timestamp.now(self.truck.tz).isoformat()
             )
             checkpoint_critic_dir = Path(self.data_folder).joinpath(
                 "tf_ckpts-"
@@ -329,7 +328,7 @@ class DDPG(DPG):
                 + "-"
                 + self.driver.pid
                 + "_critic"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + pd.Timestamp.now(self.truck.tz).isoformat()
             )
         try:
             os.makedirs(checkpoint_actor_dir)

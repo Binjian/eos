@@ -4,7 +4,6 @@ import abc
 from collections.abc import Hashable
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from typing import ClassVar, Union, Optional
 
 import pandas as pd
@@ -63,7 +62,7 @@ class DPG(Hashable):
     _buffer: Optional[
         Union[MongoBuffer, DaskBuffer]
     ] = None  # field(default_factory=MongoBuffer)
-    _episode_start_dt: Optional[datetime] = None  # datetime.now()
+    _episode_start_dt: Optional[pd.Timestamp] = None  # datetime.now()
     _observation_meta: Optional[
         Union[ObservationMetaCloud, ObservationMetaECU]
     ] = None  # field(default_factory=ObservationMetaCloud)
@@ -85,9 +84,10 @@ class DPG(Hashable):
         # Num of tuples to train on.
 
         self.epi_no = 0
-        dt = datetime.now()
-        dt_milliseconds = int(dt.microsecond / 1000) * 1000
-        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
+        # dt = datetime.now()
+        # dt_milliseconds = int(dt.microsecond / 1000) * 1000
+        # self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
+        self.episode_start_dt = pd.Timestamp.now(self.truck.tz)
 
         #  init observation meta info object,
         #  episode start time will be updated for each episode, for now it is the time when the algo is created
@@ -189,11 +189,12 @@ class DPG(Hashable):
         """
         pass
 
-    def start_episode(self, dt: datetime):
+    def start_episode(self, ts: pd.Timestamp):
         # self.logger.info(f'Episode start at {dt}', extra=dictLogger)
         # somehow mongodb does not like microseconds in rec['plot']
-        dt_milliseconds = int(dt.microsecond / 1000) * 1000
-        self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
+        # ts_milliseconds = int(ts.microsecond / 1000) * 1000
+        # self.episode_start_dt = ts.replace(microsecond=ts_milliseconds)
+        self.episode_start_dt = ts
 
         self.observations: list[
             pd.Series
@@ -217,7 +218,9 @@ class DPG(Hashable):
         """
 
         # Create MultiIndex
-        timestamp_ser = pd.Series([timestamp], name="timestamp")
+        timestamp_ser = pd.Series(
+            [timestamp], name="timestamp"
+        )  # timestamp_ser has only one element
         timestamp_ser.index = pd.MultiIndex.from_product(
             [timestamp_ser.index, [0]], names=["rows", "idx"]
         )
@@ -347,11 +350,11 @@ class DPG(Hashable):
         raise AttributeError("infer_mode is read-only")
 
     @property
-    def episode_start_dt(self) -> datetime:
+    def episode_start_dt(self) -> pd.Timestamp:
         return self._episode_start_dt
 
     @episode_start_dt.setter
-    def episode_start_dt(self, value: datetime):
+    def episode_start_dt(self, value: pd.Timestamp):
         self._episode_start_dt = value
 
     @property

@@ -26,6 +26,7 @@ import json
 # logging
 import logging
 import math
+from zoneinfo import ZoneInfo
 
 # system imports
 import os
@@ -274,7 +275,6 @@ class Avatar(abc.ABC):
         )
 
     def start_threads(self) -> None:
-
         self.evt_epi_done = Event()
         self.evt_remote_get = Event()
         self.evt_remote_flash = Event()
@@ -294,7 +294,11 @@ class Avatar(abc.ABC):
                 self.thr_observe = Thread(
                     target=self.remote_hmi_rmq_state_machine,
                     name="observe",
-                    args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
+                    args=[
+                        self.evt_epi_done,
+                        self.evt_remote_get,
+                        self.evt_remote_flash,
+                    ],
                 )
                 self.thr_observe.start()
             elif self.ui == "TCP":
@@ -302,7 +306,11 @@ class Avatar(abc.ABC):
                 self.thr_observe = Thread(
                     target=self.remote_hmi_tcp_state_machine,
                     name="observe",
-                    args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
+                    args=[
+                        self.evt_epi_done,
+                        self.evt_remote_get,
+                        self.evt_remote_flash,
+                    ],
                 )
                 self.thr_observe.start()
             elif self.ui == "NUMB":
@@ -310,7 +318,11 @@ class Avatar(abc.ABC):
                 self.thr_observe = Thread(
                     target=self.remote_hmi_no_state_machine,
                     name="observe",
-                    args=[self.evt_epi_done, self.evt_remote_get, self.evt_remote_flash],
+                    args=[
+                        self.evt_epi_done,
+                        self.evt_remote_get,
+                        self.evt_remote_flash,
+                    ],
                 )
                 self.thr_observe.start()
             else:
@@ -386,7 +398,7 @@ class Avatar(abc.ABC):
             + "-"
             + self.driver.pid
             + "-"
-            + datetime.now().isoformat().replace(":", "-")
+            + pd.Timestamp.now(self.truck.tz).isoformat()  # .replace(":", "-")
             + ".log"
         )
         fmt = "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
@@ -441,7 +453,7 @@ class Avatar(abc.ABC):
 
     def set_data_path(self) -> None:
         # Create folder for ckpts logs.
-        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+        current_time = pd.Timestamp.now(self.truck.tz).isoformat()
         train_log_dir = self.data_root.joinpath(
             "tf_logs-"
             + str(self.agent)
@@ -750,7 +762,11 @@ class Avatar(abc.ABC):
                             if self.get_truck_status_start:  # starts episode
                                 # logger_kvaser_get.info(f"Can loop start!")
 
-                                ts = pd.to_datetime(datetime.now())
+                                # keep the truck time zone ("Asia/Shanghai")
+                                ts = pd.Timestamp.now(
+                                    self.truck.tz
+                                )  # CAN output naive timestamps (no timezone info)
+
                                 velocity = float(value["velocity"])
                                 pedal = float(value["pedal"])
                                 brake = float(value["brake_pressure"])
@@ -984,7 +1000,7 @@ class Avatar(abc.ABC):
                         + "-"
                         + self.driver.pid
                         + "-"
-                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + datetime.now(self.truck.tz).isoformat()
                         + "e-"
                         + str(epi_cnt)
                         + "-"
@@ -1036,7 +1052,7 @@ class Avatar(abc.ABC):
                 + "-"
                 + self.driver.pid
                 + "-"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + datetime.now(self.truck.tz).isoformat()
                 + ".csv"
             )
         )
@@ -1948,7 +1964,7 @@ class Avatar(abc.ABC):
                         + "-"
                         + self.driver.pid
                         + "-"
-                        + datetime.now().strftime("%y-%m-%d-%h-%m-%s-")
+                        + datetime.now(self.truck.tz).isoformat()
                         + "e-"
                         + str(epi_cnt)
                         + "-"
@@ -2057,7 +2073,7 @@ class Avatar(abc.ABC):
                 + "-"
                 + self.driver.pid
                 + "-"
-                + datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+                + datetime.now(self.truck.tz).isoformat()
                 + ".csv"
             )
         )
@@ -2072,7 +2088,6 @@ class Avatar(abc.ABC):
 
     def run(self) -> None:
         # Start threads for getting observation, flashing vcu and HMI
-
 
         self.start_threads()
 
@@ -2153,7 +2168,7 @@ class Avatar(abc.ABC):
             if th_exit:
                 continue
 
-            self.agent.start_episode(datetime.now())
+            self.agent.start_episode(pd.Timestamp.now(self.truck.tz))
             step_count = 0
             episode_reward = 0.0
             prev_timestamp = self.agent.episode_start_dt
@@ -2170,7 +2185,7 @@ class Avatar(abc.ABC):
                 torque_table_row_names=self.agent.torque_table_row_names,
                 table_start=0,
                 flash_start_ts=pd.to_datetime(prev_timestamp),
-                flash_end_ts=pd.to_datetime(datetime.now()),
+                flash_end_ts=pd.Timestamp.now(self.truck.tz),
                 torque_table_row_num_flash=self.truck.torque_table_row_num_flash,
                 torque_table_col_num=self.truck.torque_table_col_num,
                 speed_scale=self.truck.speed_scale,
@@ -2262,7 +2277,7 @@ class Avatar(abc.ABC):
                     # skip the odd indexed observation/reward for policy to make it causal
 
                     # assemble state
-                    timestamp = motion_power.loc[
+                    timestamp: pd.Timestamp = motion_power.loc[
                         0, "timestep"
                     ]  # only take the first timestamp, as frequency is fixed at 50Hz, the rest is saved in another col
 
@@ -2276,6 +2291,7 @@ class Avatar(abc.ABC):
                     reward = assemble_reward_ser(
                         motion_power.loc[:, ["current", "voltage"]],
                         self.truck.observation_sampling_rate,
+                        ts=pd.Timestamp.now(tz=self.truck.tz),
                     )
                     work = reward[("work", 0)]
                     episode_reward += float(work)
@@ -2295,7 +2311,7 @@ class Avatar(abc.ABC):
                             work + step_reward
                         )  # reward is the sum of flashed and not flashed step
                         self.agent.deposit(
-                            pd.Timestamp(prev_timestamp.timestamp()),
+                            prev_timestamp,
                             prev_state,
                             prev_action,
                             reward,  # reward from last action
@@ -2316,7 +2332,7 @@ class Avatar(abc.ABC):
                             extra=self.dictLogger,
                         )
                         # flash the vcu calibration table and assemble action
-                        flash_start_ts = pd.to_datetime(datetime.now())
+                        flash_start_ts = pd.Timestamp.now(self.truck.tz)
                         self.tableQueue.put(torque_map_line)
                         self.logger_control_flow.info(
                             f"{{'header': 'Action Push table', "
@@ -2333,7 +2349,7 @@ class Avatar(abc.ABC):
                             f"{{'header': 'after flash lock wait!",
                             extra=self.dictLogger,
                         )
-                        flash_end_ts = pd.to_datetime(datetime.now())
+                        flash_end_ts = pd.Timestamp.now(self.truck.tz)
 
                         action = assemble_action_ser(
                             torque_map_line,
@@ -2397,7 +2413,7 @@ class Avatar(abc.ABC):
             self.logger_control_flow.info(
                 f"{{'header': 'Episode end.', "
                 f"'episode': '{epi_cnt}', "
-                f"'timestamp': '{datetime.now()}'}}",
+                f"'timestamp': '{datetime.now(self.truck.tz)}'}}",
                 extra=self.dictLogger,
             )
 
@@ -2508,8 +2524,7 @@ class Avatar(abc.ABC):
         #         profiler_out_dir=self.train_log_dir,
         #     )
         self.agent.buffer.close()
-        plt.close(fig='all')
-
+        plt.close(fig="all")
 
         self.logger_control_flow.info(
             f"{{'header': 'Close Buffer, pool!'}}", extra=self.dictLogger
