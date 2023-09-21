@@ -2168,13 +2168,14 @@ class Avatar(abc.ABC):
             if th_exit:
                 continue
 
-            self.agent.start_episode(pd.Timestamp.now(self.truck.tz))
+            self.agent.start_episode(pd.Timestamp.now(tz=self.truck.tz))
             step_count = 0
             episode_reward = 0.0
             prev_timestamp = self.agent.episode_start_dt
             check_type(motion_power, pd.DataFrame)
             prev_state = assemble_state_ser(
-                motion_power.loc[:, ["timestep", "velocity", "thrust", "brake"]]
+                motion_power.loc[:, ["timestep", "velocity", "thrust", "brake"]],
+                tz=self.truck.tz,
             )  # s_{-1}
             zero_torque_map_line = np.zeros(
                 shape=(1, 1, self.truck.torque_flash_numel),  # [1, 1, 4*17]
@@ -2190,6 +2191,7 @@ class Avatar(abc.ABC):
                 torque_table_col_num=self.truck.torque_table_col_num,
                 speed_scale=self.truck.speed_scale,
                 pedal_scale=self.truck.pedal_scale,
+                tz=self.truck.tz
             )  # a_{-1}
             step_reward = 0.0
             # reward is measured in next step
@@ -2283,7 +2285,8 @@ class Avatar(abc.ABC):
 
                     # motion_power.loc[:, ['timestep', 'velocity', 'thrust', 'brake']]
                     state = assemble_state_ser(
-                        motion_power.loc[:, ["timestep", "velocity", "thrust", "brake"]]
+                        motion_power.loc[:, ["timestep", "velocity", "thrust", "brake"]],
+                        tz=self.truck.tz,
                     )
 
                     # assemble reward, actually the reward from last action
@@ -2361,6 +2364,7 @@ class Avatar(abc.ABC):
                             self.truck.torque_table_col_num,
                             self.truck.speed_scale,
                             self.truck.pedal_scale,
+                            self.truck.tz
                         )
 
                         prev_timestamp = timestamp
