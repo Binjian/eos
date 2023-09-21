@@ -2168,7 +2168,7 @@ class Avatar(abc.ABC):
             if th_exit:
                 continue
 
-            self.agent.start_episode(pd.Timestamp.now(self.truck.tz))
+            self.agent.start_episode(pd.Timestamp.now(tz=self.truck.tz))
             step_count = 0
             episode_reward = 0.0
             prev_timestamp = self.agent.episode_start_dt
