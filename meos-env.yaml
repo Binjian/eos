@@ -27,7 +27,7 @@ dependencies:
   - python-json-logger
   - plotly
   - Pillow
-  - pandas=2.1
+  - pandas=2.1.1
   - ordered-set
   - opt-einsum
   - jupyterlab
@@ -40,8 +40,8 @@ dependencies:
   - matplotlib
   - pytest
   - reportlab
-  - pymongo
-  - pyarrow
+  - pymongo==4.5.0
+  - pyarrow==13.0.0
   - fastavro
   - pymongoarrow
   - dask
@@ -52,7 +52,7 @@ dependencies:
   - scipy-stubs
   - pip
   - pip:
-    - pydantic==2.2.1
+    - pydantic==2.1.1
     - matplotlib-stubs
     - types-tensorflow
     - typeguard
