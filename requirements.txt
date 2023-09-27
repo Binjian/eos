@@ -59,4 +59,3 @@ pydantic
 ordered-set
 dacite
 onnx
-```
