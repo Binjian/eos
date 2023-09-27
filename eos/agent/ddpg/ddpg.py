@@ -4,7 +4,6 @@ import logging
 import os
 from contextlib import redirect_stdout
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Union, Optional
 from typeguard import check_type
@@ -704,7 +703,7 @@ class DDPG(DPG):
         self.ou_noise.reset()
 
         # warm up gpu training graph execution pipeline
-        if self.buffer.count() != 0:
+        if self.buffer.pool.cnt != 0:
             if not self.infer_mode:
                 self.logger.info(
                     f"ddpg warm up training!",
@@ -735,7 +734,7 @@ class DDPG(DPG):
         Convert batch type from DataFrames to flattened tensors.
         """
         if (
-            self.buffer.count() == 0
+            self.buffer.pool.cnt == 0
         ):  # bootstrap for Episode 0 from the current self.observations list
             self.logger.info(
                 f"no data in pool, bootstrap from observation_list, "

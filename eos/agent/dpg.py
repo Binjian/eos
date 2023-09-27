@@ -136,7 +136,6 @@ class DPG(Hashable):
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
-                buffer_count=0,  # will be updated during initialization of Buffer
                 torque_table_row_names=self.torque_table_row_names,
             )
         elif self.pool_key is None or recipe_pattern.match(
@@ -154,7 +153,6 @@ class DPG(Hashable):
                 driver=self.driver,
                 truck=self.truck,
                 meta=self.observation_meta,
-                buffer_count=0,
                 torque_table_row_names=self.torque_table_row_names,
             )
         else:

@@ -199,7 +199,7 @@ class RDPG(DPG):
         self.actor_net.ou_noise.reset()
 
         # warm up the gpu training graph execution pipeline
-        if self.buffer.count() != 0:
+        if self.buffer.pool.cnt != 0:
             if not self.infer_mode:
                 self.logger.info(
                     f"rdpg warm up training!",

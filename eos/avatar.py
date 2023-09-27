@@ -26,7 +26,6 @@ import json
 # logging
 import logging
 import math
-from zoneinfo import ZoneInfo
 
 # system imports
 import os
@@ -2097,7 +2096,6 @@ class Avatar(abc.ABC):
         running_reward = 0.0
         th_exit = False
         epi_cnt_local = 0
-        fig = None
 
         # Gracefulkiller only in the main thread!
         killer = GracefulKiller()
@@ -2436,7 +2434,7 @@ class Avatar(abc.ABC):
                 )
 
                 # self.logger.info(f"BP{k} starts.", extra=self.dictLogger)
-                if self.agent.buffer.count() > 0:
+                if self.agent.buffer.pool.cnt > 0:
                     for k in range(6):
                         (critic_loss, actor_loss) = self.agent.train()
                         self.agent.soft_update_target()
