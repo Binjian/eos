@@ -104,7 +104,7 @@ class RDPG(DPG):
             driver=self.driver.pid,
             episodestart_start=veos_lifetime_start_date,
             episodestart_end=veos_lifetime_end_date,
-            seq_len_from=10,  # from 10  # sample sequence with a length from 1 to 200
+            seq_len_from=1,  # from 10  # sample sequence with a length from 1 to 200
             seq_len_to=self.hyper_param.tbptt_k1 + 100,  # to 300
         )
         self.buffer.pool.query = self.buffer.query
