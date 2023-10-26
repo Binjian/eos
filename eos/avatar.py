@@ -74,9 +74,15 @@ from eos.utils import (
     logger,
 )
 
-from eos.data_io.dataflow import Pipeline, Producer, Consumer, Kvaser, Cruncher
-
-
+from eos.data_io.dataflow import (
+    Pipeline,
+    Producer,
+    Consumer,
+    Kvaser,
+    Cruncher,
+    Cloud,
+    VehicleInterface,
+)
 from eos.visualization import plot_3d_figure, plot_to_image
 
 
@@ -97,6 +103,7 @@ class Avatar(abc.ABC):
     dictLogger: dict
     _resume: bool = True
     _infer_mode: bool = False
+    _cloud: bool = False
     _observe_pipeline: Optional[Pipeline] = None
     _crunch_pipeline: Optional[Pipeline] = None
     _flash_pipeline: Optional[Pipeline] = None
@@ -105,7 +112,7 @@ class Avatar(abc.ABC):
     interrupt_event: Optional[Event] = None
     countdown_event: Optional[Event] = None
     exit_event: Optional[Event] = None
-    kvaser: Optional[Kvaser] = None
+    vehicle_interface: Optional[VehicleInterface] = None
     cruncher: Optional[Cruncher] = None
     data_root: Path = Path(".") / "data"
     logger_control_flow: Optional[logging.Logger] = None
@@ -191,14 +198,25 @@ class Avatar(abc.ABC):
             extra=self.dictLogger,
         )
 
-        self.kvaser = Kvaser(  # Producer~Consumer
-            truck=self.truck,
-            driver=self.driver,
-            resume=self.resume,
-            data_dir=self.data_root,
-            logger=self.logger,
-            dictLogger=self.dictLogger,
-        )
+        if not self.cloud:
+            self.vehicle_interface = Kvaser(  # Producer~Consumer
+                truck=self.truck,
+                driver=self.driver,
+                resume=self.resume,
+                data_dir=self.data_root,
+                logger=self.logger,
+                dictLogger=self.dictLogger,
+            )
+        else:
+            self.vehicle_interface = Cloud(  # Producer~Consumer
+                truck=self.truck,
+                driver=self.driver,
+                resume=self.resume,
+                data_dir=self.data_root,
+                logger=self.logger,
+                dictLogger=self.dictLogger,
+            )
+
         self.cruncher = Cruncher(  # Consumer
             agent=self.agent,
             truck=self.truck,
@@ -249,6 +267,14 @@ class Avatar(abc.ABC):
     @infer_mode.setter
     def infer_mode(self, value: bool) -> None:
         self._infer_mode = value
+
+    @property
+    def cloud(self) -> bool:
+        return self._cloud
+
+    @cloud.setter
+    def cloud(self, value: bool) -> None:
+        self._cloud = value
 
     @property
     def observe_pipeline(self) -> Union[Pipeline, None]:
@@ -546,30 +572,27 @@ if __name__ == "__main__":
         main_run = avatar.train
 
     # initialize dataflow: pipelines, sync events among the threads
-    observe_pipeline = Pipeline(buffer_size=3)  # pipeline for observations
-    flash_pipeline = Pipeline(buffer_size=3)  # pipeline for flashing torque tables
+    observe_pipeline = Pipeline(
+        buffer_size=3
+    )  # pipeline for observations (type dataframe)
+    flash_pipeline = Pipeline(
+        buffer_size=3
+    )  # pipeline for flashing torque tables (type dataframe)
     start_event = Event()
     stop_event = Event()
     interrupt_event = Event()
-    countdown_event = Event()
     exit_event = Event()
     flash_event = Event()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         executor.submit(
-            avatar.kvaser.produce,
+            avatar.vehicle_interface.produce,  # observe thread (spawns 4 threads for input, HMI and output)
             observe_pipeline,
             start_event,
             stop_event,
             interrupt_event,
-            countdown_event,
             exit_event,
             flash_event,
-        )  # observe thread
-        executor.submit(
-            avatar.kvaser.countdown,  # countdown thread
-            interrupt_event,
-            exit_event,
         )
         executor.submit(
             avatar.cruncher.consume,  # data crunch thread
@@ -581,7 +604,7 @@ if __name__ == "__main__":
             flash_event,
         )
         executor.submit(
-            avatar.kvaser.consume,  # flash thread
+            avatar.vehicle_interface.consume,  # flash thread
             flash_pipeline,
             start_event,
             stop_event,
