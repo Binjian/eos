@@ -398,11 +398,11 @@ if __name__ == "__main__":
         "-u",
         "--ui",
         type=str,
-        default="TCP",
+        default="UDP",
         help="User Interface: "
         "'RMQ' for mobile phone (using rocketmq for training/assessment); "
-        "'TCP' for local hmi (using loopback tcp for training/assessment); "
-        "'NUMB' for non-interaction for inference only and testing purpose",
+        "'UDP' for local hmi (using loopback tcp for training/assessment); "
+        "'DUMMY' for non-interaction for inference only and testing purpose",
     )
 
     parser.add_argument(
