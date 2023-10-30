@@ -586,9 +586,9 @@ if __name__ == "__main__":
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         executor.submit(
-            avatar.vehicle_interface.produce,  # observe thread (spawns 4 threads for input, HMI and output)
-            observe_pipeline,
-            flash_pipeline,
+            avatar.vehicle_interface.ignite,  # observe thread (spawns 4 threads for input, HMI and output)
+            observe_pipeline,  # input port; output
+            flash_pipeline,  # out port; input
             start_event,
             stop_event,
             interrupt_event,
@@ -597,8 +597,8 @@ if __name__ == "__main__":
         )
         executor.submit(
             avatar.cruncher.filter,  # data crunch thread
-            observe_pipeline,
-            flash_pipeline,
+            observe_pipeline,  # output port; input
+            flash_pipeline,  # input port; output
             start_event,
             stop_event,
             interrupt_event,
