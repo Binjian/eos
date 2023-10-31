@@ -75,7 +75,7 @@ from eos.utils import (
 )
 
 from eos.data_io.dataflow import (
-    Pipeline,
+    PipelineDQ,
     Producer,
     Consumer,
     Kvaser,
@@ -572,10 +572,10 @@ if __name__ == "__main__":
         main_run = avatar.train
 
     # initialize dataflow: pipelines, sync events among the threads
-    observe_pipeline = Pipeline(
+    observe_pipeline = PipelineDQ(
         buffer_size=3
     )  # pipeline for observations (type dataframe)
-    flash_pipeline = Pipeline(
+    flash_pipeline = PipelineDQ(
         buffer_size=3
     )  # pipeline for flashing torque tables (type dataframe)
     start_event = Event()
