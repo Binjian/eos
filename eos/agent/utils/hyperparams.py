@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from eos.data_io.config import trucks_by_id
 
-
 # default_truck = trucks_by_id['default']
 default_truck = trucks_by_id["VB7_FIELD"]
 

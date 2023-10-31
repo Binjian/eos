@@ -1,19 +1,20 @@
 import os
-import sys
 import pprint
+import sys
+
 import pandas as pd
 
 from eos import proj_root
-from eos.utils import logger, dictLogger
-from eos.avatar import Avatar
 from eos.agent import DDPG
 from eos.agent.utils import HyperParamDDPG
+from eos.avatar import Avatar
 from eos.data_io.config import (
-    str_to_truck,
-    str_to_driver,
     str_to_can_server,
+    str_to_driver,
     str_to_trip_server,
+    str_to_truck,
 )
+from eos.utils import dictLogger, logger
 
 pp = pprint.PrettyPrinter(indent=40)
 

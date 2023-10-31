@@ -1,5 +1,6 @@
-import tensorflow as tf
 import unittest
+
+import tensorflow as tf
 
 
 def my_function(x):

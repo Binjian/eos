@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import abc
-from collections.abc import Hashable
 import re
+from collections.abc import Hashable
 from dataclasses import dataclass
-from typing import ClassVar, Union, Optional
+from typing import ClassVar, Optional, Union
 
 import pandas as pd
-from .utils import HyperParamDDPG, HyperParamRDPG  # type: ignore
 
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
 from eos.data_io.config import (
@@ -20,15 +19,17 @@ from eos.data_io.config import (
 )
 from eos.data_io.struct import (
     RE_RECIPEKEY,
+    ActionSpecs,
     ObservationMetaCloud,
     ObservationMetaECU,
-    get_filemeta_config,
+    RewardSpecs,
     StateSpecsCloud,
     StateSpecsECU,
-    ActionSpecs,
-    RewardSpecs,
+    get_filemeta_config,
 )
 from eos.data_io.utils.eos_pandas import encode_episode_dataframe_from_series
+
+from .utils import HyperParamDDPG, HyperParamRDPG  # type: ignore
 
 """Base class for differentiable policy gradient methods."""
 

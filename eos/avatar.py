@@ -15,10 +15,10 @@ as energy consumption
 
 """
 from __future__ import annotations
-import concurrent.futures
 
 import abc
 import argparse
+import concurrent.futures
 import json
 
 # logging
@@ -28,25 +28,20 @@ import math
 # system imports
 import os
 import sys
-from threading import Thread, Event
 import time
 import warnings
-import concurrent.futures
 
 # third party imports
 from dataclasses import dataclass, field
 from datetime import datetime
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
+from threading import Event, Thread
 from typing import Optional, Union, cast
-from typeguard import check_type  # type: ignore
 
 import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 import pandas as pd  # type: ignore
-
-# gpus = tf.config.experimental.list_physical_devices('GPU')
-# tf.config.experimental.set_memory_growth(gpus[0], True)
 
 # tf.debugging.set_log_device_placement(True)
 # visualization import
@@ -54,6 +49,7 @@ import tensorflow as tf
 from git import Repo
 from pythonjsonlogger import jsonlogger  # type: ignore
 from tensorflow.summary import SummaryWriter, create_file_writer, scalar  # type: ignore
+from typeguard import check_type  # type: ignore
 
 from eos import proj_root
 from eos.agent import DDPG, DPG, RDPG
@@ -67,23 +63,20 @@ from eos.data_io.config import (
     str_to_trip_server,
     str_to_truck,
 )
-
-from eos.utils import (
-    GracefulKiller,
-    dictLogger,
-    logger,
-)
-
 from eos.data_io.dataflow import (
+    Cloud,
+    Consumer,
+    Cruncher,
+    Kvaser,
     PipelineDQ,
     Producer,
-    Consumer,
-    Kvaser,
-    Cruncher,
-    Cloud,
     VehicleInterface,
 )
+from eos.utils import GracefulKiller, dictLogger, logger
 from eos.visualization import plot_3d_figure, plot_to_image
+
+# gpus = tf.config.experimental.list_physical_devices('GPU')
+# tf.config.experimental.set_memory_growth(gpus[0], True)
 
 
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"

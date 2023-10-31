@@ -3,22 +3,19 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple, Optional
-from typeguard import check_type
+from typing import Optional, Tuple
 
 # third-party imports
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from pymongoarrow.monkey import patch_all  # type: ignore
+from typeguard import check_type
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
 from eos.data_io.buffer import DaskBuffer, MongoBuffer  # type: ignore
-from eos.data_io.struct import (
-    PoolQuery,  # type: ignore
-    veos_lifetime_end_date,
-    veos_lifetime_start_date,
-)
+from eos.data_io.struct import PoolQuery  # type: ignore
+from eos.data_io.struct import veos_lifetime_end_date, veos_lifetime_start_date
 
 # local imports
 from eos.utils import dictLogger, logger

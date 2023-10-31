@@ -7,13 +7,14 @@ import os
 import unittest
 import warnings
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+
+from eos import proj_root
 
 # local import
 # import src.comm.remotecan.remote_can_client.remote_can_client as remote_can_client
 from eos.comm.remote.remote_can_client import RemoteCanClient
-from eos import proj_root
 from eos.data_io.config import (
     can_servers_by_name,
     generate_vcu_calibration,

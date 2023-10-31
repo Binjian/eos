@@ -2,11 +2,11 @@ from .ddpg.ddpg import DDPG
 from .dpg import DPG  # noqa: F401
 from .rdpg.rdpg import RDPG
 from .utils import (
+    HyperParam,
     HyperParamDDPG,
     HyperParamDPG,
     HyperParamRDPG,
     OUActionNoise,
-    HyperParam,
 )
 
 __all__ = [
