@@ -13,19 +13,19 @@ def plot_3d_figure(table: pd.DataFrame):
     """
 
     df = table.unstack().reset_index()
-    df.columns = ['pedal', 'velocity', 'torque']
+    df.columns = pd.Index(["throttle", "speed", "torque"])
 
     fig = plt.figure(visible=False)
-    ax = fig.add_subplot(projection='3d')
-    surf = ax.plot_trisurf(
-        df['pedal'],
-        df['velocity'],
-        df['torque'],
-        cmap=plt.cm.YlGnBu,
+    ax = fig.add_subplot(projection="3d")
+    surf = ax.plot_trisurf(  # type: ignore
+        df["throttle"],
+        df["speed"],
+        df["torque"],
+        cmap=plt.get_cmap("YlGnBu"),
         linewidth=5,
     )
     fig.colorbar(surf, shrink=0.5, aspect=5)
-    ax.view_init(30, 175)
+    ax.view_init(elev=30, azim=175)  # type: ignore
 
     return fig
     # plt.show()

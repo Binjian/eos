@@ -95,6 +95,8 @@ class Avatar(abc.ABC):
     _agent: DPG  # set by derived Avatar like AvatarDDPG
     logger: logging.Logger
     dictLogger: dict
+    _resume: bool = True
+    _infer_mode: bool = False
     _observe_pipeline: Optional[Pipeline] = None
     _crunch_pipeline: Optional[Pipeline] = None
     _flash_pipeline: Optional[Pipeline] = None
@@ -106,8 +108,6 @@ class Avatar(abc.ABC):
     kvaser: Optional[Kvaser] = None
     cruncher: Optional[Cruncher] = None
     data_root: Path = Path(".") / "data"
-    table_root: Path = Path(".") / "tables"
-    log_root: Path = Path(".") / "py_log"
     logger_control_flow: Optional[logging.Logger] = None
     tflog: Optional[logging.Logger] = None
 
@@ -171,7 +171,6 @@ class Avatar(abc.ABC):
             f"{{'header': 'Tensorflow build info: {tf_sys_details}'}}"
         )
 
-        self.set_data_path()
         tf.keras.backend.set_floatx("float32")
         self.logger_control_flow.info(
             f"{{'header': 'tensorflow device lib:\n{tf.config.list_physical_devices()}'}}",
@@ -187,48 +186,26 @@ class Avatar(abc.ABC):
             extra=self.dictLogger,
         )
         # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
-        self.vcu_calib_table_row_start = 0
         self.logger_control_flow.info(
             f"{{'header': 'Thread data Initialization done!'}}",
             extra=self.dictLogger,
         )
 
-        # initialize dataflow: pipelines, producers, consumers, crunchers
-        self.observe_pipeline = Pipeline(buffer_size=3)  # pipeline for observations
-        self.flash_pipeline = Pipeline(
-            buffer_size=3
-        )  # pipeline for flashing torque tables
-        self.start_event = Event()
-        self.stop_event = Event()
-        self.interrupt_event = Event()
-        self.countdown_event = Event()
-        self.exit_event = Event()
-        self.kvaser = Kvaser(
+        self.kvaser = Kvaser(  # Producer~Consumer
             truck=self.truck,
             driver=self.driver,
-            in_pipeline=self.observe_pipeline,
-            in_start_event=self.start_event,
-            in_stop_event=self.stop_event,
-            in_interrupt_event=self.interrupt_event,
-            in_countdown_evt=self.countdown_evt,
-            in_exit_event=self.exit_event,
-            out_pipeline=self.flash_pipeline,
-            out_start_event=self.start_event,
-            out_stop_event=self.stop_event,
-            out_interrupt_event=self.interrupt_event,
-            out_countdown_evt=self.countdown_evt,
-            out_exit_event=self.exit_event,
+            resume=self.resume,
+            data_dir=self.data_root,
             logger=self.logger,
             dictLogger=self.dictLogger,
         )
-        self.cruncher = Cruncher(
+        self.cruncher = Cruncher(  # Consumer
+            agent=self.agent,
             truck=self.truck,
             driver=self.driver,
-            out_pipeline=self.observe_pipeline,
-            out_start_event=self.start_event,
-            out_stop_event=self.stop_event,
-            out_interrupt_event=self.interrupt_event,
-            out_exit_event=self.exit_event,
+            resume=self.resume,
+            infer_mode=self.infer_mode,
+            data_dir=self.data_root,
             logger=self.logger,
             dictLogger=self.dictLogger,
         )
@@ -256,6 +233,22 @@ class Avatar(abc.ABC):
     @driver.setter
     def driver(self, value: Driver) -> None:
         self._driver = value
+
+    @property
+    def resume(self) -> bool:
+        return self._resume
+
+    @resume.setter
+    def resume(self, value: bool) -> None:
+        self._resume = value
+
+    @property
+    def infer_mode(self) -> bool:
+        return self._infer_mode
+
+    @infer_mode.setter
+    def infer_mode(self, value: bool) -> None:
+        self._infer_mode = value
 
     @property
     def observe_pipeline(self) -> Union[Pipeline, None]:
@@ -348,81 +341,6 @@ class Avatar(abc.ABC):
             os.makedirs(self.table_root)
         except FileExistsError:
             print("Table folder exists, just resume!")
-
-    def set_data_path(self) -> None:
-        # Create folder for ckpts logs.
-        current_time = pd.Timestamp.now(self.truck.tz).isoformat()
-        train_log_dir = self.data_root.joinpath(
-            "tf_logs-"
-            + str(self.agent)
-            + self.truck.vid
-            + "/gradient_tape/"
-            + current_time
-            + "/train"
-        )
-        self.train_summary_writer: SummaryWriter = create_file_writer(  # type: ignore
-            str(train_log_dir)
-        )
-        # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-        if self.resume:
-            self.logger.info(
-                f"{{'header': 'Resume last training'}}", extra=self.dictLogger
-            )
-        else:
-            self.logger.info(
-                f"{{'header': 'Start from scratch'}}", extra=self.dictLogger
-            )
-
-    def init_vehicle(self) -> None:
-        if self.resume:
-            files = sorted(self.data_root.glob("last_table*.csv"))
-            if not files:
-                self.logger.info(
-                    f"{{'header': 'No last table found, start from default calibration table'}}",
-                    extra=self.dictLogger,
-                )
-                latest_file = proj_root / "eos/data_io/config" / "vb7_init_table.csv"
-            else:
-                self.logger.info(
-                    f"{{'header': 'Resume last table'}}", extra=self.dictLogger
-                )
-                latest_file = max(files, key=os.path.getctime)
-
-        else:
-            self.logger.info(
-                f"{{'header': 'Use default calibration table'}}",
-                extra=self.dictLogger,
-            )
-            latest_file = proj_root / "eos/data_io/config" / "vb7_init_table.csv"
-
-        self.vcu_calib_table0 = pd.read_csv(latest_file, index_col=0)
-
-        # pandas deep copy of the default table (while numpy shallow copy is sufficient)
-        self.vcu_calib_table1 = self.vcu_calib_table0.copy(deep=True)
-        self.logger.info(
-            f"{{'header': 'Start flash initial table'}}", extra=self.dictLogger
-        )
-        # time.sleep(1.0)
-        if self.cloud:
-            ret_code, ret_str = self.pipeline.send_torque_map(
-                pedalmap=self.vcu_calib_table1, swap=False
-            )  # 14 rows for whole map
-            self.logger.info(
-                f"{{'header': 'Done flash initial table.',"
-                f"'ret_code': {ret_code}', "
-                f"'ret_str': {ret_str}'}}",
-                extra=self.dictLogger,
-            )
-        else:
-            ret_code = self.pipeline.kvaser_send_float_array(
-                self.vcu_calib_table1, sw_diff=False
-            )
-            self.logger.info(
-                f"{{'header': 'Done flash initial table', "
-                f"'ret_code': {ret_code}'}}",
-                extra=self.dictLogger,
-            )
 
 
 if __name__ == "__main__":
@@ -603,13 +521,11 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _agent=agent,
-            cloud=args.cloud,
-            ui=args.ui,
-            resume=args.resume,
-            infer_mode=args.infer_mode,
-            record=args.record_table,
-            data_root=data_root,
             logger=logger,
+            dictLogger=dictLogger,
+            _resume=args.resume,
+            _infer_mode=args.infer_mode,
+            data_root=data_root,
         )
     except TypeError as e:
         logger.error(
@@ -629,34 +545,49 @@ if __name__ == "__main__":
     else:
         main_run = avatar.train
 
+    # initialize dataflow: pipelines, sync events among the threads
+    observe_pipeline = Pipeline(buffer_size=3)  # pipeline for observations
+    flash_pipeline = Pipeline(buffer_size=3)  # pipeline for flashing torque tables
+    start_event = Event()
+    stop_event = Event()
+    interrupt_event = Event()
+    countdown_event = Event()
+    exit_event = Event()
+    flash_event = Event()
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         executor.submit(
-            avatar.kvaser.produce,  # observe thread
-        )
+            avatar.kvaser.produce,
+            observe_pipeline,
+            start_event,
+            stop_event,
+            interrupt_event,
+            countdown_event,
+            exit_event,
+            flash_event,
+        )  # observe thread
         executor.submit(
             avatar.kvaser.countdown,  # countdown thread
-            [
-                avatar.interrupt_event,
-                avatar.exit_event,
-            ],
+            interrupt_event,
+            exit_event,
         )
         executor.submit(
-            avatar.cruncher.crunch,  # data crunch thread
-            [
-                avatar.start_event,
-                avatar.stop_event,
-                avatar.interrupt_event,
-                avatar.exit_event,
-            ],
+            avatar.cruncher.consume,  # data crunch thread
+            observe_pipeline,
+            start_event,
+            stop_event,
+            interrupt_event,
+            exit_event,
+            flash_event,
         )
         executor.submit(
             avatar.kvaser.consume,  # flash thread
-            [
-                avatar.start_event,
-                avatar.stop_event,
-                avatar.interrupt_event,
-                avatar.exit_event,
-            ],
+            flash_pipeline,
+            start_event,
+            stop_event,
+            interrupt_event,
+            exit_event,
+            flash_event,
         )
 
         # default behavior is observe will start and send out all the events to orchestrate other three threads.
