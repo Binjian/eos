@@ -5,8 +5,10 @@ logging service for the package
 
 import datetime
 import inspect
+
 # Logging Service Initialization
 import logging
+
 # system imports
 import os
 from logging.handlers import SocketHandler
@@ -22,12 +24,12 @@ mpl_logger.disabled = True
 
 
 # logging.basicConfig(level=logging.DEBUG, format=fmt)
-mpl_logger = logging.getLogger('matplotlib.font_manager')
+mpl_logger = logging.getLogger("matplotlib.font_manager")
 mpl_logger.disabled = True
 # logging.basicConfig(format=fmt)
-logger = logging.getLogger('eos')
+logger = logging.getLogger("eos")
 logger.propagate = False
-dictLogger = {'user': inspect.currentframe().f_code.co_name}
+dictLogger = {"user": inspect.currentframe().f_code.co_name}  # type: ignore
 
 
 def get_logger(folder, name, level=logging.INFO):
@@ -38,9 +40,9 @@ def get_logger(folder, name, level=logging.INFO):
         level (int): logging level （INFO，DEBUG，ERROR, ...）
     """
     # logging.basicConfig(format=fmt)
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.propagate = False
+    mylogger = logging.getLogger(name)
+    mylogger.setLevel(level)
+    mylogger.propagate = False
     formatter = logging.Formatter(
         "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
     )
@@ -68,11 +70,12 @@ def get_logger(folder, name, level=logging.INFO):
     sh = SocketHandler("127.0.0.1", 19996)
     sh.setFormatter(formatter)
 
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-    logger.addHandler(sh)
+    mylogger.addHandler(fh)
+    mylogger.addHandler(ch)
+    mylogger.addHandler(sh)
 
     # dictLogger = {'funcName': '__self__.__func__.__name__'}
     # dictLogger = {'user': inspect.currentframe().f_back.f_code.co_name}
-    dictLogger = {"user": inspect.currentframe().f_code.co_name}
-    return logger, dictLogger
+    mydictLogger = {"user": inspect.currentframe().f_code.co_name}
+
+    return mylogger, mydictLogger
