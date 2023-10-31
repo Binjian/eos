@@ -241,6 +241,7 @@ class DPG(Hashable):
         assert (
             type(observation) is pd.Series
         ), f"observation is not a Series, but {type(observation)}"
+        assert self.observations is not None, "self.observations is None"
         self.observations.append(
             observation  # type: ignore
         )  # each observation is a series for the quadruple (s,a,r,s')
@@ -348,7 +349,7 @@ class DPG(Hashable):
         raise AttributeError("infer_mode is read-only")
 
     @property
-    def episode_start_dt(self) -> pd.Timestamp:
+    def episode_start_dt(self) -> Optional[pd.Timestamp]:
         return self._episode_start_dt
 
     @episode_start_dt.setter
@@ -356,7 +357,9 @@ class DPG(Hashable):
         self._episode_start_dt = value
 
     @property
-    def observation_meta(self) -> Union[ObservationMetaCloud, ObservationMetaECU]:
+    def observation_meta(
+        self,
+    ) -> Optional[Union[ObservationMetaCloud, ObservationMetaECU]]:
         return self._observation_meta
 
     @observation_meta.setter
@@ -364,7 +367,7 @@ class DPG(Hashable):
         self._observation_meta = value
 
     @property
-    def buffer(self) -> Union[MongoBuffer, DaskBuffer]:
+    def buffer(self) -> Optional[Union[MongoBuffer, DaskBuffer]]:
         return self._buffer
 
     @buffer.setter
@@ -380,7 +383,7 @@ class DPG(Hashable):
         self._coll_type = value
 
     @property
-    def observations(self) -> list[pd.Series]:
+    def observations(self) -> Optional[list[pd.Series]]:
         return self._observations
 
     @observations.setter
@@ -388,7 +391,7 @@ class DPG(Hashable):
         self._observations = value
 
     @property
-    def epi_no(self) -> int:
+    def epi_no(self) -> Optional[int]:
         return self._epi_no
 
     @epi_no.setter
@@ -396,7 +399,7 @@ class DPG(Hashable):
         self._epi_no = value
 
     @property
-    def torque_table_row_names(self) -> list[str]:
+    def torque_table_row_names(self) -> Optional[list[str]]:
         return self._torque_table_row_names
 
     @torque_table_row_names.setter
