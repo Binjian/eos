@@ -71,7 +71,8 @@ class DataFrameDoc(TypedDict):
     timestamp: datetime
     meta: dict
     observation: dict
-ItemT = TypeVar('ItemT', Dict, pd.DataFrame)
+
+ItemT = TypeVar("ItemT", Dict, pd.DataFrame)
 
 class PoolQuery(BaseModel):
     vehicle: str
@@ -83,4 +84,9 @@ class PoolQuery(BaseModel):
 
 RE_RECIPEKEY: Incomplete
 
-def get_filemeta_config(data_folder: str, config_file: Optional[str], meta: Union[ObservationMetaCloud, ObservationMetaField], coll_type: str) -> ConfigParser: ...
+def get_filemeta_config(
+    data_folder: str,
+    config_file: Optional[str],
+    meta: Union[ObservationMetaCloud, ObservationMetaField],
+    coll_type: str,
+) -> ConfigParser: ...

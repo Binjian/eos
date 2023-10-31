@@ -215,7 +215,7 @@ class ActorNet:
         # since Batch is one when inferring, squeeze also the batch dimension by tf.squeeze default
         # action = tf.squeeze(action_seq[:, -1, :])
         # action = tf.squeeze(action_seq)
-        action = action_seq[:,-1,:] # get the last step action
+        action = action_seq[:, -1, :]  # get the last step action
         return action
 
     @tf.function(

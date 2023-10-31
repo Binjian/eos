@@ -27,7 +27,14 @@ class DPG(abc.ABC, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def actor_predict(self, state: pd.Series, t: int): ...
     def start_episode(self, dt: datetime): ...
-    def deposit(self, timestamp: pd.Timestamp, state: pd.Series, action: pd.Series, reward: pd.Series, nstate: pd.Series): ...
+    def deposit(
+        self,
+        timestamp: pd.Timestamp,
+        state: pd.Series,
+        action: pd.Series,
+        reward: pd.Series,
+        nstate: pd.Series,
+    ): ...
     def end_episode(self) -> None: ...
     def deposit_episode(self) -> None: ...
     @abc.abstractmethod
@@ -66,4 +73,21 @@ class DPG(abc.ABC, metaclass=abc.ABCMeta):
     def torque_table_row_names(self) -> list[str]: ...
     @property
     def hyper_param(self) -> HYPER_PARAM: ...
-    def __init__(self, *, _truck, _driver, _buffer, _coll_type, _hyper_param, _pool_key, _data_folder, _infer_mode, _observation_meta, _episode_start_dt, _resume, _observations, _torque_table_row_names, _epi_no) -> None: ...
+    def __init__(
+        self,
+        *,
+        _truck,
+        _driver,
+        _buffer,
+        _coll_type,
+        _hyper_param,
+        _pool_key,
+        _data_folder,
+        _infer_mode,
+        _observation_meta,
+        _episode_start_dt,
+        _resume,
+        _observations,
+        _torque_table_row_names,
+        _epi_no
+    ) -> None: ...

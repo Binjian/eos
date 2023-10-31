@@ -40,4 +40,33 @@ class RDPG(DPG):
     def notrain(self): ...
     def soft_update_target(self) -> None: ...
     def save_ckpt(self) -> None: ...
-    def __init__(self, logger, actor_net, critic_net, target_actor_net, target_critic_net, state_t, R, h_t, buffer_count, _seq_len, _ckpt_actor_dir, _ckpt_critic_dir, *, _truck, _driver, _buffer, _coll_type, _hyper_param, _pool_key, _data_folder, _infer_mode, _observation_meta, _episode_start_dt, _resume, _observations, _torque_table_row_names, _epi_no) -> None: ...
+    def __init__(
+        self,
+        logger,
+        actor_net,
+        critic_net,
+        target_actor_net,
+        target_critic_net,
+        state_t,
+        R,
+        h_t,
+        buffer_count,
+        _seq_len,
+        _ckpt_actor_dir,
+        _ckpt_critic_dir,
+        *,
+        _truck,
+        _driver,
+        _buffer,
+        _coll_type,
+        _hyper_param,
+        _pool_key,
+        _data_folder,
+        _infer_mode,
+        _observation_meta,
+        _episode_start_dt,
+        _resume,
+        _observations,
+        _torque_table_row_names,
+        _epi_no
+    ) -> None: ...

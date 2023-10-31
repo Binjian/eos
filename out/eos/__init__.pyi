@@ -1,7 +1,8 @@
 from _typeshed import Incomplete
 
-from .data_io.config.vcu_calib_generator import \
-    generate_vcu_calibration as generate_vcu_calibration
+from .data_io.config.vcu_calib_generator import (
+    generate_vcu_calibration as generate_vcu_calibration,
+)
 from .data_io.pool import DaskPool as DaskPool
 from .data_io.pool import DBPool as DBPool
 from .data_io.pool import EpisodeFilePool as EpisodeFilePool

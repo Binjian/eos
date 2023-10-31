@@ -2,9 +2,9 @@ from .buffer import Buffer as Buffer
 from .buffer import DBBuffer as DBBuffer
 from .config import SPEED_SCALES_MULE as SPEED_SCALES_MULE
 from .config import SPEED_SCALES_VB as SPEED_SCALES_VB
-from .config import \
-    TRIANGLE_TEST_CASE_TARGET_VELOCITIES as \
-    TRIANGLE_TEST_CASE_TARGET_VELOCITIES
+from .config import (
+    TRIANGLE_TEST_CASE_TARGET_VELOCITIES as TRIANGLE_TEST_CASE_TARGET_VELOCITIES,
+)
 from .config import DBConfig as DBConfig
 from .config import Driver as Driver
 from .config import TruckInCloud as TruckInCloud

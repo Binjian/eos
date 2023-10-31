@@ -77,4 +77,4 @@ class HyperParamRDPG(HyperParamDPG):
     # Note: keras only support k1=k2, ignite support k1!=k2
 
 
-HyperParam = TypeVar('HyperParam', HyperParamDDPG, HyperParamRDPG)
+HyperParam = TypeVar("HyperParam", HyperParamDDPG, HyperParamRDPG)

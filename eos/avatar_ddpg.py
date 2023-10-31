@@ -23,7 +23,7 @@ class AvatarDDPG(Avatar):
 
     def __post__init__(self):
         self.agent = DDPG(
-            _coll_type='RECORD',
+            _coll_type="RECORD",
             _hyper_param=self.hyper_param,
             _truck=self.truck,
             _driver=self.driver,
@@ -34,101 +34,101 @@ class AvatarDDPG(Avatar):
         super().__post_init__()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """
     ## Setup
     """
     # resumption settings
     parser = argparse.ArgumentParser(
-        'Use RL agent (DDPG or RDPG) with tensorflow backend for EOS '
-        'with coast-down activated and expected velocity in 3 seconds'
+        "Use RL agent (DDPG or RDPG) with tensorflow backend for EOS "
+        "with coast-down activated and expected velocity in 3 seconds"
     )
     parser.add_argument(
-        '-a',
-        '--agent',
+        "-a",
+        "--agent",
         type=str,
-        default='ddpg',
+        default="ddpg",
         help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
     )
 
     parser.add_argument(
-        '-c',
-        '--cloud',
+        "-c",
+        "--cloud",
         default=False,
-        help='Use cloud mode, default is False',
-        action='store_true',
+        help="Use cloud mode, default is False",
+        action="store_true",
     )
 
     parser.add_argument(
-        '-u',
-        '--ui',
+        "-u",
+        "--ui",
         type=str,
-        default='cloud',
+        default="cloud",
         help="User Interface: 'mobile' for mobile phone (for training); 'local' for local hmi; 'cloud' for no UI",
     )
 
     parser.add_argument(
-        '-r',
-        '--resume',
+        "-r",
+        "--resume",
         default=True,
-        help='resume the last training with restored model, checkpoint and pedal map',
-        action='store_true',
+        help="resume the last training with restored model, checkpoint and pedal map",
+        action="store_true",
     )
 
     parser.add_argument(
-        '-i',
-        '--infer',
+        "-i",
+        "--infer",
         default=False,
-        help='No model update and training. Only Inference mode',
-        action='store_true',
+        help="No model update and training. Only Inference mode",
+        action="store_true",
     )
     parser.add_argument(
-        '-t',
-        '--record_table',
+        "-t",
+        "--record_table",
         default=True,
-        help='record action table during training',
-        action='store_true',
+        help="record action table during training",
+        action="store_true",
     )
     parser.add_argument(
-        '-p',
-        '--path',
+        "-p",
+        "--path",
         type=str,
-        default='.',
-        help='relative path to be saved, for create sub folder for different drivers',
+        default=".",
+        help="relative path to be saved, for create sub folder for different drivers",
     )
     parser.add_argument(
-        '-v',
-        '--vehicle',
+        "-v",
+        "--vehicle",
         type=str,
-        default='.',
+        default=".",
         help="vehicle ID like 'VB7' or 'MP3' or VIN 'HMZABAAH1MF011055'",
     )
     parser.add_argument(
-        '-d',
-        '--driver',
+        "-d",
+        "--driver",
         type=str,
-        default='.',
+        default=".",
         help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
     )
     parser.add_argument(
-        '-m',
-        '--remotecan',
+        "-m",
+        "--remotecan",
         type=str,
-        default='10.0.64.78:5000',
-        help='url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test',
+        default="10.0.64.78:5000",
+        help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test",
     )
     parser.add_argument(
-        '-w',
-        '--web',
+        "-w",
+        "--web",
         type=str,
-        default='10.0.64.78:9876',
-        help='url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test',
+        default="10.0.64.78:9876",
+        help="url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test",
     )
     parser.add_argument(
-        '-o',
-        '--pool_key',
+        "-o",
+        "--pool_key",
         type=str,
-        default='mongo_local',
+        default="mongo_local",
         help="url for mongodb server in format usr:password@host:port, "
         "e.g. admint:y02ydhVqDj3QFjT@10.10.0.4:23000, "
         "or simply name with synced default config, e.g. mongo_cluster, mongo_local; "
@@ -144,7 +144,7 @@ if __name__ == '__main__':
         raise KeyError(f"vehicle {args.vehicle} not found in config file")
     else:
         logger.info(
-            f'Vehicle found. vid:{truck.vid}, vin: {truck.vin}.', extra=dictLogger
+            f"Vehicle found. vid:{truck.vid}, vin: {truck.vin}.", extra=dictLogger
         )
 
     try:
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         raise KeyError(f"driver {args.driver} not found in config file")
     else:
         logger.info(
-            f'Driver found. pid:{driver.pid}, vin: {driver.name}.', extra=dictLogger
+            f"Driver found. pid:{driver.pid}, vin: {driver.name}.", extra=dictLogger
         )
 
     # remotecan_srv: str = 'can_intra'
@@ -162,17 +162,17 @@ if __name__ == '__main__':
     except KeyError:
         raise KeyError(f"can server {args.remotecan} not found in config file")
     else:
-        logger.info(f'CAN Server found: {can_server.SRVName}', extra=dictLogger)
+        logger.info(f"CAN Server found: {can_server.SRVName}", extra=dictLogger)
 
     try:
         trip_server = str_to_trip_server(args.web)
     except KeyError:
         raise KeyError(f"trip server {args.web} not found in config file")
     else:
-        logger.info(f'Trip Server found: {trip_server.SRVName}', extra=dictLogger)
-    assert args.agent == 'ddpg', 'Only DDPG is supported in this module'
+        logger.info(f"Trip Server found: {trip_server.SRVName}", extra=dictLogger)
+    assert args.agent == "ddpg", "Only DDPG is supported in this module"
     agent: DDPG = DDPG(
-        _coll_type='RECORD',
+        _coll_type="RECORD",
         _hyper_param=HyperParamDDPG(),
         _truck=truck,
         _driver=driver,
@@ -197,21 +197,19 @@ if __name__ == '__main__':
         )
     except TypeError as e:
         logger.error(
-            f"{{\'header\': \'Project Exception TypeError\', "
-            f"\'exception\': \'{e}\'}}",
+            f"{{'header': 'Project Exception TypeError', " f"'exception': '{e}'}}",
             extra=dictLogger,
         )
         sys.exit(1)
     except Exception as e:
         logger.error(
-            f"{{\'header\': \'main Exception\', " f"\'exception\': \'{e}\'}}",
+            f"{{'header': 'main Exception', " f"'exception': '{e}'}}",
             extra=dictLogger,
         )
         sys.exit(1)
     finally:
         logger.info(
-            f"{{\'header\': \'main finally\', "
-            f"\'message\': \'AvatarDDPG created\'}}",
+            f"{{'header': 'main finally', " f"'message': 'AvatarDDPG created'}}",
             extra=dictLogger,
         )
 

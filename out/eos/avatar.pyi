@@ -110,13 +110,98 @@ class Avatar(abc.ABC):
     def set_data_path(self) -> None: ...
     def init_vehicle(self) -> None: ...
     def init_threads_data(self) -> None: ...
-    def capture_countdown_handler(self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event): ...
-    def kvaser_get_truck_status(self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event): ...
+    def capture_countdown_handler(
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
+    ): ...
+    def kvaser_get_truck_status(
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
+    ): ...
     def kvaser_flash_vcu(self, evt_remote_flash: threading.Event): ...
-    def remote_get_handler(self, evt_remote_get: threading.Event, evt_remote_flash: threading.Event): ...
-    def remote_hmi_rmq_state_machine(self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event): ...
-    def remote_hmi_no_state_machine(self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event): ...
-    def remote_hmi_tcp_state_machine(self, evt_epi_done: threading.Event, evt_remote_get: threading.Event, evt_remote_flash: threading.Event): ...
+    def remote_get_handler(
+        self, evt_remote_get: threading.Event, evt_remote_flash: threading.Event
+    ): ...
+    def remote_hmi_rmq_state_machine(
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
+    ): ...
+    def remote_hmi_no_state_machine(
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
+    ): ...
+    def remote_hmi_tcp_state_machine(
+        self,
+        evt_epi_done: threading.Event,
+        evt_remote_get: threading.Event,
+        evt_remote_flash: threading.Event,
+    ): ...
     def remote_flash_vcu(self, evt_remote_flash: threading.Event): ...
     def run(self) -> None: ...
-    def __init__(self, *, truck, driver, can_server, trip_server, _agent, cloud, ui, logger, resume, infer_mode, record, path, pool_key, proj_root, data_root, table_root, program_start, program_exit, vel_hist_dq, train_summary_writer, remotecan_client, rmq_consumer, rmq_message_ready, rmq_producer, log_root, logger_control_flow, tflog, vcu_calib_table0, vcu_calib_table1, hmi_lock, state_machine_lock, tableQ_lock, captureQ_lock, remoteClient_lock, flash_env_lock, get_env_lock, done_env_lock, tableQueue, motion_power_queue, episode_done, episode_end, episode_count, step_count, epi_countdown_time, get_truck_status_start, epi_countdown, get_truck_status_motion_power_t, get_truck_status_myHost, get_truck_status_myPort, get_truck_status_qobject_len, vcu_calib_table_row_start, thr_countdown, thr_observe, thr_remote_get, thr_flash) -> None: ...
+    def __init__(
+        self,
+        *,
+        truck,
+        driver,
+        can_server,
+        trip_server,
+        _agent,
+        cloud,
+        ui,
+        logger,
+        resume,
+        infer_mode,
+        record,
+        path,
+        pool_key,
+        proj_root,
+        data_root,
+        table_root,
+        program_start,
+        program_exit,
+        vel_hist_dq,
+        train_summary_writer,
+        remotecan_client,
+        rmq_consumer,
+        rmq_message_ready,
+        rmq_producer,
+        log_root,
+        logger_control_flow,
+        tflog,
+        vcu_calib_table0,
+        vcu_calib_table1,
+        hmi_lock,
+        state_machine_lock,
+        tableQ_lock,
+        captureQ_lock,
+        remoteClient_lock,
+        flash_env_lock,
+        get_env_lock,
+        done_env_lock,
+        tableQueue,
+        motion_power_queue,
+        episode_done,
+        episode_end,
+        episode_count,
+        step_count,
+        epi_countdown_time,
+        get_truck_status_start,
+        epi_countdown,
+        get_truck_status_motion_power_t,
+        get_truck_status_myHost,
+        get_truck_status_myPort,
+        get_truck_status_qobject_len,
+        vcu_calib_table_row_start,
+        thr_countdown,
+        thr_observe,
+        thr_remote_get,
+        thr_flash
+    ) -> None: ...

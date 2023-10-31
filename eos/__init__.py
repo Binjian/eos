@@ -15,6 +15,6 @@ tf.config.experimental.set_memory_growth(gpus[0], True)
 
 
 __all__ = [
-    'generate_vcu_calibration',
-    'proj_root',
+    "generate_vcu_calibration",
+    "proj_root",
 ]

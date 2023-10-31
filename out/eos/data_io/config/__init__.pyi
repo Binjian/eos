@@ -17,15 +17,14 @@ from .str2struct_utils import str_to_driver as str_to_driver
 from .str2struct_utils import str_to_trip_server as str_to_trip_server
 from .str2struct_utils import str_to_truck as str_to_truck
 from .vcu_calib_generator import generate_lookup_table as generate_lookup_table
-from .vcu_calib_generator import \
-    generate_vcu_calibration as generate_vcu_calibration
+from .vcu_calib_generator import generate_vcu_calibration as generate_vcu_calibration
 from .vehicles import PEDAL_SCALES as PEDAL_SCALES
 from .vehicles import RE_VIN as RE_VIN
 from .vehicles import SPEED_SCALES_MULE as SPEED_SCALES_MULE
 from .vehicles import SPEED_SCALES_VB as SPEED_SCALES_VB
-from .vehicles import \
-    TRIANGLE_TEST_CASE_TARGET_VELOCITIES as \
-    TRIANGLE_TEST_CASE_TARGET_VELOCITIES
+from .vehicles import (
+    TRIANGLE_TEST_CASE_TARGET_VELOCITIES as TRIANGLE_TEST_CASE_TARGET_VELOCITIES,
+)
 from .vehicles import CloudMixin as CloudMixin
 from .vehicles import KvaserMixin as KvaserMixin
 from .vehicles import Truck as Truck
