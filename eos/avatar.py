@@ -560,7 +560,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.infer_mode:
-        main_run = avator.infer
+        main_run = avatar.infer
     else:
         main_run = avatar.train
 

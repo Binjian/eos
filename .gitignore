@@ -49,3 +49,7 @@ data
 /eos.chat
 /eos/classes.png
 /eos/packages.png
+/*.mmd
+/eos/*.png
+/eos/html/
+*.mmd

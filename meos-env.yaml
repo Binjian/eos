@@ -63,3 +63,4 @@ dependencies:
     - rocketmq
     - cutelog
     - pyqt5
+    - pdoc3
