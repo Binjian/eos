@@ -22,7 +22,7 @@ from eos.data_io.config import (
     trucks_by_id,
     trucks_by_vin,
 )
-from eos.utils import ragged_nparray_list_interp
+from eos.data_io.utils import ragged_nparray_list_interp
 
 # import ...src.comm.remotecan.remote_can_client.remote_can_client
 

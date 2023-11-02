@@ -10,8 +10,8 @@ from eos.agent.utils.hyperparams import HyperParamRDPG
 
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
-from eos.utils import dictLogger, logger
-from eos.utils.exception import ReadOnlyError
+from eos.data_io.utils import dictLogger, logger
+from eos.data_io.utils.exception import ReadOnlyError
 
 
 class ActorNet:
@@ -187,6 +187,7 @@ class ActorNet:
         sampled_action = (
             action + self.ou_noise()
         )  # noise object is a row vector, without batch and time dimension
+        assert isinstance(sampled_action, tf.Tensor), "sampled_action is not a tensor"
         return sampled_action
 
     @tf.function(

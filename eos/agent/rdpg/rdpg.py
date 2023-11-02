@@ -14,11 +14,11 @@ from typeguard import check_type
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
 from eos.data_io.buffer import DaskBuffer, MongoBuffer  # type: ignore
-from eos.data_io.struct import PoolQuery  # type: ignore
-from eos.data_io.struct import veos_lifetime_end_date, veos_lifetime_start_date
+from eos.data_io.eos_struct import PoolQuery  # type: ignore
+from eos.data_io.eos_struct import veos_lifetime_end_date, veos_lifetime_start_date
 
 # local imports
-from eos.utils import dictLogger, logger
+from eos.data_io.utils import dictLogger, logger
 
 from ..dpg import DPG  # type: ignore
 from .actor import ActorNet  # type: ignore

@@ -32,7 +32,7 @@ from eos.config import (
     trucks_by_vin,
 )
 from eos.data_io.utils import ragged_nparray_list_interp, timestamps_from_can_strings
-from eos.utils.exception import TruckIDError
+from eos.data_io.utils.exception import TruckIDError
 
 # local import
 # import src.comm.remote

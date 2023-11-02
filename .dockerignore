@@ -2,4 +2,4 @@
 data
 
 # ignore build
-dist
+dist!/eos/data_io/stubs/

@@ -53,3 +53,5 @@ data
 /eos/*.png
 /eos/html/
 *.mmd
+/eos/stubs/
+/eos/stubs_3rd_parties/

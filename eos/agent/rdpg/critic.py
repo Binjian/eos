@@ -8,8 +8,8 @@ from tensorflow import keras
 from eos.agent.utils.hyperparams import HyperParamRDPG
 
 # local imports
-from eos.utils import dictLogger, logger
-from eos.utils.exception import ReadOnlyError
+from eos.data_io.utils import dictLogger, logger
+from eos.data_io.utils.exception import ReadOnlyError
 
 
 class CriticNet:

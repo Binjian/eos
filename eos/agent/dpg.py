@@ -17,7 +17,7 @@ from eos.data_io.config import (
     get_db_config,
     trucks_by_id,
 )
-from eos.data_io.struct import (
+from eos.data_io.eos_struct import (
     RE_RECIPEKEY,
     ActionSpecs,
     ObservationMetaCloud,

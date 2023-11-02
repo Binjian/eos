@@ -16,11 +16,11 @@ from typeguard import check_type
 from eos.agent.dpg import DPG
 from eos.agent.utils import HyperParamDDPG, OUActionNoise
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
-from eos.data_io.struct import PoolQuery  # type: ignore
-from eos.data_io.struct import veos_lifetime_end_date, veos_lifetime_start_date
+from eos.data_io.eos_struct import PoolQuery  # type: ignore
+from eos.data_io.eos_struct import veos_lifetime_end_date, veos_lifetime_start_date
 
 # from pymongoarrow.monkey import patch_all
-from eos.utils import dictLogger, logger
+from eos.data_io.utils import dictLogger, logger
 
 # from tensorflow.python.keras import CheckpointManager, Checkpoint
 

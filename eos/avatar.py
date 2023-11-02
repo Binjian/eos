@@ -97,9 +97,6 @@ class Avatar(abc.ABC):
     _resume: bool = True
     _infer_mode: bool = False
     _cloud: bool = False
-    _observe_pipeline: Optional[Pipeline] = None
-    _crunch_pipeline: Optional[Pipeline] = None
-    _flash_pipeline: Optional[Pipeline] = None
     start_event: Optional[Event] = None
     stop_event: Optional[Event] = None
     interrupt_event: Optional[Event] = None
@@ -180,17 +177,6 @@ class Avatar(abc.ABC):
             f"{{'header': 'Tensorflow Imported!'}}", extra=self.dictLogger
         )
 
-        self.init_vehicle()
-        self.logger_control_flow.info(
-            f"{{'header': 'VCU Initialization done!'}}",
-            extra=self.dictLogger,
-        )
-        # DYNAMIC: need to adapt the pointer to change different roi of the pm, change the starting row index
-        self.logger_control_flow.info(
-            f"{{'header': 'Thread data Initialization done!'}}",
-            extra=self.dictLogger,
-        )
-
         if not self.cloud:
             self.vehicle_interface = Kvaser(  # Producer~Consumer
                 truck=self.truck,
@@ -268,30 +254,6 @@ class Avatar(abc.ABC):
     @cloud.setter
     def cloud(self, value: bool) -> None:
         self._cloud = value
-
-    @property
-    def observe_pipeline(self) -> Union[Pipeline, None]:
-        return self._observe_pipeline
-
-    @observe_pipeline.setter
-    def observe_pipeline(self, value: Pipeline) -> None:
-        self._observe_pipeline = value
-
-    @property
-    def crunch_pipeline(self) -> Union[Pipeline, None]:
-        return self._crunch_pipeline
-
-    @crunch_pipeline.setter
-    def crunch_pipeline(self, value: Pipeline) -> None:
-        self._crunch_pipeline = value
-
-    @property
-    def flash_pipeline(self) -> Union[Pipeline, None]:
-        return self._flash_pipeline
-
-    @flash_pipeline.setter
-    def flash_pipeline(self, value: Pipeline) -> None:
-        self._flash_pipeline = value
 
     def set_logger(self):
         self.log_root = self.data_root / "py_logs"
@@ -559,16 +521,11 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    if args.infer_mode:
-        main_run = avatar.infer
-    else:
-        main_run = avatar.train
-
     # initialize dataflow: pipelines, sync events among the threads
-    observe_pipeline = PipelineDQ(
+    observe_pipeline = PipelineDQ[pd.DataFrame](
         buffer_size=3
     )  # pipeline for observations (type dataframe)
-    flash_pipeline = PipelineDQ(
+    flash_pipeline = PipelineDQ[pd.DataFrame](
         buffer_size=3
     )  # pipeline for flashing torque tables (type dataframe)
     start_event = Event()

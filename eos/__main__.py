@@ -14,7 +14,7 @@ from eos.data_io.config import (
     str_to_trip_server,
     str_to_truck,
 )
-from eos.utils import dictLogger, logger
+from eos.data_io.utils import dictLogger, logger
 
 pp = pprint.PrettyPrinter(indent=40)
 
