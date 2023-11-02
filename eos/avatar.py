@@ -50,7 +50,6 @@ from eos import proj_root
 from eos.agent import DDPG, DPG, RDPG
 from eos.agent.utils import HyperParamDDPG, HyperParamRDPG
 from eos.data_io.config import (
-    Truck,
     TruckInField,
     TruckInCloud,
     Driver,
@@ -87,18 +86,14 @@ class Avatar(abc.ABC):
     _can_server: CANMessenger
     _trip_server: Optional[TripMessenger]
     _agent: DPG  # set by derived Avatar like AvatarDDPG
-    vehicle_interface: Union[Kvaser, Cloud]
     logger: logging.Logger
     dictLogger: dict
+    vehicle_interface: Union[Kvaser, Cloud] = None
     _resume: bool = True
     _infer_mode: bool = False
-    start_event: Optional[Event] = None
-    stop_event: Optional[Event] = None
-    interrupt_event: Optional[Event] = None
-    countdown_event: Optional[Event] = None
-    exit_event: Optional[Event] = None
     cruncher: Optional[Cruncher] = None
     data_root: Path = Path(".") / "data"
+    log_root: Optional[Path] = None
     logger_control_flow: Optional[logging.Logger] = None
     tflog: Optional[logging.Logger] = None
 
@@ -138,18 +133,6 @@ class Avatar(abc.ABC):
         self.eps = np.finfo(
             np.float32
         ).eps.item()  # smallest number such that 1.0 + eps != 1.0
-
-        # if self.cloud:
-        #     self.pipeline = CloudPipeline()
-        #     # reset proxy (internal site force no proxy)
-        # else:
-        #     self.pipeline = EcuPipeline()
-
-        # misc variables required for the class and its methods
-        # self.vel_hist_dq: deque = deque(maxlen=20)  # type: ignore
-        # self.program_start = False
-        # self.program_exit = False
-        # self.hmi_lock = threading.Lock()
 
         self.logger_control_flow.info(
             f"{{'header': 'Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}'}}"
@@ -217,7 +200,7 @@ class Avatar(abc.ABC):
         return self._truck
 
     @truck.setter
-    def truck(self, value: Union[TruckInField,TruckInCloud]) -> None:
+    def truck(self, value: Union[TruckInField, TruckInCloud]) -> None:
         self._truck = value
 
     @property
@@ -420,7 +403,7 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
     try:
-        truck: Truck = str_to_truck(args.vehicle)
+        truck: Union[TruckInField,TruckInCloud] = str_to_truck(args.vehicle)
     except KeyError:
         raise KeyError(f"vehicle {args.vehicle} not found in config file")
     else:
