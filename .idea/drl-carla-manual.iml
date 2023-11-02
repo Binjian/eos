@@ -18,7 +18,7 @@
       <excludeFolder url="file://$MODULE_DIR$/data/tf_logs/gradient_tape" />
       <excludeFolder url="file://$MODULE_DIR$/data/udp-pcap" />
     </content>
-    <orderEntry type="jdk" jdkName="/dpt/micromamba/envs/meos" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="/vlt/micromamba/envs/meos" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

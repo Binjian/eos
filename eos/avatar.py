@@ -19,24 +19,19 @@ from __future__ import annotations
 import abc
 import argparse
 import concurrent.futures
-import json
 
 # logging
 import logging
-import math
 
 # system imports
 import os
 import sys
-import time
-import warnings
 
 # third party imports
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from logging.handlers import SocketHandler
 from pathlib import Path, PurePosixPath
-from threading import Event, Thread
+from threading import Event
 from typing import Optional, Union, cast
 
 import matplotlib.pyplot as plt  # type: ignore
@@ -55,9 +50,12 @@ from eos import proj_root
 from eos.agent import DDPG, DPG, RDPG
 from eos.agent.utils import HyperParamDDPG, HyperParamRDPG
 from eos.data_io.config import (
-    Driver,
     Truck,
+    TruckInField,
     TruckInCloud,
+    Driver,
+    CANMessenger,
+    TripMessenger,
     str_to_can_server,
     str_to_driver,
     str_to_trip_server,
@@ -65,15 +63,11 @@ from eos.data_io.config import (
 )
 from eos.data_io.dataflow import (
     Cloud,
-    Consumer,
     Cruncher,
     Kvaser,
-    PipelineDQ,
-    Producer,
-    VehicleInterface,
+    Pipeline,
 )
-from eos.utils import GracefulKiller, dictLogger, logger
-from eos.visualization import plot_3d_figure, plot_to_image
+from eos.data_io.utils import dictLogger, logger
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -83,26 +77,26 @@ from eos.visualization import plot_3d_figure, plot_to_image
 # os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
 
 # system warnings and numpy warnings handling
-warnings.filterwarnings("ignore", message="currentThread", category=DeprecationWarning)
 # np.warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 
 @dataclass(kw_only=True)
 class Avatar(abc.ABC):
-    _truck: Truck
+    _truck: Union[TruckInField, TruckInCloud]
     _driver: Driver
+    _can_server: CANMessenger
+    _trip_server: Optional[TripMessenger]
     _agent: DPG  # set by derived Avatar like AvatarDDPG
+    vehicle_interface: Union[Kvaser, Cloud]
     logger: logging.Logger
     dictLogger: dict
     _resume: bool = True
     _infer_mode: bool = False
-    _cloud: bool = False
     start_event: Optional[Event] = None
     stop_event: Optional[Event] = None
     interrupt_event: Optional[Event] = None
     countdown_event: Optional[Event] = None
     exit_event: Optional[Event] = None
-    vehicle_interface: Optional[VehicleInterface] = None
     cruncher: Optional[Cruncher] = None
     data_root: Path = Path(".") / "data"
     logger_control_flow: Optional[logging.Logger] = None
@@ -177,19 +171,22 @@ class Avatar(abc.ABC):
             f"{{'header': 'Tensorflow Imported!'}}", extra=self.dictLogger
         )
 
-        if not self.cloud:
-            self.vehicle_interface = Kvaser(  # Producer~Consumer
-                truck=self.truck,
+        if self.can_server.Protocol == "udp":
+            self.vehicle_interface: Kvaser = Kvaser(  # Producer~Consumer~Filter
+                truck=cast(TruckInField, self.truck),
                 driver=self.driver,
+                can_server=self.can_server,
                 resume=self.resume,
                 data_dir=self.data_root,
                 logger=self.logger,
                 dictLogger=self.dictLogger,
             )
-        else:
-            self.vehicle_interface = Cloud(  # Producer~Consumer
-                truck=self.truck,
+        else:  # self.can_server.Protocol == 'tcp'
+            self.vehicle_interface: Cloud = Cloud(  # Producer~Consumer
+                truck=cast(TruckInCloud, self.truck),
                 driver=self.driver,
+                can_server=self.can_server,
+                trip_server=self.trip_server,
                 resume=self.resume,
                 data_dir=self.data_root,
                 logger=self.logger,
@@ -208,7 +205,7 @@ class Avatar(abc.ABC):
         )
 
     @property
-    def agent(self) -> Union[DPG, None]:
+    def agent(self) -> Optional[DPG]:
         return self._agent
 
     @agent.setter
@@ -216,20 +213,36 @@ class Avatar(abc.ABC):
         self._agent = value
 
     @property
-    def truck(self) -> Union[Truck, None]:
+    def truck(self) -> Union[TruckInField, TruckInCloud]:
         return self._truck
 
     @truck.setter
-    def truck(self, value: Truck) -> None:
+    def truck(self, value: Union[TruckInField,TruckInCloud]) -> None:
         self._truck = value
 
     @property
-    def driver(self) -> Union[Driver, None]:
+    def driver(self) -> Driver:
         return self._driver
 
     @driver.setter
     def driver(self, value: Driver) -> None:
         self._driver = value
+
+    @property
+    def can_server(self) -> CANMessenger:
+        return self._can_server
+
+    @can_server.setter
+    def can_server(self, value: CANMessenger) -> None:
+        self._can_server = value
+
+    @property
+    def trip_server(self) -> TripMessenger:
+        return self._trip_server
+
+    @trip_server.setter
+    def trip_server(self, value: TripMessenger) -> None:
+        self._trip_server = value
 
     @property
     def resume(self) -> bool:
@@ -246,14 +259,6 @@ class Avatar(abc.ABC):
     @infer_mode.setter
     def infer_mode(self, value: bool) -> None:
         self._infer_mode = value
-
-    @property
-    def cloud(self) -> bool:
-        return self._cloud
-
-    @cloud.setter
-    def cloud(self, value: bool) -> None:
-        self._cloud = value
 
     def set_logger(self):
         self.log_root = self.data_root / "py_logs"
@@ -340,21 +345,12 @@ if __name__ == "__main__":
         default="ddpg",
         help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
     )
-
     parser.add_argument(
         "-c",
-        "--cloud",
-        default=False,
-        help="Use cloud mode, default is False",
-        action="store_true",
-    )
-
-    parser.add_argument(
-        "-u",
-        "--ui",
+        "--control",
         type=str,
         default="UDP",
-        help="User Interface: "
+        help="HMI Control Interface: "
         "'RMQ' for mobile phone (using rocketmq for training/assessment); "
         "'UDP' for local hmi (using loopback tcp for training/assessment); "
         "'DUMMY' for non-interaction for inference only and testing purpose",
@@ -369,22 +365,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-i",
-        "--infer_mode",
-        default=False,
-        help="No model update and training. Only Inference mode",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-t",
-        "--record_table",
+        "-l",
+        "--learning",
         default=True,
-        help="record action table during training",
+        help="True for learning , with model update and training. False for inference only",
         action="store_true",
     )
     parser.add_argument(
         "-p",
-        "--data_path",
+        "--path",
         type=str,
         default=".",
         help="relative path to be saved, for create sub-folder for different drivers",
@@ -404,22 +393,22 @@ if __name__ == "__main__":
         help="driver ID like 'longfei.zheng' or 'jiangbo.wei'",
     )
     parser.add_argument(
-        "-m",
-        "--remotecan",
+        "-i",
+        "--interface",
         type=str,
-        default="10.0.64.78:5000",
-        help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. baiduyun_k8s, newrizon_test",
+        default="can_udp_svc",
+        help="url for remote can server, e.g. 10.10.0.6:30865, or name, e.g. can_cloud, can_intra, can_udp_svc",
     )
     parser.add_argument(
-        "-w",
-        "--web",
+        "-t",
+        "--trip",
         type=str,
-        default="10.0.64.78:9876",
-        help="url for web ui server, e.g. 10.10.0.13:9876, or name, e.g. baiduyun_k8s, newrizon_test",
+        default="local_udp",
+        help="trip messenger, url or name, e.g. rocket_cloud, local_udp",
     )
     parser.add_argument(
         "-o",
-        "--pool_key",
+        "--output",
         type=str,
         default="mongo_local",
         help="pool selection for data storage, "
@@ -450,14 +439,14 @@ if __name__ == "__main__":
 
     # remotecan_srv: str = 'can_intra'
     try:
-        can_server = str_to_can_server(args.remotecan)
+        can_server = str_to_can_server(args.interface)
     except KeyError:
-        raise KeyError(f"can server {args.remotecan} not found in config file")
+        raise KeyError(f"can server {args.interface} not found in config file")
     else:
         logger.info(f"CAN Server found: {can_server.SRVName}", extra=dictLogger)
 
     try:
-        trip_server = str_to_trip_server(args.web)
+        trip_server = str_to_trip_server(args.trip)
     except KeyError:
         raise KeyError(f"trip server {args.web} not found in config file")
     else:
@@ -502,6 +491,8 @@ if __name__ == "__main__":
             _truck=truck,
             _driver=driver,
             _agent=agent,
+            _can_server=can_server,
+            _trip_server=trip_server,
             logger=logger,
             dictLogger=dictLogger,
             _resume=args.resume,
@@ -522,11 +513,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # initialize dataflow: pipelines, sync events among the threads
-    observe_pipeline = PipelineDQ[pd.DataFrame](
-        buffer_size=3
+    observe_pipeline = Pipeline[pd.DataFrame](
+        maxsize=3
     )  # pipeline for observations (type dataframe)
-    flash_pipeline = PipelineDQ[pd.DataFrame](
-        buffer_size=3
+    flash_pipeline = Pipeline[pd.DataFrame](
+        maxsize=3
     )  # pipeline for flashing torque tables (type dataframe)
     start_event = Event()
     stop_event = Event()
