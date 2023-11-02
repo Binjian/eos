@@ -1,9 +1,0 @@
-from typing import Callable, List, Tuple
-
-import numpy as np
-
-def nan_helper_1d(y: np.ndarray) -> Tuple[np.ndarray, Callable]: ...
-def nan_interp_1d(y: np.ndarray) -> np.ndarray: ...
-def ragged_nparray_list_interp(
-    ragged_list_list: List[List], ob_num: int
-) -> np.ndarray: ...
