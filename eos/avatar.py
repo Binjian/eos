@@ -434,7 +434,7 @@ if __name__ == "__main__":
 
     if args.resume:
         data_root = proj_root.joinpath("data/" + truck.vin + "-" + driver.pid).joinpath(
-            args.data_path
+            args.path
         )
     else:  # from scratch
         data_root = proj_root.joinpath(
@@ -449,7 +449,7 @@ if __name__ == "__main__":
             _driver=driver,
             _pool_key=args.output,
             _data_folder=str(data_root),
-            _infer_mode=args.infer_mode,
+            _infer_mode=(not args.learning),
             _resume=args.resume,
         )
     else:  # args.agent == 'rdpg':
@@ -460,7 +460,7 @@ if __name__ == "__main__":
             _driver=driver,
             _pool_key=args.output,
             _data_folder=str(data_root),
-            _infer_mode=args.infer_mode,
+            _infer_mode=(not args.learning),
             _resume=args.resume,
         )
 
@@ -474,7 +474,7 @@ if __name__ == "__main__":
             logger=logger,
             dictLogger=dictLogger,
             _resume=args.resume,
-            _infer_mode=args.infer_mode,
+            _infer_mode=(not args.learning),
             data_root=data_root,
         )
     except TypeError as e:
