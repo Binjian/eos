@@ -321,46 +321,7 @@ if __name__ == "__main__":
         "Use RL agent (DDPG or RDPG) with tensorflow backend for EOS with coast-down activated "
         "and expected velocity in 3 seconds"
     )
-    parser.add_argument(
-        "-a",
-        "--agent",
-        type=str,
-        default="ddpg",
-        help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
-    )
-    parser.add_argument(
-        "-c",
-        "--control",
-        type=str,
-        default="UDP",
-        help="HMI Control Interface: "
-        "'RMQ' for mobile phone (using rocketmq for training/assessment); "
-        "'UDP' for local hmi (using loopback tcp for training/assessment); "
-        "'DUMMY' for non-interaction for inference only and testing purpose",
-    )
 
-    parser.add_argument(
-        "-r",
-        "--resume",
-        default=True,
-        help="resume the last training with restored model, checkpoint and pedal map",
-        action="store_true",
-    )
-
-    parser.add_argument(
-        "-l",
-        "--learning",
-        default=True,
-        help="True for learning , with model update and training. False for inference only",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-p",
-        "--path",
-        type=str,
-        default=".",
-        help="relative path to be saved, for create sub-folder for different drivers",
-    )
     parser.add_argument(
         "-v",
         "--vehicle",
@@ -390,6 +351,46 @@ if __name__ == "__main__":
         help="trip messenger, url or name, e.g. rocket_cloud, local_udp",
     )
     parser.add_argument(
+        "-c",
+        "--control",
+        type=str,
+        default="UDP",
+        help="HMI Control Interface: "
+        "'RMQ' for mobile phone (using rocketmq for training/assessment); "
+        "'UDP' for local hmi (using loopback tcp for training/assessment); "
+        "'DUMMY' for non-interaction for inference only and testing purpose",
+    )
+    parser.add_argument(
+        "-a",
+        "--agent",
+        type=str,
+        default="ddpg",
+        help="RL agent choice: 'ddpg' for DDPG; 'rdpg' for Recurrent DPG",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--resume",
+        default=True,
+        help="resume the last training with restored model, checkpoint and pedal map",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "-l",
+        "--learning",
+        default=True,
+        help="True for learning , with model update and training. False for inference only",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-p",
+        "--path",
+        type=str,
+        default=".",
+        help="relative path to be saved, for create sub-folder for different drivers",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -403,7 +404,7 @@ if __name__ == "__main__":
 
     # set up data folder (logging, checkpoint, table)
     try:
-        truck: Union[TruckInField,TruckInCloud] = str_to_truck(args.vehicle)
+        truck: Union[TruckInField, TruckInCloud] = str_to_truck(args.vehicle)
     except KeyError:
         raise KeyError(f"vehicle {args.vehicle} not found in config file")
     else:
@@ -452,7 +453,7 @@ if __name__ == "__main__":
             _hyper_param=HyperParamDDPG(),
             _truck=truck,
             _driver=driver,
-            _pool_key=args.pool_key,
+            _pool_key=args.output,
             _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
             _resume=args.resume,
@@ -463,7 +464,7 @@ if __name__ == "__main__":
             _hyper_param=HyperParamRDPG(),
             _truck=truck,
             _driver=driver,
-            _pool_key=args.pool_key,
+            _pool_key=args.output,
             _data_folder=str(data_root),
             _infer_mode=args.infer_mode,
             _resume=args.resume,
@@ -516,8 +517,8 @@ if __name__ == "__main__":
             start_event,
             stop_event,
             interrupt_event,
-            exit_event,
             flash_event,
+            exit_event,
         )
         executor.submit(
             avatar.cruncher.filter,  # data crunch thread
@@ -526,8 +527,8 @@ if __name__ == "__main__":
             start_event,
             stop_event,
             interrupt_event,
-            exit_event,
             flash_event,
+            exit_event,
         )
 
         # default behavior is observe will start and send out all the events to orchestrate other three threads.
