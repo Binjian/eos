@@ -305,12 +305,6 @@ class Avatar(abc.ABC):
         self.tflog.addHandler(socket_handler)
         self.tflog.addHandler(str_handler)
 
-        self.table_root = self.data_root.joinpath("tables")
-        try:
-            os.makedirs(self.table_root)
-        except FileExistsError:
-            print("Table folder exists, just resume!")
-
 
 if __name__ == "__main__":
     """
@@ -531,4 +525,4 @@ if __name__ == "__main__":
             exit_event,
         )
 
-        # default behavior is observe will start and send out all the events to orchestrate other three threads.
+        # default behavior is "observe" will start and send out all the events to orchestrate other three threads.
