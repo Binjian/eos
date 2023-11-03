@@ -503,7 +503,7 @@ if __name__ == "__main__":
     exit_event = Event()
     flash_event = Event()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='Avatar') as executor:
         executor.submit(
             avatar.vehicle_interface.ignite,  # observe thread (spawns 4 threads for input, HMI and output)
             observe_pipeline,  # input port; output
