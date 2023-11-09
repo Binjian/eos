@@ -529,8 +529,5 @@ if __name__ == "__main__":
             exit_event,
         )
 
-
-
-
-        # default behavior is "observe" will start and send out all the events to orchestrate other three threads.
+    # default behavior is "observe" will start and send out all the events to orchestrate other three threads.
     logger.info("Program exit!")
