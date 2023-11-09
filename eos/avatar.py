@@ -66,7 +66,7 @@ from eos.data_io.dataflow import (
     Kvaser,
     Pipeline,
 )
-from eos.data_io.utils import dictLogger, logger
+from eos.data_io.utils import dictLogger, logger, GracefulKiller
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -503,7 +503,10 @@ if __name__ == "__main__":
     exit_event = Event()
     flash_event = Event()
 
+    # Gracefulkiller instance can be created only in the main thread!
+    killer = GracefulKiller(exit_event)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='Avatar') as executor:
+
         executor.submit(
             avatar.vehicle_interface.ignite,  # observe thread (spawns 4 threads for input, HMI and output)
             observe_pipeline,  # input port; output
@@ -514,6 +517,7 @@ if __name__ == "__main__":
             flash_event,
             exit_event,
         )
+
         executor.submit(
             avatar.cruncher.filter,  # data crunch thread
             observe_pipeline,  # output port; input
@@ -525,4 +529,8 @@ if __name__ == "__main__":
             exit_event,
         )
 
+
+
+
         # default behavior is "observe" will start and send out all the events to orchestrate other three threads.
+    logger.info("Program exit!")
