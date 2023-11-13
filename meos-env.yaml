@@ -12,23 +12,22 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>=3.10
-  - mypy>=1.5.1
+  - python <=3.11
+  - mypy
   - pylint
   - typing_inspect
   - typeguard
   - dacite  # for dataclass from_dict
   - poetry
-  - pydantic==2.1.1
-  - tensorflow=2.11.1
+  - tensorflow
   - tensorflow-estimator
   - tensorflow-probability
   - tensorboard
-  - flatbuffers=23.3.3
+  - flatbuffers
   - python-json-logger
   - plotly
   - Pillow
-  - pandas=2.1.1
+  - pandas
   - ordered-set
   - opt-einsum
   - jupyterlab
@@ -41,8 +40,8 @@ dependencies:
   - matplotlib
   - pytest
   - reportlab
-  - pymongo==4.5.0
-  - pyarrow==13.0.0
+  - pymongo
+  - pyarrow
   - fastavro
   - pymongoarrow
   - dask
@@ -51,11 +50,11 @@ dependencies:
   - jupytext
   - tqdm
   - pandas-stubs
-  - scipy-stubs
   - pip
   - pip:
     - matplotlib-stubs
     - types-tensorflow
+    - pydantic==2.1.1
     - typeguard
     - poetry2conda
     - cuda-python
