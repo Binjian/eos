@@ -12,14 +12,14 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python <=3.11
+  - python <=3.11.6
   - mypy
   - pylint
   - typing_inspect
   - typeguard
   - dacite  # for dataclass from_dict
   - poetry
-  - tensorflow
+  - tensorflow=2.14.0
   - tensorflow-estimator
   - tensorflow-probability
   - tensorboard

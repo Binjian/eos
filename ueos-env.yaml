@@ -10,24 +10,28 @@
 name: ueos
 channels:
   - conda-forge
-  - nvidia
+  - defaults
 dependencies:
-  - python=3.10
+  - python <=3.11.6
   - mypy
   - pylint
+  - typing_inspect
+  - typeguard
+  - dacite  # for dataclass from_dict
   - poetry
-  - tensorflow-gpu=2.10
+  - tensorflow=2.14.0
   - tensorflow-estimator
-  - tensorflow-probability=0.18.0
+  - tensorflow-probability
   - tensorboard
-  - cudatoolkit
-  - cudnn
-  - opt_einsum=3.3.0
+  - flatbuffers
   - python-json-logger
   - plotly
   - Pillow
   - pandas
+  - ordered-set
+  - opt-einsum
   - jupyterlab
+  - notebook
   - keras
   - numpy
   - scipy
@@ -37,13 +41,23 @@ dependencies:
   - pytest
   - reportlab
   - pymongo
-  - pyarrow
+  - fastavro
   - pymongoarrow
+  - fastavro
   - gitpython
+  - jupytext
   - tqdm
-  - cuda-python
+  - pandas-stubs
+  - pip
   - pip:
-    - rocketmq
-    - pyqt5
-    - cutelog
+    - matplotlib-stubs
+    - pyarrow
+    - dask
+    - types-tensorflow
+    - pydantic==2.1.1
+    - typeguard
     - poetry2conda
+    - rocketmq
+    - cutelog
+    - pyqt5
+    - pdoc3
