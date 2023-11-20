@@ -154,7 +154,7 @@ class Avatar(abc.ABC):
             f"{{'header': 'Tensorflow Imported!'}}", extra=self.dictLogger
         )
 
-        if self.can_server.Protocol == "udp":
+        if self.can_server.protocol == "udp":
             self.vehicle_interface: Kvaser = Kvaser(  # Producer~Consumer~Filter
                 truck=cast(TruckInField, self.truck),
                 driver=self.driver,
@@ -164,7 +164,7 @@ class Avatar(abc.ABC):
                 logger=self.logger,
                 dictLogger=self.dictLogger,
             )
-        else:  # self.can_server.Protocol == 'tcp'
+        else:  # self.can_server.protocol == 'tcp'
             self.vehicle_interface: Cloud = Cloud(  # Producer~Consumer
                 truck=cast(TruckInCloud, self.truck),
                 driver=self.driver,
@@ -421,14 +421,14 @@ if __name__ == "__main__":
     except KeyError:
         raise KeyError(f"can server {args.interface} not found in config file")
     else:
-        logger.info(f"CAN Server found: {can_server.SRVName}", extra=dictLogger)
+        logger.info(f"CAN Server found: {can_server.server_name}", extra=dictLogger)
 
     try:
         trip_server = str_to_trip_server(args.trip)
     except KeyError:
         raise KeyError(f"trip server {args.web} not found in config file")
     else:
-        logger.info(f"Trip Server found: {trip_server.SRVName}", extra=dictLogger)
+        logger.info(f"Trip Server found: {trip_server.server_name}", extra=dictLogger)
 
     assert args.agent in ["ddpg", "rdpg"], "agent must be either ddpg or rdpg"
 
@@ -505,8 +505,9 @@ if __name__ == "__main__":
 
     # Gracefulkiller instance can be created only in the main thread!
     killer = GracefulKiller(exit_event)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2,thread_name_prefix='Avatar') as executor:
-
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=2, thread_name_prefix='Avatar'
+    ) as executor:
         executor.submit(
             avatar.vehicle_interface.ignite,  # observe thread (spawns 4 threads for input, HMI and output)
             observe_pipeline,  # input port; output

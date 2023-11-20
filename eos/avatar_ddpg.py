@@ -162,14 +162,14 @@ if __name__ == "__main__":
     except KeyError:
         raise KeyError(f"can server {args.remotecan} not found in config file")
     else:
-        logger.info(f"CAN Server found: {can_server.SRVName}", extra=dictLogger)
+        logger.info(f"CAN Server found: {can_server.server_name}", extra=dictLogger)
 
     try:
         trip_server = str_to_trip_server(args.web)
     except KeyError:
         raise KeyError(f"trip server {args.web} not found in config file")
     else:
-        logger.info(f"Trip Server found: {trip_server.SRVName}", extra=dictLogger)
+        logger.info(f"Trip Server found: {trip_server.server_name}", extra=dictLogger)
     assert args.agent == "ddpg", "Only DDPG is supported in this module"
     agent: DDPG = DDPG(
         _coll_type="RECORD",
