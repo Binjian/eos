@@ -1,4 +1,3 @@
-cuda-python
 cutelog
 debugpy
 entrypoints
@@ -44,10 +43,9 @@ scikit-learn
 scipy
 seaborn
 tensorboard
-tensorflow==2.13
+tensorflow==2.15.0
 tensorflow-estimator
 tensorflow-probability
-nvidia-cudnn-cu11
 tqdm
 traitlets
 typing_extensions
@@ -58,4 +56,3 @@ dask
 pydantic
 ordered-set
 dacite
-onnx
