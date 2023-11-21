@@ -327,7 +327,7 @@ if __name__ == "__main__":
     except KeyError:
         raise KeyError(f"driver {args.driver} not found in config file")
     else:
-        print(f"Driver found. pid:{driver.pid}, vin: {driver.name}.")
+        print(f"Driver found. pid:{driver.pid}, name: {driver.name}.")
 
     # remotecan_srv: str = 'can_intra'
     try:
@@ -429,6 +429,8 @@ if __name__ == "__main__":
     exit_event = Event()
     flash_event = Event()
 
+    logger.info(f"{{'header': 'main Thread Pool starts!'}}", extra=dict_logger)
+
     # Gracefulkiller instance can be created only in the main thread!
     killer = GracefulKiller(exit_event)
     with concurrent.futures.ThreadPoolExecutor(
@@ -456,5 +458,6 @@ if __name__ == "__main__":
             exit_event,
         )
 
+    logger.info(f"{{'header': 'Start main Thread Pool dies!'}}", extra=dict_logger)
     # default behavior is "observe" will start and send out all the events to orchestrate other three threads.
     logger.info("Program exit!")
