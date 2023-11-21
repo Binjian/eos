@@ -66,7 +66,7 @@ from eos.data_io.dataflow import (
     Kvaser,
     Pipeline,
 )
-from eos.data_io.utils import dictLogger, logger, GracefulKiller
+from eos.data_io.utils import dictLogger, logger, set_root_logger, GracefulKiller
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -94,8 +94,6 @@ class Avatar(abc.ABC):
     cruncher: Optional[Cruncher] = None
     data_root: Path = Path(".") / "data"
     log_root: Optional[Path] = None
-    logger_control_flow: Optional[logging.Logger] = None
-    tflog: Optional[logging.Logger] = None
 
     def __post_init__(
         self,
@@ -103,56 +101,36 @@ class Avatar(abc.ABC):
         self.repo = Repo(proj_root)
         # assert self.repo.is_dirty() == False, "Repo is dirty, please commit first"
         short_sha = self.repo.git.rev_parse(self.repo.head.commit.hexsha, short=7)
-        print(
+        self.logger.info(
             f"Project root: {proj_root}, "  # type: ignore
             f"git head: {short_sha}, "
             f"author: {self.repo.head.commit.author.name}, "
-            f"git message: {self.repo.head.commit.message}"
-        )
-        self.dictLogger = dictLogger
-        # self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
-
-        self.set_logger()  # define self.logger and self.logger_control_flow
-        self.logger_control_flow.info(
-            f"{{'header': 'Start Logging'}}", extra=self.dictLogger
-        )
-        self.logger_control_flow.info(
-            f"{{'project_root': '{proj_root}', "  # type: ignore
-            f"'git_head': {short_sha}, "
-            f"'author': '{self.repo.head.commit.author.name}', "
-            f"'git_message': '{self.repo.head.commit.message}'}}",
+            f"git message: {self.repo.head.commit.message}",
             extra=self.dictLogger,
         )
-        self.logger_control_flow.info(
-            f"{{'vehicle': '{self.truck.vid}'}}", extra=self.dictLogger
-        )
-        self.logger_control_flow.info(
-            f"{{'driver': '{self.driver.pid}'}}", extra=self.dictLogger
-        )
+
+        self.logger.info(f"{{'vehicle': '{self.truck.vid}'}}", extra=self.dictLogger)
+        self.logger.info(f"{{'driver': '{self.driver.pid}'}}", extra=self.dictLogger)
 
         self.eps = np.finfo(
             np.float32
         ).eps.item()  # smallest number such that 1.0 + eps != 1.0
 
-        self.logger_control_flow.info(
+        self.logger.info(
             f"{{'header': 'Num GPUs Available: {len(tf.config.list_physical_devices('GPU'))}'}}"
         )
         # gpus = tf.config.list_physical_devices(device_type="GPU")
         # tf.config.experimental.set_memory_growth(gpus[0], True)
-        self.logger_control_flow.info(f"Tensorflow version: {tf.__version__}")
+        self.logger.info(f"Tensorflow version: {tf.__version__}")
         tf_sys_details = tf.sysconfig.get_build_info()
-        self.logger_control_flow.info(
-            f"{{'header': 'Tensorflow build info: {tf_sys_details}'}}"
-        )
+        self.logger.info(f"{{'header': 'Tensorflow build info: {tf_sys_details}'}}")
 
         tf.keras.backend.set_floatx("float32")
-        self.logger_control_flow.info(
+        self.logger.info(
             f"{{'header': 'tensorflow device lib:\n{tf.config.list_physical_devices()}'}}",
             extra=self.dictLogger,
         )
-        self.logger_control_flow.info(
-            f"{{'header': 'Tensorflow Imported!'}}", extra=self.dictLogger
-        )
+        self.logger.info(f"{{'header': 'Tensorflow Imported!'}}", extra=self.dictLogger)
 
         if self.can_server.protocol == "udp":
             self.vehicle_interface: Kvaser = Kvaser(  # Producer~Consumer~Filter
@@ -242,68 +220,6 @@ class Avatar(abc.ABC):
     @infer_mode.setter
     def infer_mode(self, value: bool) -> None:
         self._infer_mode = value
-
-    def set_logger(self):
-        self.log_root = self.data_root / "py_logs"
-        try:
-            os.makedirs(self.log_root)
-        except FileExistsError:
-            print("User folder exists, just resume!")
-
-        log_file_name = self.log_root.joinpath(
-            "eos-rt-"
-            + str(self.agent)
-            + "-"
-            + self.truck.vid
-            + "-"
-            + self.driver.pid
-            + "-"
-            + pd.Timestamp.now(self.truck.tz).isoformat()  # .replace(":", "-")
-            + ".log"
-        )
-        fmt = "%(asctime)s-%(name)s-%(levelname)s-%(module)s-%(threadName)s-%(funcName)s)-%(lineno)d): %(message)s"
-        formatter = logging.Formatter(fmt)
-        logging.basicConfig(
-            format=fmt,
-            datefmt="%Y-%m-%dT%H:%M:%S.%f",
-        )
-        json_file_formatter = jsonlogger.JsonFormatter(
-            "%(created)f %(asctime)s %(name)s "
-            "%(levelname)s %(module)s %(threadName)s %(funcName)s) %(lineno)d) %(message)s"
-        )
-
-        file_handler = logging.FileHandler(log_file_name)
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(json_file_formatter)
-        # str_file_name = PurePosixPath(log_file_name).stem + ".json"
-        str_file_name = self.log_root.joinpath(
-            PurePosixPath(log_file_name).stem + ".json"
-        )
-        str_handler = logging.FileHandler(str_file_name, mode="a")
-        str_handler.setLevel(logging.DEBUG)
-        str_handler.setFormatter(json_file_formatter)
-
-        char_handler = logging.StreamHandler()
-        char_handler.setLevel(logging.DEBUG)
-        char_handler.setFormatter(formatter)
-        #  Cutelog socket
-        socket_handler = SocketHandler("127.0.0.1", 19996)
-        socket_handler.setFormatter(formatter)
-
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(str_handler)
-        self.logger.addHandler(char_handler)
-        self.logger.addHandler(socket_handler)
-
-        self.logger.setLevel(logging.DEBUG)
-
-        self.logger_control_flow = logger.getChild("main")  # main thread control flow
-        self.logger_control_flow.propagate = True
-        self.tflog = tf.get_logger()
-        self.tflog.addHandler(file_handler)
-        self.tflog.addHandler(char_handler)
-        self.tflog.addHandler(socket_handler)
-        self.tflog.addHandler(str_handler)
 
 
 if __name__ == "__main__":
@@ -402,18 +318,14 @@ if __name__ == "__main__":
     except KeyError:
         raise KeyError(f"vehicle {args.vehicle} not found in config file")
     else:
-        logger.info(
-            f"Vehicle found. vid:{truck.vid}, vin: {truck.vin}.", extra=dictLogger
-        )
+        print(f"Vehicle found. vid:{truck.vid}, vin: {truck.vin}.")
 
     try:
         driver: Driver = str_to_driver(args.driver)
     except KeyError:
         raise KeyError(f"driver {args.driver} not found in config file")
     else:
-        logger.info(
-            f"Driver found. pid:{driver.pid}, vin: {driver.name}.", extra=dictLogger
-        )
+        print(f"Driver found. pid:{driver.pid}, vin: {driver.name}.")
 
     # remotecan_srv: str = 'can_intra'
     try:
@@ -421,14 +333,14 @@ if __name__ == "__main__":
     except KeyError:
         raise KeyError(f"can server {args.interface} not found in config file")
     else:
-        logger.info(f"CAN Server found: {can_server.server_name}", extra=dictLogger)
+        print(f"CAN Server found: {can_server.server_name}")
 
     try:
         trip_server = str_to_trip_server(args.trip)
     except KeyError:
         raise KeyError(f"trip server {args.web} not found in config file")
     else:
-        logger.info(f"Trip Server found: {trip_server.server_name}", extra=dictLogger)
+        print(f"Trip Server found: {trip_server.server_name}")
 
     assert args.agent in ["ddpg", "rdpg"], "agent must be either ddpg or rdpg"
 
@@ -440,6 +352,9 @@ if __name__ == "__main__":
         data_root = proj_root.joinpath(
             "data/scratch" + truck.vin + "-" + driver.pid
         ).joinpath(args.data_path)
+
+    logger = set_root_logger(data_root, args.agent, truck.tz, truck.vid, driver.pid)
+    logger.info(f"{{'header': 'Start Logging'}}", extra=self.dictLogger)
 
     if args.agent == "ddpg":
         agent: DDPG = DDPG(
