@@ -66,7 +66,7 @@ from eos.data_io.dataflow import (
     Kvaser,
     Pipeline,
 )
-from eos.data_io.utils import dictLogger, logger, set_root_logger, GracefulKiller
+from eos.data_io.utils import set_root_logger, GracefulKiller
 
 # gpus = tf.config.experimental.list_physical_devices('GPU')
 # tf.config.experimental.set_memory_growth(gpus[0], True)
