@@ -56,7 +56,7 @@ class TestRemoteCanGet(unittest.TestCase):
         self.proj_root = proj_root
         self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
-        self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
+        self.dict_logger = {"user": inspect.currentframe().f_code.co_name}
         self.truck = trucks_by_id[self.truck_name]
         self.set_logger(proj_root)
 
@@ -97,7 +97,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     # def test_proxy_get(self):
     #
-    #     self.logger.info("start test_proxy", extra=self.dictLogger)
+    #     self.logger.info("start test_proxy", extra=self.dict_logger)
     #     self.client = RemoteCanClient(
     #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
     #     )
@@ -106,7 +106,7 @@ class TestRemoteCanGet(unittest.TestCase):
     # @unittest.skipIf(site == "internal", "skip for internal test")
     # def test_proxy_send(self):
     #
-    #     self.logger.info("start test_proxy", extra=self.dictLogger)
+    #     self.logger.info("start test_proxy", extra=self.dict_logger)
     #     self.client = RemoteCanClient(
     #         vin=self.trucks[self.truck_ind].VIN, proxies=self.proxies_lantern
     #     )
@@ -114,20 +114,20 @@ class TestRemoteCanGet(unittest.TestCase):
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     # def test_native_get(self):
-    #     self.logger.info("Start test_native_get", extra=self.dictLogger)
+    #     self.logger.info("Start test_native_get", extra=self.dict_logger)
     #     self.client = RemoteCanClient(
     #         truck_name=self.truck.vid, url=self.truck.RemoteCANHost
     #     )
-    #     self.logger.info("Set client", extra=self.dictLogger)
+    #     self.logger.info("Set client", extra=self.dict_logger)
     #     self.native_get()
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     # def test_native_send(self):
-    #     self.logger.info("Start test_native_send", extra=self.dictLogger)
+    #     self.logger.info("Start test_native_send", extra=self.dict_logger)
     #     self.client = RemoteCanClient(
     #         truck_name=self.truck.vid, url=self.truck.RemoteCANHost
     #     )
-    #     self.logger.info("Set client", extra=self.dictLogger)
+    #     self.logger.info("Set client", extra=self.dict_logger)
     #
     #     self.native_send()
 
@@ -137,7 +137,7 @@ class TestRemoteCanGet(unittest.TestCase):
         )
         self.logger.info(
             f"get_signal(), return state:{signal_success}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         data_type = type(remotecan_data)
@@ -151,7 +151,7 @@ class TestRemoteCanGet(unittest.TestCase):
                 # )
                 # print(f"print whole json string:{json_string}")
 
-                self.logger.info("show remotecan_data", extra=self.dictLogger)
+                self.logger.info("show remotecan_data", extra=self.dict_logger)
                 signal_freq = self.truck.CloudSignalFrequency
                 gear_freq = self.truck.CloudGearFrequency
                 unit_duration = self.truck.CloudUnitDuration
@@ -165,7 +165,7 @@ class TestRemoteCanGet(unittest.TestCase):
 
                 for key, value in remotecan_data.items():
                     if key == "result":
-                        self.logger.info("show result", extra=self.dictLogger)
+                        self.logger.info("show result", extra=self.dict_logger)
 
                         # timestamp processing
                         timestamps = []
@@ -260,14 +260,14 @@ class TestRemoteCanGet(unittest.TestCase):
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}",
-                            extra=self.dictLogger,
+                            extra=self.dict_logger,
                         )
                         print(f"{key}:{value}")
             except Exception as X:
                 print(f"{X}:data corrupt!")
                 self.logger.error(
                     f"show status: exception {X}, data corruption",
-                    extra=self.dictLogger,
+                    extra=self.dict_logger,
                 )
                 return
         else:
@@ -288,26 +288,26 @@ class TestRemoteCanGet(unittest.TestCase):
         ]  # explicit indexing
         self.logger.info(
             f"start sending torque map: from {minvel} kmph to the {maxvel} kmph row.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         returncode, ret_str = self.client.send_torque_map(
             pedalmap=map2d_5rows, swap=False
         )
         self.logger.info(
             f"finish sending torque map from {minvel} kmph to the {maxvel} kmph row.: returncode={returncode}, ret_str={ret_str}.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         self.logger.info(
             f"start sending torque map: {N0} rows from row {k0} .",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         returncode, ret_str = self.client.send_torque_map(
             pedalmap=map2d_5rows, swap=True
         )
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} with buffer switch: returncode={returncode}, ret_str={ret_str}.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         # flashing 6 rows of the calibration table
@@ -316,23 +316,23 @@ class TestRemoteCanGet(unittest.TestCase):
         map2d_5rows = self.vcu_calib_table_default.iloc[k0 : k0 + N0, :]
         self.logger.info(
             f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         returncode, ret_str = self.client.send_torque_map(
             pedalmap=map2d_5rows, swap=False
         )
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}, ret_str={ret_str}.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         # flashing the whole calibration table
         map2d = self.vcu_calib_table_default
-        self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        self.logger.info(f"start sending torque map.", extra=self.dict_logger)
         returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         self.logger.info(
             f"finish sending torque map: returncode={returncode}, ret_str={ret_str}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
 

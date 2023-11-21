@@ -87,7 +87,7 @@ class Avatar(abc.ABC):
     _trip_server: Optional[TripMessenger]
     _agent: DPG  # set by derived Avatar like AvatarDDPG
     logger: logging.Logger
-    dictLogger: dict
+    dict_logger: dict
     vehicle_interface: Union[Kvaser, Cloud] = None
     _resume: bool = True
     _infer_mode: bool = False
@@ -106,11 +106,11 @@ class Avatar(abc.ABC):
             f"git head: {short_sha}, "
             f"author: {self.repo.head.commit.author.name}, "
             f"git message: {self.repo.head.commit.message}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
-        self.logger.info(f"{{'vehicle': '{self.truck.vid}'}}", extra=self.dictLogger)
-        self.logger.info(f"{{'driver': '{self.driver.pid}'}}", extra=self.dictLogger)
+        self.logger.info(f"{{'vehicle': '{self.truck.vid}'}}", extra=self.dict_logger)
+        self.logger.info(f"{{'driver': '{self.driver.pid}'}}", extra=self.dict_logger)
 
         self.eps = np.finfo(
             np.float32
@@ -128,9 +128,11 @@ class Avatar(abc.ABC):
         tf.keras.backend.set_floatx("float32")
         self.logger.info(
             f"{{'header': 'tensorflow device lib:\n{tf.config.list_physical_devices()}'}}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
-        self.logger.info(f"{{'header': 'Tensorflow Imported!'}}", extra=self.dictLogger)
+        self.logger.info(
+            f"{{'header': 'Tensorflow Imported!'}}", extra=self.dict_logger
+        )
 
         if self.can_server.protocol == "udp":
             self.vehicle_interface: Kvaser = Kvaser(  # Producer~Consumer~Filter
@@ -140,7 +142,7 @@ class Avatar(abc.ABC):
                 resume=self.resume,
                 data_dir=self.data_root,
                 logger=self.logger,
-                dictLogger=self.dictLogger,
+                dict_logger=self.dict_logger,
             )
         else:  # self.can_server.protocol == 'tcp'
             self.vehicle_interface: Cloud = Cloud(  # Producer~Consumer
@@ -151,7 +153,7 @@ class Avatar(abc.ABC):
                 resume=self.resume,
                 data_dir=self.data_root,
                 logger=self.logger,
-                dictLogger=self.dictLogger,
+                dict_logger=self.dict_logger,
             )
 
         self.cruncher = Cruncher(  # Consumer
@@ -162,7 +164,7 @@ class Avatar(abc.ABC):
             infer_mode=self.infer_mode,
             data_dir=self.data_root,
             logger=self.logger,
-            dictLogger=self.dictLogger,
+            dict_logger=self.dict_logger,
         )
 
     @property
@@ -353,8 +355,15 @@ if __name__ == "__main__":
             "data/scratch" + truck.vin + "-" + driver.pid
         ).joinpath(args.data_path)
 
-    logger = set_root_logger(data_root, args.agent, truck.tz, truck.vid, driver.pid)
-    logger.info(f"{{'header': 'Start Logging'}}", extra=self.dictLogger)
+    logger, dict_logger = set_root_logger(
+        name="eos",
+        data_root=data_root,
+        agent=args.agent,
+        tz = truck.tz,
+        truck = truck.vid,
+        driver = driver.pid
+    )
+    logger.info(f"{{'header': 'Start Logging'}}", extra=dict_logger)
 
     if args.agent == "ddpg":
         agent: DDPG = DDPG(
@@ -366,6 +375,8 @@ if __name__ == "__main__":
             _data_folder=str(data_root),
             _infer_mode=(not args.learning),
             _resume=args.resume,
+            logger=logger,
+            dict_logger=dict_logger,
         )
     else:  # args.agent == 'rdpg':
         agent: RDPG = RDPG(  # type: ignore
@@ -387,7 +398,7 @@ if __name__ == "__main__":
             _can_server=can_server,
             _trip_server=trip_server,
             logger=logger,
-            dictLogger=dictLogger,
+            dict_logger=dict_logger,
             _resume=args.resume,
             _infer_mode=(not args.learning),
             data_root=data_root,
@@ -395,13 +406,13 @@ if __name__ == "__main__":
     except TypeError as e:
         logger.error(
             f"{{'header': 'Project Exception TypeError', " f"'exception': '{e}'}}",
-            extra=dictLogger,
+            extra=dict_logger,
         )
         sys.exit(1)
     except Exception as e:
         logger.error(
             f"{{'header': 'main Exception', " f"'exception': '{e}'}}",
-            extra=dictLogger,
+            extra=dict_logger,
         )
         sys.exit(1)
 

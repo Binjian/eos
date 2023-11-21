@@ -5,7 +5,7 @@ import re
 from collections.abc import Hashable
 from dataclasses import dataclass
 from typing import ClassVar, Optional, Union
-
+import logging
 import pandas as pd
 
 from eos.data_io.buffer import DaskBuffer, MongoBuffer
@@ -74,6 +74,8 @@ class DPG(Hashable):
         list[pd.Series]
     ] = None  # field(default_factory=list[pd.Series])
     _epi_no: Optional[int] = None
+    logger: Optional[logging.Logger] = None  # logging.Logger("eos.agent.ddpg.ddpg")
+    dict_logger: Optional[dict] = None  # dict_logger
 
     def __post_init__(self):
         """
@@ -138,6 +140,8 @@ class DPG(Hashable):
                 truck=self.truck,
                 meta=self.observation_meta,
                 torque_table_row_names=self.torque_table_row_names,
+                logger=self.logger,
+                dict_logger=self.dict_logger,
             )
         elif self.pool_key is None or recipe_pattern.match(
             self.pool_key
@@ -155,6 +159,8 @@ class DPG(Hashable):
                 truck=self.truck,
                 meta=self.observation_meta,
                 torque_table_row_names=self.torque_table_row_names,
+                logger=self.logger,
+                dict_logger=self.dict_logger,
             )
         else:
             raise ValueError(
@@ -189,7 +195,7 @@ class DPG(Hashable):
         pass
 
     def start_episode(self, ts: pd.Timestamp):
-        # self.logger.info(f'Episode start at {dt}', extra=dictLogger)
+        # self.logger.info(f'Episode start at {dt}', extra=self.dict_logger)
         # somehow mongodb does not like microseconds in rec['plot']
         # ts_milliseconds = int(ts.microsecond / 1000) * 1000
         # self.episode_start_dt = ts.replace(microsecond=ts_milliseconds)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import os
 from contextlib import redirect_stdout
 from dataclasses import dataclass
@@ -20,7 +19,6 @@ from eos.data_io.eos_struct import PoolQuery  # type: ignore
 from eos.data_io.eos_struct import veos_lifetime_end_date, veos_lifetime_start_date
 
 # from pymongoarrow.monkey import patch_all
-from eos.data_io.utils import dictLogger, logger
 
 # from tensorflow.python.keras import CheckpointManager, Checkpoint
 
@@ -160,12 +158,11 @@ class DDPG(DPG):
     ckpt_actor: Optional[tf.train.Checkpoint] = None  # ckpt_actor_default
     actor_saved_model_path: Optional[Path] = None  # Path("./actor")
     critic_saved_model_path: Optional[Path] = None  # Path("./critic")
-    logger: Optional[logging.Logger] = None  # logging.Logger("eos.agent.ddpg.ddpg")
 
     def __post_init__(self):
-        self.logger = logger.getChild("eos").getChild(self.__str__())
+        self.logger = self.logger.getChild("eos").getChild(self.__str__())
         self.logger.propagate = True
-        self.dictLogger = dictLogger
+        self.dict_logger = self.dict_logger
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "RECORD"
@@ -263,7 +260,7 @@ class DDPG(DPG):
 
         self.logger.info(
             f"{{'header': 'GPU Initialization done!'}}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
     # def __del__(self):
@@ -330,23 +327,23 @@ class DDPG(DPG):
             os.makedirs(checkpoint_actor_dir)
             self.logger.info(
                 f"{{'header': 'Actor folder doesn't exist. Created!'}}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         except FileExistsError:
             self.logger.info(
                 f"{{'header': 'Actor folder exists, just resume!'}}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         try:
             os.makedirs(checkpoint_critic_dir)
             self.logger.info(
                 f"{{'header': 'Critic folder doesn't exist. Created!'}}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         except FileExistsError:
             self.logger.info(
                 f"{{'header': 'Critic folder exists, just resume!'}}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
 
         self.ckpt_actor = tf.train.Checkpoint(
@@ -363,11 +360,12 @@ class DDPG(DPG):
             self.logger.info(
                 f"{{'header': 'Actor Restored', "
                 f"'actor ckpt path': '{self.manager_actor.latest_checkpoint}'}}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         else:
             self.logger.info(
-                f"{{'header': 'Actor Initializing from scratch'}}", extra=dictLogger
+                f"{{'header': 'Actor Initializing from scratch'}}",
+                extra=self.dict_logger,
             )
 
         self.ckpt_critic = tf.train.Checkpoint(
@@ -384,11 +382,11 @@ class DDPG(DPG):
             self.logger.info(
                 f"{{'header': 'Critic Restored', "
                 f"'critic ckpt path': '{self.manager_critic.latest_checkpoint}'}}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         else:
             self.logger.info(
-                "{{'header': 'Critic Initializing from scratch", extra=dictLogger
+                "{{'header': 'Critic Initializing from scratch", extra=self.dict_logger
             )
 
         # Making the weights equal initially after checkpoints load
@@ -488,13 +486,13 @@ class DDPG(DPG):
             save_path_actor = self.manager_actor.save()
             self.logger.info(
                 f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_actor}",  # type: ignore
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         if int(self.ckpt_critic.step) % self.hyper_param.CkptInterval == 0:  # type: ignore
             save_path_critic = self.manager_critic.save()
             self.logger.info(
                 f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",  # type: ignore
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
 
     @tf.function
@@ -664,7 +662,7 @@ class DDPG(DPG):
             check_type(state_flat, tf.Tensor), 0
         )  # motion states is 30*3 matrix
         sampled_actions = self.infer_single_sample(states)
-        self.logger.info(f"Inference DDPG done!", extra=dictLogger)
+        self.logger.info(f"Inference DDPG done!", extra=self.dict_logger)
         # return np.squeeze(sampled_actions)  # ? might be unnecessary
         return sampled_actions + self.ou_noise()
 
@@ -677,7 +675,7 @@ class DDPG(DPG):
 
     @tf.function
     def infer_single_sample(self, state_flat: tf.Tensor):
-        # logger.info(f"Tracing", extra=dictLogger)
+        # logger.info(f"Tracing", extra=self.dict_logger)
         print("Tracing infer!")
         sampled_actions = tf.squeeze(self.actor_model(state_flat))
         # Adding noise to action
@@ -695,7 +693,7 @@ class DDPG(DPG):
         _ = self.policy(init_states)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor",
-            extra=dictLogger,
+            extra=self.dict_logger,
         )
         self.ou_noise.reset()
 
@@ -704,7 +702,7 @@ class DDPG(DPG):
             if not self.infer_mode:
                 self.logger.info(
                     f"ddpg warm up training!",
-                    extra=dictLogger,
+                    extra=self.dict_logger,
                 )
 
                 (_, _) = self.train()
@@ -713,17 +711,17 @@ class DDPG(DPG):
                     self.actor_model.variables,
                     self.hyper_param.TauActor,  # 0.005
                 )
-                # self.logger.info(f"Updated target actor", extra=self.dictLogger)
+                # self.logger.info(f"Updated target actor", extra=self.dict_logger)
                 self.update_target(
                     self.target_critic_model.variables,
                     self.critic_model.variables,
                     self.hyper_param.TauCritic,  # 0.005
                 )
 
-                # self.logger.info(f"Updated target critic.", extra=self.dictLogger)
+                # self.logger.info(f"Updated target critic.", extra=self.dict_logger)
                 self.logger.info(
                     f"ddpg warm up training done!",
-                    extra=dictLogger,
+                    extra=self.dict_logger,
                 )
 
     def sample_minibatch(self):
@@ -736,7 +734,7 @@ class DDPG(DPG):
             self.logger.info(
                 f"no data in pool, bootstrap from observation_list, "
                 f"truck: {self.truck.vid}, driver: {self.driver.pid}.",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
             assert (
                 len(self.observations) > 0
@@ -788,7 +786,7 @@ class DDPG(DPG):
             self.logger.info(
                 f"start sample from pool with size: {self.hyper_param.BatchSize}, "
                 f"truck: {self.truck.vid}, driver: {self.driver.pid}.",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
 
             (
@@ -856,7 +854,7 @@ class DDPG(DPG):
             # scalar value, average over the batch
             critic_loss = tf.math.reduce_mean(tf.math.square(y - critic_value))
 
-        # logger.info(f"BP done.", extra=dictLogger)
+        # logger.info(f"BP done.", extra=self.dict_logger)
         if training:
             critic_grad = tape.gradient(
                 critic_loss, self.critic_model.trainable_variables
@@ -865,7 +863,7 @@ class DDPG(DPG):
                 zip(critic_grad, self.critic_model.trainable_variables)
             )
         else:
-            self.logger.info(f"No critic model update!.", extra=dictLogger)
+            self.logger.info(f"No critic model update!.", extra=self.dict_logger)
 
         with tf.GradientTape(watch_accessed_variables=training) as tape:
             actions = self.actor_model(state_batch, training=training)
@@ -886,7 +884,7 @@ class DDPG(DPG):
                 zip(actor_grad, self.actor_model.trainable_variables)
             )
         else:
-            self.logger.info(f"No actor model updates!", extra=dictLogger)
+            self.logger.info(f"No actor model updates!", extra=self.dict_logger)
 
         return critic_loss, actor_loss
 

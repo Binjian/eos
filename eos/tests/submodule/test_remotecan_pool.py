@@ -87,21 +87,21 @@ class TestRemoteCanPool(unittest.TestCase):
         self.proj_root = proj_root
         self.logger = logging.getLogger("eostest")
         self.logger.propagate = False
-        self.dictLogger = {"user": inspect.currentframe().f_code.co_name}
+        self.dict_logger = {"user": inspect.currentframe().f_code.co_name}
 
         self.truck = self.trucks_by_id[self.truck_name]
         self.set_logger(proj_root)
         self.logger.info(
             f"Truck: {self.truck.vid}-{self.truck.vin}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         self.logger.info(
             f"DB server: {self.db_server.server_name}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         self.logger.info(
             f"Can server: {self.can_server.server_name}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         # check if the truck is valid
@@ -148,7 +148,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_episode(self):
-        self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
+        self.logger.info("Start test_pool_deposit", extra=self.dict_logger)
         self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url="http://" + self.can_server.host + ":" + self.can_server.port + "/",
@@ -173,28 +173,28 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info(
             f"Connected to MongoDB {self.db.database_name}, collection {self.db.Epicollection_name}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
-        self.logger.info("Set client", extra=self.dictLogger)
+        self.logger.info("Set client", extra=self.dict_logger)
         self.get_an_episode()
-        self.logger.info("An Episode is created.", extra=self.dictLogger)
-        self.logger.info("Start deposit an episode", extra=self.dictLogger)
+        self.logger.info("An Episode is created.", extra=self.dict_logger)
+        self.logger.info("Start deposit an episode", extra=self.dict_logger)
 
         result = self.pool.deposit_item(self.episode)
-        self.logger.info("Episode inserted.", extra=self.dictLogger)
+        self.logger.info("Episode inserted.", extra=self.dict_logger)
         self.assertEqual(result.acknowledged, True)
         pool_count = self.pool.count_items(
             truck_id=self.truck.vid, driver_id="zheng-longfei"
         )
-        self.logger.info(f"Pool has {pool_count} records", extra=self.dictLogger)
+        self.logger.info(f"Pool has {pool_count} records", extra=self.dict_logger)
         epi_inserted = self.pool.find_item(result.inserted_id)
 
-        self.logger.info("episode found.", extra=self.dictLogger)
+        self.logger.info("episode found.", extra=self.dict_logger)
         self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
         self.assertEqual(epi_inserted["plot"], self.episode["plot"])
         self.assertEqual(epi_inserted["history"], self.episode["history"])
 
-        self.logger.info("End test deposit records", extra=self.dictLogger)
+        self.logger.info("End test deposit records", extra=self.dict_logger)
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_episode(self):
@@ -224,7 +224,7 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info(
             f"Connected to MongoDB {self.db_server.database_name}, collection {self.db_server.Epicollection_name}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         dt_start = datetime.fromisoformat(
@@ -233,31 +233,31 @@ class TestRemoteCanPool(unittest.TestCase):
         dt_end = datetime.fromisoformat(
             "2022-10-31T11:37:00.000"
         )  # start from 2022-01-01T08:00:00.000
-        self.logger.info("start count_times.", extra=self.dictLogger)
+        self.logger.info("start count_times.", extra=self.dict_logger)
         rec_cnt = self.pool.count_items(
             vehicle_id=self.truck.vid,
             driver_id="longfei",
             dt_start=dt_start,
             dt_end=dt_end,
         )
-        self.logger.info(f"collection has {rec_cnt} episodes", extra=self.dictLogger)
+        self.logger.info(f"collection has {rec_cnt} episodes", extra=self.dict_logger)
         # if rec_cnt < 8:
-        #     self.logger.info("Start creating record pool", extra=self.dictLogger)
+        #     self.logger.info("Start creating record pool", extra=self.dict_logger)
         #     self.add_to_episode_pool(pool_size=8)
 
-        self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
+        self.logger.info("start test_pool_sample of size 4.", extra=self.dict_logger)
         # batch_4 = self.pool.sample_batch_items(batch_size=4)
         batch_4 = self.pool.sample_batch_items(
             batch_size=4, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
+        self.logger.info("done test_pool_sample of size 4.", extra=self.dict_logger)
         self.assertEqual(len(batch_4), 4)
         # batch_24 = self.pool.sample_batch_items(batch_size=24)
-        self.logger.info("start test_pool_sample of size 30.", extra=self.dictLogger)
+        self.logger.info("start test_pool_sample of size 30.", extra=self.dict_logger)
         batch_30 = self.pool.sample_batch_items(
             batch_size=30, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info("done test_pool_sample of size 30.", extra=self.dictLogger)
+        self.logger.info("done test_pool_sample of size 30.", extra=self.dict_logger)
         self.assertEqual(len(batch_30), 30)
         # get dimension of the history
         state_length = (
@@ -268,7 +268,7 @@ class TestRemoteCanPool(unittest.TestCase):
         action_length = action_column_number * action_row_number
         self.logger.info(
             f"state length: {state_length}, action length: {action_length}.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         # test codecs
         # reward series
@@ -282,7 +282,7 @@ class TestRemoteCanPool(unittest.TestCase):
             dtype="float32",
             value=-10000,
         )
-        self.logger.info("done decoding reward.", extra=self.dictLogger)
+        self.logger.info("done decoding reward.", extra=self.dict_logger)
 
         # states series
         o_n_l0 = [
@@ -312,9 +312,11 @@ class TestRemoteCanPool(unittest.TestCase):
                 (1, 2, 0)
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
         except:
-            self.logger.error("Ragged observation state o_n_l1!", extra=self.dictLogger)
+            self.logger.error(
+                "Ragged observation state o_n_l1!", extra=self.dict_logger
+            )
         # logger.info(f"o_n_t.shape: {self.o_n_t.shape}")
-        self.logger.info("done decoding states.", extra=self.dictLogger)
+        self.logger.info("done decoding states.", extra=self.dict_logger)
 
         # starting row series, not used for now
         a_n_start_t = [
@@ -327,7 +329,7 @@ class TestRemoteCanPool(unittest.TestCase):
             dtype="float32",
             value=-10000,
         )
-        self.logger.info("done decoding starting row.", extra=self.dictLogger)
+        self.logger.info("done decoding starting row.", extra=self.dict_logger)
 
         a_n_l0 = [
             [history["actions"] for history in episode["history"]]
@@ -356,8 +358,8 @@ class TestRemoteCanPool(unittest.TestCase):
                 (1, 2, 0)
             )  # return numpy array list of size (batch_size,max(len(o_n_l1i)), n_obs)
         except:
-            self.logger.error("Ragged action state a_n_l1!", extra=self.dictLogger)
-        self.logger.info("done decoding actions.", extra=self.dictLogger)
+            self.logger.error("Ragged action state a_n_l1!", extra=self.dict_logger)
+        self.logger.info("done decoding actions.", extra=self.dict_logger)
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_sample_record(self):
@@ -382,16 +384,16 @@ class TestRemoteCanPool(unittest.TestCase):
             coll_name=self.db_server.Reccollection_name,
             debug=True,
         )
-        self.logger.info("Set client and pool", extra=self.dictLogger)
+        self.logger.info("Set client and pool", extra=self.dict_logger)
 
         rec_cnt = self.pool.count_items(
             vehicle_id=self.truck.vid, driver_id="zheng-longfei"
         )
         # if rec_cnt < 4:
-        #     self.logger.info("Start creating record pool", extra=self.dictLogger)
+        #     self.logger.info("Start creating record pool", extra=self.dict_logger)
         #     self.add_to_record_pool(pool_size=16)
 
-        self.logger.info("start test_pool_sample of size 4.", extra=self.dictLogger)
+        self.logger.info("start test_pool_sample of size 4.", extra=self.dict_logger)
 
         dt_start = datetime.fromisoformat(
             "2022-10-25T11:30:00.000"
@@ -402,17 +404,17 @@ class TestRemoteCanPool(unittest.TestCase):
         batch_4 = self.pool.sample_batch_items(
             batch_size=4, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info("done test_pool_sample of size 4.", extra=self.dictLogger)
+        self.logger.info("done test_pool_sample of size 4.", extra=self.dict_logger)
         self.assertEqual(len(batch_4), 4)
         batch_24 = self.pool.sample_batch_items(
             batch_size=24, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info("done test_pool_sample of size 24.", extra=self.dictLogger)
+        self.logger.info("done test_pool_sample of size 24.", extra=self.dict_logger)
         self.assertEqual(len(batch_24), 24)
         batch_64 = self.pool.sample_batch_items(
             batch_size=64, vehicle_id="VB7", dt_start=dt_start, dt_end=dt_end
         )
-        self.logger.info("done test_pool_sample of size 64.", extra=self.dictLogger)
+        self.logger.info("done test_pool_sample of size 64.", extra=self.dict_logger)
         self.assertEqual(len(batch_64), 64)
 
         # test decoding
@@ -423,7 +425,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
     @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_deposit_record(self):
-        self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
+        self.logger.info("Start test_pool_deposit", extra=self.dict_logger)
         self.client = RemoteCanClient(
             truck_name=self.truck.vid,
             url="http://" + self.can_server.host + ":" + self.can_server.port + "/",
@@ -443,26 +445,26 @@ class TestRemoteCanPool(unittest.TestCase):
             coll_name=self.db_server.Reccollection_name,
             debug=True,
         )
-        self.logger.info("Set client and pool", extra=self.dictLogger)
+        self.logger.info("Set client and pool", extra=self.dict_logger)
         self.get_records()
-        self.logger.info("Records created.", extra=self.dictLogger)
-        self.logger.info("Start deposit records", extra=self.dictLogger)
+        self.logger.info("Records created.", extra=self.dict_logger)
+        self.logger.info("Start deposit records", extra=self.dict_logger)
         for rec in self.record:
             result = self.pool.deposit_item(rec)
-            self.logger.info("Record inserted.", extra=self.dictLogger)
+            self.logger.info("Record inserted.", extra=self.dict_logger)
             self.assertEqual(result.acknowledged, True)
             rec_cnt = self.pool.count_items(
                 vehicle_id=self.truck.vid, driver_id="zheng-longfei"
             )
-            self.logger.info(f"Pool has {rec_cnt} records", extra=self.dictLogger)
+            self.logger.info(f"Pool has {rec_cnt} records", extra=self.dict_logger)
             rec_inserted = self.pool.find_item(result.inserted_id)
 
-            self.logger.info("record found.", extra=self.dictLogger)
+            self.logger.info("record found.", extra=self.dict_logger)
             self.assertEqual(rec_inserted["timestamp"], rec["timestamp"])
             self.assertEqual(rec_inserted["plot"], rec["plot"])
             self.assertEqual(rec_inserted["observation"], rec["observation"])
 
-        self.logger.info("End test deposit redords", extra=self.dictLogger)
+        self.logger.info("End test deposit redords", extra=self.dict_logger)
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
     def test_native_pool_consecutive_observations(self):
@@ -474,12 +476,12 @@ class TestRemoteCanPool(unittest.TestCase):
         # hostip = self.can_server.Url
         # response = os.system("ping -c 1 " + hostip)
         # if response == 0:
-        #     self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
+        #     self.logger.info(f"{hostip} is up!", extra=self.dict_logger)
         # else:
-        #     self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
+        #     self.logger.info(f"{hostip} is down!", extra=self.dict_logger)
         # # response_telnet = os.system(f"curl -v telnet://{hostname}")
         # # self.logger.info(
-        # #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        # #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dict_logger
         # # )
 
         # response = os.system("ping -c 1 " + self.can_server.Url)
@@ -491,11 +493,11 @@ class TestRemoteCanPool(unittest.TestCase):
             self.logger.info(
                 f"{self.can_server.host} is down, responds: {response_ping}"
                 f"return code: {e.returncode}, output: {e.output}!",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
         self.logger.info(
             f"{self.can_server.host} is up, responds: {response_ping}!",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         try:
@@ -505,35 +507,35 @@ class TestRemoteCanPool(unittest.TestCase):
             )
             self.logger.info(
                 f"Telnet {self.can_server.host} responds: {response_telnet}!",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
         except subprocess.CalledProcessError as e:
             self.logger.info(
                 f"{self.can_server.host} return code: {e.returncode}, output: {e.output}!",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
         except subprocess.TimeoutExpired as e:
             self.logger.info(
                 f"{self.can_server.host} timeout. cmd: {e.cmd}, output: {e.output}, timeout: {e.timeout}!",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
 
             self.logger.info(
                 f"{self.can_server.host} is up, responds: {response_telnet}!",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
 
-        self.logger.info("Start observation test", extra=self.dictLogger)
+        self.logger.info("Start observation test", extra=self.dict_logger)
         for rec_cnt in range(3):
             self.native_get()
             self.logger.info(
                 f"Get and deposit Observation No. {rec_cnt}",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
             time.sleep(2)
 
         self.logger.info(
-            "Done with get consecutive observation test", extra=self.dictLogger
+            "Done with get consecutive observation test", extra=self.dict_logger
         )
 
     @unittest.skipIf(site == "internal", "skip for internal test")
@@ -556,31 +558,31 @@ class TestRemoteCanPool(unittest.TestCase):
             coll_name=self.db_server.Reccollection_name,
             debug=True,
         )
-        self.logger.info("Set client and pool", extra=self.dictLogger)
+        self.logger.info("Set client and pool", extra=self.dict_logger)
 
         rec_count = self.pool.count_items(
             truck_id=self.truck.vid, driver_id="zheng-longfei"
         )
         self.logger.info(
             f"Start observation test wth {rec_count} records",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         for rec_cnt in range(16):
             self.get_ddpg_record()
             self.pool.deposit_item(self.ddpg_record)
             self.logger.info(
                 f"Get and deposit Observation No. {rec_cnt}",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
             # self.native_get()
             # out = np.split(self.observation, [1, 4, 5], axis=1)  # split by empty string
             # (timestamp0, motion_states0, gear_states0, power_states0) = [
             #     np.squeeze(e) for e in out
             # ]
-            # self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dictLogger)
+            # self.logger.info(f"Get Observation No. {rec_cnt}", extra=self.dict_logger)
 
         self.logger.info(
-            "Done with consecutive getting record test", extra=self.dictLogger
+            "Done with consecutive getting record test", extra=self.dict_logger
         )
 
     # @unittest.skipIf(site == "internal", "skip for internal test")
@@ -593,12 +595,12 @@ class TestRemoteCanPool(unittest.TestCase):
         hostip = self.can_server.host
         response = os.system("ping -c 1 " + hostip)
         if response == 0:
-            self.logger.info(f"{hostip} is up!", extra=self.dictLogger)
+            self.logger.info(f"{hostip} is up!", extra=self.dict_logger)
         else:
-            self.logger.info(f"{hostip} is down!", extra=self.dictLogger)
+            self.logger.info(f"{hostip} is down!", extra=self.dict_logger)
         # response_telnet = os.system(f"curl -v telnet://{hostname}")
         # self.logger.info(
-        #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dictLogger
+        #     f"Telnet {hostname} response: {response_telnet}!", extra=self.dict_logger
         # )
 
         # self.rec_sch = self.record_schemas["record_deep"]
@@ -614,30 +616,30 @@ class TestRemoteCanPool(unittest.TestCase):
         #     coll_name=self.db_server.Reccollection_name,
         #     debug=True,
         # )
-        # self.logger.info("Set client and pool", extra=self.dictLogger)
+        # self.logger.info("Set client and pool", extra=self.dict_logger)
 
         # map2d = self.vcu_calib_table_default
-        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        # self.logger.info(f"start sending torque map.", extra=self.dict_logger)
         # returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         # self.logger.info(
         #     f"finish sending torque map: returncode={returncode}.",
-        #     extra=self.dictLogger,
+        #     extra=self.dict_logger,
         # )
 
-        self.logger.info("Start consecutive flashing test", extra=self.dictLogger)
+        self.logger.info("Start consecutive flashing test", extra=self.dict_logger)
         for rec_cnt in range(2):
             self.native_send()
             time.sleep(0.5)
 
-        self.logger.info("Done with flashing test", extra=self.dictLogger)
+        self.logger.info("Done with flashing test", extra=self.dict_logger)
 
         # # flashing the whole calibration table
         # map2d = self.vcu_calib_table_default
-        # self.logger.info(f"start sending torque map.", extra=self.dictLogger)
+        # self.logger.info(f"start sending torque map.", extra=self.dict_logger)
         # returncode, ret_str = self.client.send_torque_map(pedalmap=map2d, swap=False)
         # self.logger.info(
         #     f"finish sending torque map: returncode={returncode}.",
-        #     extra=self.dictLogger,
+        #     extra=self.dict_logger,
         # )
 
     def native_send(self):
@@ -647,7 +649,7 @@ class TestRemoteCanPool(unittest.TestCase):
         map2d_5rows = self.vcu_calib_table_default.iloc[k0 : k0 + N0, :]
         self.logger.info(
             f"start sending torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
         timeout = N0 + 9
         returncode, ret_str = self.client.send_torque_map(
@@ -655,7 +657,7 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info(
             f"finish sending torque map {N0} rows from row {k0} : returncode={returncode}, ret_str={ret_str}.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
     def generate_epi_schemas(self):
@@ -794,27 +796,27 @@ class TestRemoteCanPool(unittest.TestCase):
         )
 
     def add_to_episode_pool(self, pool_size=4):
-        self.logger.info("Start test_pool_deposit", extra=self.dictLogger)
+        self.logger.info("Start test_pool_deposit", extra=self.dict_logger)
 
         for i in range(pool_size):
             self.get_an_episode()
-            self.logger.info("An Episode is created.", extra=self.dictLogger)
-            self.logger.info("Start deposit an episode", extra=self.dictLogger)
+            self.logger.info("An Episode is created.", extra=self.dict_logger)
+            self.logger.info("Start deposit an episode", extra=self.dict_logger)
             result = self.pool.deposit_item(self.episode)
-            self.logger.info("Record inserted.", extra=self.dictLogger)
+            self.logger.info("Record inserted.", extra=self.dict_logger)
             self.assertEqual(result.acknowledged, True)
             pool_size = self.pool.count_items(
                 vehicle_id=self.truck.vid, driver_id="zheng-longfei"
             )
-            self.logger.info(f"Pool has {pool_size} records", extra=self.dictLogger)
+            self.logger.info(f"Pool has {pool_size} records", extra=self.dict_logger)
             epi_inserted = self.pool.find_item(result.inserted_id)
-            self.logger.info("episode found.", extra=self.dictLogger)
+            self.logger.info("episode found.", extra=self.dict_logger)
             self.assertEqual(epi_inserted["timestamp"], self.episode["timestamp"])
             self.assertEqual(epi_inserted["plot"], self.episode["plot"])
             self.assertEqual(epi_inserted["history"], self.episode["history"])
 
     def get_an_episode(self):
-        self.logger.info("Start get_an_episode", extra=self.dictLogger)
+        self.logger.info("Start get_an_episode", extra=self.dict_logger)
         self.h_t = []
         # action
         k0 = 0
@@ -894,7 +896,7 @@ class TestRemoteCanPool(unittest.TestCase):
             "history": self.h_t,
         }
 
-        self.logger.info("End get_an_episode", extra=self.dictLogger)
+        self.logger.info("End get_an_episode", extra=self.dict_logger)
 
     def get_ddpg_record(self):
         self.ddpg_schema = {
@@ -945,7 +947,7 @@ class TestRemoteCanPool(unittest.TestCase):
         swap = (False,)
         self.logger.info(
             f"Create torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         # next state
@@ -1019,7 +1021,7 @@ class TestRemoteCanPool(unittest.TestCase):
         map2d_5rows = self.vcu_calib_table_default[k0 : k0 + N0, :].reshape(-1).tolist()
         self.logger.info(
             f"Create torque map: from {k0}th to the {k0+N0-1}th row.",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         # next state
@@ -1115,7 +1117,7 @@ class TestRemoteCanPool(unittest.TestCase):
             pool_size = self.pool.count_items(
                 truck_id=self.truck.vid, driver_id="zheng-longfei"
             )
-            self.logger.info(f"Pool has {pool_size} records", extra=self.dictLogger)
+            self.logger.info(f"Pool has {pool_size} records", extra=self.dict_logger)
 
     def native_get(self):
         timeout = self.truck.CloudUnitNumber + 9
@@ -1124,7 +1126,7 @@ class TestRemoteCanPool(unittest.TestCase):
         )
         self.logger.info(
             f"get_signal(), return state:{signal_success}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         data_type = type(remotecan_data)
@@ -1138,7 +1140,7 @@ class TestRemoteCanPool(unittest.TestCase):
                 # )
                 # print(f"print whole json string:{json_string}")
 
-                self.logger.info("convert remotecan_data", extra=self.dictLogger)
+                self.logger.info("convert remotecan_data", extra=self.dict_logger)
                 signal_freq = self.truck.CloudSignalFrequency
                 gear_freq = self.truck.CloudGearFrequency
                 unit_duration = self.truck.CloudUnitDuration
@@ -1152,7 +1154,7 @@ class TestRemoteCanPool(unittest.TestCase):
 
                 for key, value in remotecan_data.items():
                     if key == "result":
-                        self.logger.info("show result", extra=self.dictLogger)
+                        self.logger.info("show result", extra=self.dict_logger)
 
                         # timestamp processing
                         timestamp = timestamps_from_can_strings(
@@ -1199,18 +1201,18 @@ class TestRemoteCanPool(unittest.TestCase):
                     else:
                         self.logger.info(
                             f"show status: {key}:{value}",
-                            extra=self.dictLogger,
+                            extra=self.dict_logger,
                         )
             except Exception as X:
                 self.logger.error(
                     f"show status: exception {X}, data corruption",
-                    extra=self.dictLogger,
+                    extra=self.dict_logger,
                 )
                 return
         else:
             self.logger.error(
                 f"Upload corrupt! remotecan_data: {remotecan_data}",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
 
 

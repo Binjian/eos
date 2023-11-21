@@ -18,7 +18,6 @@ from eos.data_io.eos_struct import PoolQuery  # type: ignore
 from eos.data_io.eos_struct import veos_lifetime_end_date, veos_lifetime_start_date
 
 # local imports
-from eos.data_io.utils import dictLogger, logger
 
 from ..dpg import DPG  # type: ignore
 from .actor import ActorNet  # type: ignore
@@ -59,7 +58,6 @@ class RDPG(DPG):
     target_critic_net: Optional[CriticNet] = None  # critic_net_default
     _ckpt_actor_dir: Optional[Path] = None  # Path("")
     _ckpt_critic_dir: Optional[Path] = None  # Path("")
-    logger: Optional[logging.Logger] = None  # logging.Logger("eos.agent.rdpg.rdpg")
 
     def __post_init__(
         self,
@@ -71,9 +69,8 @@ class RDPG(DPG):
             padding_value (float): value to pad the state with, impossible value for observation, action or re
         """
 
-        self.logger = logger.getChild("main").getChild(self.__str__())
+        self.logger = self.logger.getChild("main").getChild(self.__str__())
         self.logger.propagate = True
-        self.dictLogger = dictLogger
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
         self.coll_type = "EPISODE"
@@ -190,7 +187,7 @@ class RDPG(DPG):
         _ = self.actor_predict(init_states)
         self.logger.info(
             f"manual load tf library by calling convert_to_tensor",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         self.actor_net.ou_noise.reset()
@@ -200,13 +197,13 @@ class RDPG(DPG):
             if not self.infer_mode:
                 self.logger.info(
                     f"rdpg warm up training!",
-                    extra=self.dictLogger,
+                    extra=self.dict_logger,
                 )
                 (_, _) = self.train()
 
                 self.logger.info(
                     f"rdpg warm up training done!",
-                    extra=self.dictLogger,
+                    extra=self.dict_logger,
                 )
 
     def init_checkpoint(self):
@@ -228,13 +225,13 @@ class RDPG(DPG):
             self.logger.info(
                 "created checkpoint directory for actor: %s",
                 self._ckpt_actor_dir,
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
         except FileExistsError:
             self.logger.info(
                 "actor checkpoint directory already exists: %s",
                 self._ckpt_actor_dir,
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
 
         # critic create or restore from checkpoint
@@ -254,13 +251,13 @@ class RDPG(DPG):
             self.logger.info(
                 f"created checkpoint directory for critic: %s",
                 self._ckpt_critic_dir,
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
         except FileExistsError:
             self.logger.info(
                 f"critic checkpoint directory already exists: %s",
                 self._ckpt_critic_dir,
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
 
     # TODO for infer only mode, implement a method without noisy exploration.
@@ -318,7 +315,7 @@ class RDPG(DPG):
             )  # first zero last_actions is a 3D tensor
         # self.logger.info(
         #     f"states.shape: {states.shape}; last_actions.shape: {last_actions.shape}",
-        #     extra=self.dictLogger,
+        #     extra=self.dict_logger,
         # )
         # action = self.actor_net.predict(input_array)
         actions = self.actor_predict_step(
@@ -327,7 +324,7 @@ class RDPG(DPG):
         action = actions.numpy()[
             0, :
         ]  # [1, 68] for cloud / [1, 68] for kvaser, squeeze the batch dimension
-        # self.logger.info(f"action.shape: {action.shape}", extra=self.dictLogger)
+        # self.logger.info(f"action.shape: {action.shape}", extra=self.dict_logger)
         assert (
             type(action) == np.ndarray
         ), f"action type {type(action)} is not np.ndarray"
@@ -351,7 +348,7 @@ class RDPG(DPG):
         evaluate the actors given a single observations.
         batch size is 1.
         """
-        # logger.info(f"tracing", extra=self.dictLogger)
+        # logger.info(f"tracing", extra=self.dict_logger)
         print("tracing!")
         action = self.actor_net.predict(
             states, last_actions
@@ -383,7 +380,7 @@ class RDPG(DPG):
         # )  # 18//20+1=1, 50//20+1=3, for short episode if tbptt_k1> episode length, no split
         # self.logger.info(
         #     f"{{'header': 'Batch splitting', " f"'split_num': '{split_num}'}}",
-        #     extra=self.dictLogger,
+        #     extra=self.dict_logger,
         # )
         # if split_num <= 0:
         #     raise ValueError("split_num <= 0, check tbptt_k1 and episode length")
@@ -414,7 +411,7 @@ class RDPG(DPG):
 
         self.logger.info(
             f"{{'header': 'Batch splitting', " f"'split_num': '{ind_split}'}}",
-            extra=self.dictLogger,
+            extra=self.dict_logger,
         )
 
         for i, batch_t in enumerate(  # split on the time axis (axis=1)
@@ -430,12 +427,12 @@ class RDPG(DPG):
             s_n_t_sub, a_n_t_sub, r_n_t_sub, ns_n_t_sub = batch_t
             if s_n_t_sub is np.array([]):
                 self.logger.warning(
-                    f"batch sub sequence s_n_t: {i} is empty!", extra=self.dictLogger
+                    f"batch sub sequence s_n_t: {i} is empty!", extra=self.dict_logger
                 )
                 continue
             else:
                 self.logger.info(
-                    f"batch sub sequences s_n_t: {i} is valid. ", extra=self.dictLogger
+                    f"batch sub sequences s_n_t: {i} is valid. ", extra=self.dict_logger
                 )
 
             actor_loss, critic_loss = self.train_step(
@@ -443,7 +440,7 @@ class RDPG(DPG):
             )
             self.logger.info(
                 f"batch actor loss: {actor_loss.numpy()}; batch critic loss: {critic_loss.numpy()}",
-                extra=self.dictLogger,
+                extra=self.dict_logger,
             )
 
         # return the last actor and critic loss
@@ -532,25 +529,25 @@ class RDPG(DPG):
         self.critic_net.optimizer.apply_gradients(
             zip(critic_grad, self.critic_net.eager_model.trainable_variables)
         )
-        # self.logger.info(f"applied critic gradient", extra=dictLogger)
+        # self.logger.info(f"applied critic gradient", extra=self.dict_logger)
         print(f"applied critic gradient")
 
         # train actor using bptt
         with tf.GradientTape() as tape:
-            # self.logger.info(f"start actor evaluate_actions", extra=dictLogger)
+            # self.logger.info(f"start actor evaluate_actions", extra=self.dict_logger)
             print(f"start actor evaluate_actions")
             a_ht = self.actor_net.evaluate_actions(
                 s_n_t[:, 1:, :], a_n_t[:, :-1, :]
             )  # states, last actions: (s_0, a_-1), (s_1, a_0), ..., (s_n, a_{n-1})
             # self.logger.info(
             #     f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}",
-            #     extra=dictLogger,
+            #     extra=self.dict_logger,
             # )
             print(f"actor evaluate_actions done, a_ht.shape: {a_ht.shape}")
             q_ht = self.critic_net.evaluate_q(s_n_t[:, 1:, :], a_n_t[:, :-1, :], a_ht)
             # self.logger.info(
             #     f"actor evaluate_q done, q_ht.shape: {q_ht.shape}",
-            #     extra=dictLogger,
+            #     extra=self.dict_logger,
             # )
             print(f"actor evaluate_q done, q_ht.shape: {q_ht.shape}")
             # logger.info(f"a_ht.shape: {self.a_ht.shape}")
@@ -568,7 +565,7 @@ class RDPG(DPG):
         self.actor_net.optimizer.apply_gradients(
             zip(actor_grad, self.actor_net.eager_model.trainable_variables)
         )
-        # self.logger.info(f"applied actor gradient", extra=dictLogger)
+        # self.logger.info(f"applied actor gradient", extra=self.dict_logger)
         print(f"applied actor gradient")
 
         return actor_loss, critic_loss

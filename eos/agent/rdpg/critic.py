@@ -1,6 +1,7 @@
 # third-party imports
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Optional
+import logging
 
 import tensorflow as tf
 from tensorflow import keras
@@ -8,7 +9,6 @@ from tensorflow import keras
 from eos.agent.utils.hyperparams import HyperParamRDPG
 
 # local imports
-from eos.data_io.utils import dictLogger, logger
 from eos.data_io.utils.exception import ReadOnlyError
 
 
@@ -31,6 +31,8 @@ class CriticNet:
         lr: float = 0.0,
         ckpt_dir: Path = Path("."),
         ckpt_interval: int = 0,
+        logger: Optional[logging.Logger] = None,
+        dict_logger: Optional[dict] = None,
     ):
         """Initialize the critic network.
 
@@ -51,6 +53,8 @@ class CriticNet:
         self._lr = lr
         self._tau = tau
         self._padding_value = padding_value
+        self.logger = logger
+        self.dict_logger = dict_logger
 
         states = keras.layers.Input(
             batch_shape=(batch_size, None, state_dim), name="states"
@@ -126,12 +130,12 @@ class CriticNet:
         )
         self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
         if self.ckpt_manager.latest_checkpoint:
-            logger.info(
+            self.logger.info(
                 f"Restored actor from {self.ckpt_manager.latest_checkpoint}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         else:
-            logger.info(f"Critic Initializing from scratch", extra=dictLogger)
+            logger.info(f"Critic Initializing from scratch", extra=self.dict_logger)
 
     def clone_weights(self, moving_net):
         """Clone weights from a model to another model."""
@@ -153,9 +157,9 @@ class CriticNet:
         self.ckpt.step.assign_add(1)  # type: ignore
         if int(self.ckpt.step) % self.ckpt_interval == 0:  # type: ignore
             save_path = self.ckpt_manager.save()
-            logger.info(
+            self.logger.info(
                 f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",  # type: ignore
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
 
     @tf.function(

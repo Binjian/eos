@@ -14,7 +14,7 @@ from eos.data_io.config import (
     str_to_trip_server,
     str_to_truck,
 )
-from eos.data_io.utils import dictLogger, logger
+from eos.data_io.utils import set_root_logger
 
 pp = pprint.PrettyPrinter(indent=40)
 
@@ -40,32 +40,38 @@ def main():
         _infer_mode=False,
         _resume=True,
     )
+    logger, dict_logger = set_root_logger(
+        "eos",
+        data_root=data_root,
+        agent="ddpg",
+        tz=truck.tz,
+        truck=truck.vid,
+        driver=driver.pid,
+    )
 
     try:
         app = Avatar(
-            truck=truck,
-            driver=driver,
-            can_server=can_server,
-            trip_server=trip_server,
+            _truck=truck,
+            _driver=driver,
             _agent=agent,
-            cloud=False,
-            ui="TCP",
-            resume=True,
-            infer_mode=False,
-            record=False,
-            data_root=data_root,
+            _can_server=can_server,
+            _trip_server=trip_server,
             logger=logger,
+            dict_logger=dict_logger,
+            _resume=True,
+            _infer_mode=False,
+            data_root=data_root,
         )
     except TypeError as e:
         logger.error(
             f"{{'header': 'Project Exception TypeError', " f"'exception': '{e}'}}",
-            extra=dictLogger,
+            extra=dict_logger,
         )
         sys.exit(1)
     except Exception as e:
         logger.error(
             f"{{'header': 'main Exception', " f"'exception': '{e}'}}",
-            extra=dictLogger,
+            extra=dict_logger,
         )
         sys.exit(1)
     pp.pprint(f"veos __main__ CWD: {os.getcwd()}")

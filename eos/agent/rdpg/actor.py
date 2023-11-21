@@ -1,6 +1,7 @@
 # third-party imports
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Optional
+import logging
 
 import numpy as np
 import tensorflow as tf
@@ -10,7 +11,6 @@ from eos.agent.utils.hyperparams import HyperParamRDPG
 
 # local imports
 from eos.agent.utils.ou_noise import OUActionNoise
-from eos.data_io.utils import dictLogger, logger
 from eos.data_io.utils.exception import ReadOnlyError
 
 
@@ -33,6 +33,8 @@ class ActorNet:
         lr: float = 0.0,
         ckpt_dir: Path = Path("."),
         ckpt_interval: int = 0,
+        logger: Optional[logging.Logger] = None,
+        dict_logger: Optional[dict] = None,
     ):
         """Initialize the actor network.
 
@@ -53,6 +55,8 @@ class ActorNet:
         self._padding_value = padding_value
         self._n_layers = n_layers
         self._tau = tau
+        self.logger = logger
+        self.dict_logger = dict_logger
 
         states = keras.layers.Input(
             batch_shape=(batch_size, None, state_dim), name="states"
@@ -136,12 +140,12 @@ class ActorNet:
         )
         self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
         if self.ckpt_manager.latest_checkpoint:
-            logger.info(
+            self.logger.info(
                 f"Restored actor from {self.ckpt_manager.latest_checkpoint}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
         else:
-            logger.info(f"Actor Initializing from scratch", extra=dictLogger)
+            self.logger.info(f"Actor Initializing from scratch", extra=self.dict_logger)
 
     def clone_weights(self, moving_net):
         """Clone weights from a model to another model. only for target critic"""
@@ -163,9 +167,9 @@ class ActorNet:
         self.ckpt.step.assign_add(1)
         if int(self.ckpt.step) % self.ckpt_interval == 0:
             save_path = self.ckpt_manager.save()
-            logger.info(
+            self.logger.info(
                 f"Saved ckpt for step {int(self.ckpt.step)}: {save_path}",
-                extra=dictLogger,
+                extra=self.dict_logger,
             )
 
     def reset_noise(self):
