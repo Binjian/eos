@@ -12,7 +12,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python <=3.11.6
+  - python <=3.10.13
   - mypy
   - pylint
   - typing_inspect
@@ -61,5 +61,5 @@ dependencies:
     - nvidia-cudnn-cu11
     - rocketmq
     - cutelog
-    - pyqt5
+    - pyqt5==5.15.3
     - pdoc3

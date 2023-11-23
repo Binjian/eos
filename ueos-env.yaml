@@ -42,7 +42,6 @@ dependencies:
   - reportlab
   - pymongo
   - fastavro
-  - pymongoarrow
   - fastavro
   - gitpython
   - jupytext
@@ -59,5 +58,5 @@ dependencies:
     - poetry2conda
     - rocketmq
     - cutelog
-    - pyqt5
+    - pyqt5==5.15.3  # cutelog has to have xcb and abi <12.13
     - pdoc3
