@@ -45,7 +45,7 @@ vcu_calib_table0 = generate_vcu_calibration(
     vcu_calib_table_row,
     velocity_range,
     2,
-    datafolder,
+    Path('../data_io/config/')
 )
 
 

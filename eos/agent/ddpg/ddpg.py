@@ -479,8 +479,6 @@ class DDPG(DPG):
         """
         Save checkpoints
         """
-        self.ckpt_actor.step.assign_add(1)  # type: ignore
-        self.ckpt_critic.step.assign_add(1)  # type: ignore
 
         if int(self.ckpt_actor.step) % self.hyper_param.CkptInterval == 0:  # type: ignore
             save_path_actor = self.manager_actor.save()
@@ -494,6 +492,8 @@ class DDPG(DPG):
                 f"Saved checkpoint for step {int(self.ckpt_actor.step)}: {save_path_critic}",  # type: ignore
                 extra=self.dict_logger,
             )
+        self.ckpt_actor.step.assign_add(1)  # type: ignore
+        self.ckpt_critic.step.assign_add(1)  # type: ignore
 
     @tf.function
     def update_target(self, target_weights, weights, tau):
