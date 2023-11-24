@@ -359,7 +359,7 @@ if __name__ == "__main__":
         name="eos",
         data_root=data_root,
         agent=args.agent,
-        tz = truck.tz,
+        tz = truck.site.tz,
         truck = truck.vid,
         driver = driver.pid
     )

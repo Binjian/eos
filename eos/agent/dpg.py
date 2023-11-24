@@ -90,7 +90,7 @@ class DPG(Hashable):
         # dt = datetime.now()
         # dt_milliseconds = int(dt.microsecond / 1000) * 1000
         # self.episode_start_dt = dt.replace(microsecond=dt_milliseconds)
-        self.episode_start_dt = pd.Timestamp.now(self.truck.tz)
+        self.episode_start_dt = pd.Timestamp.now(self.truck.site.tz)
 
         #  init observation meta info object,
         #  episode start time will be updated for each episode, for now it is the time when the algo is created

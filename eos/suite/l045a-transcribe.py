@@ -27,7 +27,7 @@ logger, dict_logger = set_root_logger(
     "eos",
     data_root=datafolder,
     agent="agent",
-    tz=truck.tz,
+    tz=truck.site.tz,
     truck=truck.vid,
     driver=driver.pid,
 )

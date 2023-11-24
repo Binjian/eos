@@ -27,7 +27,7 @@ def main():
     can_server = str_to_can_server("10.0.64.78:5000")
     trip_server = str_to_trip_server("10.0.64.78:9876")
     data_root = proj_root.joinpath("data/" + truck.vin + "-" + driver.pid).joinpath(
-        pd.Timestamp.now(truck.tz).isoformat()  # has time zone info
+        pd.Timestamp.now(truck.site.tz).isoformat()  # has time zone info
     )
 
     agent = DDPG(
@@ -44,7 +44,7 @@ def main():
         "eos",
         data_root=data_root,
         agent="ddpg",
-        tz=truck.tz,
+        tz=truck.site.tz,
         truck=truck.vid,
         driver=driver.pid,
     )

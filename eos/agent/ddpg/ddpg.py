@@ -311,7 +311,7 @@ class DDPG(DPG):
                 + "-"
                 + self.driver.pid
                 + "_actor"
-                + pd.Timestamp.now(self.truck.tz).isoformat()
+                + pd.Timestamp.now(self.truck.site.tz).isoformat()
             )
             checkpoint_critic_dir = Path(self.data_folder).joinpath(
                 "tf_ckpts-"
@@ -321,7 +321,7 @@ class DDPG(DPG):
                 + "-"
                 + self.driver.pid
                 + "_critic"
-                + pd.Timestamp.now(self.truck.tz).isoformat()
+                + pd.Timestamp.now(self.truck.site.tz).isoformat()
             )
         try:
             os.makedirs(checkpoint_actor_dir)
