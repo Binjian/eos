@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from pymongoarrow.monkey import patch_all  # type: ignore
+# from pymongoarrow.monkey import patch_all  # type: ignore
 from typeguard import check_type
 
 from eos.agent.utils.hyperparams import HyperParamRDPG
@@ -23,7 +23,7 @@ from ..dpg import DPG  # type: ignore
 from .actor import ActorNet  # type: ignore
 from .critic import CriticNet  # type: ignore
 
-patch_all()
+# patch_all()
 
 """
 Title: RDPG for VEOS
