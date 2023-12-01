@@ -69,7 +69,7 @@ class RDPG(DPG):
             padding_value (float): value to pad the state with, impossible value for observation, action or re
         """
 
-        self.logger = self.logger.getChild("main").getChild(self.__str__())
+        self.logger = self.logger.getChild("eos").getChild(self.__str__())
         self.logger.propagate = True
 
         super().__post_init__()  # call DPG post_init for pool init and plot init
@@ -117,6 +117,8 @@ class RDPG(DPG):
             self.hyper_param.ActorLR,  # 0.001
             self._ckpt_actor_dir,
             self.hyper_param.CkptInterval,  # 5
+            self.logger,
+            self.dict_logger,
         )
 
         self.target_actor_net = ActorNet(
@@ -130,6 +132,8 @@ class RDPG(DPG):
             self.hyper_param.ActorLR,  # 0.001
             self._ckpt_actor_dir,
             self.hyper_param.CkptInterval,  # 5
+            self.logger,
+            self.dict_logger,
         )
         # clone necessary for the first time training
         self.target_actor_net.clone_weights(self.actor_net)
@@ -147,6 +151,8 @@ class RDPG(DPG):
             self.hyper_param.CriticLR,  # 0.002
             self._ckpt_critic_dir,
             self.hyper_param.CkptInterval,  # 5
+            self.logger,
+            self.dict_logger,
         )
 
         self.target_critic_net = CriticNet(
@@ -160,6 +166,8 @@ class RDPG(DPG):
             self.hyper_param.CriticLR,  # 0.002
             self._ckpt_critic_dir,
             self.hyper_param.CkptInterval,  # 5
+            self.logger,
+            self.dict_logger,
         )
         # clone necessary for the first time training
         self.target_critic_net.clone_weights(self.critic_net)
@@ -353,7 +361,7 @@ class RDPG(DPG):
         action = self.actor_net.predict(
             states, last_actions
         )  # already un-squeezed inside Actor function
-        assert type(action) == tf.Tensor, f"action type {type(action)} is not tf.Tensor"
+        assert isinstance(action, tf.Tensor), f"action type {type(action)} is not tf.Tensor"
         return action
 
     def train(self) -> Tuple[float, float]:

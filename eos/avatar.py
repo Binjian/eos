@@ -388,6 +388,8 @@ if __name__ == "__main__":
             _data_folder=str(data_root),
             _infer_mode=(not args.learning),
             _resume=args.resume,
+            logger=logger,
+            dict_logger=dict_logger,
         )
 
     try:
