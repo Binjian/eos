@@ -12,7 +12,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python <=3.10.13
+  - python <=3.11.6
   - mypy
   - pylint
   - typing_inspect
@@ -41,25 +41,23 @@ dependencies:
   - pytest
   - reportlab
   - pymongo
-  - pyarrow
   - fastavro
-  - pymongoarrow
-  - dask
   - fastavro
   - gitpython
   - jupytext
   - tqdm
   - pandas-stubs
+  - nbstripout
   - pip
   - pip:
     - matplotlib-stubs
+    - pyarrow
+    - dask
     - types-tensorflow
     - pydantic==2.1.1
     - typeguard
     - poetry2conda
-    - cuda-python
-    - nvidia-cudnn-cu11
     - rocketmq
     - cutelog
-    - pyqt5==5.15.3
+    - pyqt5==5.15.3  # cutelog has to have xcb and abi <12.13
     - pdoc3

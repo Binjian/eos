@@ -47,6 +47,7 @@ dependencies:
   - jupytext
   - tqdm
   - pandas-stubs
+  - nbstripout
   - pip
   - pip:
     - matplotlib-stubs
