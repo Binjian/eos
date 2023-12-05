@@ -27,9 +27,6 @@ pyarrow
 pylint
 pymongo
 pymongoarrow
-PyQt5
-PyQt5-Qt5
-PyQt5-sip
 pyright
 python-dateutil
 python-json-logger
