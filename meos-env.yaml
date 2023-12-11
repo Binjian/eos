@@ -12,7 +12,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python <=3.11.6
+  - python <=3.11.7
   - mypy
   - pylint
   - typing_inspect
@@ -41,7 +41,6 @@ dependencies:
   - pytest
   - reportlab
   - pymongo
-  - fastavro
   - fastavro
   - gitpython
   - jupytext

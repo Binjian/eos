@@ -1,6 +1,6 @@
 [build-system]
 requires = ["poetry-core>=1.0.0", "setuptools>=42", "wheel"]
-build-backend = "poetry.core.masonry.api"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "eos"
@@ -20,12 +20,17 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
     "mypy",
-    "tensorflow-gpu==2.10.0",
+    "pylint",
+    "typing_inspect",
+    "typeguard",
+    "dacite",  # for dataclass from_dict
+    "poetry",
+    "tensorflow==2.14.0",
     "tensorflow-estimator",
     "tensorflow-probability",
     "tensorboard",
@@ -33,33 +38,46 @@ dependencies = [
     "plotly",
     "Pillow",
     "pandas",
+    "ordered-set",
     "opt-einsum",
     "jupyterlab",
+    "notebook",
     "keras",
-    "cuda-python",
     "numpy",
     "scipy",
     "seaborn",
     "scikit-learn",
     "matplotlib",
-    "tqdm",
-    "pymongo",
-    "pyarrow",
-    "gitpython",
     "pytest",
     "reportlab",
-    "cuda-python",
-    "nvidia-cudnn-cu11",
+    "pymongo",
+    "fastavro",
+    "gitpython",
+    "jupytext",
+    "tqdm",
+    "pandas-stubs",
+    "nbstripout",
+    "pip",
+    "matplotlib-stubs",
+    "pyarrow",
+    "dask",
+    "types-tensorflow",
+    "pydantic==2.1.1",
+    "typeguard",
+    "poetry2conda",
     "rocketmq",
     "cutelog",
-    "pymongoarrow",
-    "pyqt5",
+    "pyqt5==5.15.3",
+    "pdoc3"
 ]
+
+[tool.setuptools.packages.find]
+exclude = ["data", "img", "stubs", "stubs.*", "stubs.*.*", "stubs_3rd_parties", "stubs_3rd_parties.*", "stubs_3rd_parties.*.*", "suite", "tests", "tests.*", "tests.*.*", "tests.*.*.*"]
 
 [tool.poetry]
 name = "eos"
-version = "0.0.4"
-description="Electric Optimization System: A python package for applying deep reinforcement learning to electric powertrain energy saving policy"
+version = "1.5.0"
+description="Efficient Optimization System: A python package for applying efficient time sequence processing"
 authors = ["binjian.xin <binjian.xin@newrizon.com>"]
 maintainers = ["binjian.xin <binjian.xin@newrizon.com>"]
 readme = "README.md"
@@ -82,7 +100,7 @@ python = ">=3.10,<3.12"
 
 
 [tool.poetry.dev-dependencies]
-pytest = ">=7.1"
+pytest = ">=7.4"
 
 [tool.poetry.scripts]
 my-script = "eos.eos.realtime_train_infer_ddpg:__main__"
