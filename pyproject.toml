@@ -41,6 +41,7 @@ dependencies = [
     "ordered-set",
     "opt-einsum",
     "jupyterlab",
+    "jupyter-contrib-nbextensions",
     "notebook",
     "keras",
     "numpy",

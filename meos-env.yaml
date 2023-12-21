@@ -60,3 +60,5 @@ dependencies:
     - cutelog
     - pyqt5==5.15.3  # cutelog has to have xcb and abi <12.13
     - pdoc3
+    - jupyter-contrib-nbextensions
+    - black[jupyter]
