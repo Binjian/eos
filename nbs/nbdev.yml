@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "eos"
+  site-url: "https://ai.github.io/eos"
+  description: "efficient optimization system"
+  repo-branch: main
+  repo-url: "https://github.com/ai/eos"
