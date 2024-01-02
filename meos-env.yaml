@@ -19,10 +19,6 @@ dependencies:
   - typeguard
   - dacite  # for dataclass from_dict
   - poetry
-  - tensorflow=2.15.0
-  - tensorflow-estimator
-  - tensorflow-probability
-  - tensorboard
   - flatbuffers
   - python-json-logger
   - plotly
@@ -32,7 +28,6 @@ dependencies:
   - opt-einsum
   - jupyterlab
   - notebook
-  - keras
   - numpy
   - scipy
   - seaborn
@@ -50,6 +45,11 @@ dependencies:
   - pip
   - nbdev
   - pip:
+    - tensorflow==2.15.0
+    - tensorflow-estimator
+    - tensorflow-probability
+    - tensorboard
+    - keras
     - matplotlib-stubs
     - pyarrow
     - dask
