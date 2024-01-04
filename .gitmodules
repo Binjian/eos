@@ -1,3 +1,4 @@
 [submodule "tspace"]
 	path = tspace
 	url = ssh://git@gitlab.newrizon.work:2222/its/ai/tspace.git
+	branch = main

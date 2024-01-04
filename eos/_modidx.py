@@ -15,4 +15,8 @@ d = { 'settings': { 'branch': 'main',
                             'eos.avatar.Avatar.trip_server': ('01.avatar.html#avatar.trip_server', 'eos/avatar.py'),
                             'eos.avatar.Avatar.truck': ('01.avatar.html#avatar.truck', 'eos/avatar.py'),
                             'eos.avatar.main': ('01.avatar.html#main', 'eos/avatar.py')},
-            'eos.core': {'eos.core.foo': ('00.core.html#foo', 'eos/core.py')}}}
+            'eos.core': {'eos.core.foo': ('00.core.html#foo', 'eos/core.py')},
+            'eos.sandbox': { 'eos.sandbox.convert_to_int_list': ('99.sandbox.html#convert_to_int_list', 'eos/sandbox.py'),
+                             'eos.sandbox.fit_dt_model': ('99.sandbox.html#fit_dt_model', 'eos/sandbox.py'),
+                             'eos.sandbox.import_data': ('99.sandbox.html#import_data', 'eos/sandbox.py'),
+                             'eos.sandbox.make_irs_prediction': ('99.sandbox.html#make_irs_prediction', 'eos/sandbox.py')}}}
