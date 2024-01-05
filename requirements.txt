@@ -72,4 +72,4 @@ zipp~=3.17.0
 platformdirs~=3.11.0
 readline~=8.2
 fastcore~=1.5.29
-data-io-nbdev
+tspace
