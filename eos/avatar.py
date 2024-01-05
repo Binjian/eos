@@ -326,11 +326,46 @@ parser.add_argument(
 
 
 
+# %% ../nbs/01.avatar.ipynb 23
+parser.add_argument(
+    "--watchdog_nap_time",
+    type=str,
+    default="600",  # Default is  10 minutes
+    help="nap time for watchdog, "
+         "An internal watch dog will count the failures of input frame capturing,"
+         "if capture OR flash fails for the given times within the given nap time,"
+		 "default is 10 minutes or 600 seconds,"
+         "system will exit",
+)
+
 # %% ../nbs/01.avatar.ipynb 24
+parser.add_argument(
+    "--watchdog_capture_error_upper_bound",
+    type=str,
+    default="30",
+    help="Upper bound times for capture error, "
+         "An internal watch dog will count the failures of input frame capturing,"
+         "if capture fails for the given times,"
+         "system will exit",
+)
+
+# %% ../nbs/01.avatar.ipynb 25
+parser.add_argument(
+    "--watchdog_flash_error_upper_bound",
+    type=str,
+    default="30",
+    help="Upper bound times for flashing error, "
+         "An internal watch dog will count the failures of flashing,"
+         "if flash fails for the given times,"
+         "system will exit",
+)
+
+
+# %% ../nbs/01.avatar.ipynb 27
 #| export
 
 
-# %% ../nbs/01.avatar.ipynb 25
+# %% ../nbs/01.avatar.ipynb 28
 def main(args: argparse.Namespace) -> None:
     
     """
@@ -472,6 +507,9 @@ def main(args: argparse.Namespace) -> None:
             interrupt_event,
             flash_event,
             exit_event,
+            float(args.watchdog_nap_time),
+            int(args.watchdog_capture_error_upper_bound),
+            int(args.watchdog_flash_error_upper_bound),
         )
 
         executor.submit(
@@ -490,10 +528,8 @@ def main(args: argparse.Namespace) -> None:
     logger.info("Program exit!")
 
 
-# main(args)
 
-
-# %% ../nbs/01.avatar.ipynb 26
+# %% ../nbs/01.avatar.ipynb 32
 if __name__ == "__main__" and "__file__" in globals():  # in order to be compatible for both script and notebnook
     """
     ## Setup

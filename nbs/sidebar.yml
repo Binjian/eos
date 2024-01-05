@@ -1,0 +1,7 @@
+website:
+  sidebar:
+    contents:
+      - index.ipynb
+      - 00.core.ipynb
+      - 01.avatar.ipynb
+      - 99.sandbox.ipynb
